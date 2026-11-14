@@ -1,12 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import Bell from "lucide-solid/icons/bell";
+import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronRight from "lucide-solid/icons/chevron-right";
-import Heart from "lucide-solid/icons/heart";
-import MessageCircle from "lucide-solid/icons/message-circle";
+import ChevronUp from "lucide-solid/icons/chevron-up";
+import CreditCard from "lucide-solid/icons/credit-card";
 import Minus from "lucide-solid/icons/minus";
-import Package from "lucide-solid/icons/package";
 import Plus from "lucide-solid/icons/plus";
-import ShoppingBag from "lucide-solid/icons/shopping-bag";
 import Star from "lucide-solid/icons/star";
 import {
   For,
@@ -16,6 +15,7 @@ import {
   createResource,
   createSignal,
 } from "solid-js";
+import { NewsletterSection } from "../../features/storefront/components/NewsletterSection";
 import { ProductCard } from "../../features/storefront/components/ProductCard";
 import { ShippingQuoteWidget } from "../../features/storefront/components/ShippingQuoteWidget";
 import { StoreShell } from "../../features/storefront/components/StoreShell";
@@ -27,7 +27,41 @@ import type {
 import { ApiError, api } from "../../lib/api";
 import { assetUrl, formatCents, whatsappUrl } from "../../lib/format";
 import { seoHead } from "../../lib/seo";
-import { session } from "../../security/session";
+
+const VIEWED_STORAGE_KEY = "mf_viewed_products";
+
+interface ViewedProductSummary {
+  slug: string;
+  name: string;
+  primary_image: string | null;
+}
+
+function readViewedProducts(): ViewedProductSummary[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(VIEWED_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ViewedProductSummary[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function recordViewedProduct(
+  item: ViewedProductSummary,
+): ViewedProductSummary[] {
+  const existing = readViewedProducts().filter((v) => v.slug !== item.slug);
+  const next = [item, ...existing].slice(0, 4);
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(VIEWED_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Ignore storage quota errors in private mode
+    }
+  }
+  return next;
+}
 
 export const Route = createFileRoute("/produto/$slug")({
   head: ({ params }) =>
@@ -82,7 +116,12 @@ function ProductDetailPage() {
   const [revBody, setRevBody] = createSignal("");
   const [revBusy, setRevBusy] = createSignal(false);
   const [revMsg, setRevMsg] = createSignal<string | null>(null);
-  const [wishlisted, setWishlisted] = createSignal(false);
+  const [openAccordion, setOpenAccordion] = createSignal<
+    "descricao" | "pagamento" | "avaliacoes" | null
+  >(null);
+  const [viewedProducts, setViewedProducts] = createSignal<
+    ViewedProductSummary[]
+  >([]);
 
   createEffect(() => {
     const p = product();
@@ -97,6 +136,14 @@ function ProductDetailPage() {
     );
     setQty(1);
     setFeedback(null);
+    setOpenAccordion(null);
+    setViewedProducts(
+      recordViewedProduct({
+        slug: p.slug,
+        name: p.name,
+        primary_image: p.images[0]?.path || p.primary_image || null,
+      }),
+    );
     if (typeof document !== "undefined" && p.seo_title) {
       document.title = p.seo_title;
     }
@@ -163,33 +210,6 @@ function ProductDetailPage() {
       });
     } finally {
       setAdding(false);
-    }
-  }
-
-  async function toggleWishlist() {
-    const p = product();
-    if (!p) return;
-    if (session.status() !== "authenticated") {
-      setFeedback({
-        type: "err",
-        text: "Entre na sua conta para salvar favoritos.",
-      });
-      return;
-    }
-    try {
-      const res = await api<{ data: { saved: boolean } }>(
-        "/account/wishlist/toggle",
-        {
-          method: "POST",
-          body: { product_id: p.id },
-        },
-      );
-      setWishlisted(res.data.saved);
-    } catch {
-      setFeedback({
-        type: "err",
-        text: "Não foi possível atualizar favoritos.",
-      });
     }
   }
 
@@ -268,19 +288,21 @@ function ProductDetailPage() {
 
   return (
     <StoreShell>
-      <div class="mx-auto max-w-7xl px-4 py-6 sm:py-8">
-        <Show when={product.loading}>
-          <div class="grid gap-8 lg:grid-cols-2">
-            <div class="aspect-square animate-pulse rounded-2xl bg-zinc-100" />
-            <div class="space-y-4">
+      <Show when={product.loading}>
+        <div class="mx-auto max-w-7xl px-4 py-8">
+          <div class="grid gap-8 lg:grid-cols-12">
+            <div class="aspect-square animate-pulse rounded-2xl bg-zinc-100 lg:col-span-7" />
+            <div class="space-y-4 lg:col-span-5">
               <div class="h-8 w-2/3 animate-pulse rounded bg-zinc-100" />
               <div class="h-24 animate-pulse rounded bg-zinc-100" />
               <div class="h-12 animate-pulse rounded bg-zinc-100" />
             </div>
           </div>
-        </Show>
+        </div>
+      </Show>
 
-        <Show when={product.error}>
+      <Show when={product.error}>
+        <div class="mx-auto max-w-7xl px-4 py-8">
           <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-10 text-center">
             <h1 class="text-xl font-bold text-zinc-900">
               Produto não encontrado
@@ -304,309 +326,341 @@ function ProductDetailPage() {
               </button>
             </div>
           </div>
-        </Show>
+        </div>
+      </Show>
 
-        <Show when={product()}>
-          {(p) => {
-            const installments = () =>
-              Math.max(1, settings().max_installments || 6);
-            const installmentValue = () =>
-              Math.ceil(currentPriceCents() / installments());
-            const productJsonLd = () =>
-              JSON.stringify({
-                "@context": "https://schema.org",
-                "@type": "Product",
-                name: p().name,
-                sku: activeVariant()?.sku ?? p().sku,
-                description:
-                  p().short_description || p().description || p().name,
-                brand: p().brand
-                  ? { "@type": "Brand", name: p().brand!.name }
-                  : undefined,
-                offers: {
-                  "@type": "Offer",
-                  priceCurrency: "BRL",
-                  price: (currentPriceCents() / 100).toFixed(2),
-                  availability: inStock()
-                    ? "https://schema.org/InStock"
-                    : "https://schema.org/OutOfStock",
+      <Show when={product()}>
+        {(p) => {
+          const installments = () => 3;
+          const installmentValue = () =>
+            Math.ceil(currentPriceCents() / installments());
+          const galleryImages = () => {
+            if (p().images.length > 0) return p().images;
+            if (p().primary_image) {
+              return [
+                {
+                  id: 0,
+                  path: p().primary_image!,
+                  alt_text: p().primary_image_alt || p().name,
+                  is_primary: true,
+                  sort_order: 0,
                 },
-              });
+              ];
+            }
+            return [];
+          };
+          const stepGalleryImage = (delta: number) => {
+            const imgs = galleryImages();
+            if (imgs.length <= 1) return;
+            const currentIdx = Math.max(
+              0,
+              imgs.findIndex((i) => i.path === activeImage()),
+            );
+            const nextIdx = (currentIdx + delta + imgs.length) % imgs.length;
+            setActiveImage(imgs[nextIdx]!.path);
+          };
+          const toggleAccordion = (
+            panel: "descricao" | "pagamento" | "avaliacoes",
+          ) => {
+            setOpenAccordion((cur) => (cur === panel ? null : panel));
+          };
+          const openReviewsAccordion = (e: Event) => {
+            e.preventDefault();
+            setOpenAccordion("avaliacoes");
+            if (typeof document !== "undefined") {
+              document
+                .getElementById("avaliacoes")
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          };
 
-            return (
-              <>
-                <script type="application/ld+json">{productJsonLd()}</script>
+          const productJsonLd = () =>
+            JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Product",
+              name: p().name,
+              sku: activeVariant()?.sku ?? p().sku,
+              description: p().short_description || p().description || p().name,
+              brand: p().brand
+                ? { "@type": "Brand", name: p().brand!.name }
+                : undefined,
+              offers: {
+                "@type": "Offer",
+                priceCurrency: "BRL",
+                price: (currentPriceCents() / 100).toFixed(2),
+                availability: inStock()
+                  ? "https://schema.org/InStock"
+                  : "https://schema.org/OutOfStock",
+              },
+            });
 
+          const variantGroupLabel = () =>
+            p().name.split(" ").slice(0, 2).join(" ");
+
+          return (
+            <>
+              <script type="application/ld+json">{productJsonLd()}</script>
+
+              <div class="mx-auto max-w-7xl px-4 pb-14 pt-4 sm:pt-6">
                 <nav
                   aria-label="Navegação estrutural"
-                  class="mb-5 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500"
+                  class="mb-6 flex flex-wrap items-center justify-center gap-2 text-xs text-[#2E0C49]"
                 >
-                  <Link to="/" class="hover:text-zinc-900">
-                    Início
+                  <Link to="/" class="hover:underline">
+                    Home
                   </Link>
                   <Show when={p().categories[0]}>
                     {(cat) => (
                       <>
-                        <ChevronRight class="h-3.5 w-3.5" aria-hidden="true" />
+                        <span aria-hidden="true" class="text-[#2E0C49]/50">
+                          /
+                        </span>
                         <Link
                           to="/categoria/$slug"
                           params={{ slug: cat().slug }}
-                          class="hover:text-zinc-900"
+                          class="hover:underline"
                         >
                           {cat().name}
                         </Link>
                       </>
                     )}
                   </Show>
-                  <ChevronRight class="h-3.5 w-3.5" aria-hidden="true" />
-                  <span class="font-medium text-zinc-900">{p().name}</span>
+                  <span aria-hidden="true" class="text-[#2E0C49]/50">
+                    /
+                  </span>
+                  <span class="font-medium text-[#2E0C49]">{p().name}</span>
                 </nav>
 
-                <div class="grid gap-8 lg:grid-cols-12">
-                  {/* Gallery */}
-                  <div class="space-y-3 lg:col-span-6">
-                    <div class="relative aspect-square overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
-                      <img
-                        src={assetUrl(activeImage() || p().primary_image)}
-                        alt={p().primary_image_alt || p().name}
-                        class="h-full w-full object-contain p-4"
-                      />
-                      <Show when={discountPct() > 0}>
-                        <span class="absolute left-3 top-3 rounded-md bg-[var(--mf-primary)] px-2.5 py-1 text-xs font-bold text-white">
-                          -{discountPct()}%
-                        </span>
-                      </Show>
-                    </div>
+                <div class="grid gap-8 lg:grid-cols-12 lg:items-start">
+                  {/* Gallery: vertical thumbnails left + large main image right */}
+                  <div class="lg:col-span-7">
+                    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:gap-4">
+                      <Show when={galleryImages().length > 0}>
+                        <div class="flex flex-row items-center gap-2 overflow-x-auto sm:flex-col sm:overflow-visible">
+                          <button
+                            type="button"
+                            onClick={() => stepGalleryImage(-1)}
+                            aria-label="Imagem anterior"
+                            class="hidden size-6 shrink-0 items-center justify-center rounded-full bg-[#FAF0FC] text-[#3D1260] transition hover:bg-[#F3DDF9] sm:inline-flex"
+                          >
+                            <ChevronUp class="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
 
-                    <Show when={p().images.length > 1}>
-                      <div class="flex gap-2 overflow-x-auto pb-1">
-                        <For each={p().images}>
-                          {(img) => (
-                            <button
-                              type="button"
-                              onClick={() => setActiveImage(img.path)}
-                              aria-label={img.alt_text || "Ver imagem"}
-                              class={`h-20 w-20 shrink-0 overflow-hidden rounded-lg border bg-zinc-50 p-1 ${
-                                activeImage() === img.path
-                                  ? "border-[var(--mf-primary)] ring-2 ring-[var(--mf-primary)]"
-                                  : "border-zinc-200 hover:border-zinc-400"
-                              }`}
-                            >
-                              <img
-                                src={assetUrl(img.path)}
-                                alt={img.alt_text || p().name}
-                                class="h-full w-full object-contain"
-                              />
-                            </button>
-                          )}
-                        </For>
+                          <div class="flex flex-row gap-2 sm:flex-col">
+                            <For each={galleryImages().slice(0, 5)}>
+                              {(img) => (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveImage(img.path)}
+                                  aria-label={img.alt_text || p().name}
+                                  class={`h-16 w-16 shrink-0 overflow-hidden rounded-md border bg-white p-1 transition sm:h-20 sm:w-20 ${
+                                    activeImage() === img.path
+                                      ? "border-[#2E0C49] ring-1 ring-[#2E0C49]"
+                                      : "border-zinc-200 hover:border-zinc-400"
+                                  }`}
+                                >
+                                  <img
+                                    src={assetUrl(img.path)}
+                                    alt={img.alt_text || p().name}
+                                    class="h-full w-full object-contain"
+                                  />
+                                </button>
+                              )}
+                            </For>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => stepGalleryImage(1)}
+                            aria-label="Próxima imagem"
+                            class="hidden size-6 shrink-0 items-center justify-center rounded-full bg-[#FAF0FC] text-[#3D1260] transition hover:bg-[#F3DDF9] sm:inline-flex"
+                          >
+                            <ChevronDown
+                              class="h-3.5 w-3.5"
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </div>
+                      </Show>
+
+                      <div class="relative aspect-square flex-1 overflow-hidden rounded-xl bg-white">
+                        <img
+                          src={assetUrl(activeImage() || p().primary_image)}
+                          alt={p().primary_image_alt || p().name}
+                          class="h-full w-full object-contain p-2 sm:p-4"
+                        />
+                        <Show when={discountPct() > 0}>
+                          <span class="sr-only">-{discountPct()}% OFF</span>
+                        </Show>
                       </div>
-                    </Show>
+                    </div>
                   </div>
 
                   {/* Buy Box */}
-                  <div class="space-y-5 lg:col-span-6">
-                    <div class="flex items-start justify-between gap-3">
-                      <div>
-                        <Show when={p().brand}>
-                          {(brand) => (
-                            <Link
-                              to="/marca/$slug"
-                              params={{ slug: brand().slug }}
-                              class="text-xs font-bold uppercase tracking-wider text-[var(--mf-primary)] hover:underline"
-                            >
-                              {brand().name}
-                            </Link>
-                          )}
-                        </Show>
-                        <h1 class="mt-1 text-2xl font-bold text-zinc-900 sm:text-3xl">
-                          {p().name}
-                        </h1>
-                        <p class="mt-1 text-xs text-zinc-500">
-                          SKU: {activeVariant()?.sku ?? p().sku}
-                          <Show when={activeVariant()?.gtin || p().gtin}>
-                            {" "}
-                            · EAN: {activeVariant()?.gtin || p().gtin}
-                          </Show>
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => void toggleWishlist()}
-                        aria-label="Salvar nos favoritos"
-                        class={`rounded-full border p-2.5 transition ${
-                          wishlisted()
-                            ? "border-[var(--mf-primary)] bg-zinc-100 text-[var(--mf-primary)]"
-                            : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"
-                        }`}
-                      >
-                        <Heart
-                          class={`h-5 w-5 ${wishlisted() ? "fill-current" : ""}`}
-                        />
-                      </button>
+                  <div class="space-y-4 lg:col-span-5">
+                    <div>
+                      <h1 class="text-xl font-extrabold text-[#2E0C49] sm:text-[22px]">
+                        {p().name}
+                      </h1>
+                      <p class="mt-1 text-xs text-[#2E0C49]/80">
+                        Referência: {p().name}
+                      </p>
                     </div>
 
-                    <Show when={p().rating_count > 0}>
-                      <div class="flex items-center gap-2 text-sm">
-                        <div class="flex items-center text-amber-500">
-                          <For each={[1, 2, 3, 4, 5]}>
-                            {(n) => (
-                              <Star
-                                class={`h-4 w-4 ${n <= Math.round(p().rating_avg) ? "fill-current" : "text-zinc-300"}`}
-                              />
-                            )}
-                          </For>
+                    <div>
+                      <div
+                        role="img"
+                        class="flex items-center gap-0.5 text-amber-400"
+                        aria-label={
+                          p().rating_count > 0
+                            ? `${p().rating_avg.toFixed(1)} de 5 estrelas`
+                            : "Sem avaliações ainda"
+                        }
+                      >
+                        <For each={[1, 2, 3, 4, 5]}>
+                          {(n) => (
+                            <Star
+                              class={`h-3.5 w-3.5 ${
+                                p().rating_count > 0 &&
+                                n <= Math.round(p().rating_avg)
+                                  ? "fill-current text-amber-400"
+                                  : "text-amber-300"
+                              }`}
+                              aria-hidden="true"
+                            />
+                          )}
+                        </For>
+                      </div>
+                      <a
+                        href="#avaliacoes"
+                        onClick={openReviewsAccordion}
+                        class="mt-1 inline-block text-xs font-medium text-[#2E0C49] underline hover:text-[#62298D]"
+                      >
+                        {p().rating_count > 0
+                          ? `Ver avaliações (${p().rating_count})`
+                          : "Seja o primeiro a opinar"}
+                      </a>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-0.5 text-xs text-[#2E0C49]">
+                      <span
+                        class="inline-block size-2.5 rounded-full bg-[#F87171] ring-4 ring-[#FEE2E2]"
+                        aria-hidden="true"
+                      />
+                      <span>
+                        <strong class="font-extrabold">
+                          {11 + (p().id % 7)}
+                        </strong>{" "}
+                        Pessoas estão vendo este produto agora
+                      </span>
+                    </div>
+
+                    <Show when={p().variants.length > 0}>
+                      <div class="space-y-1.5 pt-1">
+                        <label
+                          for="pdp-variant-select"
+                          class="block text-xs font-bold text-[#2E0C49]"
+                        >
+                          {variantGroupLabel()}:
+                        </label>
+                        <div class="relative inline-block">
+                          <select
+                            id="pdp-variant-select"
+                            value={activeVariant()?.id ?? ""}
+                            onChange={(e) => {
+                              const selected = p().variants.find(
+                                (item) =>
+                                  item.id === Number(e.currentTarget.value),
+                              );
+                              if (selected) chooseVariant(selected);
+                            }}
+                            class="h-10 min-w-[165px] appearance-none rounded-full bg-[#FDF2FA] pl-4 pr-9 text-xs font-medium text-[#2E0C49] focus:outline-none focus:ring-2 focus:ring-[#62298D]"
+                          >
+                            <option value="" disabled>
+                              Selecione
+                            </option>
+                            <For each={p().variants}>
+                              {(v) => (
+                                <option value={v.id}>
+                                  {v.name}
+                                  {v.in_stock ? "" : " (Esgotado)"}
+                                </option>
+                              )}
+                            </For>
+                          </select>
+                          <ChevronDown
+                            class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#2E0C49]"
+                            aria-hidden="true"
+                          />
                         </div>
-                        <span class="font-semibold text-zinc-800">
-                          {p().rating_avg.toFixed(1)}
-                        </span>
-                        <span class="text-xs text-zinc-500">
-                          ({p().rating_count} avaliações)
-                        </span>
                       </div>
                     </Show>
 
-                    <Show when={p().short_description}>
-                      <p class="text-sm leading-relaxed text-zinc-700">
-                        {p().short_description}
-                      </p>
-                    </Show>
-
-                    {/* Price block */}
-                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    {/* Price & installment */}
+                    <div class="pt-1">
                       <Show
                         when={
                           discountPct() > 0 &&
                           originalPriceCents() > currentPriceCents()
                         }
                       >
-                        <p class="text-sm text-zinc-500 line-through">
+                        <p class="text-xs text-[#52436E] line-through">
                           {formatCents(originalPriceCents())}
                         </p>
                       </Show>
-                      <div class="flex flex-wrap items-baseline gap-2">
-                        <span class="text-3xl font-extrabold text-zinc-900">
-                          {formatCents(currentPriceCents())}
-                        </span>
-                        <Show
-                          when={inStock()}
-                          fallback={
-                            <span class="rounded bg-zinc-800 px-2 py-0.5 text-xs font-bold text-white">
-                              Esgotado
-                            </span>
-                          }
-                        >
-                          <span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                            {activeVariant()?.available_stock ??
-                              p().available_stock}{" "}
-                            em estoque
-                          </span>
-                        </Show>
+                      <div class="text-2xl font-extrabold text-[#C918BF]">
+                        {formatCents(currentPriceCents())}
                       </div>
-                      <p class="mt-1 text-sm text-zinc-700">
-                        ou em até <strong>{installments()}x</strong> de{" "}
-                        <strong>{formatCents(installmentValue())}</strong> sem
-                        juros
+                      <p class="mt-1 flex items-center gap-1.5 text-xs text-[#2E0C49]">
+                        <CreditCard
+                          class="h-4 w-4 shrink-0 text-[#2E0C49]"
+                          aria-hidden="true"
+                        />
+                        <span>
+                          ou{" "}
+                          <strong class="font-bold text-[#C918BF]">
+                            {installments()}x
+                          </strong>{" "}
+                          de{" "}
+                          <strong class="font-bold text-[#C918BF]">
+                            {formatCents(installmentValue())}
+                          </strong>{" "}
+                          Sem juros
+                        </span>
                       </p>
                     </div>
 
-                    {/* Variant selection */}
-                    <Show when={p().variants.length > 1}>
-                      <div class="space-y-2">
-                        <p class="text-xs font-bold uppercase tracking-wide text-zinc-700">
-                          Escolha a opção:{" "}
-                          <span class="font-normal text-zinc-900">
-                            {activeVariant()?.name}
-                          </span>
-                        </p>
-                        <div class="flex flex-wrap gap-2">
-                          <For each={p().variants}>
-                            {(variant) => {
-                              const isSelected = () =>
-                                activeVariant()?.id === variant.id;
-                              const colorAttr = variant.attributes.find(
-                                (a) => a.color_hex,
-                              );
-
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => chooseVariant(variant)}
-                                  class={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                                    isSelected()
-                                      ? "border-[var(--mf-primary)] bg-zinc-900 text-white"
-                                      : "border-zinc-300 bg-white text-zinc-800 hover:border-zinc-500"
-                                  } ${!variant.in_stock ? "opacity-55" : ""}`}
-                                >
-                                  <Show when={colorAttr?.color_hex}>
-                                    <span
-                                      class="h-4 w-4 rounded-full border border-zinc-300"
-                                      style={{
-                                        "background-color":
-                                          colorAttr!.color_hex!,
-                                      }}
-                                    />
-                                  </Show>
-                                  <span>{variant.name}</span>
-                                </button>
-                              );
-                            }}
-                          </For>
-                        </div>
-                      </div>
-                    </Show>
-
-                    {/* Kit items */}
-                    <Show when={p().kit_items && p().kit_items.length > 0}>
-                      <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                        <div class="mb-2 flex items-center gap-2 text-sm font-bold text-zinc-900">
-                          <Package class="h-4 w-4 text-[var(--mf-primary)]" />
-                          <span>Este kit inclui:</span>
-                        </div>
-                        <ul class="space-y-1.5 text-sm text-zinc-700">
-                          <For each={p().kit_items}>
-                            {(kit) => (
-                              <li class="flex items-center justify-between border-b border-zinc-100 pb-1 last:border-0 last:pb-0">
-                                <span>
-                                  {kit.quantity}x{" "}
-                                  {kit.component_product?.name ||
-                                    kit.component_variant?.name}
-                                </span>
-                                <span class="text-xs text-zinc-500">
-                                  SKU {kit.component_variant?.sku}
-                                </span>
-                              </li>
-                            )}
-                          </For>
-                        </ul>
-                      </div>
-                    </Show>
-
-                    {/* Wholesale tiers */}
-                    <Show
-                      when={
-                        p().wholesale_enabled && p().wholesale_tiers.length > 0
-                      }
-                    >
-                      <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-xs">
-                        <p class="font-bold text-zinc-900">
-                          Desconto progressivo no atacado
-                        </p>
-                        <div class="mt-2 flex flex-wrap gap-2">
+                    {/* Progressive discount / shipping benefits notice */}
+                    <div class="rounded-md bg-[#F7F7F8] px-4 py-3.5 text-[#2E0C49]">
+                      <p class="text-xs font-bold text-[#2E0C49]">
+                        Produto com desconto progressivo
+                      </p>
+                      <p class="mt-1.5 text-[11px] text-[#2E0C49]">
+                        Frete Grátis para pedidos acima de R$149,90 para todo o
+                        RJ
+                      </p>
+                      <p class="mt-0.5 text-[11px] text-[#2E0C49]">
+                        Frete grátis para pedidos no Sudeste acima de R$299,90
+                      </p>
+                      <Show
+                        when={
+                          p().wholesale_enabled &&
+                          p().wholesale_tiers.length > 0
+                        }
+                      >
+                        <div class="mt-2 flex flex-wrap gap-1.5">
                           <For each={p().wholesale_tiers}>
                             {(tier) => (
-                              <span class="rounded border border-zinc-300 bg-white px-2.5 py-1 font-medium text-zinc-800">
-                                A partir de {tier.min_qty} un.:{" "}
-                                <strong>-{tier.discount_percent}%</strong>
+                              <span class="rounded bg-white px-2 py-0.5 text-[11px] font-medium text-[#2E0C49]">
+                                {tier.min_qty}+ un.: -{tier.discount_percent}%
                               </span>
                             )}
                           </For>
                         </div>
-                      </div>
-                    </Show>
+                      </Show>
+                    </div>
 
-                    {/* Purchase CTAs or Restock Alert */}
+                    {/* Quantity pill + COMPRAR CTA + WhatsApp CTA or Restock Alert */}
                     <Show
                       when={inStock()}
                       fallback={
@@ -615,7 +669,7 @@ function ProductDetailPage() {
                           class="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4"
                         >
                           <div class="flex items-center gap-2 text-sm font-bold text-amber-900">
-                            <Bell class="h-4 w-4" />
+                            <Bell class="h-4 w-4" aria-hidden="true" />
                             <span>
                               Produto esgotado — Avise-me quando chegar
                             </span>
@@ -644,7 +698,7 @@ function ProductDetailPage() {
                           <button
                             type="submit"
                             disabled={restockBusy()}
-                            class="h-10 w-full rounded-lg bg-zinc-900 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                            class="h-10 w-full rounded-full bg-zinc-900 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
                           >
                             {restockBusy()
                               ? "Registrando..."
@@ -661,18 +715,18 @@ function ProductDetailPage() {
                         </form>
                       }
                     >
-                      <div class="space-y-2.5">
-                        <div class="flex flex-col gap-2.5 sm:flex-row">
-                          <div class="inline-flex h-12 items-center justify-between rounded-lg border border-zinc-300 bg-white px-2 sm:w-32">
+                      <div class="space-y-2.5 pt-1">
+                        <div class="flex items-center gap-3">
+                          <div class="inline-flex h-11 w-28 shrink-0 items-center justify-between rounded-full bg-[#FDF2FA] px-3">
                             <button
                               type="button"
                               aria-label="Diminuir quantidade"
                               onClick={() => setQty((q) => Math.max(1, q - 1))}
-                              class="rounded p-1.5 text-zinc-700 hover:bg-zinc-100"
+                              class="rounded p-1 text-[#C918BF] transition hover:bg-white/70"
                             >
-                              <Minus class="h-4 w-4" />
+                              <Minus class="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
-                            <span class="text-sm font-bold text-zinc-900">
+                            <span class="text-xs font-bold text-[#2E0C49]">
                               {qty()}
                             </span>
                             <button
@@ -681,9 +735,9 @@ function ProductDetailPage() {
                               onClick={() =>
                                 setQty((q) => Math.min(maxQty(), q + 1))
                               }
-                              class="rounded p-1.5 text-zinc-700 hover:bg-zinc-100"
+                              class="rounded p-1 text-[#C918BF] transition hover:bg-white/70"
                             >
-                              <Plus class="h-4 w-4" />
+                              <Plus class="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
                           </div>
 
@@ -691,14 +745,9 @@ function ProductDetailPage() {
                             type="button"
                             disabled={adding()}
                             onClick={() => void handleAddToCart()}
-                            class="flex h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--mf-primary)] px-6 text-sm font-bold text-white transition hover:bg-[var(--mf-primary-hover)] disabled:opacity-60"
+                            class="flex h-11 flex-1 items-center justify-center rounded-full bg-[#5949E5] px-6 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#4838D4] disabled:opacity-60"
                           >
-                            <ShoppingBag class="h-5 w-5" />
-                            <span>
-                              {adding()
-                                ? "Adicionando..."
-                                : "Adicionar ao carrinho"}
-                            </span>
+                            {adding() ? "ADICIONANDO..." : "COMPRAR"}
                           </button>
                         </div>
 
@@ -710,10 +759,16 @@ function ProductDetailPage() {
                             )}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-white text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                            class="flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-[#13B918] bg-white text-xs font-medium text-[#0D8211] transition hover:bg-emerald-50"
                           >
-                            <MessageCircle class="h-4 w-4" />
-                            <span>Tirar dúvidas / Comprar pelo WhatsApp</span>
+                            <svg
+                              viewBox="0 0 24 24"
+                              class="h-3.5 w-3.5 shrink-0 fill-current"
+                              aria-hidden="true"
+                            >
+                              <path d="M12.03 2a9.94 9.94 0 0 0-8.6 14.95L2 22l5.2-1.36A9.95 9.95 0 1 0 12.03 2Zm0 18.1a8.13 8.13 0 0 1-4.14-1.13l-.3-.18-3.09.81.83-3.01-.2-.31a8.15 8.15 0 1 1 7 3.82Zm4.47-6.1c-.25-.12-1.45-.72-1.67-.8s-.39-.12-.55.12-.63.8-.78.96-.28.19-.53.06a6.68 6.68 0 0 1-1.97-1.22 7.36 7.36 0 0 1-1.36-1.7c-.14-.24-.01-.38.11-.5.11-.11.24-.29.37-.43.12-.14.16-.25.24-.41s.04-.31-.02-.43-.55-1.33-.76-1.82c-.2-.48-.4-.41-.55-.42h-.47a.9.9 0 0 0-.65.31 2.75 2.75 0 0 0-.86 2.05c0 1.21.88 2.38 1 2.54s1.73 2.64 4.19 3.7c.59.25 1.04.41 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.45-.59 1.66-1.17s.21-1.07.14-1.17-.22-.16-.47-.28Z" />
+                            </svg>
+                            <span>Comprar pelo Whats</span>
                           </a>
                         </Show>
                       </div>
@@ -734,201 +789,374 @@ function ProductDetailPage() {
                       )}
                     </Show>
 
-                    <ShippingQuoteWidget
-                      mode="product"
-                      productSlug={p().slug}
-                      quantity={qty()}
-                    />
-                  </div>
-                </div>
+                    {/* Inline Shipping Quote */}
+                    <div class="border-t border-zinc-200/80 pt-3">
+                      <ShippingQuoteWidget
+                        mode="product"
+                        productSlug={p().slug}
+                        quantity={qty()}
+                      />
+                    </div>
 
-                {/* Details + Reviews */}
-                <div class="mt-12 grid gap-8 border-t border-zinc-200 pt-10 lg:grid-cols-12">
-                  <div class="space-y-6 lg:col-span-7">
-                    <section>
-                      <h2 class="text-lg font-bold text-zinc-900">
-                        Descrição do Produto
-                      </h2>
-                      <div class="mt-2 whitespace-pre-line text-sm leading-relaxed text-zinc-700">
-                        {p().description ||
-                          p().short_description ||
-                          "Descrição técnica em atualização."}
-                      </div>
-                    </section>
-
-                    <Show when={p().usage_instructions}>
-                      <section class="border-t border-zinc-200 pt-5">
-                        <h3 class="text-base font-bold text-zinc-900">
-                          Modo de Uso
-                        </h3>
-                        <p class="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-zinc-700">
-                          {p().usage_instructions}
-                        </p>
-                      </section>
-                    </Show>
-
-                    <Show when={p().ingredients}>
-                      <section class="border-t border-zinc-200 pt-5">
-                        <h3 class="text-base font-bold text-zinc-900">
-                          Composição / Ingredientes
-                        </h3>
-                        <p class="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-zinc-600">
-                          {p().ingredients}
-                        </p>
-                      </section>
-                    </Show>
-                  </div>
-
-                  {/* Reviews column */}
-                  <section class="space-y-4 lg:col-span-5">
-                    <h2 class="text-lg font-bold text-zinc-900">
-                      Avaliações de Clientes
-                    </h2>
-
-                    <Show
-                      when={p().reviews.length > 0}
-                      fallback={
-                        <p class="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-                          Ainda não há avaliações aprovadas para este item. Seja
-                          a primeira a avaliar!
-                        </p>
-                      }
-                    >
-                      <ul class="space-y-3">
-                        <For each={p().reviews}>
-                          {(rev) => (
-                            <li class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                              <div class="flex items-center justify-between">
-                                <span class="text-sm font-bold text-zinc-900">
-                                  {rev.author_name}
-                                </span>
-                                <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
-                                  {rev.rating}/5{" "}
-                                  <Star
-                                    class="size-3.5 fill-current"
-                                    aria-hidden="true"
-                                  />
-                                </span>
+                    {/* Accordions */}
+                    <div class="divide-y divide-zinc-200/80 border-y border-zinc-200/80">
+                      <div>
+                        <button
+                          type="button"
+                          aria-expanded={openAccordion() === "descricao"}
+                          onClick={() => toggleAccordion("descricao")}
+                          class="flex w-full items-center justify-between py-3.5 text-left text-xs font-bold text-[#2E0C49]"
+                        >
+                          <span>Descrição Geral</span>
+                          <Show
+                            when={openAccordion() === "descricao"}
+                            fallback={
+                              <ChevronRight
+                                class="h-4 w-4 text-[#2E0C49]"
+                                aria-hidden="true"
+                              />
+                            }
+                          >
+                            <ChevronDown
+                              class="h-4 w-4 text-[#2E0C49]"
+                              aria-hidden="true"
+                            />
+                          </Show>
+                        </button>
+                        <Show when={openAccordion() === "descricao"}>
+                          <div class="space-y-3 pb-4 text-xs leading-relaxed text-zinc-700">
+                            <p class="whitespace-pre-line">
+                              {p().description ||
+                                p().short_description ||
+                                "Descrição técnica em atualização."}
+                            </p>
+                            <Show when={p().usage_instructions}>
+                              <div>
+                                <p class="font-bold text-[#2E0C49]">
+                                  Modo de Uso
+                                </p>
+                                <p class="mt-1 whitespace-pre-line">
+                                  {p().usage_instructions}
+                                </p>
                               </div>
-                              <Show when={rev.is_verified_purchase}>
-                                <span class="mt-0.5 inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
-                                  Compra verificada
-                                </span>
-                              </Show>
-                              <Show when={rev.title}>
-                                <p class="mt-2 text-sm font-semibold text-zinc-900">
-                                  {rev.title}
+                            </Show>
+                            <Show when={p().ingredients}>
+                              <div>
+                                <p class="font-bold text-[#2E0C49]">
+                                  Composição / Ingredientes
+                                </p>
+                                <p class="mt-1 whitespace-pre-line">
+                                  {p().ingredients}
+                                </p>
+                              </div>
+                            </Show>
+                          </div>
+                        </Show>
+                      </div>
+
+                      <div>
+                        <button
+                          type="button"
+                          aria-expanded={openAccordion() === "pagamento"}
+                          onClick={() => toggleAccordion("pagamento")}
+                          class="flex w-full items-center justify-between py-3.5 text-left text-xs font-bold text-[#2E0C49]"
+                        >
+                          <span>Formas de Pagamento</span>
+                          <ChevronDown
+                            class={`h-4 w-4 text-[#2E0C49] transition-transform ${
+                              openAccordion() === "pagamento"
+                                ? "rotate-180"
+                                : ""
+                            }`}
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <Show when={openAccordion() === "pagamento"}>
+                          <div class="space-y-2 pb-4 text-xs text-zinc-700">
+                            <p>
+                              Parcele em até{" "}
+                              <strong class="font-bold text-[#2E0C49]">
+                                {installments()}x de{" "}
+                                {formatCents(installmentValue())} sem juros
+                              </strong>{" "}
+                              nos cartões Visa, Mastercard, Elo, Amex e
+                              Hipercard.
+                            </p>
+                            <p>Pagamento instantâneo à vista via Pix.</p>
+                          </div>
+                        </Show>
+                      </div>
+
+                      <div id="avaliacoes">
+                        <button
+                          type="button"
+                          aria-expanded={openAccordion() === "avaliacoes"}
+                          onClick={() => toggleAccordion("avaliacoes")}
+                          class="flex w-full items-center justify-between py-3.5 text-left text-xs font-bold text-[#2E0C49]"
+                        >
+                          <span>Avaliações</span>
+                          <ChevronDown
+                            class={`h-4 w-4 text-[#2E0C49] transition-transform ${
+                              openAccordion() === "avaliacoes"
+                                ? "rotate-180"
+                                : ""
+                            }`}
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <Show when={openAccordion() === "avaliacoes"}>
+                          <div class="space-y-4 pb-4">
+                            <Show
+                              when={p().reviews.length > 0}
+                              fallback={
+                                <p class="text-xs text-zinc-600">
+                                  Ainda não há avaliações aprovadas para este
+                                  item. Seja a primeira a opinar!
+                                </p>
+                              }
+                            >
+                              <ul class="space-y-2.5">
+                                <For each={p().reviews}>
+                                  {(rev) => (
+                                    <li class="rounded-lg border border-zinc-200 bg-[#FAF7FB] p-3 text-xs">
+                                      <div class="flex items-center justify-between">
+                                        <span class="font-bold text-[#2E0C49]">
+                                          {rev.author_name}
+                                        </span>
+                                        <span class="inline-flex items-center gap-1 font-semibold text-amber-600">
+                                          {rev.rating}/5{" "}
+                                          <Star
+                                            class="size-3 fill-current"
+                                            aria-hidden="true"
+                                          />
+                                        </span>
+                                      </div>
+                                      <Show when={rev.title}>
+                                        <p class="mt-1 font-semibold text-[#2E0C49]">
+                                          {rev.title}
+                                        </p>
+                                      </Show>
+                                      <p class="mt-1 text-zinc-700">
+                                        {rev.body}
+                                      </p>
+                                    </li>
+                                  )}
+                                </For>
+                              </ul>
+                            </Show>
+
+                            <form
+                              onSubmit={submitReview}
+                              class="space-y-2.5 rounded-lg border border-zinc-200 bg-white p-3"
+                            >
+                              <p class="text-xs font-bold text-[#2E0C49]">
+                                Enviar avaliação
+                              </p>
+                              <div class="grid gap-2 sm:grid-cols-2">
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Seu nome *"
+                                  value={revName()}
+                                  onInput={(e) =>
+                                    setRevName(e.currentTarget.value)
+                                  }
+                                  class="h-9 rounded-md border border-zinc-300 px-3 text-xs"
+                                />
+                                <input
+                                  type="email"
+                                  placeholder="Seu e-mail (opcional)"
+                                  value={revEmail()}
+                                  onInput={(e) =>
+                                    setRevEmail(e.currentTarget.value)
+                                  }
+                                  class="h-9 rounded-md border border-zinc-300 px-3 text-xs"
+                                />
+                              </div>
+                              <div class="flex items-center gap-2 text-xs">
+                                <label
+                                  for="rev-rating"
+                                  class="font-semibold text-[#2E0C49]"
+                                >
+                                  Nota:
+                                </label>
+                                <select
+                                  id="rev-rating"
+                                  value={revRating()}
+                                  onChange={(e) =>
+                                    setRevRating(Number(e.currentTarget.value))
+                                  }
+                                  class="h-9 rounded-md border border-zinc-300 bg-white px-2 text-xs"
+                                >
+                                  <option value={5}>
+                                    5 estrelas — Excelente
+                                  </option>
+                                  <option value={4}>
+                                    4 estrelas — Muito bom
+                                  </option>
+                                  <option value={3}>3 estrelas — Bom</option>
+                                  <option value={2}>
+                                    2 estrelas — Regular
+                                  </option>
+                                  <option value={1}>1 estrela — Ruim</option>
+                                </select>
+                              </div>
+                              <input
+                                type="text"
+                                placeholder="Título curto (opcional)"
+                                value={revTitle()}
+                                onInput={(e) =>
+                                  setRevTitle(e.currentTarget.value)
+                                }
+                                class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
+                              />
+                              <textarea
+                                rows={3}
+                                required
+                                placeholder="Conte sua experiência com o produto *"
+                                value={revBody()}
+                                onInput={(e) =>
+                                  setRevBody(e.currentTarget.value)
+                                }
+                                class="w-full rounded-md border border-zinc-300 p-2.5 text-xs"
+                              />
+                              <button
+                                type="submit"
+                                disabled={revBusy()}
+                                class="h-9 rounded-full bg-[#3D1260] px-5 text-xs font-semibold text-white hover:bg-[#2E0C49] disabled:opacity-60"
+                              >
+                                {revBusy()
+                                  ? "Enviando..."
+                                  : "Publicar avaliação"}
+                              </button>
+                              <Show when={revMsg()}>
+                                <p
+                                  role="status"
+                                  class="text-xs font-medium text-emerald-700"
+                                >
+                                  {revMsg()}
                                 </p>
                               </Show>
-                              <p class="mt-1 text-sm text-zinc-700">
-                                {rev.body}
-                              </p>
-                            </li>
-                          )}
-                        </For>
-                      </ul>
-                    </Show>
-
-                    <form
-                      onSubmit={submitReview}
-                      class="space-y-3 rounded-xl border border-zinc-200 bg-white p-4"
-                    >
-                      <h3 class="text-sm font-bold text-zinc-900">
-                        Enviar avaliação
-                      </h3>
-                      <div class="grid gap-2 sm:grid-cols-2">
-                        <input
-                          type="text"
-                          required
-                          placeholder="Seu nome *"
-                          value={revName()}
-                          onInput={(e) => setRevName(e.currentTarget.value)}
-                          class="h-9 rounded-md border border-zinc-300 px-3 text-sm"
-                        />
-                        <input
-                          type="email"
-                          placeholder="Seu e-mail (opcional)"
-                          value={revEmail()}
-                          onInput={(e) => setRevEmail(e.currentTarget.value)}
-                          class="h-9 rounded-md border border-zinc-300 px-3 text-sm"
-                        />
+                            </form>
+                          </div>
+                        </Show>
                       </div>
-                      <div class="flex items-center gap-2 text-xs">
-                        <label
-                          for="rev-rating"
-                          class="font-semibold text-zinc-700"
-                        >
-                          Nota:
-                        </label>
-                        <select
-                          id="rev-rating"
-                          value={revRating()}
-                          onChange={(e) =>
-                            setRevRating(Number(e.currentTarget.value))
-                          }
-                          class="h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm"
-                        >
-                          <option value={5}>5 estrelas — Excelente</option>
-                          <option value={4}>4 estrelas — Muito bom</option>
-                          <option value={3}>3 estrelas — Bom</option>
-                          <option value={2}>2 estrelas — Regular</option>
-                          <option value={1}>1 estrela — Ruim</option>
-                        </select>
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Título curto (opcional)"
-                        value={revTitle()}
-                        onInput={(e) => setRevTitle(e.currentTarget.value)}
-                        class="h-9 w-full rounded-md border border-zinc-300 px-3 text-sm"
-                      />
-                      <textarea
-                        rows={3}
-                        required
-                        placeholder="Conte sua experiência com o produto *"
-                        value={revBody()}
-                        onInput={(e) => setRevBody(e.currentTarget.value)}
-                        class="w-full rounded-md border border-zinc-300 p-2.5 text-sm"
-                      />
-                      <button
-                        type="submit"
-                        disabled={revBusy()}
-                        class="h-9 rounded-md bg-zinc-900 px-4 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-                      >
-                        {revBusy() ? "Enviando..." : "Publicar avaliação"}
-                      </button>
-                      <Show when={revMsg()}>
-                        <p
-                          role="status"
-                          class="text-xs font-medium text-emerald-700"
-                        >
-                          {revMsg()}
-                        </p>
-                      </Show>
-                    </form>
-                  </section>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Related products */}
+                {/* Produtos relacionados */}
                 <Show
                   when={p().related_products && p().related_products.length > 0}
                 >
-                  <section class="mt-12 border-t border-zinc-200 pt-10">
-                    <h2 class="mb-5 text-xl font-bold text-zinc-900">
-                      Produtos Relacionados
-                    </h2>
-                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  <section class="mt-14 pt-6">
+                    <div class="text-center">
+                      <h2 class="text-xl font-extrabold text-[#2E0C49] sm:text-2xl">
+                        Produtos relacionados
+                      </h2>
+                      <div class="mx-auto mt-2 h-[3px] w-9 rounded-full bg-[#2E0C49]" />
+                    </div>
+                    <div class="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                       <For each={p().related_products}>
                         {(rel) => <ProductCard product={rel} />}
                       </For>
                     </div>
                   </section>
                 </Show>
-              </>
-            );
-          }}
-        </Show>
-      </div>
+
+                {/* Produtos visualizados */}
+                <Show when={viewedProducts().length > 0}>
+                  <section class="mt-14 pt-4">
+                    <div class="text-center">
+                      <h2 class="text-xl font-extrabold text-[#2E0C49] sm:text-2xl">
+                        Produtos visualizados
+                      </h2>
+                      <div class="mx-auto mt-2 h-[3px] w-9 rounded-full bg-[#2E0C49]" />
+                    </div>
+
+                    <div class="mt-7 flex flex-wrap items-center justify-center gap-4">
+                      <For each={viewedProducts()}>
+                        {(item) => (
+                          <Link
+                            to="/produto/$slug"
+                            params={{ slug: item.slug }}
+                            class="flex w-full max-w-[340px] items-center gap-4 rounded-xl border border-zinc-100 bg-white p-3.5 shadow-2xs transition hover:border-zinc-200"
+                          >
+                            <img
+                              src={assetUrl(item.primary_image)}
+                              alt={item.name}
+                              class="h-20 w-20 shrink-0 object-contain"
+                            />
+                            <span class="text-xs font-bold text-[#2E0C49]">
+                              {item.name}
+                            </span>
+                          </Link>
+                        )}
+                      </For>
+                    </div>
+
+                    <div class="mt-6 flex items-center justify-center gap-2 text-xs text-[#2E0C49]">
+                      <span>Páginas:</span>
+                      <span class="inline-flex size-6 items-center justify-center rounded-full bg-[#2E0C49] text-[11px] font-bold text-white">
+                        1
+                      </span>
+                    </div>
+                  </section>
+                </Show>
+              </div>
+
+              <NewsletterSection />
+
+              {/* Sticky bottom buy bar */}
+              <div class="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200/80 bg-white/95 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur-xs">
+                <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 pr-16 xl:pr-4">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <img
+                      src={assetUrl(activeImage() || p().primary_image)}
+                      alt={p().name}
+                      class="h-12 w-12 shrink-0 object-contain"
+                    />
+                    <span class="truncate text-xs font-extrabold text-[#2E0C49] sm:text-sm">
+                      {p().name}
+                    </span>
+                  </div>
+
+                  <div class="flex shrink-0 items-center gap-4">
+                    <div class="hidden text-right sm:block">
+                      <div class="text-base font-extrabold text-[#C918BF] sm:text-lg">
+                        {formatCents(currentPriceCents())}
+                      </div>
+                      <p class="flex items-center justify-end gap-1 text-[11px] text-[#2E0C49]">
+                        <CreditCard class="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>
+                          ou{" "}
+                          <strong class="font-bold text-[#C918BF]">
+                            {installments()}x
+                          </strong>{" "}
+                          de{" "}
+                          <strong class="font-bold text-[#C918BF]">
+                            {formatCents(installmentValue())}
+                          </strong>{" "}
+                          Sem juros
+                        </span>
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={adding() || !inStock()}
+                      onClick={() => void handleAddToCart()}
+                      class="h-10 rounded-full bg-[#5949E5] px-8 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#4838D4] disabled:opacity-60"
+                    >
+                      {adding() ? "ADICIONANDO..." : "COMPRAR"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          );
+        }}
+      </Show>
     </StoreShell>
   );
 }

@@ -79,7 +79,9 @@ test.describe("Mistura Feminina Live Storefront & Backoffice E2E", () => {
     await firstProduct.click();
 
     await expect(
-      page.getByRole("button", { name: "Adicionar ao carrinho" }),
+      page
+        .getByRole("button", { name: /COMPRAR|Adicionar ao carrinho/i })
+        .first(),
     ).toBeVisible({
       timeout: 10_000,
     });
@@ -88,7 +90,10 @@ test.describe("Mistura Feminina Live Storefront & Backoffice E2E", () => {
       fullPage: false,
     });
 
-    await page.getByRole("button", { name: "Adicionar ao carrinho" }).click();
+    await page
+      .getByRole("button", { name: /COMPRAR|Adicionar ao carrinho/i })
+      .first()
+      .click();
     await expect(page.getByRole("dialog")).toBeVisible();
 
     await page.goto("/carrinho");
@@ -165,11 +170,16 @@ test.describe("Mistura Feminina Live Storefront & Backoffice E2E", () => {
     await dismissCookieBanner(page);
     await page.locator('a[href^="/produto/"]').first().click();
     await expect(
-      page.getByRole("button", { name: "Adicionar ao carrinho" }),
+      page
+        .getByRole("button", { name: /COMPRAR|Adicionar ao carrinho/i })
+        .first(),
     ).toBeVisible({
       timeout: 10_000,
     });
-    await page.getByRole("button", { name: "Adicionar ao carrinho" }).click();
+    await page
+      .getByRole("button", { name: /COMPRAR|Adicionar ao carrinho/i })
+      .first()
+      .click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10_000 });
     await page.goto("/checkout");
 
