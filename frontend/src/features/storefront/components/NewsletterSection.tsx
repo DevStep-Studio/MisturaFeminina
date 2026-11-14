@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/solid-router";
+import ChevronRight from "lucide-solid/icons/chevron-right";
 import Mail from "lucide-solid/icons/mail";
 import { Show, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
@@ -61,33 +62,35 @@ export function NewsletterSection() {
   return (
     <section
       aria-labelledby="newsletter-heading"
-      class="border-y border-zinc-200 bg-zinc-100 py-10"
+      class="bg-gradient-to-r from-[#FA74F8] via-[#FB84F8] to-[#F86CF5] py-7 sm:py-8"
     >
-      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-4 lg:flex-row lg:items-center lg:justify-between">
-        <div class="max-w-lg space-y-1.5">
-          <div class="inline-flex items-center gap-2 text-sm font-semibold text-[var(--mf-primary)]">
-            <Mail class="h-4 w-4" />
-            <span>Clube de Ofertas Mistura Feminina</span>
+      <div class="mx-auto flex max-w-7xl flex-col gap-5 px-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex items-start gap-3.5">
+          <Mail
+            class="mt-0.5 h-9 w-9 shrink-0 text-[#2E0C49]"
+            stroke-width={1.6}
+            aria-hidden="true"
+          />
+          <div>
+            <h2
+              id="newsletter-heading"
+              class="text-lg font-extrabold leading-tight text-[#2E0C49] sm:text-xl"
+            >
+              Cadastre-se em nossa newsletter
+            </h2>
+            <p class="mt-0.5 text-xs font-medium text-[#2E0C49] sm:text-sm">
+              e receba novidades e promoções
+            </p>
           </div>
-          <h2
-            id="newsletter-heading"
-            class="text-xl font-bold text-zinc-900 sm:text-2xl"
-          >
-            Receba lançamentos, cupons e promoções em primeira mão
-          </h2>
-          <p class="text-sm text-zinc-600">
-            Respeitamos sua privacidade conforme a LGPD. Você pode cancelar o
-            envio quando quiser.
-          </p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          class="w-full max-w-xl space-y-3"
+          class="w-full max-w-2xl space-y-2.5"
           novalidate
         >
-          <div class="grid gap-2.5 sm:grid-cols-3">
-            <div>
+          <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+            <div class="flex-1">
               <label for="nl-name" class="sr-only">
                 Nome
               </label>
@@ -96,11 +99,11 @@ export function NewsletterSection() {
                 type="text"
                 value={name()}
                 onInput={(e) => setName(e.currentTarget.value)}
-                placeholder="Seu nome (opcional)"
-                class="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-[var(--mf-primary)] focus:outline-none"
+                placeholder="Digite o seu nome"
+                class="h-11 w-full rounded-full bg-white px-5 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#3D1260]"
               />
             </div>
-            <div class="sm:col-span-2 flex flex-col gap-2.5 sm:flex-row">
+            <div class="flex-[1.15]">
               <label for="nl-email" class="sr-only">
                 E-mail
               </label>
@@ -110,25 +113,26 @@ export function NewsletterSection() {
                 required
                 value={email()}
                 onInput={(e) => setEmail(e.currentTarget.value)}
-                placeholder="seuemail@exemplo.com"
-                class="h-11 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-[var(--mf-primary)] focus:outline-none"
+                placeholder="Digite seu e-mail"
+                class="h-11 w-full rounded-full bg-white px-5 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#3D1260]"
               />
-              <button
-                type="submit"
-                disabled={busy()}
-                class="h-11 shrink-0 rounded-lg bg-[var(--mf-primary)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--mf-primary-hover)] disabled:opacity-60"
-              >
-                {busy() ? "Enviando..." : "Quero receber"}
-              </button>
             </div>
+            <button
+              type="submit"
+              disabled={busy()}
+              class="inline-flex h-11 shrink-0 items-center justify-center gap-1 rounded-full bg-[#3D1260] px-7 text-xs font-extrabold uppercase tracking-wider text-white shadow-xs transition hover:bg-[#2E0C49] disabled:opacity-60"
+            >
+              <span>{busy() ? "ENVIANDO..." : "CADASTRAR"}</span>
+              <ChevronRight class="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           </div>
 
-          <label class="flex cursor-pointer items-start gap-2 text-xs text-zinc-700">
+          <label class="flex cursor-pointer items-start gap-2 pl-2 text-xs font-medium text-[#2E0C49]">
             <input
               type="checkbox"
               checked={consent()}
               onChange={(e) => setConsent(e.currentTarget.checked)}
-              class="mt-0.5 h-4 w-4 rounded border-zinc-300 accent-[var(--mf-primary)]"
+              class="mt-0.5 h-4 w-4 rounded border-[#3D1260] accent-[#3D1260]"
             />
             <span>
               Concordo em receber e-mails promocionais da Mistura Feminina
@@ -136,7 +140,7 @@ export function NewsletterSection() {
               <Link
                 to="/$slug"
                 params={{ slug: "privacidade" }}
-                class="font-medium underline"
+                class="font-bold underline"
               >
                 Política de Privacidade
               </Link>
