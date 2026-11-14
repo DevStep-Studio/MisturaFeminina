@@ -1,6 +1,5 @@
 import { children, createEffect, onCleanup, Show } from "solid-js";
 import type { ParentProps } from "solid-js";
-import Command from "lucide-solid/icons/command";
 import { config } from "../../../app/config";
 
 export const inputClass =
@@ -70,6 +69,11 @@ export function AuthFrame(
       when={props.presentation}
       fallback={
         <section class="mx-auto flex min-h-svh w-full max-w-sm flex-col justify-center px-6 py-12">
+          <img
+            src="/logo-mf.png"
+            alt="Mistura Feminina Cosméticos"
+            class="mb-6 h-11 w-fit object-contain"
+          />
           <h1 class="text-2xl font-semibold tracking-tight text-zinc-900">
             {props.title}
           </h1>
@@ -92,9 +96,12 @@ export function AuthFrame(
             data-auth-reveal
             class="relative z-10 flex items-center gap-3 text-sm font-medium tracking-tight"
           >
-            <span class="grid size-9 place-items-center rounded-xl border border-white/15 bg-white/5">
-              <Command size={19} aria-hidden="true" />
-            </span>
+            <img
+              src="/logo-mf-dark.png"
+              alt=""
+              aria-hidden="true"
+              class="h-9 w-auto object-contain"
+            />
             {config.name}
           </div>
           <div
@@ -159,9 +166,12 @@ export function AuthFrame(
               data-auth-reveal
               class="mb-12 flex items-center gap-2.5 text-sm font-medium text-zinc-900 lg:hidden"
             >
-              <span class="grid size-9 place-items-center rounded-xl border border-zinc-200">
-                <Command size={18} aria-hidden="true" />
-              </span>
+              <img
+                src="/logo-mf.png"
+                alt=""
+                aria-hidden="true"
+                class="h-8 w-auto object-contain"
+              />
               {config.name}
             </div>
             <div data-auth-reveal>

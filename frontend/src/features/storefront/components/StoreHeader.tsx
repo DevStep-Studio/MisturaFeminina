@@ -273,45 +273,19 @@ export function StoreHeader() {
           {/* Brand Logo Centered */}
           <Link
             to="/"
-            class="flex shrink-0 items-center justify-center gap-2 rounded-lg px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+            class="flex shrink-0 items-center justify-center rounded-lg px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
           >
-            <svg
-              viewBox="0 0 42 36"
-              class="h-8 w-9 shrink-0 -rotate-12 sm:h-9 sm:w-10"
-              fill="none"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient
-                  id="mf-header-butterfly-grad"
-                  x1="0"
-                  y1="0"
-                  x2="40"
-                  y2="36"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop offset="0%" stop-color="#FF33B8" />
-                  <stop offset="55%" stop-color="#EC1B9B" />
-                  <stop offset="100%" stop-color="#62298D" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M21 15C16 4 3 1 2 10c-.6 5.5 6.5 9.5 14 9.5-5.5 2-9 6.5-6.5 11.2 2.4 4.5 9.2 2.3 11.5-5.7 2.3 8 9.1 10.2 11.5 5.7 2.5-4.7-1-9.2-6.5-11.2 7.5 0 14.6-4 14-9.5C39 1 26 4 21 15z"
-                fill="url(#mf-header-butterfly-grad)"
-              />
-              <ellipse cx="21" cy="18.5" rx="1.6" ry="7.5" fill="#4C1D6E" />
-            </svg>
-            <span class="flex flex-col items-center leading-none">
-              <span
-                class="text-[28px] font-black tracking-tight text-[#3D1260] sm:text-[31px]"
-                style={{ "font-family": 'Georgia, "Times New Roman", serif' }}
-              >
-                Mistura
-              </span>{" "}
-              <span class="mt-0.5 pl-[0.38em] text-[8.5px] font-semibold uppercase tracking-[0.38em] text-[#4E3B63] sm:text-[9px]">
-                COSMÉTICOS
-              </span>
-            </span>
+            <img
+              src={assetUrl(settings().logo_light_url || "/logo-mf.png")}
+              alt={settings().store_name || "Mistura Feminina Cosméticos"}
+              class="h-11 w-auto object-contain sm:h-12"
+              onError={(e) => {
+                if (!e.currentTarget.dataset.fallback) {
+                  e.currentTarget.dataset.fallback = "1";
+                  e.currentTarget.src = "/logo-mf.png";
+                }
+              }}
+            />
           </Link>
 
           {/* Actions Right: Atendimento, Minha Conta, Sacola */}
@@ -863,7 +837,21 @@ export function StoreHeader() {
         >
           <div class="flex h-full w-80 max-w-[85vw] flex-col bg-white shadow-xl">
             <div class="flex items-center justify-between border-b border-line px-4 py-3">
-              <span class="text-sm font-bold text-ink">Departamentos</span>
+              <div class="flex items-center gap-2.5">
+                <img
+                  src={assetUrl(settings().logo_light_url || "/logo-mf.png")}
+                  alt=""
+                  aria-hidden="true"
+                  class="h-7 w-auto object-contain"
+                  onError={(e) => {
+                    if (!e.currentTarget.dataset.fallback) {
+                      e.currentTarget.dataset.fallback = "1";
+                      e.currentTarget.src = "/logo-mf.png";
+                    }
+                  }}
+                />
+                <span class="text-sm font-bold text-ink">Departamentos</span>
+              </div>
               <button
                 type="button"
                 aria-label="Fechar menu"

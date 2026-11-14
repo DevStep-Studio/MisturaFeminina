@@ -106,12 +106,27 @@ function MyAccountPage() {
   async function fetchOverview() {
     setLoading(true);
     try {
-      const res = await api<{ data: OverviewPayload }>("/account/overview");
-      setOverview(res.data);
-      setProfName(res.data.user.name);
-      setProfPhone(formatPhone(res.data.user.phone || ""));
-      setProfCpf(formatCpfCnpj(res.data.user.cpf_cnpj || ""));
-      setAddrRecip(res.data.user.name);
+      const res = await api<{
+        data: Partial<OverviewPayload> & {
+          user: OverviewPayload["user"];
+          recent_orders?: OverviewPayload["orders"];
+        };
+      }>("/account/overview");
+      const data = res.data;
+      setOverview({
+        user: data.user,
+        orders: Array.isArray(data.orders)
+          ? data.orders
+          : Array.isArray(data.recent_orders)
+            ? data.recent_orders
+            : [],
+        addresses: Array.isArray(data.addresses) ? data.addresses : [],
+        wishlist: Array.isArray(data.wishlist) ? data.wishlist : [],
+      });
+      setProfName(data.user.name);
+      setProfPhone(formatPhone(data.user.phone || ""));
+      setProfCpf(formatCpfCnpj(data.user.cpf_cnpj || ""));
+      setAddrRecip(data.user.name);
     } catch {
       // handled via session redirect
     } finally {
@@ -285,11 +300,19 @@ function MyAccountPage() {
           {(ov) => (
             <div class="space-y-6">
               <header class="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200 pb-5">
-                <div>
-                  <h1 class="text-2xl font-bold text-zinc-900">
-                    Olá, {ov().user.name}
-                  </h1>
-                  <p class="text-sm text-zinc-600">{ov().user.email}</p>
+                <div class="flex items-center gap-3.5">
+                  <img
+                    src="/logo-mf.png"
+                    alt=""
+                    aria-hidden="true"
+                    class="h-10 w-auto shrink-0 object-contain"
+                  />
+                  <div>
+                    <h1 class="text-2xl font-bold text-zinc-900">
+                      Olá, {ov().user.name}
+                    </h1>
+                    <p class="text-sm text-zinc-600">{ov().user.email}</p>
+                  </div>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
@@ -579,9 +602,17 @@ function MyAccountPage() {
                         onSubmit={saveProfile}
                         class="grid gap-3 rounded-xl border border-zinc-200 bg-white p-5 sm:grid-cols-2"
                       >
-                        <h2 class="sm:col-span-2 text-base font-bold text-zinc-900">
-                          Dados pessoais
-                        </h2>
+                        <div class="sm:col-span-2 flex items-center justify-between gap-3">
+                          <h2 class="text-base font-bold text-zinc-900">
+                            Dados pessoais
+                          </h2>
+                          <img
+                            src="/logo-mf.png"
+                            alt=""
+                            aria-hidden="true"
+                            class="h-6 w-auto object-contain opacity-85"
+                          />
+                        </div>
                         <div>
                           <label class="block text-xs font-semibold text-zinc-700">
                             Nome

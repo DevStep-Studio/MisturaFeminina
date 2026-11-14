@@ -6,7 +6,7 @@ import MessageCircle from "lucide-solid/icons/message-circle";
 import Phone from "lucide-solid/icons/phone";
 import ShieldCheck from "lucide-solid/icons/shield-check";
 import { For, Show, createMemo } from "solid-js";
-import { whatsappUrl } from "../../../lib/format";
+import { assetUrl, whatsappUrl } from "../../../lib/format";
 import { storefrontStore } from "../store";
 
 const PAYMENT_BADGES = [
@@ -45,45 +45,19 @@ export function StoreFooter() {
         <div class="flex flex-col items-start space-y-4">
           <Link
             to="/"
-            class="inline-flex items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62298D]"
+            class="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62298D]"
           >
-            <svg
-              viewBox="0 0 42 36"
-              class="h-8 w-9 shrink-0 -rotate-12"
-              fill="none"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient
-                  id="mf-footer-butterfly-grad"
-                  x1="0"
-                  y1="0"
-                  x2="40"
-                  y2="36"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop offset="0%" stop-color="#FF33B8" />
-                  <stop offset="55%" stop-color="#EC1B9B" />
-                  <stop offset="100%" stop-color="#62298D" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M21 15C16 4 3 1 2 10c-.6 5.5 6.5 9.5 14 9.5-5.5 2-9 6.5-6.5 11.2 2.4 4.5 9.2 2.3 11.5-5.7 2.3 8 9.1 10.2 11.5 5.7 2.5-4.7-1-9.2-6.5-11.2 7.5 0 14.6-4 14-9.5C39 1 26 4 21 15z"
-                fill="url(#mf-footer-butterfly-grad)"
-              />
-              <ellipse cx="21" cy="18.5" rx="1.6" ry="7.5" fill="#4C1D6E" />
-            </svg>
-            <span class="flex flex-col items-center leading-none">
-              <span
-                class="text-[26px] font-black tracking-tight text-[#3D1260]"
-                style={{ "font-family": 'Georgia, "Times New Roman", serif' }}
-              >
-                Mistura
-              </span>{" "}
-              <span class="mt-0.5 pl-[0.38em] text-[8.5px] font-semibold uppercase tracking-[0.38em] text-[#4E3B63]">
-                COSMÉTICOS
-              </span>
-            </span>
+            <img
+              src={assetUrl(settings().logo_light_url || "/logo-mf.png")}
+              alt={settings().store_name || "Mistura Feminina Cosméticos"}
+              class="h-11 w-auto object-contain"
+              onError={(e) => {
+                if (!e.currentTarget.dataset.fallback) {
+                  e.currentTarget.dataset.fallback = "1";
+                  e.currentTarget.src = "/logo-mf.png";
+                }
+              }}
+            />
           </Link>
 
           <p class="max-w-xs text-[13px] leading-relaxed text-zinc-600">

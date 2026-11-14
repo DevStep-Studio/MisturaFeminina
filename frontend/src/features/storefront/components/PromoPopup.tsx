@@ -69,9 +69,17 @@ export function PromoPopup() {
             <X class="h-5 w-5" />
           </button>
 
-          <p class="text-xs font-semibold uppercase tracking-wide text-[var(--mf-primary)]">
-            {settings().store_name}
-          </p>
+          <div class="mb-2 flex items-center gap-2.5">
+            <img
+              src="/logo-mf.png"
+              alt=""
+              aria-hidden="true"
+              class="h-8 w-auto object-contain"
+            />
+            <p class="text-xs font-semibold uppercase tracking-wide text-[var(--mf-primary)]">
+              {settings().store_name}
+            </p>
+          </div>
           <h2
             id="promo-popup-title"
             class="mt-1 text-xl font-bold text-zinc-900"

@@ -61,9 +61,16 @@ export function SessionPage() {
           data-session-reveal
           class="mb-8 flex items-center justify-between gap-4"
         >
-          <span class="grid size-14 place-items-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700">
-            <CircleCheck size={27} strokeWidth={1.6} aria-hidden="true" />
-          </span>
+          <div class="flex items-center gap-3">
+            <img
+              src="/logo-mf.png"
+              alt="Mistura Feminina Cosméticos"
+              class="h-10 w-auto object-contain"
+            />
+            <span class="grid size-10 place-items-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-700">
+              <CircleCheck size={20} strokeWidth={1.75} aria-hidden="true" />
+            </span>
+          </div>
           <span class="inline-flex items-center gap-2 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600">
             <span
               class="size-1.5 rounded-full bg-emerald-600"

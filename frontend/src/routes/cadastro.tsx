@@ -68,8 +68,17 @@ function RegisterPage() {
     <StoreShell>
       <div class="mx-auto max-w-lg px-4 py-10">
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
-          <h1 class="text-2xl font-bold text-zinc-900">Criar Conta</h1>
-          <p class="mt-1 text-sm text-zinc-600">
+          <div class="mb-5 flex justify-center">
+            <img
+              src="/logo-mf.png"
+              alt="Mistura Feminina Cosméticos"
+              class="h-12 w-auto object-contain"
+            />
+          </div>
+          <h1 class="text-center text-2xl font-bold text-zinc-900">
+            Criar Conta
+          </h1>
+          <p class="mt-1 text-center text-sm text-zinc-600">
             Compre mais rápido e acompanhe todos os seus pedidos em um só lugar.
           </p>
 

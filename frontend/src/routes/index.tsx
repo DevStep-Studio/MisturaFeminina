@@ -600,31 +600,11 @@ function TestimonialsCarouselBlock(props: {
                     class="pointer-events-none mt-2 flex select-none justify-end"
                     aria-hidden="true"
                   >
-                    <svg
-                      viewBox="0 0 64 34"
-                      class="h-6 w-auto"
-                      role="presentation"
-                    >
-                      <text
-                        x="32"
-                        y="24"
-                        text-anchor="middle"
-                        font-family="Georgia,serif"
-                        font-size="22"
-                        font-weight="700"
-                        letter-spacing="1"
-                        fill="#3D1260"
-                      >
-                        MF
-                      </text>
-                      <path
-                        d="M10 18 Q32 28 54 11"
-                        fill="none"
-                        stroke="#C22583"
-                        stroke-width="2.4"
-                        stroke-linecap="round"
-                      />
-                    </svg>
+                    <img
+                      src="/logo-mf.png"
+                      alt=""
+                      class="h-7 w-auto object-contain opacity-90"
+                    />
                   </div>
                 </article>
               )}

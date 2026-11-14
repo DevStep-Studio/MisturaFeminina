@@ -91,6 +91,13 @@ function StoreLoginPage() {
     <StoreShell>
       <div class="mx-auto max-w-md px-4 py-12">
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
+          <div class="mb-5 flex justify-center">
+            <img
+              src="/logo-mf.png"
+              alt="Mistura Feminina Cosméticos"
+              class="h-12 w-auto object-contain"
+            />
+          </div>
           <Show
             when={!mfaStep()}
             fallback={
@@ -136,10 +143,10 @@ function StoreLoginPage() {
               </form>
             }
           >
-            <h1 class="text-2xl font-bold text-zinc-900">
+            <h1 class="text-center text-2xl font-bold text-zinc-900">
               Entrar na sua conta
             </h1>
-            <p class="mt-1 text-sm text-zinc-600">
+            <p class="mt-1 text-center text-sm text-zinc-600">
               Acompanhe seus pedidos, favoritos e endereços salvos.
             </p>
 
