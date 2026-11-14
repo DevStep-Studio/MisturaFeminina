@@ -23,6 +23,7 @@ use App\Models\ProductImage;
 use App\Models\ProductKitItem;
 use App\Models\ProductVariant;
 use App\Models\Promotion;
+use App\Models\Review;
 use App\Models\Role;
 use App\Models\ShippingRule;
 use App\Models\User;
@@ -46,6 +47,7 @@ class DemoStoreSeeder extends Seeder
         $categories = $this->seedCategories();
         $attrs = $this->seedAttributes();
         $this->seedProducts($brands, $categories, $attrs);
+        $this->seedReviews();
         $this->seedMarketingAndShipping();
         $this->seedContent();
     }
@@ -842,7 +844,8 @@ class DemoStoreSeeder extends Seeder
             ['key' => 'best_sellers', 'type' => 'product_showcase', 'title' => 'Produtos mais Vendidos da semana', 'subtitle' => null, 'config' => ['filter' => 'best_sellers', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/categorias'], 'order' => 10],
             ['key' => 'best_brands', 'type' => 'brand_showcase', 'title' => 'As melhores marcas', 'subtitle' => null, 'config' => ['limit' => 12, 'autoplay' => true, 'show_view_all' => false], 'order' => 11],
             ['key' => 'featured_showcase', 'type' => 'product_showcase', 'title' => 'Destaques', 'subtitle' => null, 'config' => ['filter' => 'featured', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'show_featured_badge' => true, 'cta_url' => '/categorias'], 'order' => 12],
-            ['key' => 'newsletter_box', 'type' => 'newsletter', 'title' => 'Receba lançamentos e cupons exclusivos', 'subtitle' => 'Cadastre seu e-mail para novidades da Mistura Feminina Cosméticos', 'config' => [], 'order' => 13],
+            ['key' => 'quem_compra_indica', 'type' => 'testimonials', 'title' => 'Quem compra indica!', 'subtitle' => null, 'config' => ['limit' => 8], 'order' => 13],
+            ['key' => 'newsletter_box', 'type' => 'newsletter', 'title' => 'Receba lançamentos e cupons exclusivos', 'subtitle' => 'Cadastre seu e-mail para novidades da Mistura Feminina Cosméticos', 'config' => [], 'order' => 14],
         ];
         foreach ($sections as $s) {
             HomeSection::query()->updateOrCreate(
@@ -880,6 +883,69 @@ class DemoStoreSeeder extends Seeder
                     'show_in_footer' => true,
                     'footer_group' => $p['group'],
                     'sort_order' => $p['order'],
+                ]
+            );
+        }
+    }
+
+    private function seedReviews(): void
+    {
+        $samples = [
+            [
+                'slug' => 'esmalte-gel-alta-duracao-15ml',
+                'author' => 'Camila Ferreira',
+                'title' => 'Brilho incrível e envio super caprichado',
+                'body' => 'Meus produtos chegaram super embalados e os esmaltes em gel têm pigmentação absurda! Com certeza vou comprar sempre na Mistura Feminina.',
+            ],
+            [
+                'slug' => 'kit-cronograma-capilar-reconstrucao-brilho',
+                'author' => 'Juliana Mendes',
+                'title' => 'Atendimento e qualidade nota 10',
+                'body' => 'Amei o kit capilar, o cabelo ficou macio já na primeira aplicação. Entrega super rápida e já virei cliente fiel!',
+            ],
+            [
+                'slug' => 'esmalte-em-gel-cintilante-perola-10ml',
+                'author' => 'Studio Aline Unhas',
+                'title' => 'Minhas clientes elogiaram muito',
+                'body' => 'Comprei os esmaltes perolados e a durabilidade no salão foi excelente. Minhas clientes amaram o acabamento!',
+            ],
+            [
+                'slug' => 'cabine-led-uv-profissional-48w-bivolt',
+                'author' => 'Beatriz Nogueira',
+                'title' => 'Potente e seca por igual',
+                'body' => 'Cabine 48W muito bem acabada, sensor responde rápido e o brilho final das unhas ficou surreal. Recomendo demais!',
+            ],
+            [
+                'slug' => 'serum-facial-niacinamida-acido-hialuronico',
+                'author' => 'Larissa Costa',
+                'title' => 'Textura leve e resultado rápido',
+                'body' => 'Uso todos os dias antes da maquiagem e já notei a pele muito mais hidratada e sequinha ao longo do dia.',
+            ],
+            [
+                'slug' => 'base-fluida-soft-matte-efeito-segunda-pele',
+                'author' => 'Mariana Rocha',
+                'title' => 'Efeito segunda pele maravilhoso',
+                'body' => 'Não craquela, segura o dia todo e o tom combinou certinho. Chegou antes do prazo previsto!',
+            ],
+        ];
+
+        foreach ($samples as $item) {
+            $productId = Product::query()->where('slug', $item['slug'])->value('id');
+            if ($productId === null) {
+                continue;
+            }
+
+            Review::query()->firstOrCreate(
+                [
+                    'product_id' => $productId,
+                    'author_name' => $item['author'],
+                ],
+                [
+                    'rating' => 5,
+                    'title' => $item['title'],
+                    'body' => $item['body'],
+                    'is_verified_purchase' => true,
+                    'status' => 'approved',
                 ]
             );
         }

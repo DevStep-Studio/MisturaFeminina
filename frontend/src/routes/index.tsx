@@ -5,7 +5,6 @@ import ChevronRight from "lucide-solid/icons/chevron-right";
 import CreditCard from "lucide-solid/icons/credit-card";
 import MessageCircle from "lucide-solid/icons/message-circle";
 import ShieldCheck from "lucide-solid/icons/shield-check";
-import Star from "lucide-solid/icons/star";
 import Tag from "lucide-solid/icons/tag";
 import Truck from "lucide-solid/icons/truck";
 import {
@@ -511,6 +510,136 @@ function BrandCarouselBlock(props: {
   );
 }
 
+function authorInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "MF";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function TestimonialsCarouselBlock(props: {
+  section: HomeSectionData;
+  reviews: HomeReview[];
+}) {
+  const [offset, setOffset] = createSignal(0);
+
+  const visibleReviews = () => rotateList(props.reviews, offset());
+
+  return (
+    <Show when={props.reviews.length > 0}>
+      <section class="mx-auto max-w-7xl bg-white px-4 py-8 sm:py-10">
+        <div class="mb-7 text-center">
+          <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
+            {props.section.title || "Quem compra indica!"}
+          </h2>
+          <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
+        </div>
+
+        <div class="relative px-4 sm:px-6">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <For each={visibleReviews().slice(0, 4)}>
+              {(rev, idx) => (
+                <article
+                  class={`relative min-h-[176px] flex-col justify-between overflow-hidden rounded-lg bg-gradient-to-br from-[#FDE2FE] via-[#FACBFB] to-[#F5B4FA] p-4 shadow-xs ${
+                    idx() === 0
+                      ? "flex"
+                      : idx() === 1
+                        ? "hidden sm:flex"
+                        : "hidden lg:flex"
+                  }`}
+                >
+                  <div>
+                    <div class="mb-2 flex items-center gap-2 text-[11px] font-medium text-[#5B2168]">
+                      <span class="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[#62298D] text-[10px] font-bold text-white shadow-xs">
+                        {authorInitials(rev.author_name)}
+                      </span>
+                      <span class="truncate font-semibold text-[#3D1260]">
+                        {rev.author_name}
+                      </span>
+                      <span class="shrink-0 text-[10px] text-[#6B2F79]">
+                        • {rev.rating}.0/5
+                      </span>
+                    </div>
+
+                    <div class="space-y-1.5 pl-2 pr-3">
+                      <p class="rounded-2xl bg-white px-3.5 py-2.5 text-[12px] leading-snug text-zinc-900 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+                        {rev.body}
+                      </p>
+
+                      <Show when={rev.product}>
+                        {(p) => (
+                          <Link
+                            to="/produto/$slug"
+                            params={{ slug: p().slug }}
+                            class="inline-block max-w-[85%] truncate rounded-2xl bg-white px-3 py-1.5 text-[11px] font-semibold text-[#3D1260] shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition hover:text-[#C22583]"
+                          >
+                            {p().name}
+                          </Link>
+                        )}
+                      </Show>
+                    </div>
+                  </div>
+
+                  {/* Brand watermark in bottom-right corner */}
+                  <div
+                    class="pointer-events-none mt-2 flex select-none justify-end"
+                    aria-hidden="true"
+                  >
+                    <svg
+                      viewBox="0 0 64 34"
+                      class="h-6 w-auto"
+                      role="presentation"
+                    >
+                      <text
+                        x="32"
+                        y="24"
+                        text-anchor="middle"
+                        font-family="Georgia,serif"
+                        font-size="22"
+                        font-weight="700"
+                        letter-spacing="1"
+                        fill="#3D1260"
+                      >
+                        MF
+                      </text>
+                      <path
+                        d="M10 18 Q32 28 54 11"
+                        fill="none"
+                        stroke="#C22583"
+                        stroke-width="2.4"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </div>
+                </article>
+              )}
+            </For>
+          </div>
+
+          <Show when={props.reviews.length > 1}>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o - 1)}
+              aria-label={`Depoimentos anteriores em ${props.section.title || "Quem compra indica!"}`}
+              class="absolute left-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
+            >
+              <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o + 1)}
+              aria-label={`Próximos depoimentos em ${props.section.title || "Quem compra indica!"}`}
+              class="absolute right-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
+            >
+              <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+            </button>
+          </Show>
+        </div>
+      </section>
+    </Show>
+  );
+}
+
 function StorefrontHomePage() {
   const [homeData] = createResource(async () => {
     const res = await api<{ data: { sections: HomeSectionData[] } }>(
@@ -660,48 +789,7 @@ function StorefrontHomePage() {
               ? (section.data as HomeReview[])
               : [];
             return (
-              <Show when={reviews.length > 0}>
-                <section class="mx-auto max-w-7xl px-4 py-8">
-                  <h2 class="mb-5 text-xl font-bold text-zinc-900 sm:text-2xl">
-                    {section.title || "Avaliações verificadas de clientes"}
-                  </h2>
-                  <div class="grid gap-4 md:grid-cols-3">
-                    <For each={reviews}>
-                      {(rev) => (
-                        <article class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                          <div class="mb-2 flex items-center gap-1 text-amber-500">
-                            <For each={Array.from({ length: rev.rating })}>
-                              {() => <Star class="h-4 w-4 fill-current" />}
-                            </For>
-                          </div>
-                          <Show when={rev.title}>
-                            <h3 class="text-sm font-bold text-zinc-900">
-                              {rev.title}
-                            </h3>
-                          </Show>
-                          <p class="mt-1 text-sm text-zinc-700">{rev.body}</p>
-                          <div class="mt-3 flex items-center justify-between text-xs text-zinc-500">
-                            <span class="font-semibold text-zinc-800">
-                              {rev.author_name}
-                            </span>
-                            <Show when={rev.product}>
-                              {(p) => (
-                                <Link
-                                  to="/produto/$slug"
-                                  params={{ slug: p().slug }}
-                                  class="text-[var(--mf-primary)] hover:underline"
-                                >
-                                  {p().name}
-                                </Link>
-                              )}
-                            </Show>
-                          </div>
-                        </article>
-                      )}
-                    </For>
-                  </div>
-                </section>
-              </Show>
+              <TestimonialsCarouselBlock section={section} reviews={reviews} />
             );
           }
 
