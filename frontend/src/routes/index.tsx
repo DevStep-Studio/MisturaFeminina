@@ -128,7 +128,11 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                 <img
                   src={assetUrl(banner().desktop_image_path)}
                   alt={banner().alt_text || banner().title}
-                  class="block h-[220px] w-full object-cover object-center sm:h-[340px] lg:h-[430px]"
+                  class={
+                    banner().mobile_image_path
+                      ? "block aspect-[3/4] max-h-[520px] w-full object-cover object-center md:aspect-auto md:h-[360px] lg:h-[430px]"
+                      : "block h-[220px] w-full object-cover object-center sm:h-[340px] lg:h-[430px]"
+                  }
                 />
               </picture>
             );
@@ -765,7 +769,7 @@ function StorefrontHomePage() {
                           <img
                             src={assetUrl(banner.desktop_image_path)}
                             alt={banner.alt_text || banner.title}
-                            class="h-44 w-full object-cover sm:h-52"
+                            class="aspect-[5/2] w-full object-cover"
                             loading="lazy"
                           />
                         </a>
