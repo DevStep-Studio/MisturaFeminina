@@ -207,8 +207,8 @@ export function StoreHeader() {
             </button>
           </div>
 
-          {/* Desktop Search Left (wide clean search with pink magnifier matching reference) */}
-          <div class="relative hidden max-w-[360px] lg:block">
+          {/* Desktop Search Left */}
+          <div class="relative hidden w-full max-w-[380px] lg:block">
             <form onSubmit={submitSearch} class="relative flex items-center">
               <label for="header-search-desktop" class="sr-only">
                 Buscar produtos
@@ -223,18 +223,32 @@ export function StoreHeader() {
                 }}
                 onBlur={() => setTimeout(() => setShowDropdown(false), 180)}
                 placeholder="O que deseja procurar?"
-                class="h-10 w-full rounded-md bg-transparent pl-1 pr-10 text-[14px] font-normal text-[#2E1049] placeholder:text-[#3D2C54] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[var(--mf-accent)]"
+                class="h-11 w-full rounded-lg border border-[#D9B8E0] bg-[#FAF5FB] pl-4 pr-20 text-[14px] font-medium text-[#2E1049] placeholder:font-normal placeholder:text-[#6E5678] shadow-2xs transition-all [&::-webkit-search-cancel-button]:appearance-none hover:border-[#93509e]/70 hover:bg-white focus:border-[#93509e] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#93509e]/20"
               />
+              <Show when={searchQuery().length > 0}>
+                <button
+                  type="button"
+                  aria-label="Limpar busca"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSuggestions([]);
+                    setShowDropdown(false);
+                  }}
+                  class="absolute right-11 inline-flex size-7 items-center justify-center rounded-md text-[#6E5678] transition-colors hover:bg-[#F3E8F6] hover:text-[#2E1049]"
+                >
+                  <X class="size-3.5" aria-hidden="true" />
+                </button>
+              </Show>
               <button
                 type="submit"
                 aria-label="Buscar"
-                class="absolute right-0.5 inline-flex size-9 items-center justify-center rounded-md text-[#93509e] hover:bg-[#F5ECF7]"
+                class="absolute right-1.5 inline-flex size-8 items-center justify-center rounded-md bg-[#93509e] text-white shadow-2xs transition-colors hover:bg-[#7c3f87]"
               >
-                <Search class="size-[22px] stroke-[2]" aria-hidden="true" />
+                <Search class="size-4 stroke-[2.2]" aria-hidden="true" />
               </button>
             </form>
             <Show when={showDropdown() && suggestions().length > 0}>
-              <div class="absolute left-0 right-0 top-11 z-50 w-80 rounded-xl border border-line bg-white p-2 shadow-lg">
+              <div class="absolute left-0 right-0 top-12 z-50 w-full min-w-[340px] rounded-xl border border-[#E5D4E8] bg-white p-2.5 shadow-[0_16px_36px_-12px_rgba(46,16,73,0.18)]">
                 <For each={suggestions()}>
                   {(item) => (
                     <Link
@@ -252,7 +266,7 @@ export function StoreHeader() {
                         <p class="truncate text-xs font-medium text-ink">
                           {item.name}
                         </p>
-                        <p class="text-xs font-bold text-brand-600">
+                        <p class="text-xs font-bold text-[#93509e]">
                           {formatCents(item.effective_price_cents)}
                         </p>
                       </div>
@@ -549,14 +563,14 @@ export function StoreHeader() {
             value={searchQuery()}
             onInput={(e) => handleSearchInput(e.currentTarget.value)}
             placeholder="O que deseja procurar?"
-            class="h-10 w-full rounded-lg border border-[#EBD4EC] bg-white pl-3.5 pr-10 text-sm text-[#2E1049] placeholder:text-[#5B486B] focus:border-[var(--mf-accent)] focus:outline-none"
+            class="h-10 w-full rounded-lg border border-[#D9B8E0] bg-white pl-3.5 pr-11 text-sm font-medium text-[#2E1049] placeholder:font-normal placeholder:text-[#6E5678] shadow-2xs transition-all [&::-webkit-search-cancel-button]:appearance-none focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/20"
           />
           <button
             type="submit"
             aria-label="Buscar"
-            class="absolute right-1 inline-flex size-8 items-center justify-center text-[var(--mf-accent)]"
+            class="absolute right-1.5 inline-flex size-7 items-center justify-center rounded-md bg-[#93509e] text-white transition-colors hover:bg-[#7c3f87]"
           >
-            <Search class="size-4" aria-hidden="true" />
+            <Search class="size-3.5 stroke-[2.2]" aria-hidden="true" />
           </button>
         </form>
       </div>
