@@ -1,0 +1,252 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Domain\Checkout\Services;
+
+use App\Domain\Cart\Services\CartService;
+use App\Domain\Catalog\Services\InventoryService;
+use App\Domain\Payments\Services\MercadoPagoService;
+use App\Domain\Payments\Services\WebhookProcessorService;
+use App\Domain\Shared\Enums\OrderStatus;
+use App\Domain\Shared\Enums\PaymentMethod;
+use App\Domain\Shared\Enums\PaymentStatus;
+use App\Domain\Shipping\Services\ShippingQuoteService;
+use App\Mail\OrderStatusMail;
+use App\Models\Cart;
+use App\Models\CartItem;
+use App\Models\Coupon;
+use App\Models\CouponRedemption;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OrderStatusHistory;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Models\ShippingQuote;
+use App\Models\StockReservation;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+
+class CheckoutService
+{
+    public function __construct(
+        private readonly CartService $carts,
+        private readonly InventoryService $inventory,
+        private readonly ShippingQuoteService $shipping,
+        private readonly MercadoPagoService $mercadoPago,
+        private readonly WebhookProcessorService $webhooks,
+    ) {}
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array{order: Order, payment: Payment}
+     */
+    public function submitCheckout(Cart $cart, ?User $user, array $input, string $idempotencyKey): array
+    {
+        $existingOrder = Order::query()->where('idempotency_key', $idempotencyKey)->with('latestPayment')->first();
+        if ($existingOrder && $existingOrder->latestPayment) {
+            return ['order' => $existingOrder, 'payment' => $existingOrder->latestPayment];
+        }
+
+        $address = $input['shipping_address'];
+        $cep = $this->shipping->normalizeCep((string) $address['cep']);
+        $uf = strtoupper((string) $address['state']);
+        $customerEmail = strtolower(trim((string) $input['customer_email']));
+
+        $order = DB::transaction(function () use ($cart, $user, $input, $address, $cep, $uf, $customerEmail, $idempotencyKey): Order {
+            /** @var Cart $lockedCart */
+            $lockedCart = Cart::query()->whereKey($cart->id)->with(['items.product', 'items.variant', 'shippingQuote'])->lockForUpdate()->firstOrFail();
+
+            if ($lockedCart->items->isEmpty()) {
+                throw ValidationException::withMessages(['cart' => ['Seu carrinho está vazio.']]);
+            }
+
+            $summary = $this->carts->buildSummary($lockedCart, $user, $customerEmail, $uf);
+            if (count($summary['items']) === 0) {
+                throw ValidationException::withMessages(['cart' => ['Nenhum item válido disponível no carrinho.']]);
+            }
+
+            $quote = null;
+            if (! empty($input['shipping_quote_id'])) {
+                $quote = ShippingQuote::query()->whereKey((int) $input['shipping_quote_id'])->first();
+            }
+            if (! $quote && $lockedCart->shippingQuote) {
+                $quote = $lockedCart->shippingQuote;
+            }
+            if (! $quote || $quote->expires_at->isPast() || $quote->cep !== $cep) {
+                throw ValidationException::withMessages(['shipping_quote_id' => ['Cotação de frete ausente, expirada ou divergente do CEP. Calcule o frete novamente.']]);
+            }
+
+            $shippingCents = $summary['coupon_code'] && $summary['shipping_quote'] !== null
+                ? (int) $summary['shipping_quote']['price_cents']
+                : (int) $quote->price_cents;
+
+            $subtotalCents = (int) $summary['subtotal_cents'];
+            $discountCents = (int) $summary['discount_cents'];
+            $totalCents = max(0, $subtotalCents - $discountCents + $shippingCents);
+
+            $orderNumber = 'MF-'.now()->format('Ymd').'-'.strtoupper(Str::random(6));
+            $order = Order::query()->create([
+                'order_number' => $orderNumber,
+                'public_token' => Str::uuid()->toString(),
+                'idempotency_key' => $idempotencyKey,
+                'user_id' => $user?->id,
+                'is_guest' => $user === null,
+                'customer_name' => trim((string) $input['customer_name']),
+                'customer_email' => $customerEmail,
+                'customer_phone' => trim((string) $input['customer_phone']),
+                'customer_cpf_cnpj' => $input['customer_cpf_cnpj'] ?? null,
+                'shipping_address_snapshot' => [
+                    'recipient_name' => (string) ($address['recipient_name'] ?? $input['customer_name']),
+                    'cep' => $cep,
+                    'street' => (string) $address['street'],
+                    'number' => (string) $address['number'],
+                    'complement' => $address['complement'] ?? null,
+                    'neighborhood' => (string) $address['neighborhood'],
+                    'city' => (string) $address['city'],
+                    'state' => $uf,
+                ],
+                'shipping_service_snapshot' => [
+                    'quote_id' => $quote->id,
+                    'provider' => $quote->provider,
+                    'service_code' => $quote->service_code,
+                    'service_name' => $quote->service_name,
+                    'carrier' => $quote->carrier,
+                    'estimated_days' => $quote->estimated_days,
+                    'is_fallback' => $quote->is_fallback,
+                ],
+                'subtotal_cents' => $subtotalCents,
+                'discount_cents' => $discountCents,
+                'coupon_code' => $summary['coupon_code'],
+                'shipping_cents' => $shippingCents,
+                'tax_cents' => 0,
+                'total_cents' => $totalCents,
+                'status' => OrderStatus::PendingPayment,
+                'notes_customer' => $input['notes_customer'] ?? null,
+                'stock_reserved_until' => now()->addMinutes(30),
+            ]);
+
+            foreach ($summary['items'] as $line) {
+                OrderItem::query()->create([
+                    'order_id' => $order->id,
+                    'product_id' => $line['product_id'],
+                    'product_variant_id' => $line['variant_id'],
+                    'product_name_snapshot' => $line['product_name'],
+                    'variant_name_snapshot' => $line['variant_name'],
+                    'sku_snapshot' => $line['sku'],
+                    'quantity' => $line['quantity'],
+                    'unit_price_cents' => $line['unit_price_cents'],
+                    'discount_cents' => 0,
+                    'total_cents' => $line['line_total_cents'],
+                    'weight_grams_snapshot' => 200,
+                ]);
+            }
+
+            $this->inventory->reserveForOrder($order, $lockedCart->items, 30);
+
+            if ($summary['coupon_code']) {
+                $coupon = Coupon::query()->where('code', $summary['coupon_code'])->lockForUpdate()->first();
+                if ($coupon) {
+                    $coupon->increment('uses_count');
+                    CouponRedemption::query()->create([
+                        'coupon_id' => $coupon->id,
+                        'order_id' => $order->id,
+                        'user_id' => $user?->id,
+                        'customer_email' => $customerEmail,
+                        'discount_cents' => (int) $summary['coupon_discount_cents'],
+                    ]);
+                }
+            }
+
+            OrderStatusHistory::query()->create([
+                'order_id' => $order->id,
+                'user_id' => $user?->id,
+                'from_status' => null,
+                'to_status' => OrderStatus::PendingPayment->value,
+                'note' => 'Pedido criado aguardando pagamento.',
+            ]);
+
+            $lockedCart->items()->delete();
+            $lockedCart->update([
+                'coupon_code' => null,
+                'shipping_service_code' => null,
+                'shipping_quote_id' => null,
+            ]);
+
+            return $order;
+        });
+
+        $method = PaymentMethod::from((string) $input['payment_method']);
+        $payment = $this->mercadoPago->createOrderPayment(
+            $order,
+            $method,
+            is_array($input['payment_data'] ?? null) ? $input['payment_data'] : [],
+            $idempotencyKey.':pay:1',
+        );
+
+        if ($payment->status === PaymentStatus::Approved) {
+            $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Approved, $payment->fee_cents, 'Aprovação imediata na criação do pagamento');
+        } elseif ($payment->status === PaymentStatus::Rejected) {
+            $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Rejected, 0, $payment->failure_reason ?? 'Pagamento recusado');
+        } elseif ($payment->status === PaymentStatus::Expired) {
+            $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Expired, 0, 'Pagamento expirado');
+        } else {
+            $headline = $method === PaymentMethod::Pix ? 'Pedido criado — Aguardando Pix' : 'Pedido criado — Pagamento em processamento';
+            $body = $method === PaymentMethod::Pix
+                ? 'Utilize o QR Code ou código Copia e Cola na página do pedido para concluir seu pagamento em até 30 minutos.'
+                : 'Seu pagamento está sendo processado pelo provedor. Avisaremos assim que houver confirmação.';
+            Mail::to($order->customer_email)->queue(new OrderStatusMail($order, $headline, $body));
+        }
+
+        return ['order' => $order->fresh(['items', 'latestPayment', 'statusHistories', 'shipment']), 'payment' => $payment->fresh()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $paymentInput
+     */
+    public function retryPayment(Order $order, PaymentMethod $method, array $paymentInput, string $idempotencyKey): Payment
+    {
+        if (! in_array($order->status, [OrderStatus::PendingPayment, OrderStatus::PaymentFailed], true)) {
+            throw ValidationException::withMessages(['order' => ['Este pedido não aceita nova tentativa de pagamento no status atual.']]);
+        }
+
+        $existing = Payment::query()->where('idempotency_key', $idempotencyKey)->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        // Re-reserve stock if previous failure released reservation
+        DB::transaction(function () use ($order): void {
+            $hasActiveReservation = $order->items()->exists() && StockReservation::query()
+                ->where('order_id', $order->id)
+                ->where('status', 'active')
+                ->exists();
+            if (! $hasActiveReservation) {
+                $fakeCartItems = $order->items->map(function (OrderItem $oi): CartItem {
+                    $ci = new CartItem([
+                        'product_id' => $oi->product_id,
+                        'product_variant_id' => $oi->product_variant_id,
+                        'quantity' => $oi->quantity,
+                    ]);
+                    $ci->setRelation('product', Product::find($oi->product_id));
+
+                    return $ci;
+                });
+                $this->inventory->reserveForOrder($order, $fakeCartItems, 30);
+            }
+            $order->update(['status' => OrderStatus::PendingPayment, 'stock_reserved_until' => now()->addMinutes(30)]);
+        });
+
+        $payment = $this->mercadoPago->createOrderPayment($order, $method, $paymentInput, $idempotencyKey);
+        if ($payment->status === PaymentStatus::Approved) {
+            $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Approved, $payment->fee_cents, 'Aprovação em nova tentativa');
+        } elseif ($payment->status === PaymentStatus::Rejected) {
+            $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Rejected, 0, $payment->failure_reason ?? 'Pagamento recusado');
+        }
+
+        return $payment->fresh();
+    }
+}

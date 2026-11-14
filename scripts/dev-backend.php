@@ -42,8 +42,8 @@ if (! $app->environment(['local', 'development'])) {
 $action = $argv[1] ?? 'inspect';
 $connection = DB::connection();
 $config = $connection->getConfig();
-if (! in_array($config['driver'], ['mysql', 'mariadb'], true)) {
-    result(['message' => 'Este inicializador espera DB_CONNECTION=mysql ou mariadb.'], 40);
+if (! in_array($config['driver'], ['mysql', 'mariadb', 'sqlite'], true)) {
+    result(['message' => 'Este inicializador espera DB_CONNECTION=mysql, mariadb ou sqlite.'], 40);
 }
 
 if ($action === 'inspect') {
@@ -52,8 +52,8 @@ if ($action === 'inspect') {
     $session = config('session.driver');
     result([
         'keyMissing' => ! (bool) config('app.key'),
-        'databaseHost' => $config['host'],
-        'databasePort' => (int) $config['port'],
+        'databaseHost' => $config['host'] ?? '127.0.0.1',
+        'databasePort' => (int) ($config['port'] ?? 3306),
         'redisRequired' => $queue === 'redis' || $cache === 'redis' || $session === 'redis',
         'redisHost' => config('database.redis.default.host', '127.0.0.1'),
         'redisPort' => (int) config('database.redis.default.port', 6379),
@@ -77,6 +77,19 @@ if ($action === 'redis') {
 
 if (! in_array($action, ['probe', 'prepare'], true)) {
     result(['message' => 'Ação desconhecida.'], 40);
+}
+
+if ($config['driver'] === 'sqlite') {
+    $dbPath = (string) ($config['database'] ?? '');
+    if ($action === 'prepare' && $dbPath !== '' && $dbPath !== ':memory:' && ! file_exists($dbPath)) {
+        touch($dbPath);
+    }
+    try {
+        $connection->getPdo();
+        result(['message' => 'SQLite local conectado.']);
+    } catch (Throwable $exception) {
+        databaseFailure($exception);
+    }
 }
 
 try {

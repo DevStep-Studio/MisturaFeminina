@@ -1,0 +1,457 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Domain\Settings\Services\StoreSettingsService;
+use App\Domain\Shipping\Services\ShippingQuoteService;
+use App\Http\Controllers\Controller;
+use App\Models\Brand;
+use App\Models\Category;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\RestockRequest;
+use App\Models\Review;
+use App\Models\SlugRedirect;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+
+class CatalogController extends Controller
+{
+    public function __construct(
+        private readonly StoreSettingsService $settings,
+        private readonly ShippingQuoteService $shipping,
+    ) {}
+
+    public function categories(): JsonResponse
+    {
+        $categories = Category::query()
+            ->where('is_active', true)
+            ->whereNull('parent_id')
+            ->with(['children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->with('children')])
+            ->orderBy('sort_order')
+            ->get();
+
+        return response()->json(['data' => $categories]);
+    }
+
+    public function categoryShow(Request $request, string $slug): JsonResponse
+    {
+        $category = Category::query()->where('slug', $slug)->where('is_active', true)->with('parent:id,name,slug', 'children:id,parent_id,name,slug,image_path')->first();
+        if (! $category) {
+            $redirect = SlugRedirect::query()->where('entity_type', 'category')->where('old_slug', $slug)->first();
+            if ($redirect) {
+                return response()->json(['redirect_to' => '/categoria/'.$redirect->new_slug], 301);
+            }
+            abort(404, 'Categoria não encontrada.');
+        }
+
+        $categoryIds = array_merge([$category->id], $category->children->pluck('id')->all());
+        $query = Product::query()
+            ->where('is_active', true)
+            ->whereHas('categories', fn (Builder $q) => $q->whereIn('categories.id', $categoryIds));
+
+        $result = $this->applyProductFiltersAndPaginate($request, $query);
+
+        return response()->json([
+            'data' => [
+                'category' => $category,
+                'products' => $result['products'],
+                'meta' => $result['meta'],
+                'facets' => $result['facets'],
+            ],
+        ]);
+    }
+
+    public function brands(): JsonResponse
+    {
+        $brands = Brand::query()
+            ->where('is_active', true)
+            ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['data' => $brands]);
+    }
+
+    public function brandShow(Request $request, string $slug): JsonResponse
+    {
+        $brand = Brand::query()->where('slug', $slug)->where('is_active', true)->first();
+        if (! $brand) {
+            $redirect = SlugRedirect::query()->where('entity_type', 'brand')->where('old_slug', $slug)->first();
+            if ($redirect) {
+                return response()->json(['redirect_to' => '/marca/'.$redirect->new_slug], 301);
+            }
+            abort(404, 'Marca não encontrada.');
+        }
+
+        $query = Product::query()->where('is_active', true)->where('brand_id', $brand->id);
+        $result = $this->applyProductFiltersAndPaginate($request, $query);
+
+        return response()->json([
+            'data' => [
+                'brand' => $brand,
+                'products' => $result['products'],
+                'meta' => $result['meta'],
+                'facets' => $result['facets'],
+            ],
+        ]);
+    }
+
+    public function products(Request $request): JsonResponse
+    {
+        $query = Product::query()->where('is_active', true);
+
+        $collection = (string) $request->query('collection', '');
+        if ($collection === 'ofertas' || $collection === 'promocoes') {
+            $query->whereNotNull('promo_price_cents')->whereColumn('promo_price_cents', '<', 'price_cents');
+        } elseif ($collection === 'novidades') {
+            $query->where('is_new_arrival', true);
+        } elseif ($collection === 'mais-vendidos') {
+            $query->where('is_best_seller', true);
+        }
+
+        $result = $this->applyProductFiltersAndPaginate($request, $query);
+
+        return response()->json([
+            'data' => [
+                'products' => $result['products'],
+                'meta' => $result['meta'],
+                'facets' => $result['facets'],
+            ],
+        ]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $rawQ = trim((string) $request->query('q', ''));
+        $autocomplete = $request->boolean('autocomplete');
+
+        $query = Product::query()->where('is_active', true);
+
+        if ($rawQ !== '') {
+            $normalized = Str::ascii(mb_strtolower($rawQ));
+            $terms = array_values(array_filter(preg_split('/\s+/', $normalized) ?: []));
+
+            $query->where(function (Builder $outer) use ($rawQ, $terms): void {
+                $outer->where('sku', 'like', "%{$rawQ}%")
+                    ->orWhere('name', 'like', "%{$rawQ}%")
+                    ->orWhereHas('variants', fn ($vq) => $vq->where('sku', 'like', "%{$rawQ}%"))
+                    ->orWhereHas('brand', fn ($bq) => $bq->where('name', 'like', "%{$rawQ}%"));
+
+                if (count($terms) > 0) {
+                    $outer->orWhere(function (Builder $termQ) use ($terms): void {
+                        foreach ($terms as $term) {
+                            $termQ->where(function (Builder $inner) use ($term): void {
+                                $inner->whereRaw('LOWER(name) LIKE ?', ["%{$term}%"])
+                                    ->orWhereRaw('LOWER(COALESCE(short_description, "")) LIKE ?', ["%{$term}%"])
+                                    ->orWhereRaw('LOWER(COALESCE(tags, "")) LIKE ?', ["%{$term}%"]);
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        if ($autocomplete) {
+            $suggestions = $query->with(['brand:id,name', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+                ->orderByDesc('sales_count')
+                ->limit(6)
+                ->get()
+                ->map(fn (Product $p): array => self::serializeProductCard($p))
+                ->values();
+
+            return response()->json(['data' => ['query' => $rawQ, 'suggestions' => $suggestions]]);
+        }
+
+        $result = $this->applyProductFiltersAndPaginate($request, $query);
+
+        return response()->json([
+            'data' => [
+                'query' => $rawQ,
+                'products' => $result['products'],
+                'meta' => $result['meta'],
+                'facets' => $result['facets'],
+            ],
+        ]);
+    }
+
+    public function show(string $slug): JsonResponse
+    {
+        $product = Product::query()
+            ->where('slug', $slug)
+            ->where('is_active', true)
+            ->with([
+                'brand',
+                'categories:id,name,slug,parent_id',
+                'images',
+                'variants' => fn ($q) => $q->where('is_active', true)->with(['attributeValues.attribute', 'image']),
+                'kitItems.componentProduct:id,name,slug',
+                'kitItems.componentVariant:id,name,sku,stock_qty,reserved_qty',
+                'reviews' => fn ($q) => $q->where('status', 'approved')->latest('id')->limit(20),
+            ])
+            ->first();
+
+        if (! $product) {
+            $redirect = SlugRedirect::query()->where('entity_type', 'product')->where('old_slug', $slug)->first();
+            if ($redirect) {
+                return response()->json(['redirect_to' => '/produto/'.$redirect->new_slug], 301);
+            }
+            abort(404, 'Produto não encontrado.');
+        }
+
+        $categoryIds = $product->categories->pluck('id')->all();
+        $related = Product::query()
+            ->where('is_active', true)
+            ->where('id', '!=', $product->id)
+            ->when(count($categoryIds) > 0, fn ($q) => $q->whereHas('categories', fn ($cq) => $cq->whereIn('categories.id', $categoryIds)))
+            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->orderByDesc('sales_count')
+            ->limit(8)
+            ->get()
+            ->map(fn (Product $p): array => self::serializeProductCard($p))
+            ->values();
+
+        $config = $this->settings->getPublicConfig();
+        $card = self::serializeProductCard($product, (int) ($config['max_installments'] ?? 6));
+
+        $approvedReviews = $product->reviews;
+        $avgRating = $approvedReviews->count() > 0 ? round((float) $approvedReviews->avg('rating'), 1) : 0.0;
+
+        return response()->json([
+            'data' => [
+                ...$card,
+                'gtin' => $product->gtin,
+                'manufacturer' => $product->manufacturer,
+                'short_description' => $product->short_description,
+                'description' => $product->description,
+                'ingredients' => $product->ingredients,
+                'usage_instructions' => $product->usage_instructions,
+                'unit_label' => $product->unit_label,
+                'unit_quantity' => $product->unit_quantity,
+                'weight_grams' => $product->weight_grams,
+                'dimensions' => [
+                    'width_cm' => $product->width_cm,
+                    'height_cm' => $product->height_cm,
+                    'length_cm' => $product->length_cm,
+                ],
+                'video_url' => $product->video_url,
+                'tags' => $product->tags ?? [],
+                'wholesale_enabled' => (bool) ($config['wholesale_enabled'] ?? false) && $product->wholesale_enabled,
+                'wholesale_tiers' => $product->wholesale_tiers ?? [],
+                'categories' => $product->categories,
+                'images' => $product->images,
+                'variants' => $product->variants->map(fn (ProductVariant $v): array => self::serializeVariant($v))->values(),
+                'kit_items' => $product->kitItems,
+                'reviews' => $approvedReviews,
+                'rating_avg' => $avgRating,
+                'rating_count' => $approvedReviews->count(),
+                'seo_title' => $product->seo_title ?: $product->name,
+                'seo_description' => $product->seo_description ?: $product->short_description,
+                'related_products' => $related,
+            ],
+        ]);
+    }
+
+    public function quoteProductShipping(Request $request, string $slug): JsonResponse
+    {
+        $validated = $request->validate([
+            'cep' => ['required', 'string', 'max:12'],
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+        $product = Product::query()->where('slug', $slug)->where('is_active', true)->firstOrFail();
+
+        return response()->json([
+            'data' => $this->shipping->quoteForProduct($validated['cep'], $product, (int) ($validated['quantity'] ?? 1)),
+        ]);
+    }
+
+    public function restockAlert(Request $request, string $slug): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email:rfc', 'max:190'],
+            'name' => ['nullable', 'string', 'max:120'],
+            'variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+        ]);
+
+        $product = Product::query()->where('slug', $slug)->where('is_active', true)->firstOrFail();
+
+        RestockRequest::query()->firstOrCreate(
+            [
+                'product_id' => $product->id,
+                'product_variant_id' => $validated['variant_id'] ?? null,
+                'email' => strtolower(trim($validated['email'])),
+                'status' => 'pending',
+            ],
+            [
+                'name' => $validated['name'] ?? null,
+            ]
+        );
+
+        return response()->json(['message' => 'Aviso cadastrado! Você receberá um e-mail assim que este item voltar ao estoque.'], 201);
+    }
+
+    public function storeReview(Request $request, string $slug): JsonResponse
+    {
+        $validated = $request->validate([
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'title' => ['nullable', 'string', 'max:160'],
+            'body' => ['required', 'string', 'min:5', 'max:1500'],
+        ]);
+
+        $user = $request->user();
+        $product = Product::query()->where('slug', $slug)->where('is_active', true)->firstOrFail();
+
+        $verified = $user ? Order::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', ['paid', 'preparing', 'shipped', 'delivered'])
+            ->whereHas('items', fn ($q) => $q->where('product_id', $product->id))
+            ->exists() : false;
+
+        $review = Review::query()->create([
+            'product_id' => $product->id,
+            'user_id' => $user ? $user->id : null,
+            'author_name' => $user ? $user->name : 'Cliente',
+            'rating' => (int) $validated['rating'],
+            'title' => $validated['title'] ?? null,
+            'body' => $validated['body'],
+            'is_verified_purchase' => $verified,
+            'status' => 'pending',
+        ]);
+
+        return response()->json([
+            'message' => 'Avaliação enviada para moderação.',
+            'data' => $review,
+        ], 201);
+    }
+
+    /**
+     * @param  Builder<Product>  $query
+     * @return array{products: list<array<string, mixed>>, meta: array<string, mixed>, facets: array<string, mixed>}
+     */
+    private function applyProductFiltersAndPaginate(Request $request, Builder $query): array
+    {
+        $baseIds = (clone $query)->pluck('id');
+
+        if ($request->filled('brand')) {
+            $brands = array_filter(explode(',', (string) $request->query('brand')));
+            $query->whereHas('brand', fn (Builder $bq) => $bq->whereIn('slug', $brands));
+        }
+
+        if ($request->boolean('in_stock')) {
+            $query->whereHas('variants', fn (Builder $vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) > 0'));
+        }
+
+        if ($request->filled('min_price')) {
+            $minCents = (int) round((float) $request->query('min_price') * 100);
+            $query->whereRaw('COALESCE(promo_price_cents, price_cents) >= ?', [$minCents]);
+        }
+
+        if ($request->filled('max_price')) {
+            $maxCents = (int) round((float) $request->query('max_price') * 100);
+            $query->whereRaw('COALESCE(promo_price_cents, price_cents) <= ?', [$maxCents]);
+        }
+
+        $sort = (string) $request->query('sort', 'featured');
+        match ($sort) {
+            'price_asc' => $query->orderByRaw('COALESCE(promo_price_cents, price_cents) ASC'),
+            'price_desc' => $query->orderByRaw('COALESCE(promo_price_cents, price_cents) DESC'),
+            'newest' => $query->orderByDesc('id'),
+            'best_sellers' => $query->orderByDesc('sales_count')->orderByDesc('id'),
+            'discount' => $query->orderByRaw('CASE WHEN promo_price_cents IS NOT NULL AND promo_price_cents < price_cents THEN (price_cents - promo_price_cents) * 100 / price_cents ELSE 0 END DESC'),
+            default => $query->orderByDesc('is_featured')->orderByDesc('id'),
+        };
+
+        $perPage = max(1, min(48, (int) $request->query('per_page', 16)));
+        $paginator = $query->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute')])
+            ->paginate($perPage);
+
+        $availableBrands = Brand::query()
+            ->whereHas('products', fn ($q) => $q->whereIn('products.id', $baseIds))
+            ->get(['id', 'name', 'slug']);
+
+        return [
+            'products' => $paginator->getCollection()->map(fn (Product $p): array => self::serializeProductCard($p))->values()->all(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            'facets' => [
+                'brands' => $availableBrands,
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public static function serializeProductCard(Product $product, int $maxInstallments = 6): array
+    {
+        $activeVariants = $product->variants->where('is_active', true);
+        $defaultVariant = $activeVariants->firstWhere('is_default', true) ?? $activeVariants->first();
+
+        $effectivePrice = $defaultVariant ? $defaultVariant->effectivePriceCents() : $product->effectivePriceCents();
+        $originalPrice = $defaultVariant ? $defaultVariant->price_cents : $product->price_cents;
+        $discountPercent = ($originalPrice > 0 && $effectivePrice < $originalPrice)
+            ? (int) round((($originalPrice - $effectivePrice) / $originalPrice) * 100)
+            : 0;
+
+        $totalAvailable = $activeVariants->sum(fn (ProductVariant $v): int => $v->availableStock());
+        $primaryImg = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
+
+        $installmentsCount = $effectivePrice >= 2000 ? min($maxInstallments, max(1, (int) floor($effectivePrice / 1000))) : 1;
+        $installmentCents = $installmentsCount > 1 ? (int) round($effectivePrice / $installmentsCount) : $effectivePrice;
+
+        return [
+            'id' => $product->id,
+            'name' => $product->name,
+            'slug' => $product->slug,
+            'sku' => $product->sku,
+            'product_type' => $product->product_type->value,
+            'brand' => $product->brand ? ['id' => $product->brand->id, 'name' => $product->brand->name, 'slug' => $product->brand->slug] : null,
+            'primary_image' => $primaryImg?->path,
+            'primary_image_alt' => $primaryImg?->alt_text ?: $product->name,
+            'price_cents' => $originalPrice,
+            'effective_price_cents' => $effectivePrice,
+            'discount_percent' => $discountPercent,
+            'installments_count' => $installmentsCount,
+            'installment_cents' => $installmentCents,
+            'is_new_arrival' => $product->is_new_arrival,
+            'is_featured' => $product->is_featured,
+            'in_stock' => $totalAvailable > 0,
+            'available_stock' => $totalAvailable,
+            'default_variant_id' => $defaultVariant?->id,
+            'has_multiple_variants' => $activeVariants->count() > 1,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public static function serializeVariant(ProductVariant $variant): array
+    {
+        return [
+            'id' => $variant->id,
+            'sku' => $variant->sku,
+            'gtin' => $variant->gtin,
+            'name' => $variant->name,
+            'price_cents' => $variant->price_cents,
+            'effective_price_cents' => $variant->effectivePriceCents(),
+            'stock_qty' => $variant->stock_qty,
+            'available_stock' => $variant->availableStock(),
+            'in_stock' => $variant->availableStock() > 0,
+            'is_default' => $variant->is_default,
+            'image_path' => $variant->image?->path,
+            'attributes' => $variant->attributeValues->map(fn ($av): array => [
+                'attribute_id' => $av->attribute_id,
+                'attribute_name' => $av->attribute->name,
+                'display_type' => $av->attribute->display_type,
+                'value_id' => $av->id,
+                'value' => $av->value,
+                'color_hex' => $av->color_hex,
+            ])->values()->all(),
+        ];
+    }
+}
