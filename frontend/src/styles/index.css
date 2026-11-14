@@ -41,17 +41,18 @@ body {
 
 @keyframes mf-marquee {
   from {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translateX(-50%);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
 .mf-ticker-track {
   display: flex;
   width: max-content;
-  animation: mf-marquee 28s linear infinite;
+  will-change: transform;
+  animation: mf-marquee 38s linear infinite;
 }
 
 .mf-ticker-track:hover {
@@ -59,13 +60,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mf-ticker-track {
-    animation: none;
-    flex-wrap: wrap;
-    width: auto;
-    justify-content: center;
-  }
-
   .mf-btn-buy,
   .mf-btn-buy::before,
   .mf-btn-buy::after,
