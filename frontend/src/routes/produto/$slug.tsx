@@ -666,48 +666,65 @@ function ProductDetailPage() {
                       fallback={
                         <form
                           onSubmit={submitRestock}
-                          class="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4"
+                          class="space-y-4 rounded-2xl border border-[#E5D4F0] bg-[#FAF7FC] p-4 sm:p-5"
                         >
-                          <div class="flex items-center gap-2 text-sm font-bold text-amber-900">
-                            <Bell class="h-4 w-4" aria-hidden="true" />
-                            <span>
-                              Produto esgotado — Avise-me quando chegar
+                          <div class="flex items-start gap-3">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5D4F0] bg-white text-[#3D1260]">
+                              <Bell class="h-4 w-4" aria-hidden="true" />
                             </span>
+                            <div>
+                              <p class="text-sm font-bold text-[#2E0C49]">
+                                Produto indisponível no momento
+                              </p>
+                              <p class="mt-0.5 text-xs text-zinc-600">
+                                Cadastre seu e-mail para ser avisada assim que
+                                voltar ao estoque.
+                              </p>
+                            </div>
                           </div>
-                          <div class="grid gap-2 sm:grid-cols-2">
+                          <div class="grid gap-2.5 sm:grid-cols-2">
                             <input
                               type="text"
+                              aria-label="Seu nome"
                               placeholder="Seu nome"
                               value={restockName()}
                               onInput={(e) =>
                                 setRestockName(e.currentTarget.value)
                               }
-                              class="h-10 rounded-md border border-amber-300 bg-white px-3 text-sm"
+                              class="h-10 rounded-full border border-zinc-200/90 bg-white px-4 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-[#3D1260] focus:outline-none"
                             />
                             <input
+                              id="restock-email-input"
                               type="email"
                               required
+                              aria-label="Seu e-mail"
                               placeholder="Seu e-mail *"
                               value={restockEmail()}
                               onInput={(e) =>
                                 setRestockEmail(e.currentTarget.value)
                               }
-                              class="h-10 rounded-md border border-amber-300 bg-white px-3 text-sm"
+                              class="h-10 rounded-full border border-zinc-200/90 bg-white px-4 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-[#3D1260] focus:outline-none"
                             />
                           </div>
                           <button
                             type="submit"
                             disabled={restockBusy()}
-                            class="h-10 w-full rounded-full bg-zinc-900 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                            class="group/notify inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[#3D1260] px-5 text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#2E0C49] hover:shadow-[0_8px_20px_rgba(61,18,96,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3D1260]/40 disabled:opacity-60"
                           >
-                            {restockBusy()
-                              ? "Registrando..."
-                              : "Avise-me quando voltar"}
+                            <Bell
+                              class="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
+                              aria-hidden="true"
+                            />
+                            <span>
+                              {restockBusy()
+                                ? "Registrando..."
+                                : "Avise-me quando voltar"}
+                            </span>
                           </button>
                           <Show when={restockMsg()}>
                             <p
                               role="status"
-                              class="text-xs font-medium text-amber-900"
+                              class="text-xs font-medium text-[#2E0C49]"
                             >
                               {restockMsg()}
                             </p>
@@ -1084,7 +1101,7 @@ function ProductDetailPage() {
                           >
                             <img
                               src={assetUrl(item.primary_image)}
-                              alt={item.name}
+                              alt=""
                               class="h-20 w-20 shrink-0 object-contain"
                             />
                             <span class="text-xs font-bold text-[#2E0C49]">
@@ -1142,14 +1159,40 @@ function ProductDetailPage() {
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={adding() || !inStock()}
-                      onClick={() => void handleAddToCart()}
-                      class="mf-btn-buy h-10 rounded-full px-8 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                    <Show
+                      when={inStock()}
+                      fallback={
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const el = document.getElementById(
+                              "restock-email-input",
+                            );
+                            el?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "center",
+                            });
+                            el?.focus();
+                          }}
+                          class="group/notify inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[#E5D4F0] bg-[#FAF6FC] px-6 text-xs font-semibold text-[#3D1260] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white hover:shadow-[0_6px_16px_rgba(61,18,96,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3D1260]/30"
+                        >
+                          <Bell
+                            class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
+                            aria-hidden="true"
+                          />
+                          <span>Avise-me quando voltar</span>
+                        </button>
+                      }
                     >
-                      {adding() ? "ADICIONANDO..." : "COMPRAR"}
-                    </button>
+                      <button
+                        type="button"
+                        disabled={adding()}
+                        onClick={() => void handleAddToCart()}
+                        class="mf-btn-buy h-10 rounded-full px-8 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                      >
+                        {adding() ? "ADICIONANDO..." : "COMPRAR"}
+                      </button>
+                    </Show>
                   </div>
                 </div>
               </div>

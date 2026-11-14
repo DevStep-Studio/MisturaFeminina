@@ -1,5 +1,6 @@
 import { Show, createSignal } from "solid-js";
 import { Link } from "@tanstack/solid-router";
+import Bell from "lucide-solid/icons/bell";
 import CreditCard from "lucide-solid/icons/credit-card";
 import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
 import { addCartItem, storefrontStore } from "../store";
@@ -98,14 +99,29 @@ export function ProductCard(props: {
         <Show
           when={props.product.in_stock}
           fallback={
-            <div class="mt-4 flex flex-1 flex-col items-center justify-center pb-3">
-              <p class="text-[15px] font-bold text-[#2F0572]">Esgotado :(</p>
+            <div class="mt-4 flex flex-1 flex-col items-center justify-end pb-1">
+              <div class="flex flex-col items-center text-center">
+                <span class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold tracking-tight text-zinc-700">
+                  <span
+                    class="h-1.5 w-1.5 rounded-full bg-zinc-400"
+                    aria-hidden="true"
+                  />
+                  Indisponível no momento
+                </span>
+                <p class="mt-0.5 text-[11px] font-medium text-zinc-500">
+                  Receba um alerta assim que voltar
+                </p>
+              </div>
               <Link
                 to="/produto/$slug"
                 params={{ slug: props.product.slug }}
-                class="mt-1 inline-flex items-center justify-center text-[11.5px] font-bold text-[#2F0572] transition-colors hover:text-[#C918BF] hover:underline"
+                class="group/notify mt-3 inline-flex h-[34px] w-full items-center justify-center gap-1.5 rounded-full border border-[#E5D4F0] bg-[#FAF6FC] px-4 text-[12px] font-semibold text-[#3D1260] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white hover:shadow-[0_6px_16px_rgba(61,18,96,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3D1260]/30"
               >
-                Avise-me quando chegar ›
+                <Bell
+                  class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
+                  aria-hidden="true"
+                />
+                <span>Avise-me quando chegar</span>
               </Link>
             </div>
           }
