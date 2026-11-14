@@ -65,4 +65,121 @@ body {
     width: auto;
     justify-content: center;
   }
+
+  .mf-btn-buy,
+  .mf-btn-buy::before,
+  .mf-btn-buy::after,
+  .mf-btn-whats,
+  .mf-btn-whats::before,
+  .mf-btn-whats svg {
+    transition: none;
+  }
+
+  .mf-btn-buy:hover:not(:disabled),
+  .mf-btn-whats:hover {
+    transform: none;
+  }
+}
+
+.mf-btn-buy {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-color: #5949e5;
+  color: #fff3ff;
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.28s ease;
+}
+
+.mf-btn-buy::before,
+.mf-btn-buy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.mf-btn-buy::before {
+  background: linear-gradient(110deg, #4334d4 0%, #6d28d9 52%, #c22583 100%);
+  opacity: 0;
+  transition: opacity 0.32s ease;
+}
+
+.mf-btn-buy::after {
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.34) 50%,
+    transparent 80%
+  );
+  transform: translateX(-130%) skewX(-18deg);
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mf-btn-buy:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 22px -6px rgba(98, 41, 141, 0.48),
+    0 4px 10px -2px rgba(89, 73, 229, 0.32);
+}
+
+.mf-btn-buy:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.mf-btn-buy:hover:not(:disabled)::after {
+  transform: translateX(130%) skewX(-18deg);
+}
+
+.mf-btn-buy:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.mf-btn-whats {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid #13b918;
+  background-color: #f3fbf3;
+  color: #0d8211;
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.28s ease,
+    border-color 0.28s ease;
+}
+
+.mf-btn-whats::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(135deg, #13b918 0%, #0d8211 100%);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mf-btn-whats svg {
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mf-btn-whats:hover {
+  color: #ffffff;
+  border-color: #0d8211;
+  transform: translateY(-1.5px);
+  box-shadow: 0 8px 18px -6px rgba(19, 185, 24, 0.38);
+}
+
+.mf-btn-whats:hover::before {
+  transform: scaleX(1);
+  transform-origin: left center;
+}
+
+.mf-btn-whats:hover svg {
+  transform: scale(1.15) rotate(-8deg);
 }

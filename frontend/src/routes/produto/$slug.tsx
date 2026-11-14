@@ -745,7 +745,7 @@ function ProductDetailPage() {
                             type="button"
                             disabled={adding()}
                             onClick={() => void handleAddToCart()}
-                            class="flex h-11 flex-1 items-center justify-center rounded-full bg-[#5949E5] px-6 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#4838D4] disabled:opacity-60"
+                            class="mf-btn-buy flex h-11 flex-1 items-center justify-center rounded-full px-6 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
                           >
                             {adding() ? "ADICIONANDO..." : "COMPRAR"}
                           </button>
@@ -759,7 +759,7 @@ function ProductDetailPage() {
                             )}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-[#13B918] bg-white text-xs font-medium text-[#0D8211] transition hover:bg-emerald-50"
+                            class="mf-btn-whats flex h-9 w-full items-center justify-center gap-1.5 rounded-full text-xs font-medium"
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -1146,7 +1146,7 @@ function ProductDetailPage() {
                       type="button"
                       disabled={adding() || !inStock()}
                       onClick={() => void handleAddToCart()}
-                      class="h-10 rounded-full bg-[#5949E5] px-8 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#4838D4] disabled:opacity-60"
+                      class="mf-btn-buy h-10 rounded-full px-8 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
                     >
                       {adding() ? "ADICIONANDO..." : "COMPRAR"}
                     </button>

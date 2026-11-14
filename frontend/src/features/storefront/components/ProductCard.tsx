@@ -159,7 +159,7 @@ export function ProductCard(props: {
                 <Link
                   to="/produto/$slug"
                   params={{ slug: props.product.slug }}
-                  class="inline-flex h-[37px] w-full items-center justify-center rounded-full bg-[#5949E5] px-4 text-[13.5px] font-bold text-[#FFF3FF] transition hover:bg-[#4838D4]"
+                  class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-full px-4 text-[13.5px] font-bold"
                 >
                   Comprar
                 </Link>
@@ -169,7 +169,7 @@ export function ProductCard(props: {
                 type="button"
                 disabled={adding()}
                 onClick={() => void handleQuickBuy()}
-                class="inline-flex h-[37px] w-full items-center justify-center rounded-full bg-[#5949E5] px-4 text-[13.5px] font-bold text-[#FFF3FF] transition hover:bg-[#4838D4] disabled:opacity-60"
+                class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-full px-4 text-[13.5px] font-bold disabled:opacity-60"
               >
                 {adding() ? "Adicionando…" : "Comprar"}
               </button>
@@ -182,7 +182,7 @@ export function ProductCard(props: {
               )}
               target="_blank"
               rel="noopener noreferrer"
-              class="mt-2 flex h-[32px] w-full items-center justify-center gap-1.5 rounded-full border border-[#13B918] bg-[#F3FBF3] px-3 text-[11.5px] font-medium text-[#0D8211] transition hover:bg-[#13B918] hover:text-white"
+              class="mf-btn-whats mt-2 flex h-[32px] w-full items-center justify-center gap-1.5 rounded-full px-3 text-[11.5px] font-medium"
             >
               <svg
                 viewBox="0 0 24 24"
