@@ -4,7 +4,6 @@ import BadgePercent from "lucide-solid/icons/badge-percent";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
-import Headset from "lucide-solid/icons/headset";
 import LogIn from "lucide-solid/icons/log-in";
 import Mail from "lucide-solid/icons/mail";
 import Menu from "lucide-solid/icons/menu";
@@ -194,8 +193,8 @@ export function StoreHeader() {
       ref={headerRef}
       class="sticky top-0 z-40 border-b border-[#EBD4EC] bg-[#FFF3FF]"
     >
-      <div class="border-b border-[#F9A2F6]">
-        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:grid lg:h-[74px] lg:grid-cols-[1fr_auto_1fr] lg:py-0">
+      <div class="border-b border-[#F9A2F6] bg-white">
+        <div class="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:grid lg:h-[72px] lg:grid-cols-[1fr_auto_1fr] lg:py-0">
           <div class="flex items-center gap-2 lg:hidden">
             <button
               type="button"
@@ -208,8 +207,8 @@ export function StoreHeader() {
             </button>
           </div>
 
-          {/* Desktop Search Left (clean underline-less search with pink magnifier matching reference) */}
-          <div class="relative hidden max-w-[300px] lg:block">
+          {/* Desktop Search Left (wide clean search with pink magnifier matching reference) */}
+          <div class="relative hidden max-w-[360px] lg:block">
             <form onSubmit={submitSearch} class="relative flex items-center">
               <label for="header-search-desktop" class="sr-only">
                 Buscar produtos
@@ -224,14 +223,14 @@ export function StoreHeader() {
                 }}
                 onBlur={() => setTimeout(() => setShowDropdown(false), 180)}
                 placeholder="O que deseja procurar?"
-                class="h-10 w-full rounded-md bg-transparent pl-1 pr-10 text-sm font-medium text-[#2E1049] placeholder:text-[#4E3B63] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[var(--mf-accent)]"
+                class="h-10 w-full rounded-md bg-transparent pl-1 pr-10 text-[14px] font-normal text-[#2E1049] placeholder:text-[#3D2C54] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[var(--mf-accent)]"
               />
               <button
                 type="submit"
                 aria-label="Buscar"
                 class="absolute right-0.5 inline-flex size-9 items-center justify-center rounded-full text-[var(--mf-accent)] hover:bg-[#FCE7F6]"
               >
-                <Search class="size-5 stroke-[2]" aria-hidden="true" />
+                <Search class="size-[22px] stroke-[2]" aria-hidden="true" />
               </button>
             </form>
             <Show when={showDropdown() && suggestions().length > 0}>
@@ -274,21 +273,49 @@ export function StoreHeader() {
           {/* Brand Logo Centered */}
           <Link
             to="/"
-            class="flex shrink-0 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
-            aria-label={settings().store_name}
+            class="flex shrink-0 items-center justify-center gap-2 rounded-lg px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
           >
-            <img
-              src={assetUrl(settings().logo_light_url)}
-              alt={settings().store_name}
-              onError={(e) => {
-                e.currentTarget.src = "/logo-mf.png";
-              }}
-              class="h-11 w-auto max-w-[200px] object-contain sm:h-13"
-            />
+            <svg
+              viewBox="0 0 42 36"
+              class="h-8 w-9 shrink-0 -rotate-12 sm:h-9 sm:w-10"
+              fill="none"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient
+                  id="mf-header-butterfly-grad"
+                  x1="0"
+                  y1="0"
+                  x2="40"
+                  y2="36"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%" stop-color="#FF33B8" />
+                  <stop offset="55%" stop-color="#EC1B9B" />
+                  <stop offset="100%" stop-color="#62298D" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M21 15C16 4 3 1 2 10c-.6 5.5 6.5 9.5 14 9.5-5.5 2-9 6.5-6.5 11.2 2.4 4.5 9.2 2.3 11.5-5.7 2.3 8 9.1 10.2 11.5 5.7 2.5-4.7-1-9.2-6.5-11.2 7.5 0 14.6-4 14-9.5C39 1 26 4 21 15z"
+                fill="url(#mf-header-butterfly-grad)"
+              />
+              <ellipse cx="21" cy="18.5" rx="1.6" ry="7.5" fill="#4C1D6E" />
+            </svg>
+            <span class="flex flex-col items-center leading-none">
+              <span
+                class="text-[28px] font-black tracking-tight text-[#3D1260] sm:text-[31px]"
+                style={{ "font-family": 'Georgia, "Times New Roman", serif' }}
+              >
+                Mistura
+              </span>{" "}
+              <span class="mt-0.5 pl-[0.38em] text-[8.5px] font-semibold uppercase tracking-[0.38em] text-[#4E3B63] sm:text-[9px]">
+                COSMÉTICOS
+              </span>
+            </span>
           </Link>
 
           {/* Actions Right: Atendimento, Minha Conta, Sacola */}
-          <div class="flex items-center justify-end gap-3 sm:gap-5">
+          <div class="flex items-center justify-end gap-4 sm:gap-6">
             {/* Atendimento Popover */}
             <div
               class="relative hidden md:block"
@@ -300,12 +327,25 @@ export function StoreHeader() {
                 aria-expanded={activePopover() === "support"}
                 aria-haspopup="true"
                 onClick={() => togglePopoverOnClick("support")}
-                class="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
+                class="inline-flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-[14px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
               >
-                <Headset
-                  class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
+                <svg
+                  viewBox="0 0 28 28"
+                  class="size-[30px] shrink-0 text-[var(--mf-accent)]"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                   aria-hidden="true"
-                />
+                >
+                  <path d="M5.5 13.5a8.5 8.5 0 0 1 17 0" />
+                  <rect x="3" y="12.5" width="4" height="6.5" rx="2" />
+                  <rect x="21" y="12.5" width="4" height="6.5" rx="2" />
+                  <path d="M10.5 14v1.5M17.5 14v1.5" />
+                  <path d="M23 19v1.2A3.8 3.8 0 0 1 19.2 24H15" />
+                  <circle cx="14" cy="24" r="1.1" fill="currentColor" />
+                </svg>
                 <span>Atendimento</span>
               </button>
 
@@ -413,10 +453,10 @@ export function StoreHeader() {
                     : "Minha Conta"
                 }
                 onClick={() => togglePopoverOnClick("account")}
-                class="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
+                class="inline-flex min-h-10 items-center gap-2 rounded-lg px-1.5 py-1.5 text-[14px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
               >
                 <UserIcon
-                  class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
+                  class="size-[30px] shrink-0 stroke-[1.6] text-[var(--mf-accent)]"
                   aria-hidden="true"
                 />
                 <span class="hidden sm:inline">
@@ -509,13 +549,13 @@ export function StoreHeader() {
               type="button"
               onClick={() => storefrontStore.setDrawerOpen(true)}
               aria-label={`Abrir carrinho com ${cartCount()} itens`}
-              class="relative inline-flex size-10 items-center justify-center rounded-lg text-[#2E1049] hover:bg-[#FCE7F6]"
+              class="relative inline-flex size-11 items-center justify-center rounded-lg text-[#2E1049] hover:bg-[#FCE7F6]"
             >
               <ShoppingBag
-                class="size-6 stroke-[1.75] text-[var(--mf-accent)]"
+                class="size-[30px] stroke-[1.6] text-[var(--mf-accent)]"
                 aria-hidden="true"
               />
-              <span class="absolute right-0 top-0 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#2E1049] px-1 text-[10px] font-bold text-white">
+              <span class="absolute -right-0.5 top-0 inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#2E1049] px-1 text-[11px] font-bold text-white">
                 {cartCount()}
               </span>
             </button>
@@ -552,8 +592,8 @@ export function StoreHeader() {
         aria-label="Departamentos da loja"
         class="hidden bg-[#FFF3FF] lg:block"
       >
-        <div class="relative mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2">
-          <div class="flex items-center gap-4 text-[13px] font-bold text-[#2E1049] xl:gap-5">
+        <div class="relative mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2 xl:px-6 2xl:gap-4">
+          <div class="flex min-w-0 flex-1 items-center justify-between gap-1.5 pr-1 text-[12px] font-bold text-[#2E1049] xl:gap-2 xl:text-[13px] 2xl:gap-4 2xl:pr-4 2xl:text-[13.5px]">
             {/* Todas Categorias Mega-Menu */}
             <div
               class="shrink-0"
@@ -592,10 +632,10 @@ export function StoreHeader() {
             </div>
 
             {/* Top-level Categories with Rich 2-Col Mega Dropdown */}
-            <For each={categories().slice(0, 7)}>
+            <For each={categories().slice(0, 8)}>
               {(cat, idx) => {
                 const key = () => `cat:${cat.id}` as const;
-                const alignRight = () => idx() >= 4;
+                const alignRight = () => idx() >= 5;
                 return (
                   <div
                     class="relative shrink-0"
@@ -677,6 +717,24 @@ export function StoreHeader() {
                 );
               }}
             </For>
+            <Show when={categories().length <= 6}>
+              <Link
+                to="/marca/$slug"
+                params={{ slug: "mistura-lab" }}
+                onClick={closeAllMenus}
+                class="hidden whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)] xl:inline-flex"
+              >
+                Mistura Lab
+              </Link>
+              <Link
+                to="/marca/$slug"
+                params={{ slug: "lumiere-nails" }}
+                onClick={closeAllMenus}
+                class="hidden whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)] xl:inline-flex"
+              >
+                Lumière
+              </Link>
+            </Show>
           </div>
 
           {/* Promoções Pill & Mega-Panel */}
@@ -688,7 +746,7 @@ export function StoreHeader() {
             <Link
               to="/promocoes"
               onClick={closeAllMenus}
-              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:opacity-95"
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:opacity-95 2xl:gap-2 2xl:px-5 2xl:text-[13.5px]"
               style={{ "background-color": "var(--mf-secondary)" }}
             >
               <BadgePercent class="size-4 shrink-0" aria-hidden="true" />

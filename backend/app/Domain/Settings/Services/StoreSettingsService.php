@@ -43,10 +43,9 @@ class StoreSettingsService
             'wholesale_enabled' => false,
             'maintenance_mode' => false,
             'benefits_ticker' => [
-                'Parcelamento em até 6x sem juros*',
                 'Frete grátis acima de R$ 299,00*',
-                'Envio rápido para todo o Brasil',
-                'Compra 100% protegida com Pix e Cartão',
+                'Melhores Preços do Mercado',
+                'Parcelamento em 6x s/juros',
             ],
             'benefits_row' => [
                 ['icon' => 'credit-card', 'title' => 'Parcelamento', 'subtitle' => 'Em até 6x sem juros'],

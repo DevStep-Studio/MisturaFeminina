@@ -2,11 +2,6 @@ import { createFileRoute, Link } from "@tanstack/solid-router";
 import Check from "lucide-solid/icons/check";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
-import CreditCard from "lucide-solid/icons/credit-card";
-import MessageCircle from "lucide-solid/icons/message-circle";
-import ShieldCheck from "lucide-solid/icons/shield-check";
-import Tag from "lucide-solid/icons/tag";
-import Truck from "lucide-solid/icons/truck";
 import {
   For,
   Show,
@@ -55,43 +50,88 @@ function renderBenefitIcon(name: string) {
   switch (name) {
     case "truck":
       return (
-        <Truck
-          class="h-7 w-7 text-zinc-700"
-          strokeWidth={1.5}
+        <svg
+          viewBox="0 0 36 36"
+          class="h-9 w-9 text-zinc-800"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.35"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
-        />
+        >
+          <path d="M13.5 4.2l3.8 1.2 2.2-.2 2 2.3 5 .7 4 2.6.7 2.7-2.7 3-1 3.5-2.7 2.8-3.3 1.7-1.3 3-3 4.7-3-2.2 2-2.8-2.2-3.7-1.8-4-4.7-1.3-2.7-2.4 1.7-6.3 3.7-1.5 1.6-2.2z" />
+        </svg>
       );
     case "message-circle":
       return (
-        <MessageCircle
-          class="h-7 w-7 text-zinc-700"
-          strokeWidth={1.5}
+        <svg
+          viewBox="0 0 36 36"
+          class="h-9 w-9 text-zinc-800"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.35"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
-        />
+        >
+          <path d="M18 5.5A12.5 12.5 0 0 1 29.1 23.8L30 30l-6.4-1.6A12.5 12.5 0 1 1 18 5.5z" />
+          <path d="M13.5 12.2c.4-.8.9-.8 1.4-.8h.8c.3 0 .7.1.9.6l.9 2.2c.2.4.1.8-.2 1.1l-.7.8c.7 1.3 1.7 2.3 3 3l.8-.7c.3-.3.7-.4 1.1-.2l2.2.9c.5.2.6.6.6.9v.8c0 .6-.4 1.2-1.1 1.5-.9.4-2.5.4-4.7-.6-2.4-1.1-4.6-3.3-5.7-5.7-1-2.2-1-3.8-.3-4.6z" />
+        </svg>
       );
     case "shield-check":
       return (
-        <ShieldCheck
-          class="h-7 w-7 text-zinc-700"
-          strokeWidth={1.5}
+        <svg
+          viewBox="0 0 36 36"
+          class="h-9 w-9 text-zinc-800"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.35"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
-        />
+        >
+          <path d="M18 5.2L8.2 9.4v7.9c0 6.5 4.2 11.7 9.8 13.5 5.6-1.8 9.8-7 9.8-13.5V9.4L18 5.2z" />
+          <path d="M13.8 18.2l2.8 2.8 5.8-6" />
+        </svg>
       );
     case "tag":
       return (
-        <Tag
-          class="h-7 w-7 text-zinc-700"
-          strokeWidth={1.5}
+        <svg
+          viewBox="0 0 36 36"
+          class="h-9 w-9 text-zinc-800"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.35"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
-        />
+        >
+          <path d="M18 4.2c1.2 0 2 .9 2 2.3" />
+          <path d="M11.5 11.4l6.5-4.7 6.5 4.7v17.2a1.8 1.8 0 0 1-1.8 1.8h-9.4a1.8 1.8 0 0 1-1.8-1.8V11.4z" />
+          <circle cx="18" cy="11.2" r="1.2" />
+          <path d="M21.2 16.2l-6.4 8.2" />
+          <circle cx="15.3" cy="17.2" r="1.3" />
+          <circle cx="20.7" cy="23.4" r="1.3" />
+        </svg>
       );
     default:
       return (
-        <CreditCard
-          class="h-7 w-7 text-zinc-700"
-          strokeWidth={1.5}
+        <svg
+          viewBox="0 0 36 36"
+          class="h-9 w-9 text-zinc-800"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.35"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
-        />
+        >
+          <path d="M10.5 11.5V9.8a2 2 0 0 1 2-2h15.8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1.8" />
+          <rect x="5.5" y="13.5" width="19.5" height="13.5" rx="2" />
+          <path d="M5.5 18h19.5" />
+          <path d="M9.2 22.8h4.2" />
+        </svg>
       );
   }
 }
@@ -130,8 +170,8 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                   alt={banner().alt_text || banner().title}
                   class={
                     banner().mobile_image_path
-                      ? "block aspect-[3/4] max-h-[520px] w-full object-cover object-center md:aspect-auto md:h-[360px] lg:h-[430px]"
-                      : "block h-[220px] w-full object-cover object-center sm:h-[340px] lg:h-[430px]"
+                      ? "block aspect-[3/4] max-h-[520px] w-full object-cover object-center md:aspect-[1920/650] md:max-h-none"
+                      : "block aspect-[16/9] w-full object-cover object-center md:aspect-[1920/650]"
                   }
                 />
               </picture>
@@ -155,9 +195,9 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                       )
                     }
                     aria-label="Banner anterior"
-                    class="absolute left-2 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#D4D4D8] text-[#3F3F46] shadow transition-colors hover:bg-white sm:left-4 sm:size-9"
+                    class="absolute left-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[#D8BFD8]/75 text-[#3F3F46] shadow transition-colors hover:bg-white sm:left-4 sm:size-11"
                   >
-                    <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" />
+                    <ChevronLeft class="h-5 w-5" />
                   </button>
                   <button
                     type="button"
@@ -165,9 +205,9 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                       setIndex((i) => (i + 1) % props.banners.length)
                     }
                     aria-label="Próximo banner"
-                    class="absolute right-2 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#D4D4D8] text-[#3F3F46] shadow transition-colors hover:bg-white sm:right-4 sm:size-9"
+                    class="absolute right-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[#D8BFD8]/75 text-[#3F3F46] shadow transition-colors hover:bg-white sm:right-4 sm:size-11"
                   >
-                    <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" />
+                    <ChevronRight class="h-5 w-5" />
                   </button>
 
                   <div class="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-2">
@@ -215,9 +255,9 @@ function CouponStripBlock(props: {
   return (
     <Show when={props.coupon}>
       {(coupon) => (
-        <section class="border-b border-zinc-200 bg-white py-3.5 sm:py-4">
+        <section class="bg-white py-4 sm:py-5">
           <div class="mx-auto flex max-w-7xl flex-col items-center justify-center gap-2.5 px-4 text-center sm:flex-row sm:gap-4">
-            <p class="text-xs text-[#3D1260] sm:text-[13px]">
+            <p class="text-xs text-[#3D1260] sm:text-[14px]">
               <strong class="font-bold">
                 {props.section.title || "Aproveite um Desconto Especial!"}
               </strong>{" "}
@@ -708,19 +748,19 @@ function StorefrontHomePage() {
             return (
               <section
                 aria-label="Diferenciais da loja"
-                class="bg-white py-6 sm:py-7"
+                class="bg-white py-7 sm:py-8"
               >
                 <div class="mx-auto grid max-w-7xl grid-cols-2 gap-x-4 gap-y-5 px-4 sm:grid-cols-3 lg:grid-cols-5">
                   <For each={settings().benefits_row}>
                     {(item) => (
                       <div class="flex flex-col items-center text-center last:col-span-2 sm:last:col-span-1">
-                        <div class="mb-2 flex items-center justify-center text-zinc-700">
+                        <div class="mb-2 flex items-center justify-center text-zinc-800">
                           {renderBenefitIcon(item.icon)}
                         </div>
                         <p class="text-[13px] font-bold leading-snug text-[#3D1260]">
                           {item.title}
                         </p>
-                        <p class="mt-0.5 text-xs leading-snug text-[#4C1D73]">
+                        <p class="mt-0.5 text-[12px] leading-snug text-[#4C1D73]">
                           {item.subtitle}
                         </p>
                       </div>

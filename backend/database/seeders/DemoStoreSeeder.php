@@ -75,37 +75,37 @@ class DemoStoreSeeder extends Seeder
             if ($isMob) {
                 $svg = sprintf(
                     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 420" width="%d" height="%d" preserveAspectRatio="xMidYMid slice">'
-                    .'<rect width="768" height="420" fill="#130410"/>'
-                    .'<path d="M0,0 C75,85 80,240 12,420 L0,420 Z" fill="#A61072"/>'
-                    .'<path d="M0,34 C55,110 60,230 0,375 Z" fill="#EC1B9B"/>'
-                    .'<path d="M768,0 C705,90 710,240 768,405 Z" fill="#A61072"/>'
-                    .'<path d="M768,30 C725,110 730,230 768,350 Z" fill="#EC1B9B"/>'
-                    .'<rect x="0" y="368" width="768" height="52" fill="#2A0823"/>'
-                    .'<rect x="44" y="370" width="680" height="6" rx="3" fill="#EC1B9B"/>'
-                    .'<text x="384" y="48" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" font-weight="800" letter-spacing="3" fill="#FFFFFF">%s</text>'
-                    .'<text x="86" y="106" font-family="system-ui,sans-serif" font-size="44" font-weight="900" font-style="italic" fill="#1E0518" stroke="#EC1B9B" stroke-width="2.5">%s</text>'
-                    .'<text x="86" y="156" font-family="system-ui,sans-serif" font-size="44" font-weight="900" font-style="italic" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="1">%s</text>'
-                    .'<rect x="330" y="110" width="40" height="48" rx="8" transform="rotate(-8 350 134)" fill="#1D0618" stroke="#EC1B9B" stroke-width="2.5"/>'
-                    .'<text x="350" y="145" text-anchor="middle" font-family="system-ui,sans-serif" font-size="25" font-weight="900" fill="#FFFFFF">%%</text>'
-                    .'<rect x="392" y="66" width="3" height="106" rx="1.5" fill="#EC1B9B"/>'
-                    .'<text x="414" y="96" font-family="system-ui,sans-serif" font-size="24" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
-                    .'<text x="414" y="128" font-family="system-ui,sans-serif" font-size="22" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
-                    .'<rect x="414" y="138" width="246" height="42" rx="10" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="2"/>'
-                    .'<text x="537" y="167" text-anchor="middle" font-family="system-ui,sans-serif" font-size="24" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
-                    /* Compact cosmetics showcase inside safe horizontal bounds */
-                    .'<rect x="92" y="238" width="144" height="130" rx="12" fill="#F4F4F5" stroke="#D4D4D8" stroke-width="2"/>'
-                    .'<rect x="104" y="252" width="96" height="28" rx="6" fill="#2E1049"/>'
-                    .'<text x="152" y="271" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="800" fill="#FFFFFF">MF STUDIO</text>'
-                    .'<rect x="122" y="308" width="84" height="58" rx="12" fill="#FFFFFF" stroke="#A1A1AA" stroke-width="2"/><circle cx="164" cy="337" r="14" fill="#C22583"/>'
-                    .'<ellipse cx="288" cy="346" rx="44" ry="18" fill="#18181B"/><rect x="244" y="310" width="88" height="36" fill="#27272A"/><ellipse cx="288" cy="310" rx="44" ry="16" fill="#EAB308"/>'
-                    .'<circle cx="358" cy="322" r="36" fill="#18181B" stroke="#C22583" stroke-width="2.5"/><text x="358" y="327" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="800" fill="#FFFFFF">MF GEL</text>'
-                    .'<rect x="416" y="246" width="128" height="122" rx="14" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/>'
-                    .'<circle cx="446" cy="282" r="18" fill="#F43F5E"/><circle cx="480" cy="282" r="18" fill="#A855F7"/><circle cx="514" cy="282" r="18" fill="#3B82F6"/>'
-                    .'<circle cx="446" cy="330" r="18" fill="#EC4899"/><circle cx="480" cy="330" r="18" fill="#D946EF"/><circle cx="514" cy="330" r="18" fill="#FB7185"/>'
-                    .'<rect x="568" y="220" width="18" height="48" rx="4" fill="#FFFFFF"/><rect x="558" y="268" width="38" height="100" rx="8" fill="#EF4444"/>'
-                    .'<rect x="618" y="212" width="18" height="52" rx="4" fill="#FFFFFF"/><rect x="608" y="264" width="38" height="104" rx="8" fill="#A855F7"/>'
-                    .'<rect x="668" y="220" width="18" height="48" rx="4" fill="#FFFFFF"/><rect x="658" y="268" width="38" height="100" rx="8" fill="#EC1B9B"/>'
-                    .'</svg>',
+                        .'<rect width="768" height="420" fill="#130410"/>'
+                        .'<path d="M0,0 C75,85 80,240 12,420 L0,420 Z" fill="#A61072"/>'
+                        .'<path d="M0,34 C55,110 60,230 0,375 Z" fill="#EC1B9B"/>'
+                        .'<path d="M768,0 C705,90 710,240 768,405 Z" fill="#A61072"/>'
+                        .'<path d="M768,30 C725,110 730,230 768,350 Z" fill="#EC1B9B"/>'
+                        .'<rect x="0" y="368" width="768" height="52" fill="#2A0823"/>'
+                        .'<rect x="44" y="370" width="680" height="6" rx="3" fill="#EC1B9B"/>'
+                        .'<text x="384" y="48" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" font-weight="800" letter-spacing="3" fill="#FFFFFF">%s</text>'
+                        .'<text x="86" y="106" font-family="system-ui,sans-serif" font-size="44" font-weight="900" font-style="italic" fill="#1E0518" stroke="#EC1B9B" stroke-width="2.5">%s</text>'
+                        .'<text x="86" y="156" font-family="system-ui,sans-serif" font-size="44" font-weight="900" font-style="italic" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="1">%s</text>'
+                        .'<rect x="330" y="110" width="40" height="48" rx="8" transform="rotate(-8 350 134)" fill="#1D0618" stroke="#EC1B9B" stroke-width="2.5"/>'
+                        .'<text x="350" y="145" text-anchor="middle" font-family="system-ui,sans-serif" font-size="25" font-weight="900" fill="#FFFFFF">%%</text>'
+                        .'<rect x="392" y="66" width="3" height="106" rx="1.5" fill="#EC1B9B"/>'
+                        .'<text x="414" y="96" font-family="system-ui,sans-serif" font-size="24" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
+                        .'<text x="414" y="128" font-family="system-ui,sans-serif" font-size="22" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
+                        .'<rect x="414" y="138" width="246" height="42" rx="10" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="2"/>'
+                        .'<text x="537" y="167" text-anchor="middle" font-family="system-ui,sans-serif" font-size="24" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
+                        /* Compact cosmetics showcase inside safe horizontal bounds */
+                        .'<rect x="92" y="238" width="144" height="130" rx="12" fill="#F4F4F5" stroke="#D4D4D8" stroke-width="2"/>'
+                        .'<rect x="104" y="252" width="96" height="28" rx="6" fill="#2E1049"/>'
+                        .'<text x="152" y="271" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="800" fill="#FFFFFF">MF STUDIO</text>'
+                        .'<rect x="122" y="308" width="84" height="58" rx="12" fill="#FFFFFF" stroke="#A1A1AA" stroke-width="2"/><circle cx="164" cy="337" r="14" fill="#C22583"/>'
+                        .'<ellipse cx="288" cy="346" rx="44" ry="18" fill="#18181B"/><rect x="244" y="310" width="88" height="36" fill="#27272A"/><ellipse cx="288" cy="310" rx="44" ry="16" fill="#EAB308"/>'
+                        .'<circle cx="358" cy="322" r="36" fill="#18181B" stroke="#C22583" stroke-width="2.5"/><text x="358" y="327" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="800" fill="#FFFFFF">MF GEL</text>'
+                        .'<rect x="416" y="246" width="128" height="122" rx="14" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/>'
+                        .'<circle cx="446" cy="282" r="18" fill="#F43F5E"/><circle cx="480" cy="282" r="18" fill="#A855F7"/><circle cx="514" cy="282" r="18" fill="#3B82F6"/>'
+                        .'<circle cx="446" cy="330" r="18" fill="#EC4899"/><circle cx="480" cy="330" r="18" fill="#D946EF"/><circle cx="514" cy="330" r="18" fill="#FB7185"/>'
+                        .'<rect x="568" y="220" width="18" height="48" rx="4" fill="#FFFFFF"/><rect x="558" y="268" width="38" height="100" rx="8" fill="#EF4444"/>'
+                        .'<rect x="618" y="212" width="18" height="52" rx="4" fill="#FFFFFF"/><rect x="608" y="264" width="38" height="104" rx="8" fill="#A855F7"/>'
+                        .'<rect x="668" y="220" width="18" height="48" rx="4" fill="#FFFFFF"/><rect x="658" y="268" width="38" height="100" rx="8" fill="#EC1B9B"/>'
+                        .'</svg>',
                     $w,
                     $h,
                     htmlspecialchars($brand, ENT_XML1),
@@ -118,51 +118,51 @@ class DemoStoreSeeder extends Seeder
             } else {
                 $svg = sprintf(
                     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 440" width="%d" height="%d" preserveAspectRatio="xMidYMid slice">'
-                    .'<rect width="1440" height="440" fill="#130410"/>'
-                    .'<path d="M0,0 C110,90 120,250 18,440 L0,440 Z" fill="#A61072"/>'
-                    .'<path d="M0,38 C82,115 88,240 0,385 Z" fill="#EC1B9B"/>'
-                    .'<path d="M1440,0 C1345,100 1350,245 1440,415 Z" fill="#A61072"/>'
-                    .'<path d="M1440,30 C1375,115 1380,235 1440,360 Z" fill="#EC1B9B"/>'
-                    .'<rect x="0" y="388" width="1440" height="52" fill="#2A0823"/>'
-                    .'<rect x="75" y="390" width="1290" height="6" rx="3" fill="#EC1B9B"/>'
-                    .'<rect x="536" y="40" width="3" height="175" rx="1.5" fill="#EC1B9B"/>'
-                    .'<text x="155" y="64" font-family="system-ui,sans-serif" font-size="22" font-weight="800" letter-spacing="3" fill="#FFFFFF">%s</text>'
-                    .'<text x="112" y="132" font-family="system-ui,sans-serif" font-size="66" font-weight="900" font-style="italic" fill="#1E0518" stroke="#EC1B9B" stroke-width="3">%s</text>'
-                    .'<text x="112" y="200" font-family="system-ui,sans-serif" font-size="66" font-weight="900" font-style="italic" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="1.5">%s</text>'
-                    .'<rect x="464" y="128" width="52" height="64" rx="10" transform="rotate(-10 490 160)" fill="#1D0618" stroke="#EC1B9B" stroke-width="3"/>'
-                    .'<text x="490" y="172" text-anchor="middle" font-family="system-ui,sans-serif" font-size="33" font-weight="900" fill="#FFFFFF">%%</text>'
-                    .'<text x="580" y="114" font-family="system-ui,sans-serif" font-size="38" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
-                    .'<text x="565" y="172" font-family="system-ui,sans-serif" font-size="36" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
-                    .'<rect x="945" y="130" width="350" height="56" rx="12" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="2"/>'
-                    .'<text x="1120" y="170" text-anchor="middle" font-family="system-ui,sans-serif" font-size="34" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
-                    /* Illustrative Mistura Feminina cosmetic product showcase along the base */
-                    .'<rect x="118" y="246" width="215" height="148" rx="14" fill="#F4F4F5" stroke="#D4D4D8" stroke-width="2"/>'
-                    .'<rect x="136" y="264" width="128" height="36" rx="6" fill="#2E1049"/>'
-                    .'<text x="200" y="287" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="800" fill="#FFFFFF">MF PRO STUDIO</text>'
-                    .'<rect x="165" y="328" width="120" height="66" rx="14" fill="#FFFFFF" stroke="#A1A1AA" stroke-width="2"/>'
-                    .'<circle cx="225" cy="360" r="18" fill="#C22583"/>'
-                    /* Brocas / Pincéis */
-                    .'<rect x="372" y="254" width="14" height="138" rx="7" fill="#E4E4E7"/><ellipse cx="379" cy="242" rx="15" ry="24" fill="#FFFFFF"/>'
-                    .'<rect x="412" y="254" width="14" height="138" rx="7" fill="#E4E4E7"/><ellipse cx="419" cy="242" rx="15" ry="24" fill="#FFFFFF"/>'
-                    /* Pote Gel / Creme aberto */
-                    .'<ellipse cx="535" cy="370" rx="58" ry="24" fill="#18181B"/><rect x="477" y="325" width="116" height="45" fill="#27272A"/>'
-                    .'<ellipse cx="535" cy="325" rx="58" ry="22" fill="#EAB308"/>'
-                    .'<circle cx="628" cy="340" r="46" fill="#18181B" stroke="#C22583" stroke-width="3"/><text x="628" y="346" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="800" fill="#FFFFFF">MF GEL</text>'
-                    /* Pote Skincare / Gel Construtor */
-                    .'<rect x="708" y="318" width="120" height="76" rx="14" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/>'
-                    .'<circle cx="768" cy="272" r="46" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/><circle cx="768" cy="272" r="34" fill="#E89DB1"/>'
-                    .'<rect x="726" y="338" width="84" height="36" rx="6" fill="#FFF3FF"/><text x="768" y="361" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="800" fill="#62298D">MISTURA</text>'
-                    /* Paleta de cores / Glitter box */
-                    .'<rect x="890" y="246" width="190" height="148" rx="16" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/>'
-                    .'<circle cx="928" cy="288" r="24" fill="#F43F5E"/><circle cx="985" cy="288" r="24" fill="#A855F7"/><circle cx="1042" cy="288" r="24" fill="#3B82F6"/>'
-                    .'<circle cx="928" cy="350" r="24" fill="#EC4899"/><circle cx="985" cy="350" r="24" fill="#D946EF"/><circle cx="1042" cy="350" r="24" fill="#FB7185"/>'
-                    /* Fileira de 5 Esmaltes Mistura Feminina */
-                    .'<rect x="1116" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1104" y="278" width="46" height="116" rx="10" fill="#EF4444"/>'
-                    .'<rect x="1174" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1162" y="278" width="46" height="116" rx="10" fill="#18181B"/>'
-                    .'<rect x="1232" y="210" width="24" height="62" rx="4" fill="#FFFFFF"/><rect x="1220" y="272" width="48" height="122" rx="10" fill="#A855F7"/>'
-                    .'<rect x="1290" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1278" y="278" width="46" height="116" rx="10" fill="#38BDF8"/>'
-                    .'<rect x="1348" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1336" y="278" width="46" height="116" rx="10" fill="#EC1B9B"/>'
-                    .'</svg>',
+                        .'<rect width="1440" height="440" fill="#130410"/>'
+                        .'<path d="M0,0 C110,90 120,250 18,440 L0,440 Z" fill="#A61072"/>'
+                        .'<path d="M0,38 C82,115 88,240 0,385 Z" fill="#EC1B9B"/>'
+                        .'<path d="M1440,0 C1345,100 1350,245 1440,415 Z" fill="#A61072"/>'
+                        .'<path d="M1440,30 C1375,115 1380,235 1440,360 Z" fill="#EC1B9B"/>'
+                        .'<rect x="0" y="388" width="1440" height="52" fill="#2A0823"/>'
+                        .'<rect x="75" y="390" width="1290" height="6" rx="3" fill="#EC1B9B"/>'
+                        .'<rect x="536" y="40" width="3" height="175" rx="1.5" fill="#EC1B9B"/>'
+                        .'<text x="155" y="64" font-family="system-ui,sans-serif" font-size="22" font-weight="800" letter-spacing="3" fill="#FFFFFF">%s</text>'
+                        .'<text x="112" y="132" font-family="system-ui,sans-serif" font-size="66" font-weight="900" font-style="italic" fill="#1E0518" stroke="#EC1B9B" stroke-width="3">%s</text>'
+                        .'<text x="112" y="200" font-family="system-ui,sans-serif" font-size="66" font-weight="900" font-style="italic" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="1.5">%s</text>'
+                        .'<rect x="464" y="128" width="52" height="64" rx="10" transform="rotate(-10 490 160)" fill="#1D0618" stroke="#EC1B9B" stroke-width="3"/>'
+                        .'<text x="490" y="172" text-anchor="middle" font-family="system-ui,sans-serif" font-size="33" font-weight="900" fill="#FFFFFF">%%</text>'
+                        .'<text x="580" y="114" font-family="system-ui,sans-serif" font-size="38" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
+                        .'<text x="565" y="172" font-family="system-ui,sans-serif" font-size="36" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
+                        .'<rect x="945" y="130" width="350" height="56" rx="12" fill="#EC1B9B" stroke="#FFFFFF" stroke-width="2"/>'
+                        .'<text x="1120" y="170" text-anchor="middle" font-family="system-ui,sans-serif" font-size="34" font-weight="900" font-style="italic" fill="#FFFFFF">%s</text>'
+                        /* Illustrative Mistura Feminina cosmetic product showcase along the base */
+                        .'<rect x="118" y="246" width="215" height="148" rx="14" fill="#F4F4F5" stroke="#D4D4D8" stroke-width="2"/>'
+                        .'<rect x="136" y="264" width="128" height="36" rx="6" fill="#2E1049"/>'
+                        .'<text x="200" y="287" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="800" fill="#FFFFFF">MF PRO STUDIO</text>'
+                        .'<rect x="165" y="328" width="120" height="66" rx="14" fill="#FFFFFF" stroke="#A1A1AA" stroke-width="2"/>'
+                        .'<circle cx="225" cy="360" r="18" fill="#C22583"/>'
+                        /* Brocas / Pincéis */
+                        .'<rect x="372" y="254" width="14" height="138" rx="7" fill="#E4E4E7"/><ellipse cx="379" cy="242" rx="15" ry="24" fill="#FFFFFF"/>'
+                        .'<rect x="412" y="254" width="14" height="138" rx="7" fill="#E4E4E7"/><ellipse cx="419" cy="242" rx="15" ry="24" fill="#FFFFFF"/>'
+                        /* Pote Gel / Creme aberto */
+                        .'<ellipse cx="535" cy="370" rx="58" ry="24" fill="#18181B"/><rect x="477" y="325" width="116" height="45" fill="#27272A"/>'
+                        .'<ellipse cx="535" cy="325" rx="58" ry="22" fill="#EAB308"/>'
+                        .'<circle cx="628" cy="340" r="46" fill="#18181B" stroke="#C22583" stroke-width="3"/><text x="628" y="346" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="800" fill="#FFFFFF">MF GEL</text>'
+                        /* Pote Skincare / Gel Construtor */
+                        .'<rect x="708" y="318" width="120" height="76" rx="14" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/>'
+                        .'<circle cx="768" cy="272" r="46" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/><circle cx="768" cy="272" r="34" fill="#E89DB1"/>'
+                        .'<rect x="726" y="338" width="84" height="36" rx="6" fill="#FFF3FF"/><text x="768" y="361" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="800" fill="#62298D">MISTURA</text>'
+                        /* Paleta de cores / Glitter box */
+                        .'<rect x="890" y="246" width="190" height="148" rx="16" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="2"/>'
+                        .'<circle cx="928" cy="288" r="24" fill="#F43F5E"/><circle cx="985" cy="288" r="24" fill="#A855F7"/><circle cx="1042" cy="288" r="24" fill="#3B82F6"/>'
+                        .'<circle cx="928" cy="350" r="24" fill="#EC4899"/><circle cx="985" cy="350" r="24" fill="#D946EF"/><circle cx="1042" cy="350" r="24" fill="#FB7185"/>'
+                        /* Fileira de 5 Esmaltes Mistura Feminina */
+                        .'<rect x="1116" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1104" y="278" width="46" height="116" rx="10" fill="#EF4444"/>'
+                        .'<rect x="1174" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1162" y="278" width="46" height="116" rx="10" fill="#18181B"/>'
+                        .'<rect x="1232" y="210" width="24" height="62" rx="4" fill="#FFFFFF"/><rect x="1220" y="272" width="48" height="122" rx="10" fill="#A855F7"/>'
+                        .'<rect x="1290" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1278" y="278" width="46" height="116" rx="10" fill="#38BDF8"/>'
+                        .'<rect x="1348" y="220" width="22" height="58" rx="4" fill="#FFFFFF"/><rect x="1336" y="278" width="46" height="116" rx="10" fill="#EC1B9B"/>'
+                        .'</svg>',
                     $w,
                     $h,
                     htmlspecialchars($brand, ENT_XML1),
@@ -184,11 +184,30 @@ class DemoStoreSeeder extends Seeder
         foreach ($banners as $filename => [$w, $h, $bg, $accent, $eyebrow, $title, $sub]) {
             $svg = sprintf(
                 '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" width="%d" height="%d"><rect width="%d" height="%d" fill="%s"/><rect x="%d" y="%d" width="%d" height="%d" rx="18" fill="%s"/><text x="%d" y="%d" font-family="system-ui,sans-serif" font-size="%d" font-weight="700" letter-spacing="2" fill="#FFFFFF">%s</text><text x="%d" y="%d" font-family="system-ui,sans-serif" font-size="%d" font-weight="800" fill="#FFFFFF">%s</text><text x="%d" y="%d" font-family="system-ui,sans-serif" font-size="%d" font-weight="600" fill="#FCE7F0">%s</text></svg>',
-                $w, $h, $w, $h, $w, $h, $bg,
-                (int) round($w * 0.68), (int) round($h * 0.16), (int) round($w * 0.25), (int) round($h * 0.68), $accent,
-                (int) round($w * 0.06), (int) round($h * 0.34), $h > 300 ? 18 : 14, htmlspecialchars($eyebrow, ENT_XML1),
-                (int) round($w * 0.06), (int) round($h * 0.54), $h > 300 ? 36 : 24, htmlspecialchars($title, ENT_XML1),
-                (int) round($w * 0.06), (int) round($h * 0.72), $h > 300 ? 20 : 15, htmlspecialchars($sub, ENT_XML1),
+                $w,
+                $h,
+                $w,
+                $h,
+                $w,
+                $h,
+                $bg,
+                (int) round($w * 0.68),
+                (int) round($h * 0.16),
+                (int) round($w * 0.25),
+                (int) round($h * 0.68),
+                $accent,
+                (int) round($w * 0.06),
+                (int) round($h * 0.34),
+                $h > 300 ? 18 : 14,
+                htmlspecialchars($eyebrow, ENT_XML1),
+                (int) round($w * 0.06),
+                (int) round($h * 0.54),
+                $h > 300 ? 36 : 24,
+                htmlspecialchars($title, ENT_XML1),
+                (int) round($w * 0.06),
+                (int) round($h * 0.72),
+                $h > 300 ? 20 : 15,
+                htmlspecialchars($sub, ENT_XML1),
             );
             File::put($dir.'/'.$filename, $svg);
         }

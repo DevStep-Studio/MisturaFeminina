@@ -34,9 +34,9 @@ const DEFAULT_SETTINGS: StoreSettings = {
   wholesale_enabled: false,
   maintenance_mode: false,
   benefits_ticker: [
-    "Parcelamento em até 6x sem juros*",
     "Frete grátis acima de R$ 299,00*",
-    "Envio rápido para todo o Brasil",
+    "Melhores Preços do Mercado",
+    "Parcelamento em 6x s/juros",
   ],
   benefits_row: [
     {
