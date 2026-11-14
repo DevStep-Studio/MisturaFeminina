@@ -52,7 +52,7 @@ class StoreSettingsService
                 ['icon' => 'truck', 'title' => 'Envios', 'subtitle' => 'Enviamos para todo Brasil'],
                 ['icon' => 'message-circle', 'title' => 'Atendimento', 'subtitle' => 'via WhatsApp'],
                 ['icon' => 'shield-check', 'title' => 'Site 100% Seguro', 'subtitle' => 'Selo de segurança'],
-                ['icon' => 'tag', 'title' => 'Desconto de 10%', 'subtitle' => 'cupom: BEMVINDA10'],
+                ['icon' => 'tag', 'title' => 'Desconto de 10%', 'subtitle' => 'cupom: PRIMEIRACOMPRA'],
             ],
             'popup_enabled' => false,
             'popup_title' => 'Boas-vindas à Mistura Feminina Cosméticos',
