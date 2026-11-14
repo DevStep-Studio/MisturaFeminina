@@ -1,0 +1,9 @@
+node_modules
+dist
+.playwright-build
+.tanstack
+src/routeTree.gen.ts
+package-lock.json
+coverage
+test-results
+playwright-report

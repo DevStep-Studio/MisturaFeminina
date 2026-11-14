@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="stylesheet" href="/src/styles/index.css" />
+  </head>
+  <body class="bg-white font-sans text-zinc-900 antialiased">
+    <div
+      id="startup"
+      class="grid min-h-svh place-items-center bg-white px-6 font-sans text-zinc-900"
+      role="status"
+      aria-live="polite"
+    >
+      <div class="flex items-center gap-3 text-sm">
+        <svg
+          aria-hidden="true"
+          class="size-5 motion-safe:animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M12 3a9 9 0 1 1-9 9" stroke-linecap="round" />
+        </svg>
+        <p>Carregando aplicação…</p>
+      </div>
+    </div>
+    <div id="root"></div>
+    <noscript>Ative o JavaScript para acessar seu workspace.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

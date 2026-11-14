@@ -1,0 +1,20 @@
+name: Availability
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  health:
+    if: vars.ENABLE_UPTIME_MONITORING == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/healthcheck.mjs
+        env:
+          HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
+          API_HEALTHCHECK_URL: ${{ vars.API_HEALTHCHECK_URL }}

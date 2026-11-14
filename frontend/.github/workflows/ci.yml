@@ -1,0 +1,105 @@
+name: Quality and deployment
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm exec playwright -- install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run audit
+      - run: npm run performance:check
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+  release:
+    needs: quality
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    env:
+      VITE_APP_NAME: ${{ vars.VITE_APP_NAME || 'DevStep Starter' }}
+      VITE_APP_VERSION: ${{ github.sha }}
+      VITE_API_URL: ${{ vars.VITE_API_URL }}
+      VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL }}
+      VITE_AUTH_ME_PATH: ${{ vars.VITE_AUTH_ME_PATH || '/me' }}
+      VITE_USE_REAL_API: "true"
+      VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
+      VITE_SITE_NAME: ${{ vars.VITE_SITE_NAME || 'DevStep Starter' }}
+      VITE_SITE_INDEXABLE: ${{ vars.VITE_SITE_INDEXABLE || 'false' }}
+      VITE_GTM_ID: ${{ vars.VITE_GTM_ID }}
+      VITE_ENABLE_ANALYTICS: ${{ vars.VITE_ENABLE_ANALYTICS || 'false' }}
+      VITE_ENABLE_MONITORING: ${{ vars.VITE_ENABLE_MONITORING || 'false' }}
+      VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+      SENTRY_RELEASE: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate production configuration
+        run: |
+          test -n "$VITE_API_URL"
+          test -n "$VITE_SITE_URL"
+      - run: npm ci
+      - name: Build production artifact
+        run: |
+          if [ -n "$SENTRY_AUTH_TOKEN" ]; then export GENERATE_SOURCEMAPS=true; fi
+          npm run build
+      - name: Upload private source maps
+        if: env.SENTRY_AUTH_TOKEN != ''
+        run: npm run sourcemaps:upload
+      - name: Reject public source maps
+        run: test -z "$(find dist -name '*.map' -print -quit)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-frontend
+          path: dist/
+          retention-days: 7
+      - name: Deploy static files over SSH
+        if: vars.ENABLE_SSH_DEPLOY == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_USER" && test -n "$DEPLOY_PATH"
+          case "$DEPLOY_PATH" in /|/home|/var|/usr|/etc|*..*|*[!a-zA-Z0-9_./-]*) exit 1 ;; /*) ;; *) exit 1 ;; esac
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          rsync --archive --delete --delay-updates -e 'ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes' dist/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+      - name: Verify deployment health
+        if: vars.ENABLE_SSH_DEPLOY == 'true'
+        env:
+          HEALTHCHECK_URL: ${{ vars.VITE_SITE_URL }}
+          API_HEALTHCHECK_URL: ${{ vars.API_HEALTHCHECK_URL }}
+        run: npm run healthcheck

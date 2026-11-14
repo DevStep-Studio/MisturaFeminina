@@ -1,0 +1,63 @@
+{
+  "name": "devstep-solid-starter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --port 3000 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build && npm run typecheck",
+    "preview": "vite preview --port 3000 --strictPort",
+    "test": "vitest run",
+    "test:ui": "playwright test --ui",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit": "npm audit --audit-level=moderate",
+    "check": "npm run build && npm run lint && npm run format:check && npm test && npm run test:e2e && npm run audit && npm run performance:check",
+    "sourcemaps:upload": "node scripts/upload-sourcemaps.mjs",
+    "healthcheck": "node scripts/healthcheck.mjs",
+    "performance:check": "node scripts/check-bundle-budget.mjs",
+    "check:api": "node scripts/check-api-authorization.mjs"
+  },
+  "dependencies": {
+    "@sentry/browser": "^11.12.0",
+    "@tanstack/solid-form": "^1.33.5",
+    "@tanstack/solid-query": "^5.0.0",
+    "@tanstack/solid-router": "^1.170.43",
+    "gsap": "^3.15.1",
+    "lucide-solid": "^1.72.0",
+    "solid-js": "^1.9.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.0",
+    "@sentry/cli": "^3.8.2",
+    "@tailwindcss/vite": "^4.0.0",
+    "@tanstack/router-plugin": "^1.169.0",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-solid": "^0.19.0",
+    "prettier": "^3.10.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vite-plugin-solid": "^2.11.16",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
+  }
+}
