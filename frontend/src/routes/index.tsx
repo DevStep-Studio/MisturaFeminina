@@ -243,18 +243,19 @@ function CouponStripBlock(props: {
   );
 }
 
+function rotateList<T>(list: T[], offset: number): T[] {
+  if (list.length <= 1) return list;
+  const shift = ((offset % list.length) + list.length) % list.length;
+  return [...list.slice(shift), ...list.slice(0, shift)];
+}
+
 function CategoryCirclesBlock(props: {
   section: HomeSectionData;
   categories: CategoryNode[];
 }) {
   const [offset, setOffset] = createSignal(0);
 
-  const visibleCategories = () => {
-    const list = props.categories;
-    if (list.length <= 1) return list;
-    const shift = ((offset() % list.length) + list.length) % list.length;
-    return [...list.slice(shift), ...list.slice(0, shift)];
-  };
+  const visibleCategories = () => rotateList(props.categories, offset());
 
   return (
     <Show when={props.categories.length > 0}>
@@ -330,6 +331,9 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
   const filter = () => String(props.section.config?.filter ?? "featured");
   const isBorderless = () => Boolean(props.section.config?.borderless);
   const showViewAll = () => props.section.config?.show_view_all !== false;
+  const showFeaturedBadge = () =>
+    filter() === "featured" ||
+    Boolean(props.section.config?.show_featured_badge);
   const viewAllHref = () => {
     const cta = props.section.config?.cta_url;
     if (typeof cta === "string" && cta.length > 0) return cta;
@@ -338,12 +342,7 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
     return "/buscar";
   };
 
-  const visibleProducts = () => {
-    const list = products();
-    if (list.length <= 1) return list;
-    const shift = ((offset() % list.length) + list.length) % list.length;
-    return [...list.slice(shift), ...list.slice(0, shift)];
-  };
+  const visibleProducts = () => rotateList(products(), offset());
 
   return (
     <Show when={products().length > 0}>
@@ -370,7 +369,11 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
           <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <For each={visibleProducts().slice(0, 4)}>
               {(product) => (
-                <ProductCard product={product} borderless={isBorderless()} />
+                <ProductCard
+                  product={product}
+                  borderless={isBorderless()}
+                  showFeaturedBadge={showFeaturedBadge()}
+                />
               )}
             </For>
           </div>
@@ -397,6 +400,107 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
                   ? "top-[148px] sm:top-[52%]"
                   : "top-[110px] sm:top-[44%]"
               }`}
+            >
+              <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+            </button>
+          </Show>
+        </div>
+      </section>
+    </Show>
+  );
+}
+
+function BrandCarouselBlock(props: {
+  section: HomeSectionData;
+  brands: BrandItem[];
+}) {
+  const [offset, setOffset] = createSignal(0);
+  const [paused, setPaused] = createSignal(false);
+
+  const autoplay = () => props.section.config?.autoplay !== false;
+  const showViewAll = () => props.section.config?.show_view_all === true;
+
+  onMount(() => {
+    if (!autoplay() || props.brands.length <= 1) return;
+    const id = window.setInterval(() => {
+      if (!paused()) {
+        setOffset((o) => o + 1);
+      }
+    }, 3000);
+    onCleanup(() => window.clearInterval(id));
+  });
+
+  const visibleBrands = () => rotateList(props.brands, offset());
+
+  return (
+    <Show when={props.brands.length > 0}>
+      <section
+        class="mx-auto max-w-7xl bg-white px-4 py-8 sm:py-10"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocusIn={() => setPaused(true)}
+        onFocusOut={() => setPaused(false)}
+      >
+        <div class="relative mb-8 text-center">
+          <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
+            {props.section.title || "As melhores marcas"}
+          </h2>
+          <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
+          <Show when={showViewAll()}>
+            <Link
+              to="/marcas"
+              class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] hover:underline sm:absolute sm:right-0 sm:top-1 sm:mt-0 sm:text-sm"
+            >
+              Todas as marcas
+              <ChevronRight class="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </Show>
+        </div>
+
+        <div class="relative px-8 sm:px-10">
+          <div class="grid grid-cols-2 items-center gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <For each={visibleBrands().slice(0, 6)}>
+              {(brand) => (
+                <Link
+                  to="/marca/$slug"
+                  params={{ slug: brand.slug }}
+                  aria-label={brand.name}
+                  class="group flex h-20 items-center justify-center bg-transparent px-2 transition-transform hover:scale-105"
+                >
+                  <Show
+                    when={brand.logo_path}
+                    fallback={
+                      <span class="text-center font-serif text-base font-bold tracking-wide text-[#3D1260] group-hover:text-[#C22583]">
+                        {brand.name}
+                      </span>
+                    }
+                  >
+                    <img
+                      src={assetUrl(brand.logo_path)}
+                      alt={brand.name}
+                      class="h-14 w-auto max-w-[140px] object-contain opacity-95 transition-opacity group-hover:opacity-100"
+                      loading="lazy"
+                    />
+                  </Show>
+                </Link>
+              )}
+            </For>
+          </div>
+
+          <Show when={props.brands.length > 1}>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o - 1)}
+              aria-label={`Marcas anteriores em ${props.section.title || "As melhores marcas"}`}
+              class="absolute left-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
+            >
+              <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o + 1)}
+              aria-label={`Próximas marcas em ${props.section.title || "As melhores marcas"}`}
+              class="absolute right-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
             >
               <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
@@ -548,43 +652,7 @@ function StorefrontHomePage() {
             const brands = Array.isArray(section.data)
               ? (section.data as BrandItem[])
               : [];
-            return (
-              <Show when={brands.length > 0}>
-                <section class="mx-auto max-w-7xl px-4 py-8 sm:py-10">
-                  <div class="relative mb-7 text-center">
-                    <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
-                      {section.title || "Marcas em Destaque"}
-                    </h2>
-                    <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
-                    <Link
-                      to="/marcas"
-                      class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] hover:underline sm:absolute sm:right-0 sm:top-1 sm:mt-0 sm:text-sm"
-                    >
-                      Todas as marcas
-                      <ChevronRight class="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </div>
-                  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <For each={brands}>
-                      {(brand) => (
-                        <Link
-                          to="/marca/$slug"
-                          params={{ slug: brand.slug }}
-                          class="flex items-center justify-center rounded-xl border border-zinc-200 bg-white p-4 transition hover:border-[var(--mf-primary)]"
-                        >
-                          <img
-                            src={assetUrl(brand.logo_path)}
-                            alt={brand.name}
-                            class="h-12 w-auto max-w-[140px] object-contain"
-                            loading="lazy"
-                          />
-                        </Link>
-                      )}
-                    </For>
-                  </div>
-                </section>
-              </Show>
-            );
+            return <BrandCarouselBlock section={section} brands={brands} />;
           }
 
           if (section.type === "testimonials") {

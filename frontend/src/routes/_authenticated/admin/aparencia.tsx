@@ -69,7 +69,7 @@ const HOME_SECTION_TYPES = [
   { value: "benefits_row", label: "Diferenciais da Loja (5 colunas)" },
   { value: "category_circles", label: "Navegue por Categorias (Círculos)" },
   { value: "banner_grid", label: "Grade de Banners Promocionais" },
-  { value: "brand_showcase", label: "Grade de Logotipos de Marcas" },
+  { value: "brand_showcase", label: "Carrossel de Melhores Marcas" },
   { value: "testimonials", label: "Avaliações de Clientes" },
   { value: "newsletter", label: "Newsletter" },
 ];
@@ -101,6 +101,9 @@ function AdminAppearancePage() {
   const [newSecLimit, setNewSecLimit] = createSignal(8);
   const [newSecBorderless, setNewSecBorderless] = createSignal(true);
   const [newSecShowViewAll, setNewSecShowViewAll] = createSignal(false);
+  const [newSecShowFeaturedBadge, setNewSecShowFeaturedBadge] =
+    createSignal(false);
+  const [newBrandAutoplay, setNewBrandAutoplay] = createSignal(true);
 
   const [sectionsDraft, setSectionsDraft] = createSignal<AdminHomeSection[]>(
     [],
@@ -235,8 +238,16 @@ function AdminAppearancePage() {
             limit: Number(newSecLimit()) || 8,
             borderless: newSecBorderless(),
             show_view_all: newSecShowViewAll(),
+            show_featured_badge:
+              newSecFilter() === "featured" || newSecShowFeaturedBadge(),
           }
-        : {};
+        : newSecType() === "brand_showcase"
+          ? {
+              limit: 12,
+              autoplay: newBrandAutoplay(),
+              show_view_all: newSecShowViewAll(),
+            }
+          : {};
     try {
       await api("/admin/home-sections", {
         method: "POST",
@@ -605,7 +616,42 @@ function AdminAppearancePage() {
                     />
                     Exibir botão "Ver tudo"
                   </label>
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={newSecShowFeaturedBadge()}
+                      onChange={(e) =>
+                        setNewSecShowFeaturedBadge(e.currentTarget.checked)
+                      }
+                    />
+                    Exibir selo "DESTAQUE" nos cards
+                  </label>
                 </div>
+              </div>
+            </Show>
+
+            <Show when={newSecType() === "brand_showcase"}>
+              <div class="flex flex-wrap gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-800">
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={newBrandAutoplay()}
+                    onChange={(e) =>
+                      setNewBrandAutoplay(e.currentTarget.checked)
+                    }
+                  />
+                  Passagem automática do carrossel
+                </label>
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={newSecShowViewAll()}
+                    onChange={(e) =>
+                      setNewSecShowViewAll(e.currentTarget.checked)
+                    }
+                  />
+                  Exibir link "Todas as marcas"
+                </label>
               </div>
             </Show>
 
@@ -773,6 +819,47 @@ function AdminAppearancePage() {
                             }
                           />
                           Ver tudo
+                        </label>
+                        <label class="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(sec.config?.show_featured_badge)}
+                            onChange={(e) =>
+                              updateSectionConfig(idx(), sec, {
+                                show_featured_badge: e.currentTarget.checked,
+                              })
+                            }
+                          />
+                          Selo Destaque
+                        </label>
+                      </div>
+                    </Show>
+
+                    <Show when={sec.type === "brand_showcase"}>
+                      <div class="flex flex-wrap items-center gap-4 border-t border-zinc-200 pt-2 text-xs">
+                        <label class="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={sec.config?.autoplay !== false}
+                            onChange={(e) =>
+                              updateSectionConfig(idx(), sec, {
+                                autoplay: e.currentTarget.checked,
+                              })
+                            }
+                          />
+                          Carrossel automático
+                        </label>
+                        <label class="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={sec.config?.show_view_all === true}
+                            onChange={(e) =>
+                              updateSectionConfig(idx(), sec, {
+                                show_view_all: e.currentTarget.checked,
+                              })
+                            }
+                          />
+                          Link "Todas as marcas"
                         </label>
                       </div>
                     </Show>

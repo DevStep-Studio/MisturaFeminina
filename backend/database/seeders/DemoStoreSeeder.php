@@ -271,6 +271,51 @@ class DemoStoreSeeder extends Seeder
         foreach ($categoryIllustrations as $file => $svg) {
             File::put($dir.'/'.$file, $svg);
         }
+
+        $brandLogos = [
+            'brand-mistura-lab.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<path d="M84,18 L100,18 L116,44 L110,44 L100,26 L90,44 L84,44 Z" fill="none" stroke="#8B1E4F" stroke-width="2.6" stroke-linejoin="round"/>'
+                .'<path d="M100,32 C104,28 109,31 106,36 C103,40 100,42 100,42 C100,42 97,40 94,36 C91,31 96,28 100,32 Z" fill="#C22583"/>'
+                .'<text x="100" y="68" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="16" font-weight="300" letter-spacing="3.5" fill="#7D2948">MISTURA<tspan font-weight="800" fill="#5A1734">LAB</tspan></text>'
+                .'</svg>',
+            'brand-essencia-floral.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<text x="100" y="54" text-anchor="middle" font-family="Georgia,serif" font-size="30" font-weight="700" letter-spacing="-0.5" fill="#5E238D">essência</text>'
+                .'<circle cx="106" cy="24" r="3" fill="#C22583"/>'
+                .'<text x="100" y="70" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" letter-spacing="4" fill="#9D4EDD">FLORAL</text>'
+                .'</svg>',
+            'brand-lumiere-nails.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<path d="M92,24 C86,16 96,12 100,22 C104,12 114,16 108,24" fill="none" stroke="#18181B" stroke-width="2" stroke-linecap="round"/>'
+                .'<text x="100" y="56" text-anchor="middle" font-family="Georgia,serif" font-size="26" font-weight="700" letter-spacing="1" fill="#18181B">L&amp;N</text>'
+                .'<text x="100" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8.5" font-weight="600" letter-spacing="3" fill="#52525B">LUMIÈRE NAILS</text>'
+                .'</svg>',
+            'brand-studio-pro.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<text x="100" y="55" text-anchor="middle" font-family="Georgia,serif" font-size="30" font-weight="900" letter-spacing="-1.5" fill="#18181B">S<tspan font-size="22" font-style="italic" fill="#3D1260">&amp;</tspan>P</text>'
+                .'<text x="100" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="700" letter-spacing="3.5" fill="#71717A">STUDIO PRO</text>'
+                .'</svg>',
+            'brand-bella-unha.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<circle cx="100" cy="30" r="14" fill="none" stroke="#C97387" stroke-width="1.8"/>'
+                .'<text x="100" y="34" text-anchor="middle" font-family="Georgia,serif" font-size="14" font-weight="700" fill="#B85D74">B</text>'
+                .'<text x="100" y="61" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="19" fill="#B85D74">Bella Unha</text>'
+                .'<line x1="60" y1="67" x2="140" y2="67" stroke="#E5A9B7" stroke-width="1.2"/>'
+                .'</svg>',
+            'brand-rose-atelier.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<rect x="44" y="29" width="112" height="32" rx="4" fill="#9D4EDD"/>'
+                .'<text x="100" y="51" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="18" font-weight="700" letter-spacing="0.5" fill="#FFFFFF">Rosé</text>'
+                .'<circle cx="129" cy="35" r="2.2" fill="#FDE68A"/>'
+                .'</svg>',
+            'brand-viva-pele.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<text x="100" y="52" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="22" font-weight="900" letter-spacing="2" fill="#3D1260">VIVA<tspan fill="#C22583">PELE</tspan></text>'
+                .'<rect x="64" y="60" width="72" height="2.5" rx="1.25" fill="#EC4899"/>'
+                .'</svg>',
+            'brand-flora-gloss.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">'
+                .'<rect x="38" y="27" width="124" height="36" rx="18" fill="none" stroke="#62298D" stroke-width="2"/>'
+                .'<text x="100" y="50" text-anchor="middle" font-family="Georgia,serif" font-size="16" font-weight="700" letter-spacing="1.5" fill="#3D1260">FLORA GLOSS</text>'
+                .'</svg>',
+        ];
+
+        foreach ($brandLogos as $file => $svg) {
+            File::put($dir.'/'.$file, $svg);
+        }
     }
 
     private function seedSettings(): void
@@ -368,10 +413,14 @@ class DemoStoreSeeder extends Seeder
     private function seedBrands(): array
     {
         $defs = [
-            ['name' => 'Mistura Lab', 'slug' => 'mistura-lab', 'is_featured' => true],
-            ['name' => 'Essência Floral', 'slug' => 'essencia-floral', 'is_featured' => true],
-            ['name' => 'Lumière Nails', 'slug' => 'lumiere-nails', 'is_featured' => true],
-            ['name' => 'Studio Pro', 'slug' => 'studio-pro', 'is_featured' => true],
+            ['name' => 'Mistura Lab', 'slug' => 'mistura-lab', 'logo_path' => '/storage/seed/brand-mistura-lab.svg', 'is_featured' => true],
+            ['name' => 'Essência Floral', 'slug' => 'essencia-floral', 'logo_path' => '/storage/seed/brand-essencia-floral.svg', 'is_featured' => true],
+            ['name' => 'Lumière Nails', 'slug' => 'lumiere-nails', 'logo_path' => '/storage/seed/brand-lumiere-nails.svg', 'is_featured' => true],
+            ['name' => 'Studio Pro', 'slug' => 'studio-pro', 'logo_path' => '/storage/seed/brand-studio-pro.svg', 'is_featured' => true],
+            ['name' => 'Bella Unha', 'slug' => 'bella-unha', 'logo_path' => '/storage/seed/brand-bella-unha.svg', 'is_featured' => true],
+            ['name' => 'Rosé Atelier', 'slug' => 'rose-atelier', 'logo_path' => '/storage/seed/brand-rose-atelier.svg', 'is_featured' => true],
+            ['name' => 'Viva Pele', 'slug' => 'viva-pele', 'logo_path' => '/storage/seed/brand-viva-pele.svg', 'is_featured' => true],
+            ['name' => 'Flora Gloss', 'slug' => 'flora-gloss', 'logo_path' => '/storage/seed/brand-flora-gloss.svg', 'is_featured' => true],
         ];
         $map = [];
         foreach ($defs as $d) {
@@ -380,6 +429,7 @@ class DemoStoreSeeder extends Seeder
                 [
                     'name' => $d['name'],
                     'description' => 'Linha exclusiva selecionada pela Mistura Feminina Cosméticos.',
+                    'logo_path' => $d['logo_path'],
                     'is_featured' => $d['is_featured'],
                     'is_active' => true,
                 ]
@@ -790,7 +840,9 @@ class DemoStoreSeeder extends Seeder
             ['key' => 'brands_row', 'type' => 'product_showcase', 'title' => 'Mistura Lab', 'subtitle' => null, 'config' => ['filter' => 'brand', 'brand_slug' => 'mistura-lab', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/marca/mistura-lab'], 'order' => 8],
             ['key' => 'niche_esmaltes', 'type' => 'product_showcase', 'title' => 'Esmaltes em Gel', 'subtitle' => null, 'config' => ['filter' => 'category', 'category_slug' => 'esmaltes-em-gel', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/categoria/esmaltes-em-gel'], 'order' => 9],
             ['key' => 'best_sellers', 'type' => 'product_showcase', 'title' => 'Produtos mais Vendidos da semana', 'subtitle' => null, 'config' => ['filter' => 'best_sellers', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/categorias'], 'order' => 10],
-            ['key' => 'newsletter_box', 'type' => 'newsletter', 'title' => 'Receba lançamentos e cupons exclusivos', 'subtitle' => 'Cadastre seu e-mail para novidades da Mistura Feminina Cosméticos', 'config' => [], 'order' => 11],
+            ['key' => 'best_brands', 'type' => 'brand_showcase', 'title' => 'As melhores marcas', 'subtitle' => null, 'config' => ['limit' => 12, 'autoplay' => true, 'show_view_all' => false], 'order' => 11],
+            ['key' => 'featured_showcase', 'type' => 'product_showcase', 'title' => 'Destaques', 'subtitle' => null, 'config' => ['filter' => 'featured', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'show_featured_badge' => true, 'cta_url' => '/categorias'], 'order' => 12],
+            ['key' => 'newsletter_box', 'type' => 'newsletter', 'title' => 'Receba lançamentos e cupons exclusivos', 'subtitle' => 'Cadastre seu e-mail para novidades da Mistura Feminina Cosméticos', 'config' => [], 'order' => 13],
         ];
         foreach ($sections as $s) {
             HomeSection::query()->updateOrCreate(

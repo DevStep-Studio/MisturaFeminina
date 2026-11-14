@@ -135,7 +135,8 @@ class StorefrontController extends Controller
                     $payload = Brand::query()
                         ->where('is_active', true)
                         ->orderByDesc('is_featured')
-                        ->limit((int) ($cfg['limit'] ?? 8))
+                        ->orderBy('id')
+                        ->limit((int) ($cfg['limit'] ?? 12))
                         ->get();
                     break;
                 case 'coupon_strip':

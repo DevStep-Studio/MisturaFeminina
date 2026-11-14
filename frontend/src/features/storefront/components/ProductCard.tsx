@@ -9,6 +9,7 @@ import type { ProductCardData } from "../types";
 export function ProductCard(props: {
   product: ProductCardData;
   borderless?: boolean;
+  showFeaturedBadge?: boolean;
 }) {
   const [adding, setAdding] = createSignal(false);
   const [feedback, setFeedback] = createSignal("");
@@ -50,10 +51,21 @@ export function ProductCard(props: {
         </Link>
 
         {/* Top-left Status Badges */}
-        <div class="pointer-events-none absolute left-1 top-1 flex flex-col gap-1">
+        <div class="pointer-events-none absolute left-1 top-1 flex flex-col items-start gap-1">
           <Show when={props.product.in_stock && props.product.is_new_arrival}>
-            <span class="rounded-full bg-[#C22583] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:px-2.5 sm:text-[10px]">
+            <span class="rounded-full bg-[#C22583] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:text-[10px]">
               Lançamento
+            </span>
+          </Show>
+          <Show
+            when={
+              props.product.in_stock &&
+              props.showFeaturedBadge &&
+              props.product.is_featured
+            }
+          >
+            <span class="rounded-full bg-[#C22583] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:text-[10px]">
+              Destaque
             </span>
           </Show>
         </div>
