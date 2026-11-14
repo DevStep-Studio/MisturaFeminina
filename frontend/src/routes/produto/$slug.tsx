@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
+import BadgePercent from "lucide-solid/icons/badge-percent";
 import Bell from "lucide-solid/icons/bell";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronRight from "lucide-solid/icons/chevron-right";
@@ -7,6 +8,7 @@ import CreditCard from "lucide-solid/icons/credit-card";
 import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
 import Star from "lucide-solid/icons/star";
+import Truck from "lucide-solid/icons/truck";
 import {
   For,
   Show,
@@ -601,67 +603,134 @@ function ProductDetailPage() {
                     </Show>
 
                     {/* Price & installment */}
-                    <div class="pt-1">
+                    <div class="rounded-xl border border-[#F0DDF4] bg-white p-4 shadow-[0_2px_10px_rgba(46,12,73,0.03)]">
                       <Show
                         when={
                           discountPct() > 0 &&
                           originalPriceCents() > currentPriceCents()
                         }
                       >
-                        <p class="text-xs text-[#52436E] line-through">
-                          {formatCents(originalPriceCents())}
-                        </p>
+                        <div class="mb-1.5 flex flex-wrap items-center gap-2">
+                          <span class="text-xs font-medium text-[#6B587E] line-through">
+                            De {formatCents(originalPriceCents())}
+                          </span>
+                          <span class="inline-flex items-center rounded-md bg-[#2E0C49] px-2 py-0.5 text-[11px] font-extrabold tracking-wide text-white">
+                            -{discountPct()}% OFF
+                          </span>
+                          <span class="inline-flex items-center rounded-md border border-[#E9D3EE] bg-[#FAF4FC] px-2 py-0.5 text-[11px] font-bold text-[#93509e]">
+                            Economize{" "}
+                            {formatCents(
+                              originalPriceCents() - currentPriceCents(),
+                            )}
+                          </span>
+                        </div>
                       </Show>
-                      <div class="text-2xl font-extrabold text-[#C918BF]">
-                        {formatCents(currentPriceCents())}
+
+                      <div class="flex items-baseline gap-2">
+                        <span class="text-3xl font-extrabold tracking-tight text-[#2E0C49] sm:text-[32px]">
+                          {formatCents(currentPriceCents())}
+                        </span>
+                        <span class="text-xs font-semibold text-[#6B587E]">
+                          à vista
+                        </span>
                       </div>
-                      <p class="mt-1 flex items-center gap-1.5 text-xs text-[#2E0C49]">
-                        <CreditCard
-                          class="h-4 w-4 shrink-0 text-[#2E0C49]"
-                          aria-hidden="true"
-                        />
+
+                      <p class="mt-2.5 flex items-center gap-2 border-t border-[#F6EBF8] pt-2.5 text-[13px] text-[#2E0C49]">
+                        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg border border-[#EFE0F3] bg-[#FAF5FB] text-[#93509e]">
+                          <CreditCard class="h-4 w-4" aria-hidden="true" />
+                        </span>
                         <span>
-                          ou{" "}
-                          <strong class="font-bold text-[#C918BF]">
-                            {installments()}x
-                          </strong>{" "}
-                          de{" "}
-                          <strong class="font-bold text-[#C918BF]">
+                          ou em até{" "}
+                          <strong class="font-extrabold text-[#93509e]">
+                            {installments()}x de{" "}
                             {formatCents(installmentValue())}
                           </strong>{" "}
-                          Sem juros
+                          <span class="font-semibold text-[#2E0C49]">
+                            Sem juros
+                          </span>
                         </span>
                       </p>
                     </div>
 
                     {/* Progressive discount / shipping benefits notice */}
-                    <div class="rounded-md bg-[#F7F7F8] px-4 py-3.5 text-[#2E0C49]">
-                      <p class="text-xs font-bold text-[#2E0C49]">
-                        Produto com desconto progressivo
-                      </p>
-                      <p class="mt-1.5 text-[11px] text-[#2E0C49]">
-                        Frete Grátis para pedidos acima de R$149,90 para todo o
-                        RJ
-                      </p>
-                      <p class="mt-0.5 text-[11px] text-[#2E0C49]">
-                        Frete grátis para pedidos no Sudeste acima de R$299,90
-                      </p>
-                      <Show
-                        when={
-                          p().wholesale_enabled &&
-                          p().wholesale_tiers.length > 0
-                        }
-                      >
-                        <div class="mt-2 flex flex-wrap gap-1.5">
-                          <For each={p().wholesale_tiers}>
-                            {(tier) => (
-                              <span class="rounded bg-white px-2 py-0.5 text-[11px] font-medium text-[#2E0C49]">
-                                {tier.min_qty}+ un.: -{tier.discount_percent}%
-                              </span>
-                            )}
-                          </For>
+                    <div class="rounded-xl border border-[#EBDCF0] bg-[#FAF5FB] p-4 text-[#2E0C49]">
+                      <div class="flex items-start gap-3">
+                        <span class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#E5D0EC] bg-white text-[#93509e]">
+                          <BadgePercent class="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <div class="min-w-0 flex-1">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <p class="text-[13px] font-extrabold text-[#2E0C49]">
+                              Produto com desconto progressivo
+                            </p>
+                            <span class="rounded-md bg-[#93509e] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                              Vantagem
+                            </span>
+                          </div>
+                          <p class="mt-0.5 text-xs text-[#543E69]">
+                            Compre mais unidades e garanta condições especiais
+                            no carrinho.
+                          </p>
+                          <Show
+                            when={
+                              p().wholesale_enabled &&
+                              p().wholesale_tiers.length > 0
+                            }
+                          >
+                            <div class="mt-2 flex flex-wrap gap-1.5">
+                              <For each={p().wholesale_tiers}>
+                                {(tier) => (
+                                  <span class="rounded-md border border-[#E5D0EC] bg-white px-2.5 py-0.5 text-[11px] font-bold text-[#93509e]">
+                                    {tier.min_qty}+ un.: -
+                                    {tier.discount_percent}%
+                                  </span>
+                                )}
+                              </For>
+                            </div>
+                          </Show>
                         </div>
-                      </Show>
+                      </div>
+
+                      <div class="my-3 border-t border-[#EBDCF0]" />
+
+                      <ul class="space-y-2">
+                        <li class="flex items-center gap-2.5 text-xs text-[#2E0C49]">
+                          <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-[#E5D0EC] bg-white text-[#93509e]">
+                            <Truck class="h-3.5 w-3.5" aria-hidden="true" />
+                          </span>
+                          <span>
+                            <strong class="font-bold text-[#93509e]">
+                              Frete Grátis
+                            </strong>{" "}
+                            para pedidos acima de{" "}
+                            <strong class="font-extrabold text-[#2E0C49]">
+                              R$ 149,90
+                            </strong>{" "}
+                            para todo o{" "}
+                            <strong class="font-extrabold text-[#2E0C49]">
+                              RJ
+                            </strong>
+                          </span>
+                        </li>
+                        <li class="flex items-center gap-2.5 text-xs text-[#2E0C49]">
+                          <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-[#E5D0EC] bg-white text-[#93509e]">
+                            <Truck class="h-3.5 w-3.5" aria-hidden="true" />
+                          </span>
+                          <span>
+                            <strong class="font-bold text-[#93509e]">
+                              Frete Grátis
+                            </strong>{" "}
+                            para pedidos no{" "}
+                            <strong class="font-extrabold text-[#2E0C49]">
+                              Sudeste
+                            </strong>{" "}
+                            acima de{" "}
+                            <strong class="font-extrabold text-[#2E0C49]">
+                              R$ 299,90
+                            </strong>
+                          </span>
+                        </li>
+                      </ul>
                     </div>
 
                     {/* Quantity pill + COMPRAR CTA + WhatsApp CTA or Restock Alert */}
