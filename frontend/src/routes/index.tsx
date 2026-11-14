@@ -55,15 +55,45 @@ interface HomeReview {
 function renderBenefitIcon(name: string) {
   switch (name) {
     case "truck":
-      return <Truck class="h-5 w-5 text-[var(--mf-primary)]" />;
+      return (
+        <Truck
+          class="h-7 w-7 text-zinc-700"
+          strokeWidth={1.5}
+          aria-hidden="true"
+        />
+      );
     case "message-circle":
-      return <MessageCircle class="h-5 w-5 text-[var(--mf-primary)]" />;
+      return (
+        <MessageCircle
+          class="h-7 w-7 text-zinc-700"
+          strokeWidth={1.5}
+          aria-hidden="true"
+        />
+      );
     case "shield-check":
-      return <ShieldCheck class="h-5 w-5 text-[var(--mf-primary)]" />;
+      return (
+        <ShieldCheck
+          class="h-7 w-7 text-zinc-700"
+          strokeWidth={1.5}
+          aria-hidden="true"
+        />
+      );
     case "tag":
-      return <Tag class="h-5 w-5 text-[var(--mf-primary)]" />;
+      return (
+        <Tag
+          class="h-7 w-7 text-zinc-700"
+          strokeWidth={1.5}
+          aria-hidden="true"
+        />
+      );
     default:
-      return <CreditCard class="h-5 w-5 text-[var(--mf-primary)]" />;
+      return (
+        <CreditCard
+          class="h-7 w-7 text-zinc-700"
+          strokeWidth={1.5}
+          aria-hidden="true"
+        />
+      );
   }
 }
 
@@ -213,6 +243,83 @@ function CouponStripBlock(props: {
   );
 }
 
+function CategoryCirclesBlock(props: {
+  section: HomeSectionData;
+  categories: CategoryNode[];
+}) {
+  const [offset, setOffset] = createSignal(0);
+
+  const visibleCategories = () => {
+    const list = props.categories;
+    if (list.length <= 1) return list;
+    const shift = ((offset() % list.length) + list.length) % list.length;
+    return [...list.slice(shift), ...list.slice(0, shift)];
+  };
+
+  return (
+    <Show when={props.categories.length > 0}>
+      <section class="bg-white py-8 sm:py-10">
+        <div class="mx-auto max-w-7xl px-4">
+          <div class="mb-8 text-center">
+            <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
+              {props.section.title || "Navegue por Categorias"}
+            </h2>
+            <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
+          </div>
+
+          <div class="relative px-7 sm:px-6">
+            <div class="grid grid-cols-3 gap-x-2.5 gap-y-5 sm:grid-cols-4 sm:gap-4 md:grid-cols-6">
+              <For each={visibleCategories().slice(0, 6)}>
+                {(cat) => (
+                  <Link
+                    to="/categoria/$slug"
+                    params={{ slug: cat.slug }}
+                    class="group flex flex-col items-center text-center"
+                  >
+                    <div class="flex aspect-square w-full max-w-[164px] items-center justify-center overflow-hidden rounded-full border border-zinc-200/90 bg-white p-2.5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] transition group-hover:border-[#C22583] group-hover:shadow-md sm:p-3.5">
+                      <img
+                        src={assetUrl(cat.image_path)}
+                        alt={cat.name}
+                        class="h-full w-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                    <span class="mt-2.5 text-[11px] font-bold leading-snug text-[#3D1260] transition-colors group-hover:text-[#C22583] sm:mt-3 sm:text-[13px]">
+                      {cat.name}
+                    </span>
+                  </Link>
+                )}
+              </For>
+            </div>
+
+            <Show when={props.categories.length > 1}>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o - 1)}
+                aria-label="Categorias anteriores"
+                class="absolute left-0 top-[46px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 md:top-[42%] md:size-9"
+              >
+                <ChevronLeft class="h-4 w-4 md:h-5 md:w-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o + 1)}
+                aria-label="Próximas categorias"
+                class="absolute right-0 top-[46px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 md:top-[42%] md:size-9"
+              >
+                <ChevronRight
+                  class="h-4 w-4 md:h-5 md:w-5"
+                  aria-hidden="true"
+                />
+              </button>
+            </Show>
+          </div>
+        </div>
+      </section>
+    </Show>
+  );
+}
+
 function ProductShowcaseBlock(props: { section: HomeSectionData }) {
   const products = () =>
     Array.isArray(props.section.data)
@@ -228,20 +335,17 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
   return (
     <Show when={products().length > 0}>
       <section class="mx-auto max-w-7xl px-4 py-8 sm:py-10">
-        <div class="mb-5 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 class="text-xl font-bold text-zinc-900 sm:text-2xl">
-              {props.section.title || "Produtos em destaque"}
-            </h2>
-            <Show when={props.section.subtitle}>
-              <p class="mt-0.5 text-sm text-zinc-600">
-                {props.section.subtitle}
-              </p>
-            </Show>
-          </div>
+        <div class="relative mb-7 text-center">
+          <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
+            {props.section.title || "Produtos em destaque"}
+          </h2>
+          <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
+          <Show when={props.section.subtitle}>
+            <p class="mt-2 text-sm text-zinc-600">{props.section.subtitle}</p>
+          </Show>
           <Link
             to={viewAllHref()}
-            class="inline-flex items-center gap-1 text-sm font-semibold text-[var(--mf-primary)] hover:underline"
+            class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] hover:underline sm:absolute sm:right-0 sm:top-1 sm:mt-0 sm:text-sm"
           >
             Ver todos
             <ChevronRight class="h-4 w-4" aria-hidden="true" />
@@ -322,23 +426,21 @@ function StorefrontHomePage() {
             return (
               <section
                 aria-label="Diferenciais da loja"
-                class="border-b border-zinc-200 bg-white py-5"
+                class="bg-white py-6 sm:py-7"
               >
-                <div class="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 sm:grid-cols-3 lg:grid-cols-5">
+                <div class="mx-auto grid max-w-7xl grid-cols-2 gap-x-4 gap-y-5 px-4 sm:grid-cols-3 lg:grid-cols-5">
                   <For each={settings().benefits_row}>
                     {(item) => (
-                      <div class="flex items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5">
-                        <div class="shrink-0">
+                      <div class="flex flex-col items-center text-center last:col-span-2 sm:last:col-span-1">
+                        <div class="mb-2 flex items-center justify-center text-zinc-700">
                           {renderBenefitIcon(item.icon)}
                         </div>
-                        <div class="min-w-0">
-                          <p class="truncate text-xs font-bold text-zinc-900">
-                            {item.title}
-                          </p>
-                          <p class="truncate text-[11px] text-zinc-600">
-                            {item.subtitle}
-                          </p>
-                        </div>
+                        <p class="text-[13px] font-bold leading-snug text-[#3D1260]">
+                          {item.title}
+                        </p>
+                        <p class="mt-0.5 text-xs leading-snug text-[#4C1D73]">
+                          {item.subtitle}
+                        </p>
                       </div>
                     )}
                   </For>
@@ -352,44 +454,7 @@ function StorefrontHomePage() {
               ? (section.data as CategoryNode[])
               : [];
             return (
-              <Show when={categories.length > 0}>
-                <section class="mx-auto max-w-7xl px-4 py-8">
-                  <div class="mb-5 flex items-center justify-between">
-                    <h2 class="text-xl font-bold text-zinc-900 sm:text-2xl">
-                      {section.title || "Compre por categoria"}
-                    </h2>
-                    <Link
-                      to="/categorias"
-                      class="text-sm font-semibold text-[var(--mf-primary)] hover:underline"
-                    >
-                      Ver todas
-                    </Link>
-                  </div>
-                  <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-                    <For each={categories}>
-                      {(cat) => (
-                        <Link
-                          to="/categoria/$slug"
-                          params={{ slug: cat.slug }}
-                          class="group flex flex-col items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 text-center transition hover:border-[var(--mf-primary)]"
-                        >
-                          <div class="h-16 w-16 overflow-hidden rounded-full border border-zinc-200 bg-zinc-50 sm:h-20 sm:w-20">
-                            <img
-                              src={assetUrl(cat.image_path)}
-                              alt={cat.name}
-                              class="h-full w-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
-                          <span class="text-xs font-semibold text-zinc-900 group-hover:text-[var(--mf-primary)]">
-                            {cat.name}
-                          </span>
-                        </Link>
-                      )}
-                    </For>
-                  </div>
-                </section>
-              </Show>
+              <CategoryCirclesBlock section={section} categories={categories} />
             );
           }
 
@@ -440,16 +505,18 @@ function StorefrontHomePage() {
               : [];
             return (
               <Show when={brands.length > 0}>
-                <section class="mx-auto max-w-7xl px-4 py-8">
-                  <div class="mb-5 flex items-center justify-between">
-                    <h2 class="text-xl font-bold text-zinc-900 sm:text-2xl">
-                      {section.title || "Marcas Parceiras"}
+                <section class="mx-auto max-w-7xl px-4 py-8 sm:py-10">
+                  <div class="relative mb-7 text-center">
+                    <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
+                      {section.title || "Marcas em Destaque"}
                     </h2>
+                    <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
                     <Link
                       to="/marcas"
-                      class="text-sm font-semibold text-[var(--mf-primary)] hover:underline"
+                      class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] hover:underline sm:absolute sm:right-0 sm:top-1 sm:mt-0 sm:text-sm"
                     >
                       Todas as marcas
+                      <ChevronRight class="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </div>
                   <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">

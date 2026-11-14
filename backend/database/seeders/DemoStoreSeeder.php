@@ -215,6 +215,59 @@ class DemoStoreSeeder extends Seeder
             );
             File::put($dir.'/'.$file.'.svg', $svg);
         }
+
+        /* Crisp isolated studio-style SVGs on pure white background for category circles */
+        $categoryIllustrations = [
+            'cat-unhas.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">'
+                .'<rect x="44" y="42" width="18" height="36" rx="4" fill="#F4C2D7"/><rect x="34" y="78" width="38" height="92" rx="9" fill="#EC4899" stroke="#BE185D" stroke-width="2"/>'
+                .'<rect x="42" y="102" width="22" height="36" rx="4" fill="#FFFFFF"/><text x="53" y="124" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="800" fill="#62298D">GEL</text>'
+                .'<rect x="100" y="28" width="20" height="44" rx="4" fill="#3D1260"/><rect x="88" y="72" width="44" height="106" rx="10" fill="#62298D" stroke="#3D1260" stroke-width="2"/>'
+                .'<rect x="96" y="102" width="28" height="40" rx="5" fill="#FFFFFF"/><text x="110" y="126" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="800" fill="#3D1260">MF</text>'
+                .'<rect x="156" y="46" width="18" height="34" rx="4" fill="#E4E4E7"/><rect x="146" y="80" width="38" height="90" rx="9" fill="#FFF1F7" stroke="#D4D4D8" stroke-width="2"/>'
+                .'<rect x="154" y="104" width="22" height="34" rx="4" fill="#C22583"/><text x="165" y="125" text-anchor="middle" font-family="system-ui,sans-serif" font-size="7" font-weight="800" fill="#FFFFFF">TOP</text>'
+                .'</svg>',
+            'cat-maquiagem.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">'
+                .'<rect x="34" y="72" width="102" height="84" rx="12" fill="#27272A" stroke="#18181B" stroke-width="2"/>'
+                .'<circle cx="62" cy="98" r="14" fill="#F43F5E"/><circle cx="96" cy="98" r="14" fill="#D946EF"/>'
+                .'<circle cx="62" cy="130" r="14" fill="#FB7185"/><circle cx="96" cy="130" r="14" fill="#A855F7"/>'
+                .'<rect x="148" y="92" width="32" height="72" rx="6" fill="#2E1049"/>'
+                .'<rect x="152" y="66" width="24" height="28" rx="3" fill="#D4AF37"/>'
+                .'<path d="M154,66 L154,44 C154,36 174,34 174,48 L174,66 Z" fill="#C22583"/>'
+                .'</svg>',
+            'cat-facial.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">'
+                .'<rect x="64" y="34" width="16" height="26" rx="6" fill="#18181B"/><rect x="54" y="56" width="36" height="16" rx="4" fill="#D4D4D8"/>'
+                .'<rect x="46" y="72" width="52" height="98" rx="12" fill="#FBCFE8" stroke="#C22583" stroke-width="2"/>'
+                .'<rect x="54" y="98" width="36" height="44" rx="6" fill="#FFFFFF"/><text x="72" y="124" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="800" fill="#62298D">SERUM</text>'
+                .'<ellipse cx="144" cy="156" rx="38" ry="12" fill="#E4E4E7"/><rect x="110" y="106" width="68" height="50" rx="12" fill="#FFFFFF" stroke="#D4D4D8" stroke-width="2"/>'
+                .'<rect x="116" y="90" width="56" height="18" rx="6" fill="#62298D"/><text x="144" y="136" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="800" fill="#C22583">FACIAL</text>'
+                .'</svg>',
+            'cat-cabelos.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">'
+                .'<rect x="38" y="88" width="76" height="82" rx="14" fill="#F3E8FF" stroke="#62298D" stroke-width="2"/>'
+                .'<rect x="44" y="68" width="64" height="22" rx="6" fill="#3D1260"/>'
+                .'<rect x="50" y="110" width="52" height="38" rx="6" fill="#FFFFFF"/><text x="76" y="133" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="800" fill="#62298D">MASK</text>'
+                .'<path d="M148,42 L156,42 L156,58 L148,58 Z" fill="#18181B"/><rect x="132" y="66" width="40" height="104" rx="10" fill="#FDE047" stroke="#CA8A04" stroke-width="2"/>'
+                .'<rect x="140" y="56" width="24" height="12" rx="3" fill="#27272A"/><rect x="138" y="96" width="28" height="40" rx="4" fill="#FFFFFF"/><text x="152" y="120" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="800" fill="#3D1260">OLEO</text>'
+                .'</svg>',
+            'cat-corpo.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">'
+                .'<path d="M98,42 L126,42 M110,42 L110,60" stroke="#27272A" stroke-width="5" stroke-linecap="round"/>'
+                .'<rect x="96" y="58" width="28" height="14" rx="4" fill="#3D1260"/>'
+                .'<rect x="78" y="72" width="64" height="106" rx="18" fill="#FCE7F3" stroke="#C22583" stroke-width="2"/>'
+                .'<rect x="90" y="102" width="40" height="44" rx="8" fill="#FFFFFF"/><text x="110" y="128" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="800" fill="#62298D">CORPO</text>'
+                .'<circle cx="152" cy="152" r="24" fill="#F472B6" stroke="#FFFFFF" stroke-width="3"/><text x="152" y="155" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" font-weight="800" fill="#FFFFFF">CREME</text>'
+                .'</svg>',
+            'cat-acessorios.svg' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="220" height="220">'
+                .'<rect x="44" y="88" width="96" height="68" rx="16" fill="#F9A8D4" stroke="#C22583" stroke-width="2"/>'
+                .'<circle cx="88" cy="122" r="18" fill="#18181B" stroke="#FFFFFF" stroke-width="3"/>'
+                .'<circle cx="122" cy="110" r="6" fill="#3D1260"/>'
+                .'<rect x="152" y="56" width="18" height="86" rx="8" fill="#EC4899" stroke="#9D174D" stroke-width="2"/>'
+                .'<rect x="158" y="34" width="6" height="24" rx="3" fill="#71717A"/>'
+                .'<path d="M40,156 C40,174 176,174 176,156" stroke="#3D1260" stroke-width="4" fill="none" stroke-linecap="round"/>'
+                .'</svg>',
+        ];
+
+        foreach ($categoryIllustrations as $file => $svg) {
+            File::put($dir.'/'.$file, $svg);
+        }
     }
 
     private function seedSettings(): void
@@ -337,12 +390,12 @@ class DemoStoreSeeder extends Seeder
     private function seedCategories(): array
     {
         $roots = [
-            ['slug' => 'unhas-e-esmalteria', 'name' => 'Unhas e Esmalteria', 'icon' => 'sparkles', 'image_path' => '/storage/seed/prod-esmalte.svg', 'order' => 1],
-            ['slug' => 'maquiagem', 'name' => 'Maquiagem', 'icon' => 'heart', 'image_path' => '/storage/seed/prod-batom.svg', 'order' => 2],
-            ['slug' => 'skincare', 'name' => 'Cuidados Faciais', 'icon' => 'droplet', 'image_path' => '/storage/seed/prod-serum.svg', 'order' => 3],
-            ['slug' => 'cabelos', 'name' => 'Cabelos', 'icon' => 'sun', 'image_path' => '/storage/seed/prod-mascara.svg', 'order' => 4],
-            ['slug' => 'corpo-e-banho', 'name' => 'Corpo e Banho', 'icon' => 'flower', 'image_path' => '/storage/seed/prod-hidratante.svg', 'order' => 5],
-            ['slug' => 'acessorios-pro', 'name' => 'Acessórios Profissionais', 'icon' => 'briefcase', 'image_path' => '/storage/seed/prod-cabine.svg', 'order' => 6],
+            ['slug' => 'unhas-e-esmalteria', 'name' => 'Unhas e Esmalteria', 'icon' => 'sparkles', 'image_path' => '/storage/seed/cat-unhas.svg', 'order' => 1],
+            ['slug' => 'maquiagem', 'name' => 'Maquiagem', 'icon' => 'heart', 'image_path' => '/storage/seed/cat-maquiagem.svg', 'order' => 2],
+            ['slug' => 'skincare', 'name' => 'Cuidados Faciais', 'icon' => 'droplet', 'image_path' => '/storage/seed/cat-facial.svg', 'order' => 3],
+            ['slug' => 'cabelos', 'name' => 'Cabelos', 'icon' => 'sun', 'image_path' => '/storage/seed/cat-cabelos.svg', 'order' => 4],
+            ['slug' => 'corpo-e-banho', 'name' => 'Corpo e Banho', 'icon' => 'flower', 'image_path' => '/storage/seed/cat-corpo.svg', 'order' => 5],
+            ['slug' => 'acessorios-pro', 'name' => 'Acessórios Profissionais', 'icon' => 'briefcase', 'image_path' => '/storage/seed/cat-acessorios.svg', 'order' => 6],
         ];
 
         $map = [];

@@ -51,9 +51,9 @@ class StoreSettingsService
             'benefits_row' => [
                 ['icon' => 'credit-card', 'title' => 'Parcelamento', 'subtitle' => 'Em até 6x sem juros'],
                 ['icon' => 'truck', 'title' => 'Envios', 'subtitle' => 'Enviamos para todo Brasil'],
-                ['icon' => 'message-circle', 'title' => 'Atendimento', 'subtitle' => 'Suporte via WhatsApp'],
-                ['icon' => 'shield-check', 'title' => 'Site Seguro', 'subtitle' => 'Checkout criptografado'],
-                ['icon' => 'tag', 'title' => 'Primeira Compra', 'subtitle' => 'Cupom BEMVINDA10'],
+                ['icon' => 'message-circle', 'title' => 'Atendimento', 'subtitle' => 'via WhatsApp'],
+                ['icon' => 'shield-check', 'title' => 'Site 100% Seguro', 'subtitle' => 'Selo de segurança'],
+                ['icon' => 'tag', 'title' => 'Desconto de 10%', 'subtitle' => 'cupom: BEMVINDA10'],
             ],
             'popup_enabled' => false,
             'popup_title' => 'Boas-vindas à Mistura Feminina Cosméticos',
