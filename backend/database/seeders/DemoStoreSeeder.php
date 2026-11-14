@@ -789,7 +789,7 @@ class DemoStoreSeeder extends Seeder
             ['key' => 'new_arrivals', 'type' => 'product_showcase', 'title' => 'Novidades na Loja', 'subtitle' => 'Lançamentos recém-chegados ao catálogo', 'config' => ['filter' => 'new_arrivals', 'limit' => 8, 'cta_url' => '/novidades'], 'order' => 7],
             ['key' => 'brands_row', 'type' => 'product_showcase', 'title' => 'Mistura Lab', 'subtitle' => null, 'config' => ['filter' => 'brand', 'brand_slug' => 'mistura-lab', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/marca/mistura-lab'], 'order' => 8],
             ['key' => 'niche_esmaltes', 'type' => 'product_showcase', 'title' => 'Esmaltes em Gel', 'subtitle' => null, 'config' => ['filter' => 'category', 'category_slug' => 'esmaltes-em-gel', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/categoria/esmaltes-em-gel'], 'order' => 9],
-            ['key' => 'best_sellers', 'type' => 'product_showcase', 'title' => 'Mais Vendidos', 'subtitle' => 'Os queridinhos das nossas clientes', 'config' => ['filter' => 'best_sellers', 'limit' => 8, 'cta_url' => '/categorias'], 'order' => 10],
+            ['key' => 'best_sellers', 'type' => 'product_showcase', 'title' => 'Produtos mais Vendidos da semana', 'subtitle' => null, 'config' => ['filter' => 'best_sellers', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/categorias'], 'order' => 10],
             ['key' => 'newsletter_box', 'type' => 'newsletter', 'title' => 'Receba lançamentos e cupons exclusivos', 'subtitle' => 'Cadastre seu e-mail para novidades da Mistura Feminina Cosméticos', 'config' => [], 'order' => 11],
         ];
         foreach ($sections as $s) {
