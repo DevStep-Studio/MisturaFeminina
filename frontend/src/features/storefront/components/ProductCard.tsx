@@ -30,7 +30,7 @@ export function ProductCard(props: {
 
   return (
     <article
-      class={`mf-card-stagger group relative flex h-full flex-col rounded-[4px] bg-white p-3 sm:p-4 transition-all ${
+      class={`mf-card-stagger group relative flex h-full flex-col rounded-[4px] bg-white px-2.5 py-3 sm:p-4 transition-all ${
         props.borderless
           ? "border border-transparent"
           : "border border-zinc-200/70"
@@ -101,27 +101,27 @@ export function ProductCard(props: {
           fallback={
             <div class="mt-4 flex flex-1 flex-col items-center justify-end pb-1">
               <div class="flex flex-col items-center text-center">
-                <span class="inline-flex items-center gap-1.5 text-[12.5px] font-semibold tracking-tight text-zinc-700">
+                <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold tracking-tight text-zinc-700 sm:text-[12px]">
                   <span
                     class="h-1.5 w-1.5 rounded-full bg-zinc-400"
                     aria-hidden="true"
                   />
                   Indisponível no momento
                 </span>
-                <p class="mt-0.5 text-[11px] font-medium text-zinc-500">
+                <p class="mt-0.5 text-[9.5px] font-medium leading-tight text-zinc-500 sm:text-[10.5px]">
                   Receba um alerta assim que voltar
                 </p>
               </div>
               <Link
                 to="/produto/$slug"
                 params={{ slug: props.product.slug }}
-                class="group/notify mt-3 inline-flex h-[34px] w-full items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-4 text-[12px] font-semibold text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30"
+                class="group/notify mt-3 inline-flex h-[32px] w-full items-center justify-center gap-1 rounded-lg border border-[#93509e] bg-white px-1 text-[9.5px] font-semibold whitespace-nowrap tracking-tight text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30 min-[360px]:text-[10px] min-[390px]:text-[10.5px] sm:h-[34px] sm:gap-1.5 sm:px-2.5 sm:text-[12px] sm:tracking-normal"
               >
                 <Bell
-                  class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
+                  class="h-3 w-3 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110 sm:h-3.5 sm:w-3.5"
                   aria-hidden="true"
                 />
-                <span>Avise-me quando chegar</span>
+                <span class="whitespace-nowrap">Avise-me quando chegar</span>
               </Link>
             </div>
           }

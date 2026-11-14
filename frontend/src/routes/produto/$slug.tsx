@@ -1237,13 +1237,15 @@ function ProductDetailPage() {
                             });
                             el?.focus();
                           }}
-                          class="group/notify inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-6 text-xs font-semibold text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30"
+                          class="group/notify inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-4 text-xs font-semibold whitespace-nowrap text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30"
                         >
                           <Bell
                             class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
                             aria-hidden="true"
                           />
-                          <span>Avise-me quando voltar</span>
+                          <span class="whitespace-nowrap">
+                            Avise-me quando voltar
+                          </span>
                         </button>
                       }
                     >
