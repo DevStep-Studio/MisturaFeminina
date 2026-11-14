@@ -602,7 +602,7 @@ class DemoStoreSeeder extends Seeder
             [
                 'sku' => 'MF-PIN-011', 'slug' => 'kit-pinceis-maquiagem-profissional-8-pecas', 'name' => 'Kit Pincéis Profissionais Cerdas Macias 8 Peças',
                 'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'maquiagem'], 'img' => '/storage/seed/prod-pincel.svg',
-                'type' => ProductType::Simple, 'price' => 11990, 'promo' => 8990, 'featured' => false, 'new' => false, 'best' => false, 'stock' => 0,
+                'type' => ProductType::Simple, 'price' => 11990, 'promo' => 8990, 'featured' => false, 'new' => true, 'best' => false, 'stock' => 0,
                 'short' => 'Cerdas sintéticas de alta densidade para acabamento polido (item para testar Avise-me quando esgotado).',
             ],
             [
@@ -838,7 +838,7 @@ class DemoStoreSeeder extends Seeder
             ['key' => 'categories_row', 'type' => 'category_circles', 'title' => 'Navegue por Categorias', 'subtitle' => 'Encontre exatamente o que sua rotina precisa', 'config' => ['limit' => 8], 'order' => 4],
             ['key' => 'offers_week', 'type' => 'product_showcase', 'title' => 'Confira nossas ofertas da semana', 'subtitle' => 'Descontos válidos enquanto durarem os estoques', 'config' => ['filter' => 'offers', 'limit' => 8, 'cta_url' => '/promocoes'], 'order' => 5],
             ['key' => 'promo_banners', 'type' => 'banner_grid', 'title' => null, 'subtitle' => null, 'config' => [], 'order' => 6],
-            ['key' => 'new_arrivals', 'type' => 'product_showcase', 'title' => 'Novidades na Loja', 'subtitle' => 'Lançamentos recém-chegados ao catálogo', 'config' => ['filter' => 'new_arrivals', 'limit' => 8, 'cta_url' => '/novidades'], 'order' => 7],
+            ['key' => 'new_arrivals', 'type' => 'product_showcase', 'title' => 'Novidades', 'subtitle' => null, 'config' => ['filter' => 'new_arrivals', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'show_featured_badge' => true, 'cta_url' => '/novidades'], 'order' => 7],
             ['key' => 'brands_row', 'type' => 'product_showcase', 'title' => 'Mistura Lab', 'subtitle' => null, 'config' => ['filter' => 'brand', 'brand_slug' => 'mistura-lab', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/marca/mistura-lab'], 'order' => 8],
             ['key' => 'niche_esmaltes', 'type' => 'product_showcase', 'title' => 'Esmaltes em Gel', 'subtitle' => null, 'config' => ['filter' => 'category', 'category_slug' => 'esmaltes-em-gel', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/categoria/esmaltes-em-gel'], 'order' => 9],
             ['key' => 'best_sellers', 'type' => 'product_showcase', 'title' => 'Produtos mais Vendidos da semana', 'subtitle' => null, 'config' => ['filter' => 'best_sellers', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/categorias'], 'order' => 10],
