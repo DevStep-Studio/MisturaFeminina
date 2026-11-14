@@ -802,8 +802,12 @@ function ProductDetailPage() {
                                 <span class="text-sm font-bold text-zinc-900">
                                   {rev.author_name}
                                 </span>
-                                <span class="text-xs font-semibold text-amber-600">
-                                  {rev.rating}/5 ★
+                                <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
+                                  {rev.rating}/5{" "}
+                                  <Star
+                                    class="size-3.5 fill-current"
+                                    aria-hidden="true"
+                                  />
                                 </span>
                               </div>
                               <Show when={rev.is_verified_purchase}>

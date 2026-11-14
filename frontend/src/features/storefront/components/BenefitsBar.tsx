@@ -1,25 +1,14 @@
 import { For, Show } from "solid-js";
+import BadgeDollarSign from "lucide-solid/icons/badge-dollar-sign";
+import CreditCard from "lucide-solid/icons/credit-card";
+import Sparkles from "lucide-solid/icons/sparkles";
+import Truck from "lucide-solid/icons/truck";
 import { storefrontStore } from "../store";
 
 function renderTickerIcon(text: string) {
   const lower = text.toLowerCase();
   if (lower.includes("frete") || lower.includes("envio")) {
-    return (
-      <svg
-        viewBox="0 0 24 18"
-        class="h-4 w-5 shrink-0"
-        fill="none"
-        aria-hidden="true"
-      >
-        <rect x="1" y="3" width="14" height="10" rx="1.5" fill="#FACC15" />
-        <path d="M15 6h4.2L22 9.5V13h-7V6z" fill="#FDE047" />
-        <path d="M16.5 7.5h2.2l1.8 2.2h-4V7.5z" fill="#62298D" />
-        <circle cx="5.5" cy="14" r="2.2" fill="#FEF08A" />
-        <circle cx="5.5" cy="14" r="0.9" fill="#62298D" />
-        <circle cx="18.5" cy="14" r="2.2" fill="#FEF08A" />
-        <circle cx="18.5" cy="14" r="0.9" fill="#62298D" />
-      </svg>
-    );
+    return <Truck class="size-4 shrink-0 text-white" aria-hidden="true" />;
   }
   if (
     lower.includes("preço") ||
@@ -27,12 +16,7 @@ function renderTickerIcon(text: string) {
     lower.includes("melhor")
   ) {
     return (
-      <span
-        class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[15px] font-black leading-none text-[#22C55E]"
-        aria-hidden="true"
-      >
-        $
-      </span>
+      <BadgeDollarSign class="size-4 shrink-0 text-white" aria-hidden="true" />
     );
   }
   if (
@@ -40,24 +24,9 @@ function renderTickerIcon(text: string) {
     lower.includes("juros") ||
     lower.includes("6x")
   ) {
-    return (
-      <svg
-        viewBox="0 0 24 18"
-        class="h-4 w-5 shrink-0"
-        fill="none"
-        aria-hidden="true"
-      >
-        <rect x="2" y="3" width="20" height="13" rx="2.5" fill="#F97316" />
-        <rect x="2" y="6" width="20" height="3" fill="#EA580C" />
-        <rect x="5" y="11" width="5" height="2" rx="0.5" fill="#FED7AA" />
-      </svg>
-    );
+    return <CreditCard class="size-4 shrink-0 text-white" aria-hidden="true" />;
   }
-  return (
-    <span class="text-white/90" aria-hidden="true">
-      •
-    </span>
-  );
+  return <Sparkles class="size-3.5 shrink-0 text-white" aria-hidden="true" />;
 }
 
 export function BenefitsBar() {

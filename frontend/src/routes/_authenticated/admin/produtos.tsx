@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/solid-router";
+import Star from "lucide-solid/icons/star";
 import { For, Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { ApiError, api } from "../../../lib/api";
@@ -611,7 +612,16 @@ function AdminProductsPage() {
                 <li class="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div>
                     <p class="font-bold text-zinc-900">
-                      {rev.author_name} ({rev.rating}/5 ★) — {rev.product?.name}
+                      {rev.author_name}{" "}
+                      <span class="inline-flex items-center gap-0.5">
+                        ({rev.rating}/5{" "}
+                        <Star
+                          class="size-3.5 fill-amber-500 text-amber-500"
+                          aria-hidden="true"
+                        />
+                        )
+                      </span>{" "}
+                      — {rev.product?.name}
                     </p>
                     <p class="text-xs text-zinc-600">{rev.body}</p>
                     <span class="text-[11px] uppercase text-zinc-500">
