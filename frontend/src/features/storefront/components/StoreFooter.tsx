@@ -40,7 +40,7 @@ export function StoreFooter() {
     );
 
   return (
-    <footer class="relative border-t border-zinc-200/80 bg-white text-[#2E0C49]">
+    <footer class="relative border-t border-[#EBC0EA] bg-[#FBD5F9] text-[#2E0C49]">
       <div class="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.85fr_0.95fr_1.25fr_1.05fr]">
         <div class="flex flex-col items-start space-y-4">
           <Link
@@ -60,7 +60,7 @@ export function StoreFooter() {
             />
           </Link>
 
-          <p class="max-w-xs text-[13px] leading-relaxed text-zinc-600">
+          <p class="max-w-xs text-[13px] leading-relaxed text-[#3D1260]">
             Curadoria completa em nail design, esmalteria em gel, cabines e
             equipamentos profissionais com envio para todo o Brasil.
           </p>
@@ -150,14 +150,14 @@ export function StoreFooter() {
           <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
             Categorias
           </h2>
-          <ul class="space-y-2.5 text-[13px] text-zinc-600">
+          <ul class="space-y-2.5 text-[13px] text-[#3D1260]">
             <For each={categories().slice(0, 6)}>
               {(cat) => (
                 <li>
                   <Link
                     to="/categoria/$slug"
                     params={{ slug: cat.slug }}
-                    class="transition-colors hover:text-[#3D1260]"
+                    class="transition-colors hover:text-[#93509e]"
                   >
                     {cat.name}
                   </Link>
@@ -167,20 +167,20 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/categorias"
-                class="transition-colors hover:text-[#3D1260]"
+                class="transition-colors hover:text-[#93509e]"
               >
                 Mapa de Categorias
               </Link>
             </li>
             <li>
-              <Link to="/marcas" class="transition-colors hover:text-[#3D1260]">
+              <Link to="/marcas" class="transition-colors hover:text-[#93509e]">
                 Marcas parceiras
               </Link>
             </li>
             <li>
               <Link
                 to="/promocoes"
-                class="transition-colors hover:text-[#3D1260]"
+                class="transition-colors hover:text-[#93509e]"
               >
                 Promoções
               </Link>
@@ -192,14 +192,14 @@ export function StoreFooter() {
           <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
             Institucional
           </h2>
-          <ul class="space-y-2.5 text-[13px] text-zinc-600">
+          <ul class="space-y-2.5 text-[13px] text-[#3D1260]">
             <For each={groupedPages()}>
               {(page) => (
                 <li>
                   <Link
                     to="/$slug"
                     params={{ slug: page.slug }}
-                    class="transition-colors hover:text-[#3D1260]"
+                    class="transition-colors hover:text-[#93509e]"
                   >
                     {page.title}
                   </Link>
@@ -209,7 +209,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/rastrear-pedido"
-                class="transition-colors hover:text-[#3D1260]"
+                class="transition-colors hover:text-[#93509e]"
               >
                 Rastrear Pedido
               </Link>
@@ -217,7 +217,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/minha-conta"
-                class="transition-colors hover:text-[#3D1260]"
+                class="transition-colors hover:text-[#93509e]"
               >
                 Minha Conta
               </Link>
@@ -225,7 +225,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/contato"
-                class="transition-colors hover:text-[#3D1260]"
+                class="transition-colors hover:text-[#93509e]"
               >
                 Fale Conosco
               </Link>
@@ -237,17 +237,17 @@ export function StoreFooter() {
           <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
             Atendimento
           </h2>
-          <ul class="space-y-3 text-[13px] text-zinc-600">
+          <ul class="space-y-3 text-[13px] text-[#3D1260]">
             <Show when={settings().whatsapp_number || settings().phone}>
               <li>
                 <a
                   href={whatsHref()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-2 transition-colors hover:text-[#3D1260]"
+                  class="inline-flex items-center gap-2 transition-colors hover:text-[#93509e]"
                 >
                   <Phone
-                    class="h-4 w-4 shrink-0 text-[#62298D]"
+                    class="h-4 w-4 shrink-0 text-[#93509e]"
                     aria-hidden="true"
                   />
                   <span>{settings().phone || settings().whatsapp_number}</span>
@@ -258,17 +258,17 @@ export function StoreFooter() {
               <li>
                 <a
                   href={`mailto:${settings().email}`}
-                  class="inline-flex items-center gap-2 transition-colors hover:text-[#3D1260]"
+                  class="inline-flex items-center gap-2 transition-colors hover:text-[#93509e]"
                 >
                   <Mail
-                    class="h-4 w-4 shrink-0 text-[#62298D]"
+                    class="h-4 w-4 shrink-0 text-[#93509e]"
                     aria-hidden="true"
                   />
                   <span>{settings().email}</span>
                 </a>
               </li>
             </Show>
-            <li class="pt-1 text-xs text-zinc-500">
+            <li class="pt-1 text-xs text-[#3D1260]/85">
               Seg. a Sex. das 9h às 18h
             </li>
           </ul>
@@ -282,7 +282,7 @@ export function StoreFooter() {
             <div class="flex flex-wrap gap-1.5">
               <For each={PAYMENT_BADGES}>
                 {(badge) => (
-                  <span class="inline-flex h-7 items-center justify-center rounded-md border border-zinc-200/90 bg-zinc-50/80 px-2.5 text-[11px] font-semibold tracking-wide text-zinc-700">
+                  <span class="inline-flex h-7 items-center justify-center rounded-md border border-[#E5B8E8] bg-white px-2.5 text-[11px] font-semibold tracking-wide text-[#2E0C49] shadow-2xs">
                     {badge}
                   </span>
                 )}
@@ -295,16 +295,16 @@ export function StoreFooter() {
               Segurança
             </h2>
             <div class="flex flex-wrap gap-2">
-              <span class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200/90 bg-zinc-50/80 px-2.5 py-1.5 text-[11px] font-medium text-zinc-700">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-[#E5B8E8] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#2E0C49] shadow-2xs">
                 <ShieldCheck
-                  class="h-3.5 w-3.5 shrink-0 text-[#3D1260]"
+                  class="h-3.5 w-3.5 shrink-0 text-[#93509e]"
                   aria-hidden="true"
                 />
                 <span>Site Seguro SSL</span>
               </span>
-              <span class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200/90 bg-zinc-50/80 px-2.5 py-1.5 text-[11px] font-medium text-zinc-700">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-[#E5B8E8] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#2E0C49] shadow-2xs">
                 <Lock
-                  class="h-3.5 w-3.5 shrink-0 text-[#3D1260]"
+                  class="h-3.5 w-3.5 shrink-0 text-[#93509e]"
                   aria-hidden="true"
                 />
                 <span>Loja Protegida</span>
@@ -314,7 +314,7 @@ export function StoreFooter() {
         </div>
       </div>
 
-      <div class="border-t border-zinc-200/70 bg-[#FAF8FC] px-4 py-5 text-xs text-zinc-600">
+      <div class="border-t border-[#EBC0EA] bg-[#F5C2F5] px-4 py-5 text-xs text-[#2E0C49]">
         <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-center sm:flex-row sm:text-left">
           <p>
             {settings().company_legal_name || settings().store_name}
@@ -322,7 +322,7 @@ export function StoreFooter() {
             <Show when={settings().address}> • {settings().address}</Show>
             {" — "}© {new Date().getFullYear()} Todos os direitos reservados.
           </p>
-          <p class="shrink-0 text-[11px] text-zinc-600">
+          <p class="shrink-0 text-[11px] text-[#3D1260]">
             Em até {settings().max_installments}x sem juros no cartão.
           </p>
         </div>
