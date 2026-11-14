@@ -177,3 +177,35 @@ body {
 .mf-btn-whats:hover svg {
   transform: scale(1.15) rotate(-8deg);
 }
+
+@keyframes mf-live-ping {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  75%,
+  100% {
+    transform: scale(2.35);
+    opacity: 0;
+  }
+}
+
+@keyframes mf-live-blink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.86);
+  }
+}
+
+.mf-live-dot-ping {
+  animation: mf-live-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.mf-live-dot-core {
+  animation: mf-live-blink 1.5s ease-in-out infinite;
+}

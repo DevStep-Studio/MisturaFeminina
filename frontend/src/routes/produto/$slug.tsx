@@ -545,9 +545,12 @@ function ProductDetailPage() {
 
                     <div class="flex items-center gap-2 pt-0.5 text-xs text-[#2E0C49]">
                       <span
-                        class="inline-block size-2.5 rounded-full bg-[#F87171] ring-4 ring-[#FEE2E2]"
+                        class="relative inline-flex size-3.5 shrink-0 items-center justify-center"
                         aria-hidden="true"
-                      />
+                      >
+                        <span class="mf-live-dot-ping absolute inline-flex size-full rounded-full bg-[#F87171]/60" />
+                        <span class="mf-live-dot-core relative inline-block size-2.5 rounded-full bg-[#F87171] ring-3 ring-[#FEE2E2]" />
+                      </span>
                       <span>
                         <strong class="font-extrabold">
                           {11 + (p().id % 7)}
