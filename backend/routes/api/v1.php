@@ -180,6 +180,9 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         // Customers, LGPD, Team, Audit, System Health & Backups
         Route::get('customers', [AdminUsersController::class, 'listCustomers'])->middleware('permission:customers.view');
         Route::get('customers/{id}', [AdminUsersController::class, 'showCustomer'])->middleware('permission:customers.view');
+        Route::post('users', [AdminUsersController::class, 'storeUser'])->middleware('permission:customers.manage');
+        Route::put('users/{id}', [AdminUsersController::class, 'updateUser'])->middleware('permission:customers.manage');
+        Route::delete('users/{id}', [AdminUsersController::class, 'destroyUser'])->middleware('permission:customers.manage');
         Route::get('lgpd-requests', [AdminUsersController::class, 'listLgpdRequests'])->middleware('permission:customers.view');
         Route::patch('lgpd-requests/{id}', [AdminUsersController::class, 'processLgpdRequest'])->middleware('permission:lgpd.manage');
         Route::get('team', [AdminUsersController::class, 'listTeam'])->middleware('permission:team.view');

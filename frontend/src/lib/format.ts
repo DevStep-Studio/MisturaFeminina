@@ -59,6 +59,23 @@ export function whatsappUrl(
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 
+export function formatDate(isoString: string | null | undefined): string {
+  if (!isoString) return "—";
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return isoString;
+  }
+}
+
 export function orderStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     pending_payment: "Aguardando pagamento",

@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/solid-router";
+import ExternalLink from "lucide-solid/icons/external-link";
+import Percent from "lucide-solid/icons/percent";
 import Star from "lucide-solid/icons/star";
+import Trash2 from "lucide-solid/icons/trash";
 import { For, Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { ApiError, api } from "../../../lib/api";
@@ -250,6 +253,35 @@ function AdminProductsPage() {
     setFeedback("Estoque ajustado com movimentação registrada.");
   }
 
+  const discountInfo = () => {
+    const regular = Number(priceBrl());
+    const promo = Number(promoBrl());
+    if (!regular || !promo || promo >= regular) return null;
+    const pct = Math.round(((regular - promo) / regular) * 100);
+    const diff = (regular - promo).toFixed(2);
+    return { pct, diff };
+  };
+
+  async function deleteProduct(id: number, prodName: string) {
+    if (
+      !confirm(
+        `Tem certeza que deseja remover o produto "${prodName}" do catálogo?`,
+      )
+    )
+      return;
+    setFeedback(null);
+    try {
+      await api(`/admin/products/${id}`, { method: "DELETE" });
+      setFeedback(`Produto "${prodName}" arquivado com sucesso.`);
+      if (editingId() === id) resetForm();
+      await refetchProducts();
+    } catch (err) {
+      setFeedback(
+        err instanceof ApiError ? err.message : "Erro ao remover produto.",
+      );
+    }
+  }
+
   async function moderateReview(id: number, status: "approved" | "rejected") {
     await api(`/admin/reviews/${id}`, { method: "PATCH", body: { status } });
     await refetchReviews();
@@ -413,6 +445,20 @@ function AdminProductsPage() {
                   class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm"
                 />
               </div>
+              <Show when={discountInfo()}>
+                {(info) => (
+                  <div class="flex items-center gap-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2 text-xs text-fuchsia-900 sm:col-span-2">
+                    <Percent
+                      class="size-4 shrink-0 text-fuchsia-700"
+                      aria-hidden="true"
+                    />
+                    <span>
+                      Desconto ativo: <strong>-{info().pct}% OFF</strong>{" "}
+                      (Economia de R$ {info().diff})
+                    </span>
+                  </div>
+                )}
+              </Show>
               <div>
                 <label class="block text-xs font-semibold text-zinc-700">
                   Estoque inicial / atual
@@ -459,12 +505,12 @@ function AdminProductsPage() {
 
             <div>
               <label class="block text-xs font-semibold text-zinc-700">
-                Imagem do produto
+                Imagem do produto (Upload ou URL)
               </label>
               <div class="mt-1 flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder="/storage/products/..."
+                  placeholder="/storage/products/... ou /products/..."
                   value={imagePath()}
                   onInput={(e) => setImagePath(e.currentTarget.value)}
                   class="h-9 flex-1 rounded-md border border-zinc-300 px-2.5 text-xs"
@@ -479,6 +525,30 @@ function AdminProductsPage() {
                   class="max-w-[170px] text-xs"
                 />
               </div>
+              <Show when={imagePath().trim()}>
+                <div class="mt-2 flex items-center gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
+                  <img
+                    src={assetUrl(imagePath())}
+                    alt="Preview"
+                    class="size-10 rounded border border-zinc-200 bg-white object-contain"
+                  />
+                  <div class="min-w-0 flex-1 text-xs">
+                    <p class="truncate font-medium text-zinc-800">
+                      {imagePath()}
+                    </p>
+                    <p class="text-[11px] font-semibold text-emerald-700">
+                      Imagem vinculada
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setImagePath("")}
+                    class="text-xs text-red-600 hover:underline"
+                  >
+                    Remover
+                  </button>
+                </div>
+              </Show>
             </div>
 
             <input
@@ -585,12 +655,29 @@ function AdminProductsPage() {
                           </div>
                         )}
                       </Show>
+                      <a
+                        href={`/produto/${p.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        class="rounded border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-100 hover:text-[var(--mf-primary)]"
+                        title="Ver produto na loja"
+                      >
+                        <ExternalLink class="size-3.5" aria-hidden="true" />
+                      </a>
                       <button
                         type="button"
                         onClick={() => loadProductIntoForm(p)}
                         class="rounded border border-zinc-300 px-2.5 py-1 font-semibold hover:bg-zinc-50"
                       >
                         Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteProduct(p.id, p.name)}
+                        class="rounded border border-red-200 p-1.5 text-red-700 hover:bg-red-50"
+                        title="Remover produto do catálogo"
+                      >
+                        <Trash2 class="size-3.5" aria-hidden="true" />
                       </button>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import ArrowDown from "lucide-solid/icons/arrow-down";
 import ArrowUp from "lucide-solid/icons/arrow-up";
+import Trash2 from "lucide-solid/icons/trash";
 import { For, Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { ApiError, api } from "../../../lib/api";
@@ -85,12 +86,16 @@ const SHOWCASE_FILTERS = [
 
 function AdminAppearancePage() {
   const [tab, setTab] = createSignal<"banners" | "home" | "paginas">("banners");
+  const [editingBannerId, setEditingBannerId] = createSignal<number | null>(
+    null,
+  );
   const [bTitle, setBTitle] = createSignal("");
   const [bPlacement, setBPlacement] = createSignal("hero");
   const [bDesktop, setBDesktop] = createSignal("");
   const [bMobile, setBMobile] = createSignal("");
   const [bAlt, setBAlt] = createSignal("");
   const [bUrl, setBUrl] = createSignal("/promocoes");
+  const [bActive, setBActive] = createSignal(true);
 
   const [newSecType, setNewSecType] = createSignal("product_showcase");
   const [newSecTitle, setNewSecTitle] = createSignal("");
@@ -151,31 +156,84 @@ function AdminAppearancePage() {
     setter(res.data.path);
   }
 
-  async function createBanner(e: Event) {
+  function loadBannerIntoForm(b: AdminBanner) {
+    setEditingBannerId(b.id);
+    setBTitle(b.title);
+    setBPlacement(b.placement);
+    setBDesktop(b.desktop_image_path);
+    setBMobile(b.mobile_image_path || "");
+    setBAlt(b.alt_text);
+    setBUrl(b.cta_url || "");
+    setBActive(b.is_active);
+  }
+
+  function resetBannerForm() {
+    setEditingBannerId(null);
+    setBTitle("");
+    setBPlacement("hero");
+    setBDesktop("");
+    setBMobile("");
+    setBAlt("");
+    setBUrl("/promocoes");
+    setBActive(true);
+  }
+
+  async function saveBanner(e: Event) {
     e.preventDefault();
     setFeedback(null);
     try {
-      await api("/admin/banners", {
-        method: "POST",
-        body: {
-          title: bTitle().trim(),
-          placement: bPlacement(),
-          desktop_image_path: bDesktop().trim(),
-          mobile_image_path: bMobile().trim() || undefined,
-          alt_text: bAlt().trim() || bTitle().trim(),
-          cta_url: bUrl().trim() || undefined,
-          is_active: true,
-        },
-      });
-      setBTitle("");
-      setBDesktop("");
-      setBMobile("");
-      setBAlt("");
+      const payload = {
+        title: bTitle().trim(),
+        placement: bPlacement(),
+        desktop_image_path: bDesktop().trim(),
+        mobile_image_path: bMobile().trim() || undefined,
+        alt_text: bAlt().trim() || bTitle().trim(),
+        cta_url: bUrl().trim() || undefined,
+        is_active: bActive(),
+      };
+      if (editingBannerId()) {
+        await api(`/admin/banners/${editingBannerId()}`, {
+          method: "PUT",
+          body: payload,
+        });
+        setFeedback("Banner atualizado com sucesso.");
+      } else {
+        await api("/admin/banners", {
+          method: "POST",
+          body: payload,
+        });
+        setFeedback("Banner publicado com sucesso na loja.");
+      }
+      resetBannerForm();
       await refetchBanners();
-      setFeedback("Banner publicado.");
     } catch (err) {
       setFeedback(
-        err instanceof ApiError ? err.message : "Erro ao cadastrar banner.",
+        err instanceof ApiError ? err.message : "Erro ao salvar banner.",
+      );
+    }
+  }
+
+  async function toggleBannerActive(b: AdminBanner) {
+    try {
+      await api(`/admin/banners/${b.id}`, {
+        method: "PUT",
+        body: {
+          title: b.title,
+          placement: b.placement,
+          desktop_image_path: b.desktop_image_path,
+          mobile_image_path: b.mobile_image_path,
+          alt_text: b.alt_text,
+          cta_url: b.cta_url,
+          is_active: !b.is_active,
+        },
+      });
+      await refetchBanners();
+      setFeedback(
+        `Banner "${b.title}" ${!b.is_active ? "ativado" : "pausado"}.`,
+      );
+    } catch (err) {
+      setFeedback(
+        err instanceof ApiError ? err.message : "Erro ao atualizar banner.",
       );
     }
   }
@@ -366,10 +424,25 @@ function AdminAppearancePage() {
       <Show when={tab() === "banners"}>
         <div class="grid gap-6 lg:grid-cols-12">
           <form
-            onSubmit={createBanner}
+            onSubmit={saveBanner}
             class="space-y-3 rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-5"
           >
-            <h2 class="text-base font-bold text-zinc-900">Novo Banner</h2>
+            <div class="flex items-center justify-between border-b border-zinc-100 pb-2.5">
+              <h2 class="text-base font-bold text-zinc-900">
+                {editingBannerId()
+                  ? `Editando Banner #${editingBannerId()}`
+                  : "Novo Banner"}
+              </h2>
+              <Show when={editingBannerId()}>
+                <button
+                  type="button"
+                  onClick={resetBannerForm}
+                  class="text-xs font-semibold text-zinc-600 hover:underline"
+                >
+                  Cancelar
+                </button>
+              </Show>
+            </div>
             <input
               type="text"
               required
@@ -383,45 +456,66 @@ function AdminAppearancePage() {
               onChange={(e) => setBPlacement(e.currentTarget.value)}
               class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-sm"
             >
-              <option value="hero">Hero Principal (Topo)</option>
-              <option value="promo_grid">Grade Promocional</option>
-              <option value="category_top">Topo de Categoria</option>
+              <option value="hero">Hero Principal (Carrossel Topo)</option>
+              <option value="promo_grid">Grade Promocional (Home)</option>
+              <option value="category_top">Topo de Categoria / Catálogo</option>
             </select>
             <div>
               <label class="block text-xs font-semibold text-zinc-700">
                 Arte Desktop *
               </label>
-              <input
-                type="text"
-                required
-                placeholder="/storage/banners/..."
-                value={bDesktop()}
-                onInput={(e) => setBDesktop(e.currentTarget.value)}
-                class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
-              />
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const f = e.currentTarget.files?.[0];
-                  if (f) void uploadBannerImg(f, setBDesktop);
-                }}
-                class="mt-1 text-xs"
-              />
+              <div class="mt-1 flex items-center gap-2">
+                <input
+                  type="text"
+                  required
+                  placeholder="/storage/banners/... ou /jack-promocoes.jpg"
+                  value={bDesktop()}
+                  onInput={(e) => setBDesktop(e.currentTarget.value)}
+                  class="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-xs"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const f = e.currentTarget.files?.[0];
+                    if (f) void uploadBannerImg(f, setBDesktop);
+                  }}
+                  class="max-w-[150px] text-xs"
+                />
+              </div>
+              <Show when={bDesktop().trim()}>
+                <div class="mt-2 flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
+                  <img
+                    src={assetUrl(bDesktop())}
+                    alt="Preview Desktop"
+                    class="h-10 w-24 rounded border border-zinc-200 object-cover"
+                  />
+                  <p class="truncate text-xs text-zinc-700">{bDesktop()}</p>
+                </div>
+              </Show>
             </div>
             <div>
               <label class="block text-xs font-semibold text-zinc-700">
                 Arte Mobile (opcional)
               </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const f = e.currentTarget.files?.[0];
-                  if (f) void uploadBannerImg(f, setBMobile);
-                }}
-                class="mt-1 text-xs"
-              />
+              <div class="mt-1 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Opcional para mobile"
+                  value={bMobile()}
+                  onInput={(e) => setBMobile(e.currentTarget.value)}
+                  class="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-xs"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const f = e.currentTarget.files?.[0];
+                    if (f) void uploadBannerImg(f, setBMobile);
+                  }}
+                  class="max-w-[150px] text-xs"
+                />
+              </div>
             </div>
             <input
               type="text"
@@ -437,42 +531,93 @@ function AdminAppearancePage() {
               onInput={(e) => setBUrl(e.currentTarget.value)}
               class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
             />
+            <div class="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="banner-is-active"
+                checked={bActive()}
+                onChange={(e) => setBActive(e.currentTarget.checked)}
+                class="rounded border-zinc-300 text-[var(--mf-primary)]"
+              />
+              <label
+                for="banner-is-active"
+                class="text-xs font-semibold text-zinc-800"
+              >
+                Banner ativo na loja
+              </label>
+            </div>
             <button
               type="submit"
-              class="h-10 w-full rounded-lg bg-[var(--mf-primary)] text-xs font-bold text-white"
+              class="h-10 w-full rounded-lg bg-[var(--mf-primary)] text-xs font-bold text-white shadow-sm hover:bg-[var(--mf-primary-hover)]"
             >
-              Publicar Banner
+              {editingBannerId() ? "Salvar Alterações" : "Publicar Banner"}
             </button>
           </form>
 
           <section class="space-y-3 rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-7">
             <h2 class="text-base font-bold text-zinc-900">Banners Atuais</h2>
-            <For each={banners() ?? []}>
-              {(b) => (
-                <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3">
-                  <div class="flex items-center gap-3">
-                    <img
-                      src={assetUrl(b.desktop_image_path)}
-                      alt={b.alt_text}
-                      class="h-14 w-28 rounded border border-zinc-200 object-cover"
-                    />
-                    <div>
-                      <p class="text-sm font-bold text-zinc-900">{b.title}</p>
-                      <p class="text-xs text-zinc-500">
-                        Posição: {b.placement} · {b.cta_url || "Sem link"}
-                      </p>
+            <div class="space-y-2.5">
+              <For each={banners() ?? []}>
+                {(b) => (
+                  <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 shadow-2xs hover:border-[var(--mf-primary)]/40 transition">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <img
+                        src={assetUrl(b.desktop_image_path)}
+                        alt={b.alt_text}
+                        class="h-14 w-28 shrink-0 rounded border border-zinc-200 object-cover bg-zinc-50"
+                      />
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                          <p class="truncate text-sm font-bold text-zinc-900">
+                            {b.title}
+                          </p>
+                          <span
+                            class={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              b.is_active
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                            }`}
+                          >
+                            {b.is_active ? "Ativo" : "Pausado"}
+                          </span>
+                        </div>
+                        <p class="text-xs text-zinc-500">
+                          Posição:{" "}
+                          <span class="font-semibold text-zinc-700">
+                            {b.placement}
+                          </span>{" "}
+                          · {b.cta_url || "Sem link"}
+                        </p>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void toggleBannerActive(b)}
+                        class="text-xs font-semibold text-zinc-600 hover:text-zinc-900"
+                      >
+                        {b.is_active ? "Pausar" : "Ativar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => loadBannerIntoForm(b)}
+                        class="rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteBanner(b.id)}
+                        class="rounded p-1 text-red-600 hover:bg-red-50"
+                        title="Remover banner"
+                      >
+                        <Trash2 class="size-4" aria-hidden="true" />
+                      </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void deleteBanner(b.id)}
-                    class="text-xs font-semibold text-red-700 hover:underline"
-                  >
-                    Remover
-                  </button>
-                </div>
-              )}
-            </For>
+                )}
+              </For>
+            </div>
           </section>
         </div>
       </Show>
