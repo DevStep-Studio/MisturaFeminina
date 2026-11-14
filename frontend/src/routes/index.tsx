@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/solid-router";
 import Check from "lucide-solid/icons/check";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
-import Copy from "lucide-solid/icons/copy";
 import CreditCard from "lucide-solid/icons/credit-card";
 import MessageCircle from "lucide-solid/icons/message-circle";
 import ShieldCheck from "lucide-solid/icons/shield-check";
@@ -100,7 +99,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                 <img
                   src={assetUrl(banner().desktop_image_path)}
                   alt={banner().alt_text || banner().title}
-                  class="h-[240px] w-full object-cover sm:h-[340px] lg:h-[420px]"
+                  class="block h-[220px] w-full object-cover object-center sm:h-[340px] lg:h-[430px]"
                 />
               </picture>
             );
@@ -123,9 +122,9 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                       )
                     }
                     aria-label="Banner anterior"
-                    class="hidden sm:inline-flex absolute left-3 top-1/2 -translate-y-1/2 rounded-full border border-zinc-200 bg-white p-2 text-zinc-900 shadow hover:bg-zinc-100"
+                    class="absolute left-2 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#D4D4D8] text-[#3F3F46] shadow transition-colors hover:bg-white sm:left-4 sm:size-9"
                   >
-                    <ChevronLeft class="h-5 w-5" />
+                    <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
                   <button
                     type="button"
@@ -133,12 +132,12 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                       setIndex((i) => (i + 1) % props.banners.length)
                     }
                     aria-label="Próximo banner"
-                    class="hidden sm:inline-flex absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-zinc-200 bg-white p-2 text-zinc-900 shadow hover:bg-zinc-100"
+                    class="absolute right-2 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-[#D4D4D8] text-[#3F3F46] shadow transition-colors hover:bg-white sm:right-4 sm:size-9"
                   >
-                    <ChevronRight class="h-5 w-5" />
+                    <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
 
-                  <div class="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-zinc-950/70 px-3 py-1.5">
+                  <div class="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-2">
                     <For each={props.banners}>
                       {(_, idx) => (
                         <button
@@ -148,7 +147,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                           class={`h-2.5 w-2.5 rounded-full transition ${
                             index() === idx()
                               ? "bg-white"
-                              : "bg-zinc-500 hover:bg-zinc-300"
+                              : "bg-zinc-400 hover:bg-zinc-200"
                           }`}
                         />
                       )}
@@ -183,24 +182,25 @@ function CouponStripBlock(props: {
   return (
     <Show when={props.coupon}>
       {(coupon) => (
-        <section class="border-b border-zinc-200 bg-zinc-50 py-3.5">
-          <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-3 px-4 text-center">
-            <p class="text-sm font-medium text-zinc-800">
-              <span class="font-bold text-[var(--mf-primary)]">
-                {props.section.title || "Cupom especial:"}
-              </span>{" "}
-              {props.section.subtitle || coupon().name}
+        <section class="border-b border-zinc-200 bg-white py-3.5 sm:py-4">
+          <div class="mx-auto flex max-w-7xl flex-col items-center justify-center gap-2.5 px-4 text-center sm:flex-row sm:gap-4">
+            <p class="text-xs text-[#3D1260] sm:text-[13px]">
+              <strong class="font-bold">
+                {props.section.title || "Aproveite um Desconto Especial!"}
+              </strong>{" "}
+              {props.section.subtitle ||
+                `Na sua primeira compra, use o cupom ${coupon().code} e ganhe 10% OFF!`}
             </p>
-            <div class="inline-flex items-center overflow-hidden rounded-lg border border-dashed border-[var(--mf-primary)] bg-white">
-              <span class="px-3 py-1 font-mono text-sm font-bold text-zinc-900">
+            <div class="inline-flex shrink-0 items-stretch">
+              <span class="inline-flex items-center rounded-l-full border border-r-0 border-dashed border-[#62298D] bg-white px-5 py-1.5 font-mono text-xs font-bold tracking-wide text-[#2E1049] sm:text-[13px]">
                 {coupon().code}
               </span>
               <button
                 type="button"
                 onClick={() => void copy(coupon().code)}
-                class="inline-flex items-center gap-1 bg-[var(--mf-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--mf-primary-hover)]"
+                class="inline-flex items-center gap-1.5 rounded-r-full border border-[#62298D] bg-[#62298D] px-5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#4C1D70] sm:text-[13px]"
               >
-                <Show when={copied()} fallback={<Copy class="h-3.5 w-3.5" />}>
+                <Show when={copied()}>
                   <Check class="h-3.5 w-3.5" />
                 </Show>
                 {copied() ? "Copiado!" : "Copiar"}
