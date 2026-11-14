@@ -419,7 +419,7 @@ class CatalogController extends Controller
     }
 
     /** @return array<string, mixed> */
-    public static function serializeProductCard(Product $product, int $maxInstallments = 6): array
+    public static function serializeProductCard(Product $product, int $maxInstallments = 3): array
     {
         $activeVariants = $product->variants->where('is_active', true);
         $defaultVariant = $activeVariants->firstWhere('is_default', true) ?? $activeVariants->first();
@@ -433,7 +433,7 @@ class CatalogController extends Controller
         $totalAvailable = $activeVariants->sum(fn (ProductVariant $v): int => $v->availableStock());
         $primaryImg = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
 
-        $installmentsCount = $effectivePrice >= 2000 ? min($maxInstallments, max(1, (int) floor($effectivePrice / 1000))) : 1;
+        $installmentsCount = $effectivePrice >= 450 ? $maxInstallments : 1;
         $installmentCents = $installmentsCount > 1 ? (int) round($effectivePrice / $installmentsCount) : $effectivePrice;
 
         return [

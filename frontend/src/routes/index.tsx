@@ -281,10 +281,7 @@ function CategoryCirclesBlock(props: {
                 aria-label="Próximas categorias"
                 class="absolute right-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#f1f1f1]/70 text-[#EF4BEB] backdrop-blur-[10px] transition hover:bg-[#e5e5e5]/90"
               >
-                <ChevronRight
-                  class="h-5 w-5 stroke-[2.2]"
-                  aria-hidden="true"
-                />
+                <ChevronRight class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
               </button>
             </Show>
           </div>
@@ -302,8 +299,12 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
       ? (props.section.data as ProductCardData[])
       : [];
   const filter = () => String(props.section.config?.filter ?? "featured");
-  const isBorderless = () => Boolean(props.section.config?.borderless);
-  const showViewAll = () => props.section.config?.show_view_all !== false;
+  const isCountdownOffers = () =>
+    filter() === "offers" ||
+    Boolean(props.section.config?.show_view_all) ||
+    props.section.key === "offers_week";
+  const isBorderless = () =>
+    isCountdownOffers() || Boolean(props.section.config?.borderless);
   const showFeaturedBadge = () =>
     filter() === "featured" ||
     Boolean(props.section.config?.show_featured_badge);
@@ -319,64 +320,74 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
 
   return (
     <Show when={products().length > 0}>
-      <section class="mx-auto max-w-7xl px-4 py-8 sm:py-10">
-        <div class="mb-6 text-center">
-          <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
-            {props.section.title || "Confira nossas ofertas da semana"}
-          </h2>
-          <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
-        </div>
-
-        <div class="relative sm:px-4">
-          <Show when={showViewAll()}>
-            <div class="mb-4 flex justify-start">
+      <section
+        class={
+          isCountdownOffers()
+            ? "bg-[#F3F3F3] pb-[24px] pt-[30px]"
+            : "bg-white py-8 sm:py-10"
+        }
+      >
+        <div class="mx-auto w-[96%] max-w-[1520px]">
+          <Show
+            when={isCountdownOffers()}
+            fallback={
+              <div class="mb-7 text-center">
+                <h2 class="text-[21px] font-extrabold text-[#2F0572] sm:text-[24px]">
+                  {props.section.title || "Destaques"}
+                </h2>
+                <div class="mx-auto mt-[10px] h-[4px] w-[40px] bg-[#2F0572]" />
+              </div>
+            }
+          >
+            <div class="mb-5 text-center sm:text-left">
+              <h2 class="text-[21px] font-extrabold leading-normal text-[#62298D] sm:text-[24px]">
+                {props.section.title || "Confira nossas ofertas da semana"}
+              </h2>
+              <p class="mt-0.5 text-[14px] font-normal text-[#62298D]">
+                {props.section.subtitle ||
+                  "Produtos com os melhores preços do mercado, confira já!"}
+              </p>
               <Link
                 to={viewAllHref()}
-                class="inline-flex items-center justify-center rounded-full bg-[#62298D] px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-[#4C1D70]"
+                class="mt-[15px] inline-flex items-center justify-center rounded-full bg-[#62298D] px-[35px] py-[9px] text-[14px] font-bold text-white transition-opacity hover:opacity-80"
               >
                 Ver tudo
               </Link>
             </div>
           </Show>
 
-          <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            <For each={visibleProducts().slice(0, 4)}>
-              {(product) => (
-                <ProductCard
-                  product={product}
-                  borderless={isBorderless()}
-                  showFeaturedBadge={showFeaturedBadge()}
-                />
-              )}
-            </For>
-          </div>
+          <div class="relative">
+            <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+              <For each={visibleProducts().slice(0, 4)}>
+                {(product) => (
+                  <ProductCard
+                    product={product}
+                    borderless={isBorderless()}
+                    showFeaturedBadge={showFeaturedBadge()}
+                  />
+                )}
+              </For>
+            </div>
 
-          <Show when={products().length > 1}>
-            <button
-              type="button"
-              onClick={() => setOffset((o) => o - 1)}
-              aria-label={`Produtos anteriores em ${props.section.title || "vitrine"}`}
-              class={`absolute -left-1 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:left-0 sm:size-9 ${
-                showViewAll()
-                  ? "top-[148px] sm:top-[52%]"
-                  : "top-[110px] sm:top-[44%]"
-              }`}
-            >
-              <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setOffset((o) => o + 1)}
-              aria-label={`Próximos produtos em ${props.section.title || "vitrine"}`}
-              class={`absolute -right-1 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:right-0 sm:size-9 ${
-                showViewAll()
-                  ? "top-[148px] sm:top-[52%]"
-                  : "top-[110px] sm:top-[44%]"
-              }`}
-            >
-              <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-            </button>
-          </Show>
+            <Show when={products().length > 1}>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o - 1)}
+                aria-label={`Produtos anteriores em ${props.section.title || "vitrine"}`}
+                class="absolute left-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#FAF6F1]/75 text-[#EF4BEB] shadow-sm backdrop-blur-[5px] transition hover:bg-[#FAF6F1] sm:left-1.5"
+              >
+                <ChevronLeft class="h-5 w-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o + 1)}
+                aria-label={`Próximos produtos em ${props.section.title || "vitrine"}`}
+                class="absolute right-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#FAF6F1]/75 text-[#EF4BEB] shadow-sm backdrop-blur-[5px] transition hover:bg-[#FAF6F1] sm:right-1.5"
+              >
+                <ChevronRight class="h-5 w-5" aria-hidden="true" />
+              </button>
+            </Show>
+          </div>
         </div>
       </section>
     </Show>

@@ -167,27 +167,43 @@ class StorefrontController extends Controller
                     }
                     break;
                 case 'product_showcase':
-                    $query = Product::query()
-                        ->where('is_active', true)
-                        ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute')]);
+                    $maxInstallments = (int) ($cfg['max_installments'] ?? 3);
+                    if (! empty($cfg['product_skus']) && is_array($cfg['product_skus'])) {
+                        $skus = array_values(array_filter(array_map('strval', $cfg['product_skus'])));
+                        $bySku = Product::query()
+                            ->where('is_active', true)
+                            ->whereIn('sku', $skus)
+                            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute')])
+                            ->get()
+                            ->keyBy('sku');
+                        $payload = collect($skus)
+                            ->map(fn (string $sku) => $bySku->get($sku))
+                            ->filter()
+                            ->map(fn (Product $p): array => CatalogController::serializeProductCard($p, $maxInstallments))
+                            ->values();
+                    } else {
+                        $query = Product::query()
+                            ->where('is_active', true)
+                            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute')]);
 
-                    $filter = (string) ($cfg['filter'] ?? 'featured');
-                    match ($filter) {
-                        'offers' => $query->whereNotNull('promo_price_cents')->whereColumn('promo_price_cents', '<', 'price_cents'),
-                        'new_arrivals' => $query->where('is_new_arrival', true),
-                        'best_sellers' => $query->where('is_best_seller', true)->orderByDesc('sales_count'),
-                        'category' => $query->whereHas('categories', fn ($q) => $q->where('slug', (string) ($cfg['category_slug'] ?? ''))),
-                        'brand' => $query->whereHas('brand', fn ($q) => $q->where('slug', (string) ($cfg['brand_slug'] ?? ''))),
-                        default => $query->where('is_featured', true),
-                    };
+                        $filter = (string) ($cfg['filter'] ?? 'featured');
+                        match ($filter) {
+                            'offers' => $query->whereNotNull('promo_price_cents')->whereColumn('promo_price_cents', '<', 'price_cents'),
+                            'new_arrivals' => $query->where('is_new_arrival', true),
+                            'best_sellers' => $query->where('is_best_seller', true)->orderByDesc('sales_count'),
+                            'category' => $query->whereHas('categories', fn ($q) => $q->where('slug', (string) ($cfg['category_slug'] ?? ''))),
+                            'brand' => $query->whereHas('brand', fn ($q) => $q->where('slug', (string) ($cfg['brand_slug'] ?? ''))),
+                            default => $query->where('is_featured', true),
+                        };
 
-                    $payload = $query
-                        ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = products.id AND pv.is_active = 1 AND (pv.stock_qty - pv.reserved_qty) > 0) THEN 0 ELSE 1 END ASC')
-                        ->orderByDesc('id')
-                        ->limit((int) ($cfg['limit'] ?? 8))
-                        ->get()
-                        ->map(fn (Product $p): array => CatalogController::serializeProductCard($p))
-                        ->values();
+                        $payload = $query
+                            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = products.id AND pv.is_active = 1 AND (pv.stock_qty - pv.reserved_qty) > 0) THEN 0 ELSE 1 END ASC')
+                            ->orderByDesc('id')
+                            ->limit((int) ($cfg['limit'] ?? 8))
+                            ->get()
+                            ->map(fn (Product $p): array => CatalogController::serializeProductCard($p, $maxInstallments))
+                            ->values();
+                    }
                     break;
                 case 'brand_showcase':
                     $payload = Brand::query()
