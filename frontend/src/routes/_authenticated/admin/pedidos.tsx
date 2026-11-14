@@ -196,28 +196,45 @@ function AdminOrdersPage() {
       subtitle="Acompanhe pagamentos, imprima romaneios e informe códigos de rastreio"
       permission="orders.view"
     >
-      <div class="mb-4 flex flex-wrap gap-3">
-        <input
-          type="search"
-          placeholder="Buscar por número, cliente ou e-mail..."
-          value={searchTerm()}
-          onInput={(e) => setSearchTerm(e.currentTarget.value)}
-          class="h-10 min-w-[240px] flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-sm"
-        />
-        <select
-          value={statusFilter()}
-          onChange={(e) => setStatusFilter(e.currentTarget.value)}
-          class="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm"
-        >
-          <option value="">Todos os status</option>
-          <option value="pending_payment">Aguardando pagamento</option>
-          <option value="paid">Pago</option>
-          <option value="preparing">Em separação</option>
-          <option value="shipped">Enviado</option>
-          <option value="delivered">Entregue</option>
-          <option value="cancelled">Cancelado</option>
-          <option value="refunded">Reembolsado</option>
-        </select>
+      {/* Filter Tabs & Search */}
+      <div class="space-y-3 mb-5">
+        <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200/80 bg-white p-1.5 shadow-2xs">
+          <For
+            each={[
+              { id: "", label: "Todos os Pedidos" },
+              { id: "paid", label: "Para Separar (Pago)" },
+              { id: "preparing", label: "Em Separação" },
+              { id: "shipped", label: "Enviados" },
+              { id: "delivered", label: "Entregues" },
+              { id: "pending_payment", label: "Aguardando Pagamento" },
+              { id: "cancelled", label: "Cancelados" },
+            ]}
+          >
+            {(tab) => (
+              <button
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                class={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  statusFilter() === tab.id
+                    ? "bg-[#93509e] text-white shadow-xs"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                }`}
+              >
+                {tab.label}
+              </button>
+            )}
+          </For>
+        </div>
+
+        <div class="relative">
+          <input
+            type="search"
+            placeholder="Buscar por número do pedido, nome do cliente ou e-mail..."
+            value={searchTerm()}
+            onInput={(e) => setSearchTerm(e.currentTarget.value)}
+            class="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3.5 text-sm placeholder-zinc-400 shadow-2xs focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/20"
+          />
+        </div>
       </div>
 
       <Show when={feedback()}>

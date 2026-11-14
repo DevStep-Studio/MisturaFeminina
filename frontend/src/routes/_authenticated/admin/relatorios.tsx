@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { For, Show, createResource, createSignal } from "solid-js";
+import { Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import { AdminBarChart } from "../../../features/admin/components/charts/AdminBarChart";
+import { AdminDonutChart } from "../../../features/admin/components/charts/AdminDonutChart";
 import { api } from "../../../lib/api";
 import { formatCents } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
@@ -140,67 +142,35 @@ function AdminReportsPage() {
             </div>
 
             <div class="grid gap-6 lg:grid-cols-2">
-              <section class="rounded-xl border border-zinc-200 bg-white p-5">
-                <h2 class="mb-3 text-base font-bold text-zinc-900">
-                  Por Meio de Pagamento
-                </h2>
-                <table class="w-full text-left text-xs">
-                  <thead class="border-b border-zinc-200 uppercase text-zinc-500">
-                    <tr>
-                      <th class="py-2">Meio</th>
-                      <th class="py-2">Qtd</th>
-                      <th class="py-2 text-right">Bruto</th>
-                      <th class="py-2 text-right">Líquido</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-zinc-100">
-                    <For each={r().by_payment_method}>
-                      {(m) => (
-                        <tr>
-                          <td class="py-2 font-bold uppercase">{m.method}</td>
-                          <td class="py-2">{m.count}</td>
-                          <td class="py-2 text-right">
-                            {formatCents(m.gross_cents)}
-                          </td>
-                          <td class="py-2 text-right font-bold">
-                            {formatCents(m.net_cents)}
-                          </td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </section>
+              <AdminDonutChart
+                title="Distribuição por Meio de Pagamento"
+                subtitle="Faturamento bruto e número de transações no período"
+                segments={r().by_payment_method.map((m, idx) => ({
+                  id: m.method,
+                  label:
+                    m.method === "pix"
+                      ? "PIX"
+                      : m.method === "credit_card"
+                        ? "Cartão de Crédito"
+                        : m.method === "boleto"
+                          ? "Boleto"
+                          : m.method.toUpperCase(),
+                  value: m.count,
+                  cents: m.gross_cents,
+                  color: ["#10b981", "#93509e", "#3b82f6", "#f59e0b"][idx % 4],
+                }))}
+                centerLabel="Pagamentos"
+              />
 
-              <section class="rounded-xl border border-zinc-200 bg-white p-5">
-                <h2 class="mb-3 text-base font-bold text-zinc-900">
-                  Produtos Mais Vendidos
-                </h2>
-                <table class="w-full text-left text-xs">
-                  <thead class="border-b border-zinc-200 uppercase text-zinc-500">
-                    <tr>
-                      <th class="py-2">Produto</th>
-                      <th class="py-2">Unid.</th>
-                      <th class="py-2 text-right">Receita</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-zinc-100">
-                    <For each={r().top_products}>
-                      {(p) => (
-                        <tr>
-                          <td class="py-2 font-semibold">
-                            {p.product_name_snapshot}
-                          </td>
-                          <td class="py-2">{p.qty_sold}</td>
-                          <td class="py-2 text-right font-bold">
-                            {formatCents(p.revenue_cents)}
-                          </td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </section>
+              <AdminBarChart
+                title="Top Produtos por Receita"
+                subtitle="Produtos com maior volume financeiro no período filtrado"
+                items={r().top_products.map((p) => ({
+                  name: p.product_name_snapshot,
+                  total_qty: p.qty_sold,
+                  total_cents: p.revenue_cents,
+                }))}
+              />
             </div>
           </div>
         )}

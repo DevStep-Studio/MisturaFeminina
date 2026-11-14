@@ -89,6 +89,9 @@ function AdminProductsPage() {
   const [csvContent, setCsvContent] = createSignal("");
   const [csvPreview, setCsvPreview] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [stockFilter, setStockFilter] = createSignal<
+    "all" | "active" | "low" | "out"
+  >("all");
 
   const [products, { refetch: refetchProducts }] = createResource(
     search,
@@ -100,6 +103,27 @@ function AdminProductsPage() {
       return res.data ?? [];
     },
   );
+
+  const filteredProducts = () => {
+    const list = products() ?? [];
+    const f = stockFilter();
+    if (f === "active") return list.filter((p) => p.is_active);
+    if (f === "low") {
+      return list.filter((p) => {
+        const v = p.variants?.[0];
+        const avail = (v?.stock_qty ?? 0) - (v?.reserved_qty ?? 0);
+        return avail > 0 && avail <= 5;
+      });
+    }
+    if (f === "out") {
+      return list.filter((p) => {
+        const v = p.variants?.[0];
+        const avail = (v?.stock_qty ?? 0) - (v?.reserved_qty ?? 0);
+        return avail <= 0;
+      });
+    }
+    return list;
+  };
 
   const [brands] = createResource(async () => {
     const res = await api<{ data: { id: number; name: string }[] }>(
@@ -605,20 +629,68 @@ function AdminProductsPage() {
 
           {/* Table */}
           <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-7">
+            {/* Quick stock status tabs */}
+            <div class="mb-3 flex flex-wrap gap-1.5 border-b border-zinc-100 pb-3">
+              <button
+                type="button"
+                onClick={() => setStockFilter("all")}
+                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  stockFilter() === "all"
+                    ? "bg-[#93509e] text-white"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                Todos ({products()?.length ?? 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockFilter("active")}
+                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  stockFilter() === "active"
+                    ? "bg-[#93509e] text-white"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                Ativos
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockFilter("low")}
+                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  stockFilter() === "low"
+                    ? "bg-amber-600 text-white"
+                    : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                Baixo Estoque (≤ 5)
+              </button>
+              <button
+                type="button"
+                onClick={() => setStockFilter("out")}
+                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                  stockFilter() === "out"
+                    ? "bg-red-600 text-white"
+                    : "bg-red-50 text-red-700 hover:bg-red-100"
+                }`}
+              >
+                Esgotados
+              </button>
+            </div>
+
             <div class="mb-4 flex items-center justify-between gap-3">
               <input
                 type="search"
                 placeholder="Buscar produto ou SKU..."
                 value={search()}
                 onInput={(e) => setSearch(e.currentTarget.value)}
-                class="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-sm"
+                class="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-sm focus:border-[#93509e] focus:outline-none"
               />
             </div>
 
             <div class="space-y-2.5">
-              <For each={products() ?? []}>
+              <For each={filteredProducts()}>
                 {(p) => (
-                  <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 text-sm">
+                  <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 text-sm transition-all hover:border-zinc-300 hover:shadow-2xs">
                     <div class="flex items-center gap-3 min-w-0">
                       <img
                         src={assetUrl(p.images?.[0]?.path)}
@@ -630,30 +702,70 @@ function AdminProductsPage() {
                         <p class="text-xs text-zinc-500">
                           SKU {p.sku} ·{" "}
                           {formatCents(p.promo_price_cents ?? p.price_cents)}
-                          <Show when={!p.is_active}> · Inativo</Show>
+                          <Show when={!p.is_active}>
+                            <span class="ml-1 rounded bg-zinc-100 px-1 text-[10px] text-zinc-600">
+                              Inativo
+                            </span>
+                          </Show>
                         </p>
                       </div>
                     </div>
 
                     <div class="flex items-center gap-2 text-xs">
                       <Show when={p.variants?.[0]}>
-                        {(v) => (
-                          <div class="flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1">
-                            <span>
-                              Est.:{" "}
-                              <strong>
-                                {v().stock_qty - v().reserved_qty}
-                              </strong>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => void adjustVariantStock(v().id, 5)}
-                              class="rounded bg-emerald-700 px-1.5 py-0.5 font-bold text-white"
-                            >
-                              +5
-                            </button>
-                          </div>
-                        )}
+                        {(v) => {
+                          const avail = () => v().stock_qty - v().reserved_qty;
+                          return (
+                            <div class="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1">
+                              <span
+                                class={`text-[11px] font-bold ${
+                                  avail() <= 0
+                                    ? "text-red-600"
+                                    : avail() <= 5
+                                      ? "text-amber-600"
+                                      : "text-zinc-800"
+                                }`}
+                              >
+                                {avail() <= 0
+                                  ? "Esgotado"
+                                  : `Est.: ${avail()} un`}
+                              </span>
+                              <div class="flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void adjustVariantStock(v().id, -1)
+                                  }
+                                  disabled={avail() <= 0}
+                                  class="rounded bg-zinc-200 px-1.5 py-0.5 font-bold text-zinc-700 hover:bg-zinc-300 disabled:opacity-40"
+                                  title="Diminuir 1"
+                                >
+                                  -1
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void adjustVariantStock(v().id, 1)
+                                  }
+                                  class="rounded bg-[#93509e] px-1.5 py-0.5 font-bold text-white hover:bg-[#7d3f86]"
+                                  title="Adicionar 1"
+                                >
+                                  +1
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void adjustVariantStock(v().id, 5)
+                                  }
+                                  class="rounded bg-emerald-700 px-1.5 py-0.5 font-bold text-white hover:bg-emerald-800"
+                                  title="Adicionar 5"
+                                >
+                                  +5
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }}
                       </Show>
                       <a
                         href={`/produto/${p.slug}`}

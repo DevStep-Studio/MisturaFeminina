@@ -12,10 +12,18 @@ import ShieldCheck from "lucide-solid/icons/shield-check";
 import ShoppingCart from "lucide-solid/icons/shopping-cart";
 import Truck from "lucide-solid/icons/truck";
 import X from "lucide-solid/icons/x";
-import { For, type ParentProps, Show, createSignal, onMount } from "solid-js";
+import {
+  For,
+  type ParentProps,
+  Show,
+  createResource,
+  createSignal,
+  onMount,
+} from "solid-js";
 import { StatusPage } from "../../components/errors/status-page";
 import { LogoutButton } from "../auth/components/logout-button";
 import { loadStorefrontBootstrap, storefrontStore } from "../storefront/store";
+import { api } from "../../lib/api";
 import { assetUrl } from "../../lib/format";
 import { hasPermission } from "../../security/permissions";
 import { session } from "../../security/session";
@@ -143,6 +151,34 @@ export function AdminLayout(
   const currentPath = () => routerState().location.pathname;
   const settings = () => storefrontStore.settings();
 
+  const [opCounts] = createResource(async () => {
+    try {
+      const res = await api<{
+        data: {
+          kpis: {
+            to_pack_count: number;
+            low_stock_count?: number;
+          };
+        };
+      }>("/admin/dashboard");
+      return res.data.kpis;
+    } catch {
+      return null;
+    }
+  });
+
+  const getBadge = (to: string) => {
+    const counts = opCounts();
+    if (!counts) return null;
+    if (to === "/admin/pedidos" && counts.to_pack_count > 0) {
+      return { count: counts.to_pack_count, variant: "amber" as const };
+    }
+    if (to === "/admin/produtos" && (counts.low_stock_count ?? 0) > 0) {
+      return { count: counts.low_stock_count!, variant: "red" as const };
+    }
+    return null;
+  };
+
   return (
     <Show when={allowed()} fallback={<StatusPage status={403} />}>
       <div class="flex min-h-screen bg-zinc-100 text-zinc-900">
@@ -174,17 +210,36 @@ export function AdminLayout(
                   item.to === "/admin"
                     ? currentPath() === "/admin" || currentPath() === "/admin/"
                     : currentPath().startsWith(item.to);
+                const badge = () => getBadge(item.to);
+
                 return (
                   <Link
                     to={item.to}
-                    class={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    class={`flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition ${
                       active()
-                        ? "bg-[var(--mf-primary)] text-white"
+                        ? "bg-[#93509e] text-white shadow-xs"
                         : "text-zinc-300 hover:bg-zinc-800 hover:text-white"
                     }`}
                   >
-                    {renderNavIcon(item.icon)}
-                    <span>{item.label}</span>
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      {renderNavIcon(item.icon)}
+                      <span class="truncate">{item.label}</span>
+                    </div>
+                    <Show when={badge()}>
+                      {(b) => (
+                        <span
+                          class={`rounded-full px-1.5 py-0.2 text-[10px] font-extrabold ${
+                            active()
+                              ? "bg-white/20 text-white"
+                              : b().variant === "amber"
+                                ? "bg-amber-500/20 text-amber-300"
+                                : "bg-red-500/20 text-red-300"
+                          }`}
+                        >
+                          {b().count}
+                        </span>
+                      )}
+                    </Show>
                   </Link>
                 );
               }}
@@ -221,16 +276,28 @@ export function AdminLayout(
               </div>
               <nav class="space-y-1 overflow-y-auto">
                 <For each={visibleItems()}>
-                  {(item) => (
-                    <Link
-                      to={item.to}
-                      onClick={() => setMobileOpen(false)}
-                      class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-200 hover:bg-zinc-800"
-                    >
-                      {renderNavIcon(item.icon)}
-                      <span>{item.label}</span>
-                    </Link>
-                  )}
+                  {(item) => {
+                    const badge = () => getBadge(item.to);
+                    return (
+                      <Link
+                        to={item.to}
+                        onClick={() => setMobileOpen(false)}
+                        class="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-200 hover:bg-zinc-800"
+                      >
+                        <div class="flex items-center gap-2.5">
+                          {renderNavIcon(item.icon)}
+                          <span>{item.label}</span>
+                        </div>
+                        <Show when={badge()}>
+                          {(b) => (
+                            <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                              {b().count}
+                            </span>
+                          )}
+                        </Show>
+                      </Link>
+                    );
+                  }}
                 </For>
               </nav>
             </aside>
