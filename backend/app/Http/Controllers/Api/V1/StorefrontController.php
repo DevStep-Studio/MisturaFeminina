@@ -144,12 +144,27 @@ class StorefrontController extends Controller
                     $payload = $activeBanners->where('placement', 'promo_grid')->values();
                     break;
                 case 'category_circles':
-                    $payload = Category::query()
-                        ->where('is_active', true)
-                        ->whereNull('parent_id')
-                        ->orderBy('sort_order')
-                        ->limit((int) ($cfg['limit'] ?? 10))
-                        ->get(['id', 'name', 'slug', 'image_path', 'icon']);
+                    $slugs = isset($cfg['slugs']) && is_array($cfg['slugs'])
+                        ? array_values(array_filter(array_map('strval', $cfg['slugs'])))
+                        : [];
+                    if ($slugs !== []) {
+                        $bySlug = Category::query()
+                            ->where('is_active', true)
+                            ->whereIn('slug', $slugs)
+                            ->get(['id', 'name', 'slug', 'image_path', 'icon'])
+                            ->keyBy('slug');
+                        $payload = collect($slugs)
+                            ->map(fn (string $s) => $bySlug->get($s))
+                            ->filter()
+                            ->values();
+                    } else {
+                        $payload = Category::query()
+                            ->where('is_active', true)
+                            ->whereNull('parent_id')
+                            ->orderBy('sort_order')
+                            ->limit((int) ($cfg['limit'] ?? 10))
+                            ->get(['id', 'name', 'slug', 'image_path', 'icon']);
+                    }
                     break;
                 case 'product_showcase':
                     $query = Product::query()

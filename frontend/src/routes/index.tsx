@@ -232,33 +232,33 @@ function CategoryCirclesBlock(props: {
 
   return (
     <Show when={props.categories.length > 0}>
-      <section class="bg-white py-8 sm:py-10">
-        <div class="mx-auto max-w-7xl px-4">
-          <div class="mb-8 text-center">
-            <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
+      <section class="bg-white pt-6 pb-8 sm:pt-8 sm:pb-10">
+        <div class="mx-auto w-[96%] max-w-[1520px]">
+          <div class="mb-6 text-center sm:mb-7">
+            <h2 class="text-[21px] font-extrabold leading-normal text-[#2F0572] sm:text-[23px]">
               {props.section.title || "Navegue por Categorias"}
             </h2>
-            <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
+            <div class="mx-auto mt-[10px] h-[4px] w-[40px] bg-[#2F0572]" />
           </div>
 
-          <div class="relative px-7 sm:px-6">
-            <div class="grid grid-cols-3 gap-x-2.5 gap-y-5 sm:grid-cols-4 sm:gap-4 md:grid-cols-6">
+          <div class="relative">
+            <div class="grid grid-cols-3 gap-5 sm:grid-cols-4 sm:gap-7 lg:grid-cols-6 lg:gap-10 xl:gap-12">
               <For each={visibleCategories().slice(0, 6)}>
                 {(cat) => (
                   <Link
                     to="/categoria/$slug"
                     params={{ slug: cat.slug }}
-                    class="group flex flex-col items-center text-center"
+                    class="group flex flex-col items-center text-center transition-opacity duration-200 hover:opacity-75"
                   >
-                    <div class="flex aspect-square w-full max-w-[164px] items-center justify-center overflow-hidden rounded-full border border-zinc-200/90 bg-white p-2.5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] transition group-hover:border-[#C22583] group-hover:shadow-md sm:p-3.5">
+                    <div class="flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border border-[#dddddd]/60 bg-white">
                       <img
                         src={assetUrl(cat.image_path)}
                         alt={cat.name}
-                        class="h-full w-full object-contain"
+                        class="aspect-square h-full w-full object-cover"
                         loading="lazy"
                       />
                     </div>
-                    <span class="mt-2.5 text-[11px] font-bold leading-snug text-[#3D1260] transition-colors group-hover:text-[#C22583] sm:mt-3 sm:text-[13px]">
+                    <span class="mt-2 inline-block rounded px-2.5 py-[5px] text-[13px] font-bold leading-normal text-[#2F0572] transition-colors group-hover:bg-[#c5c5c5] sm:text-[14px]">
                       {cat.name}
                     </span>
                   </Link>
@@ -271,18 +271,18 @@ function CategoryCirclesBlock(props: {
                 type="button"
                 onClick={() => setOffset((o) => o - 1)}
                 aria-label="Categorias anteriores"
-                class="absolute left-0 top-[46px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 md:top-[42%] md:size-9"
+                class="absolute left-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#f1f1f1]/70 text-[#EF4BEB] backdrop-blur-[10px] transition hover:bg-[#e5e5e5]/90"
               >
-                <ChevronLeft class="h-4 w-4 md:h-5 md:w-5" aria-hidden="true" />
+                <ChevronLeft class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={() => setOffset((o) => o + 1)}
                 aria-label="Próximas categorias"
-                class="absolute right-0 top-[46px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 md:top-[42%] md:size-9"
+                class="absolute right-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#f1f1f1]/70 text-[#EF4BEB] backdrop-blur-[10px] transition hover:bg-[#e5e5e5]/90"
               >
                 <ChevronRight
-                  class="h-4 w-4 md:h-5 md:w-5"
+                  class="h-5 w-5 stroke-[2.2]"
                   aria-hidden="true"
                 />
               </button>

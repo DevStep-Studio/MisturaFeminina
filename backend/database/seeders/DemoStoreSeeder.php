@@ -445,12 +445,12 @@ class DemoStoreSeeder extends Seeder
     private function seedCategories(): array
     {
         $roots = [
-            ['slug' => 'unhas-e-esmalteria', 'name' => 'Unhas e Esmalteria', 'icon' => 'sparkles', 'image_path' => '/storage/seed/cat-unhas.svg', 'order' => 1],
-            ['slug' => 'maquiagem', 'name' => 'Maquiagem', 'icon' => 'heart', 'image_path' => '/storage/seed/cat-maquiagem.svg', 'order' => 2],
-            ['slug' => 'skincare', 'name' => 'Cuidados Faciais', 'icon' => 'droplet', 'image_path' => '/storage/seed/cat-facial.svg', 'order' => 3],
-            ['slug' => 'cabelos', 'name' => 'Cabelos', 'icon' => 'sun', 'image_path' => '/storage/seed/cat-cabelos.svg', 'order' => 4],
-            ['slug' => 'corpo-e-banho', 'name' => 'Corpo e Banho', 'icon' => 'flower', 'image_path' => '/storage/seed/cat-corpo.svg', 'order' => 5],
-            ['slug' => 'acessorios-pro', 'name' => 'Acessórios Profissionais', 'icon' => 'briefcase', 'image_path' => '/storage/seed/cat-acessorios.svg', 'order' => 6],
+            ['slug' => 'unhas-e-esmalteria', 'name' => 'Unhas e Esmalteria', 'icon' => 'sparkles', 'image_path' => '/storage/seed/cat-unhas.jpg', 'order' => 1],
+            ['slug' => 'maquiagem', 'name' => 'Maquiagem', 'icon' => 'heart', 'image_path' => '/storage/seed/cat-maquiagem.jpg', 'order' => 2],
+            ['slug' => 'skincare', 'name' => 'Cuidados Faciais', 'icon' => 'droplet', 'image_path' => '/storage/seed/cat-facial.jpg', 'order' => 3],
+            ['slug' => 'cabelos', 'name' => 'Cabelos', 'icon' => 'sun', 'image_path' => '/storage/seed/cat-cabelos.jpg', 'order' => 4],
+            ['slug' => 'corpo-e-banho', 'name' => 'Corpo e Banho', 'icon' => 'flower', 'image_path' => '/storage/seed/cat-corpo.jpg', 'order' => 5],
+            ['slug' => 'acessorios-pro', 'name' => 'Acessórios Profissionais', 'icon' => 'briefcase', 'image_path' => '/storage/seed/cat-acessorios.jpg', 'order' => 6],
         ];
 
         $map = [];
@@ -470,10 +470,13 @@ class DemoStoreSeeder extends Seeder
 
         $children = [
             // Unhas e Esmalteria
-            ['parent' => 'unhas-e-esmalteria', 'slug' => 'esmaltes-em-gel', 'name' => 'Esmaltes em Gel', 'order' => 1],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'esmaltes-em-gel', 'name' => 'Esmaltes em Gel', 'image_path' => '/categories/esmaltes-em-gel.png', 'order' => 1],
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'preparadores-e-primers', 'name' => 'Preparadores e Primers', 'order' => 2],
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'alongamento-e-geis', 'name' => 'Alongamento e Géis', 'order' => 3],
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'top-coat-e-finalizadores', 'name' => 'Top Coat e Finalizadores', 'order' => 4],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'top-coat', 'name' => 'Top Coat', 'image_path' => '/categories/top-coat.png', 'order' => 5],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'kits', 'name' => 'Kits', 'image_path' => '/categories/kits.png', 'order' => 6],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'gel', 'name' => 'Gel', 'image_path' => '/categories/gel.png', 'order' => 7],
             // Maquiagem
             ['parent' => 'maquiagem', 'slug' => 'labios', 'name' => 'Lábios e Batons', 'order' => 1],
             ['parent' => 'maquiagem', 'slug' => 'pele-e-bases', 'name' => 'Pele, Bases e Brumas', 'order' => 2],
@@ -492,6 +495,11 @@ class DemoStoreSeeder extends Seeder
             ['parent' => 'acessorios-pro', 'slug' => 'cabines-e-estufas', 'name' => 'Cabines e Equipamentos', 'order' => 1],
             ['parent' => 'acessorios-pro', 'slug' => 'pinceis-profissionais', 'name' => 'Pincéis e Kits', 'order' => 2],
             ['parent' => 'acessorios-pro', 'slug' => 'brocas-e-lixas', 'name' => 'Brocas e Lixas', 'order' => 3],
+            ['parent' => 'acessorios-pro', 'slug' => 'brocas', 'name' => 'Brocas', 'image_path' => '/categories/brocas.png', 'order' => 4],
+            ['parent' => 'acessorios-pro', 'slug' => 'cabines', 'name' => 'Cabines', 'image_path' => '/categories/cabines.png', 'order' => 5],
+            ['parent' => 'acessorios-pro', 'slug' => 'motores', 'name' => 'Motores', 'image_path' => '/categories/motores.png', 'order' => 6],
+            ['parent' => 'acessorios-pro', 'slug' => 'aspiradores', 'name' => 'Aspiradores', 'image_path' => '/categories/aspiradores.png', 'order' => 7],
+            ['parent' => 'acessorios-pro', 'slug' => 'luminarias', 'name' => 'Luminárias', 'image_path' => '/categories/luminarias.png', 'order' => 8],
             // Nível 3 sob Brocas e Lixas
             ['parent' => 'brocas-e-lixas', 'slug' => 'brocas-ceramica', 'name' => 'Brocas de Cerâmica', 'order' => 1],
             ['parent' => 'brocas-e-lixas', 'slug' => 'lixas-profissionais', 'name' => 'Lixas e Polidoras', 'order' => 2],
@@ -502,6 +510,7 @@ class DemoStoreSeeder extends Seeder
                 [
                     'parent_id' => $map[$c['parent']]->id,
                     'name' => $c['name'],
+                    'image_path' => $c['image_path'] ?? null,
                     'sort_order' => $c['order'],
                     'show_in_menu' => true,
                     'is_active' => true,
@@ -548,7 +557,7 @@ class DemoStoreSeeder extends Seeder
         $items = [
             [
                 'sku' => 'MF-ESM-001', 'slug' => 'esmalte-gel-alta-duracao-15ml', 'name' => 'Esmalte em Gel Alta Duração 15ml',
-                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'alongamento-e-geis'], 'img' => '/storage/seed/prod-esmalte.svg',
+                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'alongamento-e-geis', 'gel', 'top-coat'], 'img' => '/storage/seed/prod-esmalte.jpg',
                 'type' => ProductType::Variable, 'price' => 2490, 'promo' => 1690, 'featured' => true, 'new' => true, 'best' => true,
                 'short' => 'Cobertura intensa desde a primeira camada com brilho espelhado até 21 dias.',
                 'variants' => [
@@ -559,7 +568,7 @@ class DemoStoreSeeder extends Seeder
             ],
             [
                 'sku' => 'MF-SRM-002', 'slug' => 'serum-facial-niacinamida-acido-hialuronico', 'name' => 'Sérum Facial Niacinamida 10% + Hialurônico',
-                'brand' => 'mistura-lab', 'cats' => ['skincare', 'seruns-e-tratamentos'], 'img' => '/storage/seed/prod-serum.svg',
+                'brand' => 'mistura-lab', 'cats' => ['skincare', 'seruns-e-tratamentos'], 'img' => '/storage/seed/prod-serum.jpg',
                 'type' => ProductType::Variable, 'price' => 8990, 'promo' => 6490, 'featured' => true, 'new' => true, 'best' => true,
                 'short' => 'Controla oleosidade, suaviza poros e hidrata profundamente sem pesar.',
                 'wholesale' => true,
@@ -570,7 +579,7 @@ class DemoStoreSeeder extends Seeder
             ],
             [
                 'sku' => 'MF-BTM-003', 'slug' => 'batom-liquido-velvet-matte-4g', 'name' => 'Batom Líquido Velvet Matte Longa Duração',
-                'brand' => 'essencia-floral', 'cats' => ['maquiagem', 'labios'], 'img' => '/storage/seed/prod-batom.svg',
+                'brand' => 'essencia-floral', 'cats' => ['maquiagem', 'labios'], 'img' => '/storage/seed/prod-batom.jpg',
                 'type' => ProductType::Variable, 'price' => 3990, 'promo' => 2990, 'featured' => true, 'new' => false, 'best' => true,
                 'short' => 'Acabamento aveludado confortável com manteiga de karité e vitamina E.',
                 'variants' => [
@@ -580,73 +589,73 @@ class DemoStoreSeeder extends Seeder
             ],
             [
                 'sku' => 'MF-MSC-004', 'slug' => 'mascara-reconstrucao-capilar-queratina-300g', 'name' => 'Máscara Reconstrução Capilar Queratina Vegetal 300g',
-                'brand' => 'mistura-lab', 'cats' => ['cabelos', 'mascaras-de-tratamento'], 'img' => '/storage/seed/prod-mascara.svg',
+                'brand' => 'mistura-lab', 'cats' => ['cabelos', 'mascaras-de-tratamento'], 'img' => '/storage/seed/prod-mascara.jpg',
                 'type' => ProductType::Simple, 'price' => 7490, 'promo' => 5490, 'featured' => true, 'new' => false, 'best' => true, 'stock' => 32,
                 'short' => 'Reposição de massa para fios quimicamente tratados com brilho imediato.',
             ],
             [
                 'sku' => 'MF-OLE-005', 'slug' => 'oleo-reparador-pontas-argan-marula-60ml', 'name' => 'Óleo Reparador de Pontas Argan & Marula 60ml',
-                'brand' => 'essencia-floral', 'cats' => ['cabelos', 'oleos-e-reparadores'], 'img' => '/storage/seed/prod-oleo.svg',
+                'brand' => 'essencia-floral', 'cats' => ['cabelos', 'oleos-e-reparadores'], 'img' => '/storage/seed/prod-oleo.jpg',
                 'type' => ProductType::Simple, 'price' => 5990, 'promo' => null, 'featured' => true, 'new' => true, 'best' => false, 'stock' => 24,
                 'short' => 'Sela cutículas, reduz frizz e oferece proteção térmica até 230°C.',
             ],
             [
                 'sku' => 'MF-HID-006', 'slug' => 'locao-hidratante-corporal-rosas-200ml', 'name' => 'Loção Hidratante Corporal Pétalas & Karité 200ml',
-                'brand' => 'essencia-floral', 'cats' => ['corpo-e-banho', 'hidratantes-corporais', 'autocuidado-diario'], 'img' => '/storage/seed/prod-hidratante.svg',
+                'brand' => 'essencia-floral', 'cats' => ['corpo-e-banho', 'hidratantes-corporais', 'autocuidado-diario'], 'img' => '/storage/seed/prod-hidratante.jpg',
                 'type' => ProductType::Simple, 'price' => 4890, 'promo' => 3690, 'featured' => false, 'new' => true, 'best' => true, 'stock' => 19,
                 'short' => 'Toque seco com absorção rápida e fragrância floral sofisticada.',
             ],
             [
                 'sku' => 'MF-CAB-007', 'slug' => 'cabine-led-uv-profissional-48w-bivolt', 'name' => 'Cabine LED/UV Profissional 48W Bivolt Sensor Automático',
-                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'cabines-e-estufas', 'unhas-e-esmalteria', 'alongamento-e-geis'], 'img' => '/storage/seed/prod-cabine.svg',
+                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'cabines-e-estufas', 'unhas-e-esmalteria', 'alongamento-e-geis', 'cabines', 'motores', 'aspiradores', 'luminarias'], 'img' => '/storage/seed/prod-cabine.jpg',
                 'type' => ProductType::Simple, 'price' => 16990, 'promo' => 13490, 'featured' => true, 'new' => false, 'best' => true, 'stock' => 9, 'weight' => 650,
                 'short' => '36 LEDs duplos para secagem uniforme de gel, acrygel e blindagem.',
             ],
             [
                 'sku' => 'MF-PRM-008', 'slug' => 'primer-acido-preparador-unhas-15ml', 'name' => 'Primer Preparador Adesivador de Unhas 15ml',
-                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'preparadores-e-primers', 'top-coat-e-finalizadores'], 'img' => '/storage/seed/prod-primer.svg',
+                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'preparadores-e-primers', 'top-coat-e-finalizadores', 'top-coat', 'gel'], 'img' => '/storage/seed/prod-primer.jpg',
                 'type' => ProductType::Simple, 'price' => 2790, 'promo' => 1990, 'featured' => false, 'new' => false, 'best' => true, 'stock' => 45,
                 'short' => 'Garante aderência superior sem descolamentos em alongamentos.',
             ],
             [
                 'sku' => 'MF-BAS-009', 'slug' => 'base-fluida-soft-matte-efeito-segunda-pele', 'name' => 'Base Fluida Soft Matte Média Cobertura 30ml',
-                'brand' => 'mistura-lab', 'cats' => ['maquiagem', 'pele-e-bases'], 'img' => '/storage/seed/prod-base.svg',
+                'brand' => 'mistura-lab', 'cats' => ['maquiagem', 'pele-e-bases'], 'img' => '/storage/seed/prod-base.jpg',
                 'type' => ProductType::Simple, 'price' => 6990, 'promo' => 4990, 'featured' => true, 'new' => true, 'best' => false, 'stock' => 16,
                 'short' => 'Resistente à transferência e à umidade com vitamina E.',
             ],
             [
                 'sku' => 'MF-BRM-010', 'slug' => 'bruma-fixadora-glow-agua-termal-120ml', 'name' => 'Bruma Fixadora Hidratante Água Termal 120ml',
-                'brand' => 'essencia-floral', 'cats' => ['maquiagem', 'skincare', 'pele-e-bases', 'brumas-e-fixadores', 'hidratantes-faciais'], 'img' => '/storage/seed/prod-bruma.svg',
+                'brand' => 'essencia-floral', 'cats' => ['maquiagem', 'skincare', 'pele-e-bases', 'brumas-e-fixadores', 'hidratantes-faciais'], 'img' => '/storage/seed/prod-bruma.jpg',
                 'type' => ProductType::Simple, 'price' => 4590, 'promo' => null, 'featured' => false, 'new' => true, 'best' => false, 'stock' => 14,
                 'short' => 'Prolonga a maquiagem e revitaliza o viço ao longo do dia.',
             ],
             [
                 'sku' => 'MF-PIN-011', 'slug' => 'kit-pinceis-maquiagem-profissional-8-pecas', 'name' => 'Kit Pincéis Profissionais Cerdas Macias 8 Peças',
-                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'pinceis-profissionais', 'brocas-e-lixas', 'brocas-ceramica', 'lixas-profissionais', 'maquiagem'], 'img' => '/storage/seed/prod-pincel.svg',
+                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'pinceis-profissionais', 'brocas-e-lixas', 'brocas-ceramica', 'lixas-profissionais', 'maquiagem', 'brocas', 'motores', 'aspiradores', 'luminarias'], 'img' => '/storage/seed/prod-pincel.jpg',
                 'type' => ProductType::Simple, 'price' => 11990, 'promo' => 8990, 'featured' => false, 'new' => true, 'best' => false, 'stock' => 0,
                 'short' => 'Cerdas sintéticas de alta densidade para acabamento polido (item para testar Avise-me quando esgotado).',
             ],
             [
                 'sku' => 'MF-KIT-012', 'slug' => 'kit-cronograma-capilar-reconstrucao-brilho', 'name' => 'Kit Capilar Reconstrução + Óleo Reparador',
-                'brand' => 'mistura-lab', 'cats' => ['cabelos', 'kits-capilares'], 'img' => '/storage/seed/prod-kit.svg',
+                'brand' => 'mistura-lab', 'cats' => ['cabelos', 'kits-capilares', 'kits'], 'img' => '/storage/seed/prod-kit.jpg',
                 'type' => ProductType::Kit, 'price' => 13480, 'promo' => 9990, 'featured' => true, 'new' => true, 'best' => true, 'stock' => 10,
                 'short' => 'Combo completo com Máscara Reconstrução 300g + Óleo Reparador 60ml com desconto especial.',
             ],
             [
                 'sku' => 'MF-ESM-013', 'slug' => 'esmalte-em-gel-cintilante-perola-10ml', 'name' => 'Esmalte em Gel Cintilante Pérola 10ml',
-                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel'], 'img' => '/storage/seed/prod-esmalte-perola.svg',
+                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'gel'], 'img' => '/storage/seed/prod-esmalte-perola.jpg',
                 'type' => ProductType::Simple, 'price' => 1990, 'promo' => 1490, 'featured' => false, 'new' => false, 'best' => true, 'stock' => 35,
                 'short' => 'Acabamento perolado de longa duração com secagem rápida em cabine LED/UV.',
             ],
             [
                 'sku' => 'MF-ESM-014', 'slug' => 'esmalte-em-gel-reflexivo-glitter-10ml', 'name' => 'Esmalte em Gel Reflexivo Glitter 10ml',
-                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel'], 'img' => '/storage/seed/prod-esmalte-glitter.svg',
+                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'gel'], 'img' => '/storage/seed/prod-esmalte-glitter.jpg',
                 'type' => ProductType::Simple, 'price' => 2290, 'promo' => null, 'featured' => false, 'new' => false, 'best' => false, 'stock' => 28,
                 'short' => 'Partículas refletivas de brilho intenso para encapsulamento e esmaltação.',
             ],
             [
                 'sku' => 'MF-ESM-015', 'slug' => 'esmalte-em-gel-quadrado-noir-10ml', 'name' => 'Esmalte em Gel Quadrado Noir 10ml',
-                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel'], 'img' => '/storage/seed/prod-esmalte-noir.svg',
+                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'gel'], 'img' => '/storage/seed/prod-esmalte-noir.jpg',
                 'type' => ProductType::Simple, 'price' => 1890, 'promo' => null, 'featured' => false, 'new' => false, 'best' => false, 'stock' => 0,
                 'short' => 'Preto pigmentado cobertura única (disponível para aviso de reposição).',
             ],
@@ -758,6 +767,48 @@ class DemoStoreSeeder extends Seeder
         );
 
         Coupon::query()->updateOrCreate(
+            ['code' => 'PRIMEIRACOMPRA'],
+            [
+                'name' => 'Desconto de 10% Primeira Compra',
+                'type' => 'percent',
+                'value' => 10,
+                'min_subtotal_cents' => 5000,
+                'max_uses_per_user' => 3,
+                'first_purchase_only' => false,
+                'scope_type' => 'all',
+                'is_active' => true,
+            ]
+        );
+
+        Coupon::query()->updateOrCreate(
+            ['code' => 'PRIMEIRACOMPRA'],
+            [
+                'name' => '10% OFF Primeira Compra',
+                'type' => 'percent',
+                'value' => 10,
+                'min_subtotal_cents' => 5000,
+                'max_uses_per_user' => 3,
+                'first_purchase_only' => false,
+                'scope_type' => 'all',
+                'is_active' => true,
+            ]
+        );
+
+        Coupon::query()->updateOrCreate(
+            ['code' => 'PRIMEIRACOMPRA'],
+            [
+                'name' => '10% OFF Primeira Compra',
+                'type' => 'percent',
+                'value' => 10,
+                'min_subtotal_cents' => 5000,
+                'max_uses_per_user' => 3,
+                'first_purchase_only' => false,
+                'scope_type' => 'all',
+                'is_active' => true,
+            ]
+        );
+
+        Coupon::query()->updateOrCreate(
             ['code' => 'FRETEGRATIS'],
             [
                 'name' => 'Frete Grátis acima de R$ 150',
@@ -832,10 +883,10 @@ class DemoStoreSeeder extends Seeder
     private function seedContent(): void
     {
         $banners = [
-            ['title' => 'Semana da Beleza Mistura Feminina', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-1-desktop.svg', 'mobile' => '/storage/seed/hero-1-mobile.svg', 'alt' => 'Semana da Beleza Mistura Feminina', 'cta' => 'Ver ofertas', 'url' => '/promocoes', 'order' => 1],
-            ['title' => 'Cuidados Faciais e Corporais', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-2-desktop.svg', 'mobile' => '/storage/seed/hero-2-mobile.svg', 'alt' => 'Cuidados Faciais e Corporais Mistura Feminina', 'cta' => 'Explorar Skincare', 'url' => '/categoria/skincare', 'order' => 2],
-            ['title' => 'Unhas em Gel Profissionais', 'placement' => 'promo_grid', 'desktop' => '/storage/seed/promo-1.svg', 'mobile' => '/storage/seed/promo-1.svg', 'alt' => 'Linha Unhas e Gel Mistura Feminina', 'cta' => 'Conferir', 'url' => '/categoria/unhas-e-esmalteria', 'order' => 1],
-            ['title' => 'Kits com Economia Garantida', 'placement' => 'promo_grid', 'desktop' => '/storage/seed/promo-2.svg', 'mobile' => '/storage/seed/promo-2.svg', 'alt' => 'Kits com Desconto Mistura Feminina', 'cta' => 'Ver kits', 'url' => '/categoria/kits-capilares', 'order' => 2],
+            ['title' => 'Semana da Beleza Mistura Feminina', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-1-desktop.jpg', 'mobile' => '/storage/seed/hero-1-mobile.jpg', 'alt' => 'Semana da Beleza Mistura Feminina', 'cta' => 'Ver ofertas', 'url' => '/promocoes', 'order' => 1],
+            ['title' => 'Cuidados Faciais e Corporais', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-2-desktop.jpg', 'mobile' => '/storage/seed/hero-2-mobile.jpg', 'alt' => 'Cuidados Faciais e Corporais Mistura Feminina', 'cta' => 'Explorar Skincare', 'url' => '/categoria/skincare', 'order' => 2],
+            ['title' => 'Unhas em Gel Profissionais', 'placement' => 'promo_grid', 'desktop' => '/storage/seed/promo-1.jpg', 'mobile' => '/storage/seed/promo-1.jpg', 'alt' => 'Linha Unhas e Gel Mistura Feminina', 'cta' => 'Conferir', 'url' => '/categoria/unhas-e-esmalteria', 'order' => 1],
+            ['title' => 'Kits com Economia Garantida', 'placement' => 'promo_grid', 'desktop' => '/storage/seed/promo-2.jpg', 'mobile' => '/storage/seed/promo-2.jpg', 'alt' => 'Kits com Desconto Mistura Feminina', 'cta' => 'Ver kits', 'url' => '/categoria/kits-capilares', 'order' => 2],
         ];
         foreach ($banners as $b) {
             Banner::query()->updateOrCreate(
@@ -856,7 +907,27 @@ class DemoStoreSeeder extends Seeder
             ['key' => 'hero_main', 'type' => 'hero_carousel', 'title' => null, 'subtitle' => null, 'config' => [], 'order' => 1],
             ['key' => 'coupon_banner', 'type' => 'coupon_strip', 'title' => 'Aproveite um Desconto Especial!', 'subtitle' => 'Na sua primeira compra, use o cupom BEMVINDA10 e ganhe 10% OFF!', 'config' => [], 'order' => 2],
             ['key' => 'benefits_strip', 'type' => 'benefits_row', 'title' => null, 'subtitle' => null, 'config' => [], 'order' => 3],
-            ['key' => 'categories_row', 'type' => 'category_circles', 'title' => 'Navegue por Categorias', 'subtitle' => 'Encontre exatamente o que sua rotina precisa', 'config' => ['limit' => 8], 'order' => 4],
+            [
+                'key' => 'categories_row',
+                'type' => 'category_circles',
+                'title' => 'Navegue por Categorias',
+                'subtitle' => null,
+                'config' => [
+                    'limit' => 9,
+                    'slugs' => [
+                        'brocas',
+                        'cabines',
+                        'motores',
+                        'aspiradores',
+                        'luminarias',
+                        'top-coat',
+                        'kits',
+                        'esmaltes-em-gel',
+                        'gel',
+                    ],
+                ],
+                'order' => 4,
+            ],
             ['key' => 'offers_week', 'type' => 'product_showcase', 'title' => 'Confira nossas ofertas da semana', 'subtitle' => 'Descontos válidos enquanto durarem os estoques', 'config' => ['filter' => 'offers', 'limit' => 8, 'cta_url' => '/promocoes'], 'order' => 5],
             ['key' => 'promo_banners', 'type' => 'banner_grid', 'title' => null, 'subtitle' => null, 'config' => [], 'order' => 6],
             ['key' => 'new_arrivals', 'type' => 'product_showcase', 'title' => 'Novidades', 'subtitle' => null, 'config' => ['filter' => 'new_arrivals', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'show_featured_badge' => true, 'cta_url' => '/novidades'], 'order' => 7],
