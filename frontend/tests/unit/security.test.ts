@@ -25,8 +25,9 @@ describe("safe return paths", () => {
   ])("rejects unsafe value %s", (value) =>
     expect(safeRedirect(value)).toBe("/app"),
   );
-  it.each(["/app"])("allows %s", (path) =>
-    expect(safeRedirect(path)).toBe(path),
+  it.each(["/app", "/admin", "/admin/pedidos", "/minha-conta"])(
+    "allows %s",
+    (path) => expect(safeRedirect(path)).toBe(path),
   );
 });
 it("permission and role checks are explicit and fail closed", () => {

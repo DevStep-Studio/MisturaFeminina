@@ -1,5 +1,9 @@
-import { onCleanup, onMount } from "solid-js";
+import { onCleanup, onMount, Show } from "solid-js";
+import { Link } from "@tanstack/solid-router";
 import CircleCheck from "lucide-solid/icons/circle-check";
+import LayoutDashboard from "lucide-solid/icons/layout-dashboard";
+import ShoppingBag from "lucide-solid/icons/shopping-bag";
+import { hasPermission } from "../../../security/permissions";
 import { session } from "../../../security/session";
 import { LogoutButton } from "./logout-button";
 
@@ -113,9 +117,32 @@ export function SessionPage() {
         </div>
         <div
           data-session-reveal
-          class="mt-8 border-t border-zinc-100 pt-6 [&_button]:w-full"
+          class="mt-6 flex flex-col gap-2.5 border-t border-zinc-100 pt-6"
         >
-          <LogoutButton />
+          <Show
+            when={
+              session.user()?.roles?.includes("superadmin") ||
+              hasPermission(session.user()?.permissions ?? [], "dashboard.view")
+            }
+          >
+            <Link
+              to="/admin"
+              class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#93509e] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#7b3e85] focus:outline-none focus:ring-2 focus:ring-[#93509e] focus:ring-offset-2"
+            >
+              <LayoutDashboard class="size-4" aria-hidden="true" />
+              <span>Painel Administrativo</span>
+            </Link>
+          </Show>
+          <Link
+            to="/"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 shadow-2xs transition hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-2"
+          >
+            <ShoppingBag class="size-4" aria-hidden="true" />
+            <span>Voltar para a Loja</span>
+          </Link>
+          <div class="pt-2 [&_button]:w-full">
+            <LogoutButton />
+          </div>
         </div>
       </section>
     </div>
