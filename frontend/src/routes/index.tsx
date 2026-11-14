@@ -274,17 +274,17 @@ function CategoryCirclesBlock(props: {
                   <Link
                     to="/categoria/$slug"
                     params={{ slug: cat.slug }}
-                    class="group flex flex-col items-center text-center transition-opacity duration-200 hover:opacity-75"
+                    class="group flex flex-col items-center text-center focus-visible:outline-none"
                   >
-                    <div class="flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border border-[#dddddd]/60 bg-white">
+                    <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border border-[#EAE4F2] bg-white shadow-[0_2px_10px_rgba(43,10,80,0.04)] transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:border-[#C22583]/45 group-hover:shadow-[0_14px_28px_-6px_rgba(94,40,137,0.18)] group-hover:ring-4 group-hover:ring-[#C22583]/10 group-focus-visible:ring-2 group-focus-visible:ring-[#5E2889]">
                       <img
                         src={assetUrl(cat.image_path)}
                         alt={cat.name}
-                        class="aspect-square h-full w-full object-cover"
+                        class="aspect-square h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
                         loading="lazy"
                       />
                     </div>
-                    <span class="mt-2 inline-block rounded px-2.5 py-[5px] text-[13px] font-bold leading-normal text-[#2F0572] transition-colors group-hover:bg-[#c5c5c5] sm:text-[14px]">
+                    <span class="mt-3 inline-flex items-center justify-center rounded-full px-3.5 py-1 text-[13px] font-bold leading-normal text-[#2B0A50] transition-all duration-300 ease-out group-hover:bg-[#F8EFFB] group-hover:text-[#A81C73] sm:text-[14px]">
                       {cat.name}
                     </span>
                   </Link>
@@ -297,7 +297,7 @@ function CategoryCirclesBlock(props: {
                 type="button"
                 onClick={() => setOffset((o) => o - 1)}
                 aria-label="Categorias anteriores"
-                class="absolute left-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#f1f1f1]/70 text-[#EF4BEB] backdrop-blur-[10px] transition hover:bg-[#e5e5e5]/90"
+                class="absolute left-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#2B0A50]/10 bg-white/95 text-[#5E2889] shadow-[0_4px_14px_rgba(43,10,80,0.10)] backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-[#5E2889] hover:bg-[#5E2889] hover:text-white hover:shadow-[0_6px_18px_rgba(94,40,137,0.24)] active:scale-95"
               >
                 <ChevronLeft class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
               </button>
@@ -305,7 +305,7 @@ function CategoryCirclesBlock(props: {
                 type="button"
                 onClick={() => setOffset((o) => o + 1)}
                 aria-label="Próximas categorias"
-                class="absolute right-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#f1f1f1]/70 text-[#EF4BEB] backdrop-blur-[10px] transition hover:bg-[#e5e5e5]/90"
+                class="absolute right-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#2B0A50]/10 bg-white/95 text-[#5E2889] shadow-[0_4px_14px_rgba(43,10,80,0.10)] backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-[#5E2889] hover:bg-[#5E2889] hover:text-white hover:shadow-[0_6px_18px_rgba(94,40,137,0.24)] active:scale-95"
               >
                 <ChevronRight class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
               </button>
