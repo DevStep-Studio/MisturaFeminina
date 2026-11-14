@@ -818,9 +818,12 @@ class DemoStoreSeeder extends Seeder
 
     private function seedContent(): void
     {
+        Banner::query()->where('placement', 'hero')->delete();
+
         $banners = [
-            ['title' => 'Semana da Beleza Mistura Feminina', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-1-desktop.jpg', 'mobile' => '/storage/seed/hero-1-mobile.jpg', 'alt' => 'Semana da Beleza Mistura Feminina', 'cta' => 'Ver ofertas', 'url' => '/promocoes', 'order' => 1],
-            ['title' => 'Cuidados Faciais e Corporais', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-2-desktop.jpg', 'mobile' => '/storage/seed/hero-2-mobile.jpg', 'alt' => 'Cuidados Faciais e Corporais Mistura Feminina', 'cta' => 'Explorar Skincare', 'url' => '/categoria/skincare', 'order' => 2],
+            ['title' => 'Black Friday Ofertas Mistura Feminina', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-1-desktop.jpg', 'mobile' => null, 'alt' => 'Black Friday — Aproveite as ofertas, produtos a partir de R$ 1,90', 'cta' => 'Compre agora', 'url' => '/promocoes', 'order' => 1],
+            ['title' => 'Especial Black Friday Cosméticos', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-2-desktop.jpg', 'mobile' => null, 'alt' => 'Black Friday — Aproveite as ofertas com produtos a partir de R$ 1,90', 'cta' => 'Compre agora', 'url' => '/promocoes', 'order' => 2],
+            ['title' => 'Frete Grátis para todo Brasil', 'placement' => 'hero', 'desktop' => '/storage/seed/hero-3-desktop.jpg', 'mobile' => null, 'alt' => 'Frete Grátis para todo Brasil — Envios para todo o país', 'cta' => 'Compre agora', 'url' => '/categorias', 'order' => 3],
             ['title' => 'Unhas em Gel Profissionais', 'placement' => 'promo_grid', 'desktop' => '/storage/seed/promo-1.jpg', 'mobile' => '/storage/seed/promo-1.jpg', 'alt' => 'Linha Unhas e Gel Mistura Feminina', 'cta' => 'Conferir', 'url' => '/categoria/unhas-e-esmalteria', 'order' => 1],
             ['title' => 'Kits com Economia Garantida', 'placement' => 'promo_grid', 'desktop' => '/storage/seed/promo-2.jpg', 'mobile' => '/storage/seed/promo-2.jpg', 'alt' => 'Kits com Desconto Mistura Feminina', 'cta' => 'Ver kits', 'url' => '/categoria/kits-capilares', 'order' => 2],
         ];

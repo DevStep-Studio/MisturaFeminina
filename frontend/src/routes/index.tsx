@@ -84,7 +84,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
     <Show when={props.banners.length > 0}>
       <section
         aria-label="Destaques principais"
-        class="relative overflow-hidden bg-zinc-900"
+        class="relative overflow-hidden bg-[#7c3f87]"
       >
         <Show when={current()}>
           {(banner) => {
@@ -102,7 +102,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                   class={
                     banner().mobile_image_path
                       ? "block aspect-[3/4] max-h-[520px] w-full object-cover object-center md:aspect-[1920/650] md:max-h-none"
-                      : "block aspect-[16/9] w-full object-cover object-center md:aspect-[1920/650]"
+                      : "block aspect-[1024/438] w-full object-cover object-center"
                   }
                 />
               </picture>
