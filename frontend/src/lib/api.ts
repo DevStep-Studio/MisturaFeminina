@@ -1,9 +1,11 @@
 import { config } from "../app/config";
 import { ApiError } from "./api-error";
+export { ApiError };
 
 export interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
+  headers?: Record<string, string>;
   signal?: AbortSignal;
   scope?: "api" | "auth";
   authenticated?: boolean;
@@ -80,6 +82,7 @@ export function api<T = unknown>(
     url,
     options.authenticated !== false,
     options.timeoutMs,
+    options.headers,
   ]);
   if (method === "GET" && !options.signal) {
     const existing = pendingGets.get(key);
@@ -106,10 +109,13 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
   }, options.timeoutMs ?? config.timeoutMs);
   try {
     const method = options.method || "GET";
+    const isFormData =
+      typeof FormData !== "undefined" && options.body instanceof FormData;
     const headers: Record<string, string> = {
       Accept: "application/json",
       "X-Requested-With": "XMLHttpRequest",
       "X-Request-ID": requestId,
+      ...(options.headers || {}),
     };
     if (method !== "GET") {
       if (options.csrf !== false) await waitForCsrf(controller.signal);
@@ -119,7 +125,7 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
       if (!token && options.csrf !== false)
         throw new ApiError("http", 419, requestId);
       if (token) headers["X-XSRF-TOKEN"] = token;
-      if (options.body !== undefined)
+      if (options.body !== undefined && !isFormData)
         headers["Content-Type"] = "application/json";
     }
     const response = await fetch(url, {
@@ -128,7 +134,11 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
       credentials: "include",
       signal: controller.signal,
       body:
-        options.body === undefined ? undefined : JSON.stringify(options.body),
+        options.body === undefined
+          ? undefined
+          : isFormData
+            ? (options.body as FormData)
+            : JSON.stringify(options.body),
       redirect: "error",
     });
     if (!response.ok) {

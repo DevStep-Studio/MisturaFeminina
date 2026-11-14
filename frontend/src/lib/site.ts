@@ -21,7 +21,7 @@ export function siteSettings(env: SiteEnvironment, development = false) {
   }
   return {
     url: url.origin,
-    name: env.VITE_SITE_NAME?.trim() || "DevStep",
+    name: env.VITE_SITE_NAME?.trim() || "Mistura Feminina Cosméticos",
     indexable: !development && env.VITE_SITE_INDEXABLE === "true",
   };
 }

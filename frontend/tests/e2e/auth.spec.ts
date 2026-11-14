@@ -85,7 +85,7 @@ test("private entry validates the session, logs in with CSRF and survives refres
   page,
 }) => {
   const state = await backend(page);
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page).toHaveURL(/\/login\?redirect=%2Fapp/);
   await enter(page);
   await expect(

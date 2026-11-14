@@ -1,0 +1,914 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
+import CreditCard from "lucide-solid/icons/credit-card";
+import Lock from "lucide-solid/icons/lock";
+import QrCode from "lucide-solid/icons/qr-code";
+import { For, Show, createSignal, onMount } from "solid-js";
+import { ShippingQuoteWidget } from "../features/storefront/components/ShippingQuoteWidget";
+import { StoreShell } from "../features/storefront/components/StoreShell";
+import {
+  cartHeaders,
+  refreshCart,
+  selectCartShipping,
+  storefrontStore,
+} from "../features/storefront/store";
+import { ApiError, api } from "../lib/api";
+import {
+  formatCep,
+  formatCents,
+  formatCpfCnpj,
+  formatPhone,
+} from "../lib/format";
+import { seoHead } from "../lib/seo";
+import { session } from "../security/session";
+
+export const Route = createFileRoute("/checkout")({
+  head: () =>
+    seoHead({
+      title: "Finalizar Compra — Mistura Feminina Cosméticos",
+      description: "Checkout seguro com Pix e cartão de crédito.",
+      path: "/checkout",
+      noindex: true,
+    }),
+  component: CheckoutPage,
+});
+
+interface SavedAddress {
+  id: number;
+  label: string;
+  recipient_name: string;
+  cep: string;
+  street: string;
+  number: string;
+  complement: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+}
+
+function CheckoutPage() {
+  const navigate = useNavigate();
+  const settings = () => storefrontStore.settings();
+  const cart = () => storefrontStore.cart();
+
+  const [name, setName] = createSignal("");
+  const [email, setEmail] = createSignal("");
+  const [phone, setPhone] = createSignal("");
+  const [cpf, setCpf] = createSignal("");
+  const [cep, setCep] = createSignal("");
+  const [street, setStreet] = createSignal("");
+  const [number, setNumber] = createSignal("");
+  const [complement, setComplement] = createSignal("");
+  const [neighborhood, setNeighborhood] = createSignal("");
+  const [city, setCity] = createSignal("");
+  const [stateUf, setStateUf] = createSignal("");
+  const [notes, setNotes] = createSignal("");
+  const [savedAddresses, setSavedAddresses] = createSignal<SavedAddress[]>([]);
+
+  const [method, setMethod] = createSignal<"pix" | "credit_card">("pix");
+  const [installments, setInstallments] = createSignal(1);
+  const [cardLastFour, setCardLastFour] = createSignal("");
+  const [cardBrand, setCardBrand] = createSignal("visa");
+  const [cardNumberInput, setCardNumberInput] = createSignal("");
+  const [cardHolder, setCardHolder] = createSignal("");
+  const [cardExpiry, setCardExpiry] = createSignal("");
+  const [cardCvv, setCardCvv] = createSignal("");
+  const [sandboxOutcome, setSandboxOutcome] = createSignal<
+    "approved" | "pending" | "rejected"
+  >("approved");
+
+  const [cepLoading, setCepLoading] = createSignal(false);
+  const [submitting, setSubmitting] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [idempotencyKey] = createSignal(
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `mf-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+
+  onMount(() => {
+    void refreshCart().then((c) => {
+      if (c?.shipping_cep) setCep(formatCep(c.shipping_cep));
+    });
+    const u = session.user();
+    if (session.status() === "authenticated" && u) {
+      setName(u.name || "");
+      setEmail(u.email || "");
+      void api<{ data: SavedAddress[] }>("/account/addresses")
+        .then((res) => {
+          const list = res.data ?? [];
+          setSavedAddresses(list);
+          if (list[0]) applyAddress(list[0]);
+        })
+        .catch(() => {});
+    }
+  });
+
+  function applyAddress(addr: SavedAddress) {
+    setCep(formatCep(addr.cep));
+    setStreet(addr.street);
+    setNumber(addr.number);
+    setComplement(addr.complement || "");
+    setNeighborhood(addr.neighborhood);
+    setCity(addr.city);
+    setStateUf(addr.state);
+  }
+
+  async function ensureShippingQuoteForCep(
+    digits: string,
+  ): Promise<number | undefined> {
+    const current = cart();
+    if (current?.shipping_quote?.quote_id && current.shipping_cep === digits) {
+      return current.shipping_quote.quote_id;
+    }
+    try {
+      const quoted = await api<{
+        data: { options?: { quote_id?: number }[] };
+      }>("/cart/shipping/quote", {
+        method: "POST",
+        authenticated: false,
+        headers: cartHeaders(),
+        body: { cep: digits },
+      });
+      await refreshCart();
+      return quoted.data.options?.[0]?.quote_id;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function lookupCep(raw: string) {
+    const digits = raw.replace(/\D/g, "");
+    setCep(formatCep(digits));
+    if (digits.length !== 8) return;
+    setCepLoading(true);
+    try {
+      const [resp] = await Promise.all([
+        fetch(`https://viacep.com.br/ws/${digits}/json/`).catch(() => null),
+        ensureShippingQuoteForCep(digits),
+      ]);
+      if (resp && resp.ok) {
+        const data = (await resp.json()) as {
+          erro?: boolean;
+          logradouro?: string;
+          bairro?: string;
+          localidade?: string;
+          uf?: string;
+        };
+        if (!data.erro) {
+          if (data.logradouro) setStreet(data.logradouro);
+          if (data.bairro) setNeighborhood(data.bairro);
+          if (data.localidade) setCity(data.localidade);
+          if (data.uf) setStateUf(data.uf);
+        }
+      }
+    } catch {
+      // keep manual input editable on external lookup failure
+    } finally {
+      setCepLoading(false);
+    }
+  }
+
+  async function submitCheckout(e: Event) {
+    e.preventDefault();
+    setError(null);
+    const c = cart();
+    if (!c || c.items.length === 0) {
+      setError("Seu carrinho está vazio.");
+      return;
+    }
+
+    const cleanCep = cep().replace(/\D/g, "");
+    if (cleanCep.length !== 8) {
+      setError("Informe um CEP válido com 8 dígitos.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const cardDigits = cardNumberInput().replace(/\D/g, "");
+      const derivedLastFour =
+        cardLastFour().trim() ||
+        (cardDigits.length >= 4 ? cardDigits.slice(-4) : "4242");
+
+      if (method() === "credit_card") {
+        if (
+          !settings().payment_sandbox_mode &&
+          (cardDigits.length < 13 ||
+            cardCvv().length < 3 ||
+            !cardHolder().trim() ||
+            !cardExpiry().trim())
+        ) {
+          setError("Preencha os dados completos do cartão para prosseguir.");
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      const paymentData =
+        method() === "credit_card"
+          ? {
+              installments: installments(),
+              payment_method_id: cardBrand(),
+              card_last_four: derivedLastFour,
+              // Never log/persist PAN/CVV; pass tokenized sandbox token when testing
+              card_token: settings().payment_sandbox_mode
+                ? `tok_sandbox_${derivedLastFour}`
+                : undefined,
+              sandbox_outcome: settings().payment_sandbox_mode
+                ? sandboxOutcome()
+                : undefined,
+            }
+          : undefined;
+
+      const ensuredQuoteId = await ensureShippingQuoteForCep(cleanCep);
+
+      const res = await api<{
+        data: {
+          order: { public_token: string };
+        };
+      }>("/checkout", {
+        method: "POST",
+        authenticated: false,
+        headers: cartHeaders({ "X-Idempotency-Key": idempotencyKey() }),
+        body: {
+          customer_name: name().trim(),
+          customer_email: email().trim(),
+          customer_phone: phone().trim(),
+          customer_cpf_cnpj: cpf().trim() || undefined,
+          shipping_quote_id:
+            ensuredQuoteId ?? c.shipping_quote?.quote_id ?? undefined,
+          shipping_address: {
+            recipient_name: name().trim(),
+            cep: cleanCep,
+            street: street().trim(),
+            number: number().trim(),
+            complement: complement().trim() || undefined,
+            neighborhood: neighborhood().trim(),
+            city: city().trim(),
+            state: stateUf().trim().toUpperCase(),
+          },
+          payment_method: method(),
+          payment_data: paymentData,
+          notes_customer: notes().trim() || undefined,
+        },
+      });
+
+      // Clear sensitive ephemeral fields immediately from component state
+      setCardNumberInput("");
+      setCardCvv("");
+      await refreshCart();
+      await navigate({
+        to: "/pedido/$token/confirmacao",
+        params: { token: res.data.order.public_token },
+      });
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const firstValidation = Object.values(err.validation).flat()[0];
+        setError(firstValidation || err.message);
+      } else {
+        setError(
+          "Não foi possível concluir seu pedido. Confira os dados e tente novamente.",
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <StoreShell>
+      <div class="mx-auto max-w-7xl px-4 py-8">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-4">
+          <div>
+            <h1 class="text-2xl font-bold text-zinc-900 sm:text-3xl">
+              Finalizar Compra
+            </h1>
+            <p class="text-sm text-zinc-600">
+              Preencha seus dados, endereço de entrega e selecione o pagamento.
+            </p>
+          </div>
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+            <Lock class="h-3.5 w-3.5" />
+            Ambiente protegido ·{" "}
+            {settings().payment_sandbox_mode ? "Modo Sandbox" : "Produção"}
+          </span>
+        </div>
+
+        <Show
+          when={cart() && cart()!.items.length > 0 ? cart() : null}
+          fallback={
+            <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-10 text-center">
+              <p class="text-base font-bold text-zinc-900">
+                Não há itens no seu carrinho.
+              </p>
+              <Link
+                to="/buscar"
+                class="mt-4 inline-block rounded-lg bg-[var(--mf-primary)] px-5 py-2.5 text-sm font-semibold text-white"
+              >
+                Voltar à loja
+              </Link>
+            </div>
+          }
+        >
+          {(c) => (
+            <form onSubmit={submitCheckout} class="grid gap-8 lg:grid-cols-12">
+              <div class="space-y-6 lg:col-span-8">
+                {/* 1. Identification */}
+                <section class="rounded-xl border border-zinc-200 bg-white p-5">
+                  <div class="mb-4 flex items-center justify-between">
+                    <h2 class="text-base font-bold text-zinc-900">
+                      1. Dados de contato
+                    </h2>
+                    <Show when={session.status() !== "authenticated"}>
+                      <Link
+                        to="/entrar"
+                        search={{ redirect: "/checkout" }}
+                        class="text-xs font-semibold text-[var(--mf-primary)] hover:underline"
+                      >
+                        Já tenho conta
+                      </Link>
+                    </Show>
+                  </div>
+
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="sm:col-span-2">
+                      <label
+                        for="co-name"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        Nome completo *
+                      </label>
+                      <input
+                        id="co-name"
+                        type="text"
+                        required
+                        value={name()}
+                        onInput={(e) => setName(e.currentTarget.value)}
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        for="co-email"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        E-mail *
+                      </label>
+                      <input
+                        id="co-email"
+                        type="email"
+                        required
+                        value={email()}
+                        onInput={(e) => setEmail(e.currentTarget.value)}
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        for="co-phone"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        WhatsApp / Telefone *
+                      </label>
+                      <input
+                        id="co-phone"
+                        type="tel"
+                        required
+                        value={phone()}
+                        onInput={(e) =>
+                          setPhone(formatPhone(e.currentTarget.value))
+                        }
+                        placeholder="(11) 99999-9999"
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        for="co-cpf"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        CPF ou CNPJ (para nota fiscal / Pix)
+                      </label>
+                      <input
+                        id="co-cpf"
+                        type="text"
+                        value={cpf()}
+                        onInput={(e) =>
+                          setCpf(formatCpfCnpj(e.currentTarget.value))
+                        }
+                        placeholder="000.000.000-00"
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 2. Delivery address */}
+                <section class="rounded-xl border border-zinc-200 bg-white p-5">
+                  <h2 class="mb-4 text-base font-bold text-zinc-900">
+                    2. Endereço e frete
+                  </h2>
+
+                  <Show when={savedAddresses().length > 0}>
+                    <div class="mb-4 flex flex-wrap gap-2">
+                      <For each={savedAddresses()}>
+                        {(addr) => (
+                          <button
+                            type="button"
+                            onClick={() => applyAddress(addr)}
+                            class="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:border-[var(--mf-primary)]"
+                          >
+                            {addr.label} ({addr.street}, {addr.number})
+                          </button>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+
+                  <div class="grid gap-4 sm:grid-cols-6">
+                    <div class="sm:col-span-2">
+                      <label
+                        for="co-cep"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        CEP *
+                      </label>
+                      <input
+                        id="co-cep"
+                        type="text"
+                        required
+                        maxLength={9}
+                        value={cep()}
+                        onInput={(e) => void lookupCep(e.currentTarget.value)}
+                        placeholder="00000-000"
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                      <Show when={cepLoading()}>
+                        <p class="mt-1 text-[11px] text-zinc-500">
+                          Consultando CEP...
+                        </p>
+                      </Show>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                      <label
+                        for="co-street"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        Rua / Avenida *
+                      </label>
+                      <input
+                        id="co-street"
+                        type="text"
+                        required
+                        value={street()}
+                        onInput={(e) => setStreet(e.currentTarget.value)}
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+
+                    <div class="sm:col-span-1">
+                      <label
+                        for="co-number"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        Número *
+                      </label>
+                      <input
+                        id="co-number"
+                        type="text"
+                        required
+                        value={number()}
+                        onInput={(e) => setNumber(e.currentTarget.value)}
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+
+                    <div class="sm:col-span-2">
+                      <label
+                        for="co-complement"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        Complemento
+                      </label>
+                      <input
+                        id="co-complement"
+                        type="text"
+                        value={complement()}
+                        onInput={(e) => setComplement(e.currentTarget.value)}
+                        placeholder="Apto, bloco..."
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+
+                    <div class="sm:col-span-2">
+                      <label
+                        for="co-neigh"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        Bairro *
+                      </label>
+                      <input
+                        id="co-neigh"
+                        type="text"
+                        required
+                        value={neighborhood()}
+                        onInput={(e) => setNeighborhood(e.currentTarget.value)}
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+
+                    <div class="sm:col-span-1">
+                      <label
+                        for="co-city"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        Cidade *
+                      </label>
+                      <input
+                        id="co-city"
+                        type="text"
+                        required
+                        value={city()}
+                        onInput={(e) => setCity(e.currentTarget.value)}
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                      />
+                    </div>
+
+                    <div class="sm:col-span-1">
+                      <label
+                        for="co-uf"
+                        class="block text-xs font-semibold text-zinc-700"
+                      >
+                        UF *
+                      </label>
+                      <input
+                        id="co-uf"
+                        type="text"
+                        required
+                        maxLength={2}
+                        value={stateUf()}
+                        onInput={(e) =>
+                          setStateUf(e.currentTarget.value.toUpperCase())
+                        }
+                        placeholder="SP"
+                        class="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="mt-4">
+                    <ShippingQuoteWidget
+                      mode="cart"
+                      initialCep={cep()}
+                      selectedQuoteId={c().shipping_quote?.quote_id ?? null}
+                      onSelectQuote={(q) => {
+                        if (q.quote_id) void selectCartShipping(q.quote_id);
+                      }}
+                    />
+                  </div>
+                </section>
+
+                {/* 3. Payment method */}
+                <section class="rounded-xl border border-zinc-200 bg-white p-5">
+                  <h2 class="mb-4 text-base font-bold text-zinc-900">
+                    3. Pagamento (Mercado Pago)
+                  </h2>
+
+                  <div class="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setMethod("pix")}
+                      class={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                        method() === "pix"
+                          ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]"
+                          : "border-zinc-200 bg-white hover:border-zinc-400"
+                      }`}
+                    >
+                      <QrCode class="h-6 w-6 text-[var(--mf-primary)]" />
+                      <div>
+                        <p class="text-sm font-bold text-zinc-900">
+                          Pix Instantâneo
+                        </p>
+                        <p class="text-xs text-zinc-600">
+                          QR Code + Copia e Cola · Aprovação rápida
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMethod("credit_card")}
+                      class={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                        method() === "credit_card"
+                          ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]"
+                          : "border-zinc-200 bg-white hover:border-zinc-400"
+                      }`}
+                    >
+                      <CreditCard class="h-6 w-6 text-[var(--mf-primary)]" />
+                      <div>
+                        <p class="text-sm font-bold text-zinc-900">
+                          Cartão de Crédito
+                        </p>
+                        <p class="text-xs text-zinc-600">
+                          Em até {settings().max_installments}x sem juros
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+
+                  <Show when={method() === "credit_card"}>
+                    <div class="mt-4 space-y-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                      <Show when={settings().payment_sandbox_mode}>
+                        <div class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                          <strong>Modo Sandbox ativo:</strong> nenhuma cobrança
+                          real será feita. Você pode informar dados fictícios e
+                          escolher o desfecho de teste abaixo.
+                          <div class="mt-2 flex flex-wrap gap-3">
+                            <label class="inline-flex items-center gap-1.5 font-semibold">
+                              <input
+                                type="radio"
+                                name="sb-outcome"
+                                checked={sandboxOutcome() === "approved"}
+                                onChange={() => setSandboxOutcome("approved")}
+                              />
+                              Aprovar teste
+                            </label>
+                            <label class="inline-flex items-center gap-1.5 font-semibold">
+                              <input
+                                type="radio"
+                                name="sb-outcome"
+                                checked={sandboxOutcome() === "pending"}
+                                onChange={() => setSandboxOutcome("pending")}
+                              />
+                              Em análise (pendente)
+                            </label>
+                            <label class="inline-flex items-center gap-1.5 font-semibold">
+                              <input
+                                type="radio"
+                                name="sb-outcome"
+                                checked={sandboxOutcome() === "rejected"}
+                                onChange={() => setSandboxOutcome("rejected")}
+                              />
+                              Recusar teste
+                            </label>
+                          </div>
+                        </div>
+                      </Show>
+
+                      <div class="grid gap-3 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                          <label
+                            for="cc-num"
+                            class="block text-xs font-semibold text-zinc-700"
+                          >
+                            Número do cartão
+                          </label>
+                          <input
+                            id="cc-num"
+                            type="text"
+                            inputMode="numeric"
+                            autocomplete="cc-number"
+                            placeholder="0000 0000 0000 4242"
+                            value={cardNumberInput()}
+                            onInput={(e) =>
+                              setCardNumberInput(e.currentTarget.value)
+                            }
+                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            for="cc-holder"
+                            class="block text-xs font-semibold text-zinc-700"
+                          >
+                            Nome impresso no cartão
+                          </label>
+                          <input
+                            id="cc-holder"
+                            type="text"
+                            autocomplete="cc-name"
+                            value={cardHolder()}
+                            onInput={(e) =>
+                              setCardHolder(e.currentTarget.value)
+                            }
+                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
+                          />
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                          <div>
+                            <label
+                              for="cc-exp"
+                              class="block text-xs font-semibold text-zinc-700"
+                            >
+                              Validade
+                            </label>
+                            <input
+                              id="cc-exp"
+                              type="text"
+                              autocomplete="cc-exp"
+                              placeholder="MM/AA"
+                              value={cardExpiry()}
+                              onInput={(e) =>
+                                setCardExpiry(e.currentTarget.value)
+                              }
+                              class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label
+                              for="cc-cvv"
+                              class="block text-xs font-semibold text-zinc-700"
+                            >
+                              CVV
+                            </label>
+                            <input
+                              id="cc-cvv"
+                              type="password"
+                              autocomplete="cc-csc"
+                              maxLength={4}
+                              value={cardCvv()}
+                              onInput={(e) => setCardCvv(e.currentTarget.value)}
+                              class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label
+                            for="cc-brand"
+                            class="block text-xs font-semibold text-zinc-700"
+                          >
+                            Bandeira
+                          </label>
+                          <select
+                            id="cc-brand"
+                            value={cardBrand()}
+                            onChange={(e) =>
+                              setCardBrand(e.currentTarget.value)
+                            }
+                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
+                          >
+                            <option value="visa">Visa</option>
+                            <option value="master">Mastercard</option>
+                            <option value="elo">Elo</option>
+                            <option value="amex">American Express</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label
+                            for="cc-inst"
+                            class="block text-xs font-semibold text-zinc-700"
+                          >
+                            Parcelamento
+                          </label>
+                          <select
+                            id="cc-inst"
+                            value={installments()}
+                            onChange={(e) =>
+                              setInstallments(Number(e.currentTarget.value))
+                            }
+                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
+                          >
+                            <For
+                              each={Array.from(
+                                {
+                                  length: Math.max(
+                                    1,
+                                    settings().max_installments || 6,
+                                  ),
+                                },
+                                (_, i) => i + 1,
+                              )}
+                            >
+                              {(n) => (
+                                <option value={n}>
+                                  {n}x de{" "}
+                                  {formatCents(Math.ceil(c().total_cents / n))}{" "}
+                                  sem juros
+                                </option>
+                              )}
+                            </For>
+                          </select>
+                        </div>
+                        <Show when={settings().payment_sandbox_mode}>
+                          <div class="sm:col-span-2">
+                            <label
+                              for="cc-l4"
+                              class="block text-xs font-semibold text-zinc-700"
+                            >
+                              Últimos 4 dígitos (opcional em sandbox)
+                            </label>
+                            <input
+                              id="cc-l4"
+                              type="text"
+                              maxLength={4}
+                              placeholder="4242"
+                              value={cardLastFour()}
+                              onInput={(e) =>
+                                setCardLastFour(e.currentTarget.value)
+                              }
+                              class="mt-1 h-9 w-32 rounded-md border border-zinc-300 bg-white px-3 text-sm"
+                            />
+                          </div>
+                        </Show>
+                      </div>
+                    </div>
+                  </Show>
+                </section>
+
+                <section class="rounded-xl border border-zinc-200 bg-white p-5">
+                  <label
+                    for="co-notes"
+                    class="block text-xs font-semibold text-zinc-700"
+                  >
+                    Observações do pedido (opcional)
+                  </label>
+                  <textarea
+                    id="co-notes"
+                    rows={2}
+                    value={notes()}
+                    onInput={(e) => setNotes(e.currentTarget.value)}
+                    placeholder="Instruções de entrega ou recado para nossa equipe..."
+                    class="mt-1 w-full rounded-lg border border-zinc-300 p-3 text-sm"
+                  />
+                </section>
+              </div>
+
+              {/* Order summary sidebar */}
+              <aside class="space-y-4 lg:col-span-4">
+                <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+                  <h2 class="text-base font-bold text-zinc-900">
+                    Resumo do Pedido
+                  </h2>
+                  <ul class="mt-4 space-y-3 border-b border-zinc-200 pb-4">
+                    <For each={c().items}>
+                      {(item) => (
+                        <li class="flex justify-between gap-2 text-xs">
+                          <span class="text-zinc-700">
+                            {item.quantity}x {item.product_name} (
+                            {item.variant_name})
+                          </span>
+                          <span class="shrink-0 font-semibold text-zinc-900">
+                            {formatCents(item.line_total_cents)}
+                          </span>
+                        </li>
+                      )}
+                    </For>
+                  </ul>
+
+                  <dl class="mt-4 space-y-2 text-sm">
+                    <div class="flex justify-between text-zinc-700">
+                      <dt>Subtotal</dt>
+                      <dd>{formatCents(c().subtotal_cents)}</dd>
+                    </div>
+                    <Show when={c().discount_cents > 0}>
+                      <div class="flex justify-between text-emerald-700">
+                        <dt>Desconto</dt>
+                        <dd>-{formatCents(c().discount_cents)}</dd>
+                      </div>
+                    </Show>
+                    <div class="flex justify-between text-zinc-700">
+                      <dt>
+                        Frete ({c().shipping_quote?.service_name || "Padrão"})
+                      </dt>
+                      <dd>
+                        {c().shipping_cents === 0
+                          ? "Grátis"
+                          : formatCents(c().shipping_cents)}
+                      </dd>
+                    </div>
+                    <div class="flex justify-between border-t border-zinc-200 pt-3 text-lg font-extrabold text-zinc-900">
+                      <dt>Total</dt>
+                      <dd>{formatCents(c().total_cents)}</dd>
+                    </div>
+                  </dl>
+
+                  <Show when={error()}>
+                    <p
+                      role="alert"
+                      class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800"
+                    >
+                      {error()}
+                    </p>
+                  </Show>
+
+                  <button
+                    type="submit"
+                    disabled={submitting()}
+                    class="mt-5 flex h-12 w-full items-center justify-center rounded-lg bg-[var(--mf-primary)] px-5 text-sm font-bold text-white transition hover:bg-[var(--mf-primary-hover)] disabled:opacity-60"
+                  >
+                    {submitting()
+                      ? "Processando pedido..."
+                      : method() === "pix"
+                        ? "Gerar Pix e Finalizar Pedido"
+                        : "Confirmar Pagamento com Cartão"}
+                  </button>
+                </div>
+              </aside>
+            </form>
+          )}
+        </Show>
+      </div>
+    </StoreShell>
+  );
+}

@@ -49,6 +49,16 @@ export function getCurrentUser(): Promise<User | null> {
   return request;
 }
 
+function guestCartHeader(): Record<string, string> | undefined {
+  try {
+    if (typeof localStorage === "undefined") return undefined;
+    const token = localStorage.getItem("mf:cart-token:v1");
+    return token ? { "X-Cart-Token": token } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function login(
   input: LoginInput,
 ): Promise<"authenticated" | "mfa"> {
@@ -58,6 +68,7 @@ export async function login(
     scope: "auth",
     method: "POST",
     body: input,
+    headers: guestCartHeader(),
     authenticated: false,
   });
   if (
@@ -80,9 +91,31 @@ export async function completeMfa(code: string) {
     scope: "auth",
     method: "POST",
     body: { code },
+    headers: guestCartHeader(),
     authenticated: false,
   });
   if (!(await getCurrentUser())) throw new ApiError("http", 401);
+}
+
+export async function registerCustomer(input: {
+  name: string;
+  email: string;
+  phone?: string;
+  cpf_cnpj?: string;
+  password: string;
+  password_confirmation: string;
+  newsletter_opt_in?: boolean;
+}) {
+  cancelSessionRequest();
+  resetSession();
+  await api("/register", {
+    scope: "auth",
+    method: "POST",
+    body: input,
+    headers: guestCartHeader(),
+    authenticated: false,
+  });
+  await getCurrentUser();
 }
 export async function logout() {
   cancelSessionRequest();

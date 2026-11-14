@@ -1,68 +1,79 @@
-# DevStep — iniciar o ambiente
+# Mistura Feminina Cosméticos — E-commerce Completo & Backoffice
 
-Na pasta principal:
+Plataforma de e-commerce brasileiro construída sobre a arquitetura **DevStep** (`backend/` Laravel 13 API + `frontend/` SolidJS 1.9 + TanStack Solid Router/Query + Tailwind CSS v4).
+
+- **Loja (Frontend):** `http://localhost:3000`
+- **Painel Administrativo:** `http://localhost:3000/admin`
+- **API Backend:** `http://localhost:8000/api/v1`
+
+---
+
+## 1. Inicialização Rápida (Local)
+
+Na raiz do projeto:
 
 ```sh
-# Linux
+# macOS / Linux
 ./iniciar.sh
 
-# Windows (Prompt/PowerShell, ou duplo clique)
+# Windows
 iniciar.bat
 ```
 
-O inicializador prepara dependências quando necessário, cria os arquivos `.env` ausentes, gera `APP_KEY` se estiver vazia, conecta ao MySQL, cria o banco ausente e executa `php artisan migrate`. Depois inicia Laravel e Vite no mesmo terminal.
-
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
-- **Ctrl+C** encerra os servidores iniciados pelo script. MySQL/Redis permanecem ativos.
-- Portas ocupadas interrompem a inicialização; processos existentes não são encerrados.
-
-## Requisitos
-
-Node.js 22.12+, npm, PHP 8.3+ com extensões exigidas pelo Laravel, Composer e MySQL/MariaDB instalado. O script não instala o servidor de banco nem descobre senhas.
-
-Se `backend/.env` já existe, suas credenciais são preservadas. Confira:
-
-```dotenv
-APP_ENV=local
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=devstep
-DB_USERNAME=seu_usuario
-DB_PASSWORD=sua_senha
-```
-
-O usuário precisa acessar o banco e executar migrations. Para criar automaticamente um banco ausente, também precisa da permissão `CREATE DATABASE`; caso contrário, crie o banco previamente.
-
-Um `.env` novo usa MySQL local na porta 3306, usuário `root` sem senha e banco `devstep`; ajuste as credenciais se sua instalação usar outra configuração. Cache e filas usam `database` nesse ambiente novo, dispensando Redis. Configurações existentes não são alteradas.
-
-## MySQL e Redis parados
-
-O script tenta iniciar serviços locais já instalados:
-
-- Linux com systemd: `mysqld`, `mysql` ou `mariadb`; Redis quando os drivers existentes exigirem. Pode solicitar autorização/senha de administrador para o serviço.
-- Windows: serviços com nome MySQL/MariaDB e Redis/Memurai. Para iniciar serviços parados, pode ser necessário abrir o terminal como Administrador. No XAMPP sem serviço instalado, inicie MySQL pelo painel.
-
-Se o serviço tem outro nome, defina `DEVSTEP_MYSQL_SERVICE` ou `DEVSTEP_REDIS_SERVICE` no terminal. Hosts remotos, hosts Docker (`mysql`/`redis`), sockets especiais e portas personalizadas precisam estar disponíveis previamente. O script não inicia Docker nem altera as credenciais para tentar contornar uma recusa de autenticação.
-
-No Windows nativo, Composer ignora apenas as extensões Unix `pcntl`/`posix` exigidas pelo Horizon. **Horizon requer Linux/WSL**; ele não é iniciado por esse script. Workers e scheduler também são processos separados; veja a documentação do backend para utilizá-los.
-
-## Diagnóstico e opções
+Para preparar o banco local com catálogo demonstrativo completo pela primeira vez em desenvolvimento:
 
 ```sh
-./iniciar.sh --check        # Somente diagnóstico; não altera .env/banco nem sobe serviços
-./iniciar.sh --no-services  # Prepara e inicia os apps; não tenta iniciar MySQL/Redis
-./iniciar.sh --help
+cd backend
+php artisan migrate --seed --seeder=DemoStoreSeeder
+php artisan storage:link
 ```
 
-As mesmas opções funcionam em `iniciar.bat`. `--check` também exige as portas 3000/8000 livres. Inicialização permitida somente em `APP_ENV=local` ou `development`.
+> **Importante:** `DemoStoreSeeder` não executa em `APP_ENV=production`. Para produção, provisione o primeiro admin com `php artisan mistura:admin EMAIL --role=superadmin`.
 
-As migrations são incrementais: **não há `migrate:fresh`, reset de tabelas ou seed automático**. Para criar seu usuário, use `php artisan devstep:user EMAIL` na pasta backend. Alterações nos lockfiles fazem o inicializador atualizar as dependências; o estado local fica em `.devstep/` (ignorado pelo Git).
+---
 
-## Documentação e testes
+## 2. Credenciais Demonstrativas (Ambiente Local / Sandbox)
 
-- [Frontend](frontend/README.md) e [guia da equipe](frontend/docs/README.md).
-- [Backend e ambiente Docker opcional](backend/docs/quickstart.md).
-- `node --test scripts/dev.test.mjs` verifica o inicializador.
-- O launcher usa somente APIs nativas do Node; não precisa instalar dependências na raiz.
+| Papel | E-mail | Senha | Acesso |
+|---|---|---|---|
+| **Superadmin** | `admin@misturafeminina.local` | `Mistura@Admin2026!` | `/admin` (acesso total) |
+| **Marketing** | `marketing@misturafeminina.local` | `Mistura@Mkt2026!` | `/admin` (banners, cupons, aparência) |
+| **Cliente** | `cliente@misturafeminina.local` | `Cliente@2026!` | `/minha-conta`, pedidos e favoritos |
+
+Cupom ativo de teste na loja: **`BEMVINDA10`** (10% de desconto).
+
+---
+
+## 3. Documentação Técnica e Operacional
+
+- [**Auditoria Inicial e Matriz de Referência**](docs/FASE0_AUDITORIA_E_MATRIZ.md)
+- [**Arquitetura, Domínios e Segurança**](docs/ARQUITETURA.md)
+- [**Manual do Administrador (/admin)**](docs/ADMIN_MANUAL.md)
+- [**Integrações Externas e Homologação**](docs/INTEGRACOES.md)
+- [**Deploy em Produção, Supervisor, Cron e Backup**](docs/DEPLOY.md)
+- [**Testes Executados e Critérios de Aceite**](docs/TESTES_ACEITE.md)
+
+---
+
+## 4. Comandos Principais de Validação
+
+```sh
+# Backend (Pint + Larastan L5 + Pest)
+cd backend && composer check
+
+# Frontend (Format, Lint, Vitest, Build, Bundle Budget e E2E mockado)
+cd frontend && npm run format:check && npm run lint && npm test && npm run build && npm run performance:check && npm run test:e2e
+
+# E2E Full-Stack ao vivo (Loja + Checkout Pix/Cartão Sandbox + Backoffice)
+cd frontend && npx playwright test --config=playwright.real.config.ts
+```
+
+---
+
+## 5. Utilitários Artisan do Projeto (`backend/`)
+
+- `php artisan mistura:admin {email} --role=superadmin`: Cria/atualiza administrador com papel RBAC.
+- `php artisan mistura:release-expired-reservations`: Libera reservas de estoque de pedidos pendentes expirados.
+- `php artisan mistura:reconcile-payments`: Reconcilia pedidos pendentes na API do Mercado Pago.
+- `php artisan mistura:backup`: Cria snapshot consistente do banco em `storage/app/backups/`.
+- `php artisan devstep:health`: Verifica conexão com banco de dados e Redis/fila.
