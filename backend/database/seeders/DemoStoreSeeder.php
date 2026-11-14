@@ -766,7 +766,7 @@ class DemoStoreSeeder extends Seeder
             ['key' => 'offers_week', 'type' => 'product_showcase', 'title' => 'Confira nossas ofertas da semana', 'subtitle' => 'Descontos válidos enquanto durarem os estoques', 'config' => ['filter' => 'offers', 'limit' => 8, 'cta_url' => '/promocoes'], 'order' => 5],
             ['key' => 'promo_banners', 'type' => 'banner_grid', 'title' => null, 'subtitle' => null, 'config' => [], 'order' => 6],
             ['key' => 'new_arrivals', 'type' => 'product_showcase', 'title' => 'Novidades na Loja', 'subtitle' => 'Lançamentos recém-chegados ao catálogo', 'config' => ['filter' => 'new_arrivals', 'limit' => 8, 'cta_url' => '/novidades'], 'order' => 7],
-            ['key' => 'brands_row', 'type' => 'brand_showcase', 'title' => 'Marcas em Destaque', 'subtitle' => 'Qualidade selecionada pela Mistura Feminina Cosméticos', 'config' => ['limit' => 8], 'order' => 8],
+            ['key' => 'brands_row', 'type' => 'product_showcase', 'title' => 'Mistura Lab', 'subtitle' => null, 'config' => ['filter' => 'brand', 'brand_slug' => 'mistura-lab', 'limit' => 8, 'borderless' => true, 'show_view_all' => false, 'cta_url' => '/marca/mistura-lab'], 'order' => 8],
             ['key' => 'best_sellers', 'type' => 'product_showcase', 'title' => 'Mais Vendidos', 'subtitle' => 'Os queridinhos das nossas clientes', 'config' => ['filter' => 'best_sellers', 'limit' => 8, 'cta_url' => '/categorias'], 'order' => 9],
             ['key' => 'newsletter_box', 'type' => 'newsletter', 'title' => 'Receba lançamentos e cupons exclusivos', 'subtitle' => 'Cadastre seu e-mail para novidades da Mistura Feminina Cosméticos', 'config' => [], 'order' => 10],
         ];

@@ -328,7 +328,11 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
       ? (props.section.data as ProductCardData[])
       : [];
   const filter = () => String(props.section.config?.filter ?? "featured");
+  const isBorderless = () => Boolean(props.section.config?.borderless);
+  const showViewAll = () => props.section.config?.show_view_all !== false;
   const viewAllHref = () => {
+    const cta = props.section.config?.cta_url;
+    if (typeof cta === "string" && cta.length > 0) return cta;
     if (filter() === "offers") return "/promocoes";
     if (filter() === "new_arrivals") return "/novidades";
     return "/buscar";
@@ -344,7 +348,7 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
   return (
     <Show when={products().length > 0}>
       <section class="mx-auto max-w-7xl px-4 py-8 sm:py-10">
-        <div class="mb-5 text-center">
+        <div class="mb-6 text-center">
           <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
             {props.section.title || "Confira nossas ofertas da semana"}
           </h2>
@@ -352,18 +356,22 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
         </div>
 
         <div class="relative sm:px-4">
-          <div class="mb-4 flex justify-start">
-            <Link
-              to={viewAllHref()}
-              class="inline-flex items-center justify-center rounded-full bg-[#62298D] px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-[#4C1D70]"
-            >
-              Ver tudo
-            </Link>
-          </div>
+          <Show when={showViewAll()}>
+            <div class="mb-4 flex justify-start">
+              <Link
+                to={viewAllHref()}
+                class="inline-flex items-center justify-center rounded-full bg-[#62298D] px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-[#4C1D70]"
+              >
+                Ver tudo
+              </Link>
+            </div>
+          </Show>
 
           <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <For each={visibleProducts().slice(0, 4)}>
-              {(product) => <ProductCard product={product} />}
+              {(product) => (
+                <ProductCard product={product} borderless={isBorderless()} />
+              )}
             </For>
           </div>
 
@@ -372,7 +380,11 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
               type="button"
               onClick={() => setOffset((o) => o - 1)}
               aria-label={`Produtos anteriores em ${props.section.title || "vitrine"}`}
-              class="absolute -left-1 top-[148px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:left-0 sm:top-[52%] sm:size-9"
+              class={`absolute -left-1 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:left-0 sm:size-9 ${
+                showViewAll()
+                  ? "top-[148px] sm:top-[52%]"
+                  : "top-[110px] sm:top-[44%]"
+              }`}
             >
               <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
@@ -380,7 +392,11 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
               type="button"
               onClick={() => setOffset((o) => o + 1)}
               aria-label={`Próximos produtos em ${props.section.title || "vitrine"}`}
-              class="absolute -right-1 top-[148px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:right-0 sm:top-[52%] sm:size-9"
+              class={`absolute -right-1 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:right-0 sm:size-9 ${
+                showViewAll()
+                  ? "top-[148px] sm:top-[52%]"
+                  : "top-[110px] sm:top-[44%]"
+              }`}
             >
               <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>

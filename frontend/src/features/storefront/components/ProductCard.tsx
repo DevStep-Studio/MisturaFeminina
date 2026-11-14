@@ -6,7 +6,10 @@ import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
 import { addCartItem, storefrontStore } from "../store";
 import type { ProductCardData } from "../types";
 
-export function ProductCard(props: { product: ProductCardData }) {
+export function ProductCard(props: {
+  product: ProductCardData;
+  borderless?: boolean;
+}) {
   const [adding, setAdding] = createSignal(false);
   const [feedback, setFeedback] = createSignal("");
   const settings = () => storefrontStore.settings();
@@ -25,7 +28,13 @@ export function ProductCard(props: { product: ProductCardData }) {
   };
 
   return (
-    <article class="flex h-full flex-col rounded-xl border border-zinc-200/80 bg-white p-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] transition-shadow hover:shadow-md">
+    <article
+      class={`flex h-full flex-col rounded-xl border bg-white p-3.5 transition-shadow ${
+        props.borderless
+          ? "border-transparent shadow-none hover:shadow-sm"
+          : "border-zinc-200/80 shadow-[0_2px_10px_rgba(0,0,0,0.03)] hover:shadow-md"
+      }`}
+    >
       <div class="relative aspect-square overflow-hidden rounded-lg bg-white">
         <Link
           to="/produto/$slug"
