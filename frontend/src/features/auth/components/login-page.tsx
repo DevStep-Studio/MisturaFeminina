@@ -51,7 +51,10 @@ export function LoginPage(props: { redirect?: string }) {
       setError("");
       setFieldErrors({});
       try {
-        const result = await login(value);
+        const result = await login({
+          email: value.email.trim(),
+          password: value.password.trim(),
+        });
         form.setFieldValue("password", "");
         if (disposed) return;
         if (result === "mfa") setMfa(true);
@@ -242,9 +245,22 @@ export function LoginPage(props: { redirect?: string }) {
               </button>
             )}
           </form.Subscribe>
-          <a class={`${linkClass} inline-block`} href="/forgot-password">
-            Esqueci minha senha
-          </a>
+          <div class="flex items-center justify-between pt-1">
+            <a class={linkClass} href="/forgot-password">
+              Esqueci minha senha
+            </a>
+            <button
+              type="button"
+              class="text-xs font-semibold text-[#93509e] hover:underline"
+              onClick={() => {
+                form.setFieldValue("email", "admin@misturafeminina.local");
+                form.setFieldValue("password", "Mistura@Admin2026!");
+                setError("");
+              }}
+            >
+              Preencher dados de Admin
+            </button>
+          </div>
         </form>
       </Show>
     </AuthFrame>

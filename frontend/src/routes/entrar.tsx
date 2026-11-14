@@ -56,7 +56,7 @@ function StoreLoginPage() {
     try {
       const outcome = await login({
         email: email().trim(),
-        password: password(),
+        password: password().trim(),
       });
       if (outcome === "mfa") {
         setMfaStep(true);
