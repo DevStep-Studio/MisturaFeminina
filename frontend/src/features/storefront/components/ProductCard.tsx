@@ -50,9 +50,9 @@ export function ProductCard(props: {
         </Link>
 
         {/* Top-left Status Badges */}
-        <div class="pointer-events-none absolute left-1 top-1 flex flex-col items-start gap-1.5">
+        <div class="pointer-events-none absolute left-1.5 top-1.5 flex flex-col items-start gap-1">
           <Show when={props.product.in_stock && props.product.is_new_arrival}>
-            <span class="rounded-full bg-[#C918BF] px-3 py-[3px] text-[9.5px] font-bold uppercase tracking-wide text-white">
+            <span class="inline-flex items-center rounded-md border border-[#E5D4F0] bg-[#FAF5FD]/95 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#3D1260] shadow-2xs backdrop-blur-xs">
               Lançamento
             </span>
           </Show>
@@ -63,7 +63,7 @@ export function ProductCard(props: {
               props.product.is_featured
             }
           >
-            <span class="rounded-full bg-[#C918BF] px-3 py-[3px] text-[9.5px] font-bold uppercase tracking-wide text-white">
+            <span class="inline-flex items-center rounded-md border border-[#F2D0E6] bg-[#FDF4F9]/95 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8A145C] shadow-2xs backdrop-blur-xs">
               Destaque
             </span>
           </Show>
@@ -73,15 +73,14 @@ export function ProductCard(props: {
         <Show
           when={props.product.in_stock}
           fallback={
-            <span class="pointer-events-none absolute right-1 top-1 rounded-full bg-[#EE0000] px-3.5 py-1 text-[10.5px] font-bold text-white">
+            <span class="pointer-events-none absolute right-1.5 top-1.5 inline-flex items-center rounded-md border border-zinc-200 bg-zinc-100/95 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-700 shadow-2xs backdrop-blur-xs">
               Esgotado
             </span>
           }
         >
           <Show when={props.product.discount_percent > 0}>
-            <span class="pointer-events-none absolute right-1 top-1 flex size-10 flex-col items-center justify-center rounded-full bg-[#2F0572] text-[9.5px] font-extrabold leading-[1.05] text-white sm:size-11 sm:text-[10px]">
-              <span>-{props.product.discount_percent}%</span>
-              <span>OFF</span>
+            <span class="pointer-events-none absolute right-1.5 top-1.5 inline-flex items-center rounded-md bg-[#2E0C49] px-2 py-0.5 text-[10px] font-bold tracking-[0.06em] text-white shadow-2xs">
+              -{props.product.discount_percent}% OFF
             </span>
           </Show>
         </Show>
