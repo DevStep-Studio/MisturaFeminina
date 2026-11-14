@@ -167,6 +167,34 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
   );
 }
 
+function renderCouponSubtitle(
+  subtitle: string | null | undefined,
+  code: string,
+) {
+  if (!subtitle) {
+    return (
+      <>
+        Na sua primeira compra, use o cupom{" "}
+        <strong class="font-bold">{code}</strong> e ganhe 10% OFF!
+      </>
+    );
+  }
+  const idx = subtitle.toUpperCase().indexOf(code.toUpperCase());
+  if (idx === -1) {
+    return subtitle;
+  }
+  const before = subtitle.slice(0, idx);
+  const match = subtitle.slice(idx, idx + code.length);
+  const after = subtitle.slice(idx + code.length);
+  return (
+    <>
+      {before}
+      <strong class="font-bold">{match}</strong>
+      {after}
+    </>
+  );
+}
+
 function CouponStripBlock(props: {
   section: HomeSectionData;
   coupon: CouponSummary | null;
@@ -186,26 +214,25 @@ function CouponStripBlock(props: {
   return (
     <Show when={props.coupon}>
       {(coupon) => (
-        <section class="bg-white py-4 sm:py-5">
-          <div class="mx-auto flex max-w-7xl flex-col items-center justify-center gap-2.5 px-4 text-center sm:flex-row sm:gap-4">
-            <p class="text-xs text-[#3D1260] sm:text-[14px]">
+        <section class="bg-white py-3.5 sm:py-4">
+          <div class="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3 px-4 text-center sm:flex-row sm:gap-5">
+            <p class="text-[13px] font-normal leading-snug text-[#5E2889] sm:text-[15px]">
               <strong class="font-bold">
                 {props.section.title || "Aproveite um Desconto Especial!"}
               </strong>{" "}
-              {props.section.subtitle ||
-                `Na sua primeira compra, use o cupom ${coupon().code} e ganhe 10% OFF!`}
+              {renderCouponSubtitle(props.section.subtitle, coupon().code)}
             </p>
-            <div class="inline-flex shrink-0 items-stretch">
-              <span class="inline-flex items-center rounded-l-full border border-r-0 border-dashed border-[#62298D] bg-white px-5 py-1.5 font-mono text-xs font-bold tracking-wide text-[#2E1049] sm:text-[13px]">
+            <div class="inline-flex h-[36px] shrink-0 items-stretch sm:h-[38px]">
+              <span class="inline-flex items-center justify-center rounded-l-full border-[1.5px] border-r-0 border-dashed border-[#5E2889] bg-white px-6 text-[13px] font-bold tracking-normal text-[#5E2889] sm:px-7 sm:text-[14px]">
                 {coupon().code}
               </span>
               <button
                 type="button"
                 onClick={() => void copy(coupon().code)}
-                class="inline-flex items-center gap-1.5 rounded-r-full border border-[#62298D] bg-[#62298D] px-5 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#4C1D70] sm:text-[13px]"
+                class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-r-full bg-[#5E2889] px-5 text-[13px] font-bold text-white transition-colors hover:bg-[#4B1E6E] sm:px-6 sm:text-[14px]"
               >
                 <Show when={copied()}>
-                  <Check class="h-3.5 w-3.5" />
+                  <Check class="h-3.5 w-3.5" aria-hidden="true" />
                 </Show>
                 {copied() ? "Copiado!" : "Copiar"}
               </button>
