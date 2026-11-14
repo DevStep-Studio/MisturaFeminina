@@ -53,6 +53,7 @@ export interface CategoryNode {
   icon?: string | null;
   description?: string | null;
   children?: CategoryNode[];
+  featured_product?: ProductCardData | null;
 }
 
 export interface BrandItem {
@@ -245,6 +246,8 @@ export interface CartSummary {
 export interface BootstrapPayload {
   settings: StoreSettings;
   menu_categories: CategoryNode[];
+  promo_products?: ProductCardData[];
+  recommended_products?: ProductCardData[];
   brands: BrandItem[];
   footer_pages: FooterPageLink[];
   featured_coupon: CouponSummary | null;

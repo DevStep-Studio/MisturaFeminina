@@ -32,6 +32,8 @@ class StorefrontController extends Controller
     {
         $config = $this->settings->getPublicConfig();
 
+        $maxInstallments = (int) ($config['max_installments'] ?? 6);
+
         $categories = Category::query()
             ->where('is_active', true)
             ->where('show_in_menu', true)
@@ -39,7 +41,46 @@ class StorefrontController extends Controller
             ->with(['children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->with(['children' => fn ($q2) => $q2->where('is_active', true)->orderBy('sort_order')])])
             ->orderBy('sort_order')
             ->get()
-            ->map(fn (Category $cat): array => $this->formatCategoryNode($cat))
+            ->map(function (Category $cat) use ($maxInstallments): array {
+                $node = $this->formatCategoryNode($cat);
+                $catIds = $this->collectCategoryIds($cat);
+                $featured = Product::query()
+                    ->where('is_active', true)
+                    ->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $catIds))
+                    ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+                    ->orderByDesc('is_featured')
+                    ->orderByDesc('sales_count')
+                    ->orderBy('id')
+                    ->first();
+                $node['featured_product'] = $featured
+                    ? CatalogController::serializeProductCard($featured, $maxInstallments)
+                    : null;
+
+                return $node;
+            })
+            ->values();
+
+        $promoProducts = Product::query()
+            ->where('is_active', true)
+            ->whereNotNull('promo_price_cents')
+            ->whereColumn('promo_price_cents', '<', 'price_cents')
+            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->orderByDesc('is_featured')
+            ->orderByDesc('sales_count')
+            ->limit(8)
+            ->get()
+            ->map(fn (Product $p): array => CatalogController::serializeProductCard($p, $maxInstallments))
+            ->values();
+
+        $recommendedProducts = Product::query()
+            ->where('is_active', true)
+            ->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) > 0'))
+            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->orderByDesc('is_best_seller')
+            ->orderByDesc('is_featured')
+            ->limit(4)
+            ->get()
+            ->map(fn (Product $p): array => CatalogController::serializeProductCard($p, $maxInstallments))
             ->values();
 
         $brands = Brand::query()
@@ -67,6 +108,8 @@ class StorefrontController extends Controller
             'data' => [
                 'settings' => $config,
                 'menu_categories' => $categories,
+                'promo_products' => $promoProducts,
+                'recommended_products' => $recommendedProducts,
                 'brands' => $brands,
                 'footer_pages' => $footerPages,
                 'featured_coupon' => $featuredCoupon,
@@ -286,5 +329,16 @@ class StorefrontController extends Controller
             'icon' => $category->icon,
             'children' => $category->children->map(fn (Category $c): array => $this->formatCategoryNode($c))->values()->all(),
         ];
+    }
+
+    /** @return list<int> */
+    private function collectCategoryIds(Category $category): array
+    {
+        $ids = [$category->id];
+        foreach ($category->children as $child) {
+            $ids = array_merge($ids, $this->collectCategoryIds($child));
+        }
+
+        return $ids;
     }
 }

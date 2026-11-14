@@ -41,7 +41,16 @@ class CatalogController extends Controller
 
     public function categoryShow(Request $request, string $slug): JsonResponse
     {
-        $category = Category::query()->where('slug', $slug)->where('is_active', true)->with('parent:id,name,slug', 'children:id,parent_id,name,slug,image_path')->first();
+        $category = Category::query()
+            ->where('slug', $slug)
+            ->where('is_active', true)
+            ->with([
+                'parent:id,name,slug',
+                'children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->with([
+                    'children' => fn ($q2) => $q2->where('is_active', true)->orderBy('sort_order'),
+                ]),
+            ])
+            ->first();
         if (! $category) {
             $redirect = SlugRedirect::query()->where('entity_type', 'category')->where('old_slug', $slug)->first();
             if ($redirect) {
@@ -50,7 +59,13 @@ class CatalogController extends Controller
             abort(404, 'Categoria não encontrada.');
         }
 
-        $categoryIds = array_merge([$category->id], $category->children->pluck('id')->all());
+        $categoryIds = [$category->id];
+        foreach ($category->children as $child) {
+            $categoryIds[] = $child->id;
+            foreach ($child->children as $grandChild) {
+                $categoryIds[] = $grandChild->id;
+            }
+        }
         $query = Product::query()
             ->where('is_active', true)
             ->whereHas('categories', fn (Builder $q) => $q->whereIn('categories.id', $categoryIds));
@@ -342,6 +357,11 @@ class CatalogController extends Controller
             $query->whereHas('brand', fn (Builder $bq) => $bq->whereIn('slug', $brands));
         }
 
+        if ($request->filled('category')) {
+            $catSlugs = array_filter(explode(',', (string) $request->query('category')));
+            $query->whereHas('categories', fn (Builder $cq) => $cq->whereIn('slug', $catSlugs));
+        }
+
         if ($request->boolean('in_stock')) {
             $query->whereHas('variants', fn (Builder $vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) > 0'));
         }
@@ -371,8 +391,17 @@ class CatalogController extends Controller
             ->paginate($perPage);
 
         $availableBrands = Brand::query()
+            ->where('is_active', true)
             ->whereHas('products', fn ($q) => $q->whereIn('products.id', $baseIds))
+            ->orderBy('name')
             ->get(['id', 'name', 'slug']);
+
+        $availableCategories = Category::query()
+            ->where('is_active', true)
+            ->whereHas('products', fn ($q) => $q->whereIn('products.id', $baseIds))
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'parent_id']);
 
         return [
             'products' => $paginator->getCollection()->map(fn (Product $p): array => self::serializeProductCard($p))->values()->all(),
@@ -384,6 +413,7 @@ class CatalogController extends Controller
             ],
             'facets' => [
                 'brands' => $availableBrands,
+                'categories' => $availableCategories,
             ],
         ];
     }

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/solid-router";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
-import { For, Show, createEffect, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { api } from "../../../lib/api";
 import type { BrandItem, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
@@ -16,6 +16,12 @@ export interface CatalogListingProps {
   brands?: BrandItem[];
   showFilters?: boolean;
   emptyMessage?: string;
+}
+
+interface FacetItem {
+  id: number;
+  name: string;
+  slug: string;
 }
 
 interface CatalogPaginatedResponse {
@@ -34,6 +40,10 @@ interface CatalogPaginatedResponse {
       last_page: number;
       total: number;
     };
+    facets?: {
+      brands?: FacetItem[];
+      categories?: FacetItem[];
+    };
     current_page?: number;
     last_page?: number;
     total?: number;
@@ -41,18 +51,42 @@ interface CatalogPaginatedResponse {
   redirect_to?: string;
 }
 
+function toggleSlug(list: string[], slug: string): string[] {
+  return list.includes(slug) ? list.filter((s) => s !== slug) : [...list, slug];
+}
+
 export function CatalogListingView(props: CatalogListingProps) {
   const [sort, setSort] = createSignal("relevance");
-  const [brand, setBrand] = createSignal("");
+  const [selectedBrands, setSelectedBrands] = createSignal<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = createSignal<string[]>(
+    [],
+  );
   const [inStockOnly, setInStockOnly] = createSignal(false);
   const [minPrice, setMinPrice] = createSignal("");
   const [maxPrice, setMaxPrice] = createSignal("");
+  const [appliedPriceRange, setAppliedPriceRange] = createSignal<
+    [string, string]
+  >(["", ""]);
   const [page, setPage] = createSignal(1);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = createSignal(false);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [items, setItems] = createSignal<ProductCardData[]>([]);
+  const [facetBrands, setFacetBrands] = createSignal<FacetItem[]>([]);
+  const [facetCategories, setFacetCategories] = createSignal<FacetItem[]>([]);
   const [total, setTotal] = createSignal(0);
   const [lastPage, setLastPage] = createSignal(1);
+
+  const availableBrands = () =>
+    facetBrands().length > 0 ? facetBrands() : (props.brands ?? []);
+
+  const hasActiveFilters = () =>
+    selectedBrands().length > 0 ||
+    selectedCategories().length > 0 ||
+    inStockOnly() ||
+    appliedPriceRange()[0] !== "" ||
+    appliedPriceRange()[1] !== "" ||
+    sort() !== "relevance";
 
   async function fetchProducts() {
     setLoading(true);
@@ -65,10 +99,14 @@ export function CatalogListingView(props: CatalogListingProps) {
         }
       }
       if (sort() !== "relevance") qs.set("sort", sort());
-      if (brand()) qs.set("brand", brand());
+      if (selectedBrands().length > 0)
+        qs.set("brand", selectedBrands().join(","));
+      if (selectedCategories().length > 0)
+        qs.set("category", selectedCategories().join(","));
       if (inStockOnly()) qs.set("in_stock", "1");
-      if (minPrice()) qs.set("min_price", String(Number(minPrice())));
-      if (maxPrice()) qs.set("max_price", String(Number(maxPrice())));
+      const [pMin, pMax] = appliedPriceRange();
+      if (pMin) qs.set("min_price", String(Number(pMin)));
+      if (pMax) qs.set("max_price", String(Number(pMax)));
       qs.set("page", String(page()));
       qs.set("per_page", "24");
 
@@ -79,6 +117,9 @@ export function CatalogListingView(props: CatalogListingProps) {
       );
 
       const d = res?.data ?? {};
+      if (d.facets?.brands) setFacetBrands(d.facets.brands);
+      if (d.facets?.categories) setFacetCategories(d.facets.categories);
+
       if (Array.isArray(d.products)) {
         setItems(d.products);
         setTotal(d.meta?.total ?? d.total ?? d.products.length);
@@ -103,41 +144,57 @@ export function CatalogListingView(props: CatalogListingProps) {
     }
   }
 
+  createEffect(
+    on(
+      () => props.endpoint,
+      () => {
+        setSelectedBrands([]);
+        setSelectedCategories([]);
+        setPage(1);
+      },
+      { defer: true },
+    ),
+  );
+
   createEffect(() => {
     void props.endpoint;
     void props.fixedParams;
     void sort();
-    void brand();
+    void selectedBrands();
+    void selectedCategories();
     void inStockOnly();
+    void appliedPriceRange();
     void page();
     void fetchProducts();
   });
 
   function applyPriceFilter(e: Event) {
     e.preventDefault();
+    setAppliedPriceRange([minPrice().trim(), maxPrice().trim()]);
     setPage(1);
-    void fetchProducts();
   }
 
   function resetFilters() {
-    setBrand("");
+    setSelectedBrands([]);
+    setSelectedCategories([]);
     setInStockOnly(false);
     setMinPrice("");
     setMaxPrice("");
+    setAppliedPriceRange(["", ""]);
     setSort("relevance");
     setPage(1);
   }
 
   return (
     <StoreShell>
-      <div class="mx-auto max-w-7xl px-4 py-6 sm:py-8">
+      <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Show when={props.breadcrumbs && props.breadcrumbs.length > 0}>
           <nav
             aria-label="Navegação estrutural"
-            class="mb-4 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500"
+            class="mb-4 flex flex-wrap items-center gap-1.5 text-xs font-medium text-[#5B486B]"
           >
-            <Link to="/" class="hover:text-zinc-900">
-              Início
+            <Link to="/" class="hover:text-[#C22583]">
+              Home
             </Link>
             <For each={props.breadcrumbs}>
               {(crumb) => (
@@ -146,12 +203,12 @@ export function CatalogListingView(props: CatalogListingProps) {
                   <Show
                     when={crumb.to}
                     fallback={
-                      <span class="font-medium text-zinc-900">
+                      <span class="font-semibold text-[#3D1260]">
                         {crumb.label}
                       </span>
                     }
                   >
-                    <Link to={crumb.to!} class="hover:text-zinc-900">
+                    <Link to={crumb.to!} class="hover:text-[#C22583]">
                       {crumb.label}
                     </Link>
                   </Show>
@@ -161,109 +218,167 @@ export function CatalogListingView(props: CatalogListingProps) {
           </nav>
         </Show>
 
-        <header class="mb-6 flex flex-col gap-4 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <header class="mb-6 flex flex-col gap-4 border-b border-[#EFE3F2] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 class="text-2xl font-bold text-zinc-900 sm:text-3xl">
+            <h1 class="text-2xl font-extrabold tracking-tight text-[#2E1049] sm:text-[28px]">
               {props.title}
             </h1>
             <Show when={props.subtitle}>
-              <p class="mt-1 max-w-2xl text-sm text-zinc-600">
+              <p class="mt-1 max-w-2xl text-sm text-[#5B486B]">
                 {props.subtitle}
               </p>
             </Show>
           </div>
 
           <div class="flex flex-wrap items-center gap-3">
-            <span class="text-xs font-medium text-zinc-600">
+            <Show when={props.showFilters !== false}>
+              <button
+                type="button"
+                aria-expanded={mobileFiltersOpen()}
+                onClick={() => setMobileFiltersOpen(!mobileFiltersOpen())}
+                class="inline-flex h-10 items-center gap-1.5 rounded-full border border-[#E5DAE9] bg-[#F5F2F7] px-4 text-xs font-bold text-[#3D1260] lg:hidden"
+              >
+                <SlidersHorizontal class="size-3.5 text-[#C22583]" />
+                <span>Filtros</span>
+              </button>
+            </Show>
+
+            <span class="text-xs font-semibold text-[#5B486B]">
               {total()} {total() === 1 ? "produto" : "produtos"}
             </span>
-            <label for="catalog-sort" class="sr-only">
-              Ordenar por
-            </label>
-            <select
-              id="catalog-sort"
-              value={sort()}
-              onChange={(e) => {
-                setSort(e.currentTarget.value);
-                setPage(1);
-              }}
-              class="h-10 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[var(--mf-primary)] focus:outline-none"
-            >
-              <option value="relevance">Mais relevantes</option>
-              <option value="newest">Lançamentos</option>
-              <option value="best_sellers">Mais vendidos</option>
-              <option value="price_asc">Menor preço</option>
-              <option value="price_desc">Maior preço</option>
-              <option value="discount">Maiores descontos</option>
-            </select>
+
+            <div class="flex items-center gap-2">
+              <label
+                for="catalog-sort"
+                class="text-xs font-bold text-[#3D1260]"
+              >
+                Ordenar por:
+              </label>
+              <select
+                id="catalog-sort"
+                value={sort()}
+                onChange={(e) => {
+                  setSort(e.currentTarget.value);
+                  setPage(1);
+                }}
+                class="h-10 rounded-full border border-[#E5DAE9] bg-[#F5F2F7] px-4 text-sm font-bold text-[#3D1260] focus:border-[#C22583] focus:outline-none"
+              >
+                <option value="relevance">Relevância</option>
+                <option value="newest">Lançamentos</option>
+                <option value="best_sellers">Mais vendidos</option>
+                <option value="price_asc">Menor preço</option>
+                <option value="price_desc">Maior preço</option>
+                <option value="discount">Maiores descontos</option>
+              </select>
+            </div>
           </div>
         </header>
 
         <div
-          class={`grid gap-6 ${props.showFilters !== false ? "lg:grid-cols-[240px_1fr]" : ""}`}
+          class={`grid gap-7 ${props.showFilters !== false ? "lg:grid-cols-[235px_1fr]" : ""}`}
         >
           <Show when={props.showFilters !== false}>
             <aside
               aria-label="Filtros do catálogo"
-              class="space-y-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 lg:self-start"
+              class={`${
+                mobileFiltersOpen() ? "block" : "hidden"
+              } space-y-6 rounded-xl border border-[#EFE3F2] bg-white p-5 lg:block lg:self-start lg:border-0 lg:bg-transparent lg:p-0`}
             >
-              <div class="flex items-center justify-between">
-                <span class="inline-flex items-center gap-1.5 text-sm font-bold text-zinc-900">
-                  <SlidersHorizontal class="h-4 w-4 text-[var(--mf-primary)]" />
-                  Filtros
-                </span>
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  class="text-xs font-medium text-[var(--mf-primary)] hover:underline"
-                >
-                  Limpar
-                </button>
-              </div>
-
-              <label class="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
-                <input
-                  type="checkbox"
-                  checked={inStockOnly()}
-                  onChange={(e) => {
-                    setInStockOnly(e.currentTarget.checked);
-                    setPage(1);
-                  }}
-                  class="h-4 w-4 rounded border-zinc-300 accent-[var(--mf-primary)]"
-                />
-                <span>Somente em estoque</span>
-              </label>
-
-              <Show when={props.brands && props.brands.length > 0}>
-                <div class="space-y-2 border-t border-zinc-200 pt-4">
-                  <label
-                    for="filter-brand"
-                    class="block text-xs font-semibold uppercase tracking-wide text-zinc-600"
+              <Show when={hasActiveFilters()}>
+                <div class="flex items-center justify-between border-b border-zinc-100 pb-3">
+                  <span class="text-xs font-bold uppercase tracking-wide text-[#5B486B]">
+                    Filtros ativos
+                  </span>
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    class="text-xs font-bold text-[#C22583] hover:underline"
                   >
-                    Marca
-                  </label>
-                  <select
-                    id="filter-brand"
-                    value={brand()}
-                    onChange={(e) => {
-                      setBrand(e.currentTarget.value);
-                      setPage(1);
-                    }}
-                    class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-sm text-zinc-900"
-                  >
-                    <option value="">Todas as marcas</option>
-                    <For each={props.brands}>
-                      {(b) => <option value={b.slug}>{b.name}</option>}
-                    </For>
-                  </select>
+                    Limpar tudo
+                  </button>
                 </div>
               </Show>
 
-              <form
-                onSubmit={applyPriceFilter}
-                class="space-y-2 border-t border-zinc-200 pt-4"
-              >
-                <p class="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+              {/* Marcas */}
+              <Show when={availableBrands().length > 0}>
+                <fieldset class="space-y-2.5 border-b border-zinc-200/80 pb-5">
+                  <legend class="text-base font-extrabold text-[#2E1049]">
+                    Marcas
+                  </legend>
+                  <div class="max-h-56 space-y-2 overflow-y-auto pr-1 pt-1">
+                    <For each={availableBrands()}>
+                      {(b) => (
+                        <label class="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-[#3D1260] hover:text-[#C22583]">
+                          <input
+                            type="checkbox"
+                            checked={selectedBrands().includes(b.slug)}
+                            onChange={() => {
+                              setSelectedBrands((prev) =>
+                                toggleSlug(prev, b.slug),
+                              );
+                              setPage(1);
+                            }}
+                            class="size-4 rounded border-[#D8C5DF] accent-[#C22583]"
+                          />
+                          <span>{b.name}</span>
+                        </label>
+                      )}
+                    </For>
+                  </div>
+                </fieldset>
+              </Show>
+
+              {/* Categorias */}
+              <Show when={facetCategories().length > 0}>
+                <fieldset class="space-y-2.5 border-b border-zinc-200/80 pb-5">
+                  <legend class="text-base font-extrabold text-[#2E1049]">
+                    Categorias
+                  </legend>
+                  <div class="max-h-56 space-y-2 overflow-y-auto pr-1 pt-1">
+                    <For each={facetCategories()}>
+                      {(c) => (
+                        <label class="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-[#3D1260] hover:text-[#C22583]">
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories().includes(c.slug)}
+                            onChange={() => {
+                              setSelectedCategories((prev) =>
+                                toggleSlug(prev, c.slug),
+                              );
+                              setPage(1);
+                            }}
+                            class="size-4 rounded border-[#D8C5DF] accent-[#C22583]"
+                          />
+                          <span>{c.name}</span>
+                        </label>
+                      )}
+                    </For>
+                  </div>
+                </fieldset>
+              </Show>
+
+              {/* Disponibilidade */}
+              <div class="space-y-2.5 border-b border-zinc-200/80 pb-5">
+                <p class="text-base font-extrabold text-[#2E1049]">
+                  Disponibilidade
+                </p>
+                <label class="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-[#3D1260] hover:text-[#C22583]">
+                  <input
+                    type="checkbox"
+                    checked={inStockOnly()}
+                    onChange={(e) => {
+                      setInStockOnly(e.currentTarget.checked);
+                      setPage(1);
+                    }}
+                    class="size-4 rounded border-[#D8C5DF] accent-[#C22583]"
+                  />
+                  <span>Somente em estoque</span>
+                </label>
+              </div>
+
+              {/* Faixa de preço */}
+              <form onSubmit={applyPriceFilter} class="space-y-3">
+                <p class="text-base font-extrabold text-[#2E1049]">
                   Faixa de preço (R$)
                 </p>
                 <div class="grid grid-cols-2 gap-2">
@@ -275,7 +390,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                     value={minPrice()}
                     onInput={(e) => setMinPrice(e.currentTarget.value)}
                     aria-label="Preço mínimo"
-                    class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-sm"
+                    class="h-9 w-full rounded-full border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#C22583] focus:outline-none"
                   />
                   <input
                     type="number"
@@ -285,12 +400,12 @@ export function CatalogListingView(props: CatalogListingProps) {
                     value={maxPrice()}
                     onInput={(e) => setMaxPrice(e.currentTarget.value)}
                     aria-label="Preço máximo"
-                    class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-sm"
+                    class="h-9 w-full rounded-full border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#C22583] focus:outline-none"
                   />
                 </div>
                 <button
                   type="submit"
-                  class="h-9 w-full rounded-md bg-zinc-900 text-xs font-semibold text-white hover:bg-zinc-800"
+                  class="h-9 w-full rounded-full bg-[#3D1260] text-xs font-bold text-white transition-colors hover:bg-[#C22583]"
                 >
                   Aplicar preço
                 </button>

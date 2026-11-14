@@ -8,6 +8,9 @@ import { formatCents, orderStatusLabel } from "../lib/format";
 import { seoHead } from "../lib/seo";
 
 export const Route = createFileRoute("/rastrear-pedido")({
+  validateSearch: (search: Record<string, unknown>): { codigo?: string } => ({
+    codigo: typeof search.codigo === "string" ? search.codigo : undefined,
+  }),
   head: () =>
     seoHead({
       title: "Rastrear Pedido — Mistura Feminina Cosméticos",
@@ -47,7 +50,10 @@ interface TrackOrderResult {
 }
 
 function TrackOrderPage() {
-  const [orderNumber, setOrderNumber] = createSignal("");
+  const search = Route.useSearch();
+  const [orderNumber, setOrderNumber] = createSignal(
+    (search().codigo ?? "").trim().toUpperCase(),
+  );
   const [identifier, setIdentifier] = createSignal("");
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);

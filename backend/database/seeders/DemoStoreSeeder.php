@@ -469,11 +469,32 @@ class DemoStoreSeeder extends Seeder
         }
 
         $children = [
+            // Unhas e Esmalteria
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'esmaltes-em-gel', 'name' => 'Esmaltes em Gel', 'order' => 1],
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'preparadores-e-primers', 'name' => 'Preparadores e Primers', 'order' => 2],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'alongamento-e-geis', 'name' => 'Alongamento e Géis', 'order' => 3],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'top-coat-e-finalizadores', 'name' => 'Top Coat e Finalizadores', 'order' => 4],
+            // Maquiagem
             ['parent' => 'maquiagem', 'slug' => 'labios', 'name' => 'Lábios e Batons', 'order' => 1],
             ['parent' => 'maquiagem', 'slug' => 'pele-e-bases', 'name' => 'Pele, Bases e Brumas', 'order' => 2],
+            ['parent' => 'maquiagem', 'slug' => 'brumas-e-fixadores', 'name' => 'Brumas e Fixadores', 'order' => 3],
+            // Cuidados Faciais (skincare)
+            ['parent' => 'skincare', 'slug' => 'seruns-e-tratamentos', 'name' => 'Séruns e Tratamentos', 'order' => 1],
+            ['parent' => 'skincare', 'slug' => 'hidratantes-faciais', 'name' => 'Hidratantes e Brumas', 'order' => 2],
+            // Cabelos
             ['parent' => 'cabelos', 'slug' => 'kits-capilares', 'name' => 'Kits e Cronograma', 'order' => 1],
+            ['parent' => 'cabelos', 'slug' => 'mascaras-de-tratamento', 'name' => 'Máscaras de Reconstrução', 'order' => 2],
+            ['parent' => 'cabelos', 'slug' => 'oleos-e-reparadores', 'name' => 'Óleos e Finalizadores', 'order' => 3],
+            // Corpo e Banho
+            ['parent' => 'corpo-e-banho', 'slug' => 'hidratantes-corporais', 'name' => 'Hidratantes Corporais', 'order' => 1],
+            ['parent' => 'corpo-e-banho', 'slug' => 'autocuidado-diario', 'name' => 'Autocuidado Diário', 'order' => 2],
+            // Acessórios Profissionais
+            ['parent' => 'acessorios-pro', 'slug' => 'cabines-e-estufas', 'name' => 'Cabines e Equipamentos', 'order' => 1],
+            ['parent' => 'acessorios-pro', 'slug' => 'pinceis-profissionais', 'name' => 'Pincéis e Kits', 'order' => 2],
+            ['parent' => 'acessorios-pro', 'slug' => 'brocas-e-lixas', 'name' => 'Brocas e Lixas', 'order' => 3],
+            // Nível 3 sob Brocas e Lixas
+            ['parent' => 'brocas-e-lixas', 'slug' => 'brocas-ceramica', 'name' => 'Brocas de Cerâmica', 'order' => 1],
+            ['parent' => 'brocas-e-lixas', 'slug' => 'lixas-profissionais', 'name' => 'Lixas e Polidoras', 'order' => 2],
         ];
         foreach ($children as $c) {
             $map[$c['slug']] = Category::query()->updateOrCreate(
@@ -527,7 +548,7 @@ class DemoStoreSeeder extends Seeder
         $items = [
             [
                 'sku' => 'MF-ESM-001', 'slug' => 'esmalte-gel-alta-duracao-15ml', 'name' => 'Esmalte em Gel Alta Duração 15ml',
-                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel'], 'img' => '/storage/seed/prod-esmalte.svg',
+                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'alongamento-e-geis'], 'img' => '/storage/seed/prod-esmalte.svg',
                 'type' => ProductType::Variable, 'price' => 2490, 'promo' => 1690, 'featured' => true, 'new' => true, 'best' => true,
                 'short' => 'Cobertura intensa desde a primeira camada com brilho espelhado até 21 dias.',
                 'variants' => [
@@ -538,7 +559,7 @@ class DemoStoreSeeder extends Seeder
             ],
             [
                 'sku' => 'MF-SRM-002', 'slug' => 'serum-facial-niacinamida-acido-hialuronico', 'name' => 'Sérum Facial Niacinamida 10% + Hialurônico',
-                'brand' => 'mistura-lab', 'cats' => ['skincare'], 'img' => '/storage/seed/prod-serum.svg',
+                'brand' => 'mistura-lab', 'cats' => ['skincare', 'seruns-e-tratamentos'], 'img' => '/storage/seed/prod-serum.svg',
                 'type' => ProductType::Variable, 'price' => 8990, 'promo' => 6490, 'featured' => true, 'new' => true, 'best' => true,
                 'short' => 'Controla oleosidade, suaviza poros e hidrata profundamente sem pesar.',
                 'wholesale' => true,
@@ -559,31 +580,31 @@ class DemoStoreSeeder extends Seeder
             ],
             [
                 'sku' => 'MF-MSC-004', 'slug' => 'mascara-reconstrucao-capilar-queratina-300g', 'name' => 'Máscara Reconstrução Capilar Queratina Vegetal 300g',
-                'brand' => 'mistura-lab', 'cats' => ['cabelos'], 'img' => '/storage/seed/prod-mascara.svg',
+                'brand' => 'mistura-lab', 'cats' => ['cabelos', 'mascaras-de-tratamento'], 'img' => '/storage/seed/prod-mascara.svg',
                 'type' => ProductType::Simple, 'price' => 7490, 'promo' => 5490, 'featured' => true, 'new' => false, 'best' => true, 'stock' => 32,
                 'short' => 'Reposição de massa para fios quimicamente tratados com brilho imediato.',
             ],
             [
                 'sku' => 'MF-OLE-005', 'slug' => 'oleo-reparador-pontas-argan-marula-60ml', 'name' => 'Óleo Reparador de Pontas Argan & Marula 60ml',
-                'brand' => 'essencia-floral', 'cats' => ['cabelos'], 'img' => '/storage/seed/prod-oleo.svg',
+                'brand' => 'essencia-floral', 'cats' => ['cabelos', 'oleos-e-reparadores'], 'img' => '/storage/seed/prod-oleo.svg',
                 'type' => ProductType::Simple, 'price' => 5990, 'promo' => null, 'featured' => true, 'new' => true, 'best' => false, 'stock' => 24,
                 'short' => 'Sela cutículas, reduz frizz e oferece proteção térmica até 230°C.',
             ],
             [
                 'sku' => 'MF-HID-006', 'slug' => 'locao-hidratante-corporal-rosas-200ml', 'name' => 'Loção Hidratante Corporal Pétalas & Karité 200ml',
-                'brand' => 'essencia-floral', 'cats' => ['corpo-e-banho'], 'img' => '/storage/seed/prod-hidratante.svg',
+                'brand' => 'essencia-floral', 'cats' => ['corpo-e-banho', 'hidratantes-corporais', 'autocuidado-diario'], 'img' => '/storage/seed/prod-hidratante.svg',
                 'type' => ProductType::Simple, 'price' => 4890, 'promo' => 3690, 'featured' => false, 'new' => true, 'best' => true, 'stock' => 19,
                 'short' => 'Toque seco com absorção rápida e fragrância floral sofisticada.',
             ],
             [
                 'sku' => 'MF-CAB-007', 'slug' => 'cabine-led-uv-profissional-48w-bivolt', 'name' => 'Cabine LED/UV Profissional 48W Bivolt Sensor Automático',
-                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'unhas-e-esmalteria'], 'img' => '/storage/seed/prod-cabine.svg',
+                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'cabines-e-estufas', 'unhas-e-esmalteria', 'alongamento-e-geis'], 'img' => '/storage/seed/prod-cabine.svg',
                 'type' => ProductType::Simple, 'price' => 16990, 'promo' => 13490, 'featured' => true, 'new' => false, 'best' => true, 'stock' => 9, 'weight' => 650,
                 'short' => '36 LEDs duplos para secagem uniforme de gel, acrygel e blindagem.',
             ],
             [
                 'sku' => 'MF-PRM-008', 'slug' => 'primer-acido-preparador-unhas-15ml', 'name' => 'Primer Preparador Adesivador de Unhas 15ml',
-                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'preparadores-e-primers'], 'img' => '/storage/seed/prod-primer.svg',
+                'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'preparadores-e-primers', 'top-coat-e-finalizadores'], 'img' => '/storage/seed/prod-primer.svg',
                 'type' => ProductType::Simple, 'price' => 2790, 'promo' => 1990, 'featured' => false, 'new' => false, 'best' => true, 'stock' => 45,
                 'short' => 'Garante aderência superior sem descolamentos em alongamentos.',
             ],
@@ -595,13 +616,13 @@ class DemoStoreSeeder extends Seeder
             ],
             [
                 'sku' => 'MF-BRM-010', 'slug' => 'bruma-fixadora-glow-agua-termal-120ml', 'name' => 'Bruma Fixadora Hidratante Água Termal 120ml',
-                'brand' => 'essencia-floral', 'cats' => ['maquiagem', 'skincare', 'pele-e-bases'], 'img' => '/storage/seed/prod-bruma.svg',
+                'brand' => 'essencia-floral', 'cats' => ['maquiagem', 'skincare', 'pele-e-bases', 'brumas-e-fixadores', 'hidratantes-faciais'], 'img' => '/storage/seed/prod-bruma.svg',
                 'type' => ProductType::Simple, 'price' => 4590, 'promo' => null, 'featured' => false, 'new' => true, 'best' => false, 'stock' => 14,
                 'short' => 'Prolonga a maquiagem e revitaliza o viço ao longo do dia.',
             ],
             [
                 'sku' => 'MF-PIN-011', 'slug' => 'kit-pinceis-maquiagem-profissional-8-pecas', 'name' => 'Kit Pincéis Profissionais Cerdas Macias 8 Peças',
-                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'maquiagem'], 'img' => '/storage/seed/prod-pincel.svg',
+                'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'pinceis-profissionais', 'brocas-e-lixas', 'brocas-ceramica', 'lixas-profissionais', 'maquiagem'], 'img' => '/storage/seed/prod-pincel.svg',
                 'type' => ProductType::Simple, 'price' => 11990, 'promo' => 8990, 'featured' => false, 'new' => true, 'best' => false, 'stock' => 0,
                 'short' => 'Cerdas sintéticas de alta densidade para acabamento polido (item para testar Avise-me quando esgotado).',
             ],

@@ -2,15 +2,22 @@ import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Link, useNavigate } from "@tanstack/solid-router";
 import BadgePercent from "lucide-solid/icons/badge-percent";
 import ChevronDown from "lucide-solid/icons/chevron-down";
+import ChevronLeft from "lucide-solid/icons/chevron-left";
+import ChevronRight from "lucide-solid/icons/chevron-right";
 import Headset from "lucide-solid/icons/headset";
+import LogIn from "lucide-solid/icons/log-in";
+import Mail from "lucide-solid/icons/mail";
 import Menu from "lucide-solid/icons/menu";
+import MessageCircle from "lucide-solid/icons/message-circle";
 import Search from "lucide-solid/icons/search";
 import Shield from "lucide-solid/icons/shield";
 import ShoppingBag from "lucide-solid/icons/shopping-bag";
+import Truck from "lucide-solid/icons/truck";
 import UserIcon from "lucide-solid/icons/user";
 import X from "lucide-solid/icons/x";
 import { api } from "../../../lib/api";
 import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
+import { logout } from "../../../security/auth";
 import { hasPermission } from "../../../security/permissions";
 import { session } from "../../../security/session";
 import {
@@ -19,6 +26,10 @@ import {
   storefrontStore,
 } from "../store";
 import type { CategoryNode, ProductCardData } from "../types";
+import { ProductCard } from "./ProductCard";
+
+type HeaderPopoverKey =
+  "support" | "account" | "all" | "promo" | `cat:${number}` | null;
 
 export function StoreHeader() {
   const navigate = useNavigate();
@@ -26,10 +37,14 @@ export function StoreHeader() {
   const [suggestions, setSuggestions] = createSignal<ProductCardData[]>([]);
   const [showDropdown, setShowDropdown] = createSignal(false);
   const [mobileMenuOpen, setMobileMenuOpen] = createSignal(false);
-  const [allCatsOpen, setAllCatsOpen] = createSignal(false);
+  const [activePopover, setActivePopover] =
+    createSignal<HeaderPopoverKey>(null);
+  const [trackCode, setTrackCode] = createSignal("");
+  const [promoOffset, setPromoOffset] = createSignal(0);
 
   const settings = () => storefrontStore.settings();
   const categories = () => storefrontStore.bootstrap().menu_categories;
+  const promoProducts = () => storefrontStore.bootstrap().promo_products ?? [];
   const cartCount = () => storefrontStore.cart()?.items_count ?? 0;
   const isStaff = () => {
     const user = session.user();
@@ -42,12 +57,101 @@ export function StoreHeader() {
   });
 
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  let popoverCloseTimer: ReturnType<typeof setTimeout> | undefined;
   let searchController: AbortController | undefined;
+  let headerRef: HTMLElement | undefined;
+  let hoverOpenedKey: HeaderPopoverKey = null;
+  let hoverOpenedAt = 0;
+
+  const openPopover = (key: HeaderPopoverKey) => {
+    clearTimeout(popoverCloseTimer);
+    if (activePopover() !== key) {
+      hoverOpenedKey = key;
+      hoverOpenedAt = Date.now();
+    }
+    setActivePopover(key);
+  };
+
+  const togglePopoverOnClick = (key: HeaderPopoverKey) => {
+    clearTimeout(popoverCloseTimer);
+    const justHoveredOpen =
+      hoverOpenedKey === key && Date.now() - hoverOpenedAt < 400;
+    hoverOpenedKey = null;
+    if (activePopover() === key && !justHoveredOpen) {
+      setActivePopover(null);
+      return;
+    }
+    setActivePopover(key);
+  };
+
+  const scheduleClosePopover = () => {
+    clearTimeout(popoverCloseTimer);
+    popoverCloseTimer = setTimeout(() => {
+      hoverOpenedKey = null;
+      setActivePopover(null);
+    }, 120);
+  };
+
+  const closeAllMenus = () => {
+    clearTimeout(popoverCloseTimer);
+    setActivePopover(null);
+    setShowDropdown(false);
+    setMobileMenuOpen(false);
+  };
+
+  createEffect(() => {
+    const onDocClick = (ev: MouseEvent) => {
+      if (headerRef && !headerRef.contains(ev.target as Node)) {
+        setActivePopover(null);
+      }
+    };
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        setActivePopover(null);
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKeyDown);
+    onCleanup(() => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKeyDown);
+    });
+  });
 
   onCleanup(() => {
     clearTimeout(debounceTimer);
+    clearTimeout(popoverCloseTimer);
     searchController?.abort();
   });
+
+  const submitQuickTrack = (e: Event) => {
+    e.preventDefault();
+    const codigo = trackCode().trim().toUpperCase();
+    closeAllMenus();
+    void navigate({
+      to: "/rastrear-pedido",
+      search: codigo ? { codigo } : {},
+    });
+  };
+
+  const handleLogout = async () => {
+    closeAllMenus();
+    await logout();
+    await refreshCart();
+  };
+
+  const promoSlideNext = () => {
+    const len = promoProducts().length;
+    if (len <= 4) return;
+    setPromoOffset((prev) => (prev + 1) % Math.max(1, len - 3));
+  };
+
+  const promoSlidePrev = () => {
+    const len = promoProducts().length;
+    if (len <= 4) return;
+    setPromoOffset((prev) => (prev <= 0 ? Math.max(0, len - 4) : prev - 1));
+  };
 
   const handleSearchInput = (value: string) => {
     setSearchQuery(value);
@@ -86,7 +190,10 @@ export function StoreHeader() {
   };
 
   return (
-    <header class="sticky top-0 z-40 border-b border-[#EBD4EC] bg-[#FFF3FF]">
+    <header
+      ref={headerRef}
+      class="sticky top-0 z-40 border-b border-[#EBD4EC] bg-[#FFF3FF]"
+    >
       <div class="border-b border-[#F9A2F6]">
         <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:grid lg:h-[74px] lg:grid-cols-[1fr_auto_1fr] lg:py-0">
           <div class="flex items-center gap-2 lg:hidden">
@@ -182,21 +289,103 @@ export function StoreHeader() {
 
           {/* Actions Right: Atendimento, Minha Conta, Sacola */}
           <div class="flex items-center justify-end gap-3 sm:gap-5">
-            <a
-              href={whatsappUrl(
-                settings().whatsapp_number,
-                settings().whatsapp_default_message,
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="hidden items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)] md:inline-flex"
+            {/* Atendimento Popover */}
+            <div
+              class="relative hidden md:block"
+              onMouseEnter={() => openPopover("support")}
+              onMouseLeave={scheduleClosePopover}
             >
-              <Headset
-                class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
-                aria-hidden="true"
-              />
-              <span>Atendimento</span>
-            </a>
+              <button
+                type="button"
+                aria-expanded={activePopover() === "support"}
+                aria-haspopup="true"
+                onClick={() => togglePopoverOnClick("support")}
+                class="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
+              >
+                <Headset
+                  class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
+                  aria-hidden="true"
+                />
+                <span>Atendimento</span>
+              </button>
+
+              <Show when={activePopover() === "support"}>
+                <div
+                  class="absolute right-0 top-full z-50 w-[295px] rounded-b-xl border-x border-b border-[#F2D4F0] border-t-[3px] border-t-[#DF2895] bg-white p-5 text-left shadow-2xl"
+                  onMouseEnter={() => openPopover("support")}
+                  onMouseLeave={scheduleClosePopover}
+                >
+                  <div class="border-b border-zinc-100 pb-3.5">
+                    <p class="flex items-center gap-2 text-[13px] font-medium text-[#3D1260]">
+                      <MessageCircle
+                        class="size-4 shrink-0 text-[#C22583]"
+                        aria-hidden="true"
+                      />
+                      <span>Whatsapp:</span>
+                    </p>
+                    <a
+                      href={whatsappUrl(
+                        settings().whatsapp_number,
+                        settings().whatsapp_default_message,
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={closeAllMenus}
+                      class="mt-1 block text-sm font-bold text-[#3D1260] hover:text-[#C22583]"
+                    >
+                      {settings().phone}
+                    </a>
+                  </div>
+
+                  <div class="border-b border-zinc-100 py-3.5">
+                    <p class="flex items-center gap-2 text-[13px] font-medium text-[#3D1260]">
+                      <Mail
+                        class="size-4 shrink-0 text-[#C22583]"
+                        aria-hidden="true"
+                      />
+                      <span>E-mail:</span>
+                    </p>
+                    <a
+                      href={`mailto:${settings().email}`}
+                      onClick={closeAllMenus}
+                      class="mt-1 block break-words text-[13px] font-bold text-[#3D1260] hover:text-[#C22583]"
+                    >
+                      {settings().email}
+                    </a>
+                  </div>
+
+                  <div class="pt-3.5">
+                    <p class="flex items-center gap-2 text-[13px] font-medium text-[#3D1260]">
+                      <Truck
+                        class="size-4 shrink-0 text-[#C22583]"
+                        aria-hidden="true"
+                      />
+                      <span>Rastreie o seu pedido:</span>
+                    </p>
+                    <form
+                      onSubmit={submitQuickTrack}
+                      class="mt-2 flex items-center rounded-full border border-[#EFE3F2] bg-[#FAF5FA] py-1.5 pl-4 pr-1.5 focus-within:border-[#C22583]"
+                    >
+                      <input
+                        type="text"
+                        value={trackCode()}
+                        onInput={(e) => setTrackCode(e.currentTarget.value)}
+                        placeholder="Código de rastreio"
+                        aria-label="Código de rastreio do pedido"
+                        class="min-w-0 flex-1 bg-transparent text-xs font-medium text-[#3D1260] placeholder:text-[#5B486B] focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        aria-label="Consultar código de rastreio"
+                        class="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-[#C22583] transition-colors hover:bg-white"
+                      >
+                        <ChevronRight class="size-4" aria-hidden="true" />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </Show>
+            </div>
 
             <Show when={isStaff()}>
               <Link
@@ -208,24 +397,113 @@ export function StoreHeader() {
               </Link>
             </Show>
 
-            <Link
-              to={
-                session.status() === "authenticated"
-                  ? "/minha-conta"
-                  : "/entrar"
-              }
-              class="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
+            {/* Minha Conta Popover */}
+            <div
+              class="relative"
+              onMouseEnter={() => openPopover("account")}
+              onMouseLeave={scheduleClosePopover}
             >
-              <UserIcon
-                class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
-                aria-hidden="true"
-              />
-              <span class="hidden sm:inline">
-                {session.user()
-                  ? session.user()!.name.split(" ")[0]
-                  : "Minha Conta"}
-              </span>
-            </Link>
+              <button
+                type="button"
+                aria-expanded={activePopover() === "account"}
+                aria-haspopup="true"
+                aria-label={
+                  session.user()
+                    ? `Conta de ${session.user()!.name.split(" ")[0]}`
+                    : "Minha Conta"
+                }
+                onClick={() => togglePopoverOnClick("account")}
+                class="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
+              >
+                <UserIcon
+                  class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
+                  aria-hidden="true"
+                />
+                <span class="hidden sm:inline">
+                  {session.user()
+                    ? session.user()!.name.split(" ")[0]
+                    : "Minha Conta"}
+                </span>
+              </button>
+
+              <Show when={activePopover() === "account"}>
+                <div
+                  class="absolute right-0 top-full z-50 w-[250px] rounded-b-xl border-x border-b border-[#F2D4F0] border-t-[3px] border-t-[#DF2895] bg-white p-5 text-left shadow-2xl"
+                  onMouseEnter={() => openPopover("account")}
+                  onMouseLeave={scheduleClosePopover}
+                >
+                  <Show
+                    when={session.status() === "authenticated"}
+                    fallback={
+                      <>
+                        <Link
+                          to="/entrar"
+                          search={{ redirect: "" }}
+                          onClick={closeAllMenus}
+                          class="flex w-full items-center justify-center gap-2 rounded-full bg-[#C22583] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9E1A69]"
+                        >
+                          <LogIn class="size-4" aria-hidden="true" />
+                          <span>Entrar</span>
+                        </Link>
+                        <div class="mt-4 space-y-2.5 text-[14px] font-medium text-[#3D1260]">
+                          <Link
+                            to="/entrar"
+                            search={{ redirect: "/minha-conta" }}
+                            onClick={closeAllMenus}
+                            class="block hover:text-[#C22583]"
+                          >
+                            Meus pedidos
+                          </Link>
+                          <Link
+                            to="/cadastro"
+                            onClick={closeAllMenus}
+                            class="block hover:text-[#C22583]"
+                          >
+                            Cadastrar
+                          </Link>
+                        </div>
+                      </>
+                    }
+                  >
+                    <p class="mb-3 truncate text-xs font-bold text-[#5B486B]">
+                      Olá, {session.user()?.name}
+                    </p>
+                    <Link
+                      to="/minha-conta"
+                      onClick={closeAllMenus}
+                      class="flex w-full items-center justify-center rounded-full bg-[#C22583] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9E1A69]"
+                    >
+                      Minha Conta
+                    </Link>
+                    <div class="mt-4 space-y-2 text-[14px] font-medium text-[#3D1260]">
+                      <Link
+                        to="/minha-conta"
+                        onClick={closeAllMenus}
+                        class="block hover:text-[#C22583]"
+                      >
+                        Meus pedidos
+                      </Link>
+                      <Show when={isStaff()}>
+                        <Link
+                          to="/admin"
+                          onClick={closeAllMenus}
+                          class="block hover:text-[#C22583]"
+                        >
+                          Painel Admin
+                        </Link>
+                      </Show>
+                      <button
+                        type="button"
+                        onClick={() => void handleLogout()}
+                        class="block w-full pt-1 text-left text-xs font-bold text-red-700 hover:underline"
+                      >
+                        Sair da conta
+                      </button>
+                    </div>
+                  </Show>
+                </div>
+              </Show>
+            </div>
 
             <button
               type="button"
@@ -274,80 +552,208 @@ export function StoreHeader() {
         aria-label="Departamentos da loja"
         class="hidden bg-[#FFF3FF] lg:block"
       >
-        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2">
+        <div class="relative mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2">
           <div class="flex items-center gap-4 text-[13px] font-bold text-[#2E1049] xl:gap-5">
+            {/* Todas Categorias Mega-Menu */}
             <div
-              class="relative shrink-0"
-              onMouseEnter={() => setAllCatsOpen(true)}
-              onMouseLeave={() => setAllCatsOpen(false)}
+              class="shrink-0"
+              onMouseEnter={() => openPopover("all")}
+              onMouseLeave={scheduleClosePopover}
             >
               <button
                 type="button"
-                aria-expanded={allCatsOpen()}
-                onClick={() => setAllCatsOpen(!allCatsOpen())}
+                aria-expanded={activePopover() === "all"}
+                aria-haspopup="true"
+                onClick={() => togglePopoverOnClick("all")}
                 class="inline-flex items-center gap-1.5 whitespace-nowrap py-1.5 font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
               >
                 <Menu class="size-4 stroke-[2.25]" aria-hidden="true" />
                 <span>Todas Categorias</span>
               </button>
-              <Show when={allCatsOpen()}>
-                <div class="absolute left-0 top-full z-50 grid w-[620px] grid-cols-2 gap-4 rounded-xl border border-line bg-white p-5 shadow-xl">
-                  <For each={categories()}>
-                    {(cat) => (
-                      <CategoryMegaColumn
-                        category={cat}
-                        onSelect={() => setAllCatsOpen(false)}
-                      />
-                    )}
-                  </For>
+
+              <Show when={activePopover() === "all"}>
+                <div
+                  class="absolute left-6 right-6 top-full z-50 rounded-b-xl border border-[#F2D4F0] bg-white p-7 shadow-2xl"
+                  onMouseEnter={() => openPopover("all")}
+                  onMouseLeave={scheduleClosePopover}
+                >
+                  <div class="grid grid-cols-3 gap-x-8 gap-y-6 xl:grid-cols-4">
+                    <For each={categories()}>
+                      {(cat) => (
+                        <CategoryMegaColumn
+                          category={cat}
+                          onSelect={closeAllMenus}
+                        />
+                      )}
+                    </For>
+                  </div>
                 </div>
               </Show>
             </div>
 
+            {/* Top-level Categories with Rich 2-Col Mega Dropdown */}
             <For each={categories().slice(0, 7)}>
-              {(cat) => (
-                <div class="group relative shrink-0">
-                  <Link
-                    to="/categoria/$slug"
-                    params={{ slug: cat.slug }}
-                    class="inline-flex items-center gap-1 whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)]"
+              {(cat, idx) => {
+                const key = () => `cat:${cat.id}` as const;
+                const alignRight = () => idx() >= 4;
+                return (
+                  <div
+                    class="relative shrink-0"
+                    onMouseEnter={() => openPopover(key())}
+                    onMouseLeave={scheduleClosePopover}
                   >
-                    <span>{cat.name}</span>
-                    <Show when={(cat.children?.length ?? 0) > 0}>
-                      <ChevronDown
-                        class="size-3.5 text-[#4E3B63]"
-                        aria-hidden="true"
-                      />
-                    </Show>
-                  </Link>
-                  <Show when={(cat.children?.length ?? 0) > 0}>
-                    <div class="invisible absolute left-0 top-full z-50 min-w-52 rounded-xl border border-line bg-white p-2 shadow-lg group-hover:visible">
-                      <For each={cat.children}>
-                        {(child) => (
-                          <Link
-                            to="/categoria/$slug"
-                            params={{ slug: child.slug }}
-                            class="block rounded-lg px-3 py-2 text-xs font-medium text-[#2E1049] hover:bg-[#FFF3FF] hover:text-[var(--mf-primary)]"
+                    <Link
+                      to="/categoria/$slug"
+                      params={{ slug: cat.slug }}
+                      onClick={closeAllMenus}
+                      class="inline-flex items-center gap-1 whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)]"
+                    >
+                      <span>{cat.name}</span>
+                      <Show when={(cat.children?.length ?? 0) > 0}>
+                        <ChevronDown
+                          class="size-3.5 text-[#4E3B63]"
+                          aria-hidden="true"
+                        />
+                      </Show>
+                    </Link>
+
+                    <Show
+                      when={
+                        activePopover() === key() &&
+                        (cat.children?.length ?? 0) > 0
+                      }
+                    >
+                      <div
+                        class={`absolute top-full z-50 rounded-b-xl border border-[#F2D4F0] bg-white p-6 shadow-2xl ${
+                          alignRight() ? "right-0" : "left-0"
+                        } ${cat.featured_product ? "w-[560px]" : "w-[300px]"}`}
+                        onMouseEnter={() => openPopover(key())}
+                        onMouseLeave={scheduleClosePopover}
+                      >
+                        <div class="flex gap-5">
+                          <div
+                            class={`min-w-0 flex-1 ${
+                              cat.featured_product
+                                ? "border-r border-zinc-100 pr-5"
+                                : ""
+                            }`}
                           >
-                            {child.name}
-                          </Link>
-                        )}
-                      </For>
-                    </div>
-                  </Show>
-                </div>
-              )}
+                            <div class="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3">
+                              <span class="text-base font-extrabold text-[#3D1260]">
+                                {cat.name}
+                              </span>
+                              <Link
+                                to="/categoria/$slug"
+                                params={{ slug: cat.slug }}
+                                onClick={closeAllMenus}
+                                class="inline-flex shrink-0 items-center rounded-full bg-[#C22583] px-3.5 py-1 text-xs font-bold text-white transition-colors hover:bg-[#9E1A69]"
+                              >
+                                + ver tudo
+                              </Link>
+                            </div>
+                            <div class="mt-3 max-h-[340px] overflow-y-auto pr-1">
+                              <CategorySubtreeList
+                                nodes={cat.children ?? []}
+                                boldTopLevel={true}
+                                onSelect={closeAllMenus}
+                              />
+                            </div>
+                          </div>
+
+                          <Show when={cat.featured_product}>
+                            {(featured) => (
+                              <div class="w-[220px] shrink-0">
+                                <ProductCard
+                                  product={featured()}
+                                  borderless={true}
+                                />
+                              </div>
+                            )}
+                          </Show>
+                        </div>
+                      </div>
+                    </Show>
+                  </div>
+                );
+              }}
             </For>
           </div>
 
-          <Link
-            to="/promocoes"
-            class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:opacity-95"
-            style={{ "background-color": "var(--mf-secondary)" }}
+          {/* Promoções Pill & Mega-Panel */}
+          <div
+            class="shrink-0"
+            onMouseEnter={() => openPopover("promo")}
+            onMouseLeave={scheduleClosePopover}
           >
-            <BadgePercent class="size-4 shrink-0" aria-hidden="true" />
-            <span>Promoções</span>
-          </Link>
+            <Link
+              to="/promocoes"
+              onClick={closeAllMenus}
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:opacity-95"
+              style={{ "background-color": "var(--mf-secondary)" }}
+            >
+              <BadgePercent class="size-4 shrink-0" aria-hidden="true" />
+              <span>Promoções</span>
+            </Link>
+
+            <Show when={activePopover() === "promo"}>
+              <div
+                class="absolute left-6 right-6 top-full z-50 overflow-hidden rounded-b-xl border border-[#F2D4F0] bg-white shadow-2xl"
+                onMouseEnter={() => openPopover("promo")}
+                onMouseLeave={scheduleClosePopover}
+              >
+                <div class="grid grid-cols-[1fr_270px] xl:grid-cols-[1fr_300px]">
+                  <div class="relative bg-white p-5">
+                    <div class="grid grid-cols-3 gap-3 xl:grid-cols-4">
+                      <For
+                        each={promoProducts().slice(
+                          promoOffset(),
+                          promoOffset() + 4,
+                        )}
+                      >
+                        {(prod) => (
+                          <ProductCard product={prod} borderless={true} />
+                        )}
+                      </For>
+                    </div>
+                    <Show when={promoProducts().length > 4}>
+                      <button
+                        type="button"
+                        aria-label="Ofertas anteriores"
+                        onClick={promoSlidePrev}
+                        class="absolute left-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-[#F2D4F0] bg-white/95 text-[#3D1260] shadow hover:bg-[#FCE7F6]"
+                      >
+                        <ChevronLeft class="size-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Próximas ofertas"
+                        onClick={promoSlideNext}
+                        class="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-[#F2D4F0] bg-white/95 text-[#3D1260] shadow hover:bg-[#FCE7F6]"
+                      >
+                        <ChevronRight class="size-4" aria-hidden="true" />
+                      </button>
+                    </Show>
+                  </div>
+
+                  <div class="flex flex-col items-center justify-center border-l border-zinc-100 bg-[#FCF9FC] px-6 py-8 text-center">
+                    <p class="text-2xl font-black uppercase tracking-tight text-[#3D1260]">
+                      OFERTAS ESPECIAIS
+                    </p>
+                    <p class="mt-1.5 text-sm font-medium text-[#3D1260]">
+                      Aproveite descontos por tempo limitado!
+                    </p>
+                    <Link
+                      to="/promocoes"
+                      onClick={closeAllMenus}
+                      class="mt-5 inline-flex items-center justify-center rounded-full bg-[#C22583] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9E1A69]"
+                    >
+                      Ver todos os produtos
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </Show>
+          </div>
         </div>
       </nav>
 
@@ -464,28 +870,75 @@ function CategoryMegaColumn(props: {
         to="/categoria/$slug"
         params={{ slug: props.category.slug }}
         onClick={props.onSelect}
-        class="text-sm font-bold text-brand-600 hover:underline"
+        class="text-[13px] font-extrabold text-[#3D1260] hover:text-[#C22583]"
       >
         {props.category.name}
       </Link>
       <Show when={(props.category.children?.length ?? 0) > 0}>
-        <ul class="mt-1.5 space-y-1">
-          <For each={props.category.children}>
-            {(child) => (
-              <li>
-                <Link
-                  to="/categoria/$slug"
-                  params={{ slug: child.slug }}
-                  onClick={props.onSelect}
-                  class="text-xs text-muted hover:text-brand-600"
-                >
-                  {child.name}
-                </Link>
-              </li>
-            )}
-          </For>
-        </ul>
+        <div class="mt-2">
+          <CategorySubtreeList
+            nodes={props.category.children ?? []}
+            boldTopLevel={false}
+            onSelect={props.onSelect}
+          />
+        </div>
       </Show>
     </div>
+  );
+}
+
+function CategorySubtreeList(props: {
+  nodes: CategoryNode[];
+  boldTopLevel: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <ul class="space-y-1.5">
+      <For each={props.nodes}>
+        {(child) => (
+          <li>
+            <Link
+              to="/categoria/$slug"
+              params={{ slug: child.slug }}
+              onClick={props.onSelect}
+              class={`flex items-start gap-2 text-[13px] text-[#3D1260] transition-colors hover:text-[#C22583] ${
+                props.boldTopLevel ? "font-bold" : "font-medium"
+              }`}
+            >
+              <span
+                class="mt-1.5 size-1.5 shrink-0 bg-[#3D1260]"
+                aria-hidden="true"
+              />
+              <span>{child.name}</span>
+            </Link>
+            <Show when={(child.children?.length ?? 0) > 0}>
+              <ul class="mt-1 space-y-1 pl-4">
+                <For each={child.children}>
+                  {(grandChild) => (
+                    <li>
+                      <Link
+                        to="/categoria/$slug"
+                        params={{ slug: grandChild.slug }}
+                        onClick={props.onSelect}
+                        class="flex items-start gap-1.5 text-[12.5px] font-normal text-[#4E3B63] transition-colors hover:text-[#C22583]"
+                      >
+                        <span
+                          class="mt-1.5 inline-flex shrink-0 items-center gap-0.5"
+                          aria-hidden="true"
+                        >
+                          <span class="size-1 bg-[#3D1260]" />
+                          <span class="size-1 bg-[#3D1260]" />
+                        </span>
+                        <span>{grandChild.name}</span>
+                      </Link>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
+          </li>
+        )}
+      </For>
+    </ul>
   );
 }

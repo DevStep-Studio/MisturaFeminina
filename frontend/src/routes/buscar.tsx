@@ -23,13 +23,15 @@ function SearchPage() {
 
   return (
     <CatalogListingView
-      title={query() ? `Resultados para "${query()}"` : "Catálogo completo"}
+      title={query() ? `Resultados para "${query()}"` : "Todos os produtos"}
       subtitle={
         query()
           ? "Confira os produtos correspondentes à sua busca."
           : "Explore todos os itens disponíveis na Mistura Feminina Cosméticos."
       }
-      breadcrumbs={[{ label: query() ? `Busca: ${query()}` : "Catálogo" }]}
+      breadcrumbs={[
+        { label: query() ? `Busca: ${query()}` : "Página de busca" },
+      ]}
       endpoint="/catalog/search"
       fixedParams={query() ? { q: query() } : undefined}
       brands={storefrontStore.bootstrap().brands}

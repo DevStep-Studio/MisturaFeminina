@@ -97,6 +97,8 @@ export function cartHeaders(
 const [bootstrapData, setBootstrapData] = createSignal<BootstrapPayload>({
   settings: DEFAULT_SETTINGS,
   menu_categories: [],
+  promo_products: [],
+  recommended_products: [],
   brands: [],
   footer_pages: [],
   featured_coupon: null,
