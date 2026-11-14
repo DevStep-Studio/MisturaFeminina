@@ -102,7 +102,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                   class={
                     banner().mobile_image_path
                       ? "block aspect-[3/4] max-h-[520px] w-full object-cover object-center md:aspect-[1920/650] md:max-h-none"
-                      : "block aspect-[1024/438] w-full object-cover object-center"
+                      : "block aspect-[3/1] max-h-[620px] w-full object-cover object-center"
                   }
                 />
               </picture>
