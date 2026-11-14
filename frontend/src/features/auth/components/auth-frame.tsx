@@ -5,7 +5,7 @@ import { config } from "../../../app/config";
 export const inputClass =
   "min-h-12 w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-3 text-base text-zinc-900 shadow-xs outline-none transition-colors placeholder:text-zinc-500 hover:border-zinc-300 focus:border-zinc-500 focus:ring-3 focus:ring-zinc-900/5 aria-invalid:border-red-600 disabled:opacity-60 motion-reduce:transition-none";
 export const buttonClass =
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#93509e] px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#7c3f87] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93509e] disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none";
 export const linkClass =
   "text-sm text-zinc-500 underline decoration-zinc-300 underline-offset-4 transition-colors hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none";
 
@@ -87,11 +87,7 @@ export function AuthFrame(
       }
     >
       <div ref={frame} class="grid min-h-svh bg-white lg:grid-cols-2">
-        <div class="relative m-3 hidden min-h-[calc(100svh-1.5rem)] flex-col overflow-hidden rounded-2xl bg-zinc-950 p-10 text-white lg:flex xl:p-14">
-          <div
-            class="absolute inset-0 bg-[radial-gradient(ellipse_at_25%_45%,#422b24_0%,transparent_65%)]"
-            aria-hidden="true"
-          />
+        <div class="relative m-3 hidden min-h-[calc(100svh-1.5rem)] flex-col overflow-hidden rounded-2xl bg-[#241132] p-10 text-white lg:flex xl:p-14">
           <div
             data-auth-reveal
             class="relative z-10 flex items-center gap-3 text-sm font-medium tracking-tight"
@@ -114,27 +110,14 @@ export function AuthFrame(
               class="max-h-[34svh] w-full max-w-lg overflow-visible"
               fill="none"
             >
-              <defs>
-                <linearGradient
-                  id="auth-art-line"
-                  x1="100"
-                  y1="0"
-                  x2="420"
-                  y2="370"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop stop-color="#fdba74" />
-                  <stop offset="1" stop-color="#f97316" stop-opacity="0.2" />
-                </linearGradient>
-              </defs>
-              <g stroke="url(#auth-art-line)" stroke-width="1.1">
+              <g stroke="#d4b3da" stroke-opacity="0.7" stroke-width="1.1">
                 <path d="m240 28 166 96v132l-166 96-166-96V124Z" />
                 <path d="m240 64 135 78v96l-135 78-135-78v-96Z" />
                 <path d="m240 100 104 60v60l-104 60-104-60v-60Z" />
                 <path d="m74 124 166 96 166-96M240 220v132M105 142l135 78 135-78M136 160l104 60 104-60" />
                 <path d="m240 28 0 72" stroke-dasharray="3 6" />
               </g>
-              <g fill="#fdba74">
+              <g fill="#d4b3da">
                 <circle cx="240" cy="28" r="3" />
                 <circle cx="74" cy="256" r="3" />
                 <circle cx="406" cy="124" r="3" />
@@ -142,8 +125,8 @@ export function AuthFrame(
             </svg>
           </div>
           <div class="relative z-10 max-w-lg" data-auth-reveal>
-            <p class="mb-4 flex items-center gap-2 text-xs font-medium tracking-[0.18em] text-orange-300 uppercase">
-              <span class="size-1.5 rounded-full bg-orange-300" />
+            <p class="mb-4 flex items-center gap-2 text-xs font-medium tracking-[0.18em] text-[#e8d4ec] uppercase">
+              <span class="size-1.5 rounded-full bg-[#d4b3da]" />
               Um novo começo
             </p>
             <p class="text-4xl leading-[1.12] font-medium tracking-tight xl:text-5xl">

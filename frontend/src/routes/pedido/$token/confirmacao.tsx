@@ -190,7 +190,7 @@ function OrderConfirmationPage() {
             </p>
             <Link
               to="/rastrear-pedido"
-              class="mt-4 inline-block rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white"
+              class="mt-4 inline-block rounded-lg bg-[#93509e] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7c3f87]"
             >
               Rastrear Pedido
             </Link>
@@ -444,13 +444,13 @@ function OrderConfirmationPage() {
                   <div class="mt-6 flex flex-wrap gap-3">
                     <Link
                       to="/rastrear-pedido"
-                      class="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-50"
+                      class="rounded-lg border border-[#93509e] bg-white px-4 py-2.5 text-xs font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                     >
                       Acompanhar rastreamento completo
                     </Link>
                     <Link
                       to="/"
-                      class="rounded-lg bg-zinc-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800"
+                      class="rounded-lg bg-[#93509e] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87]"
                     >
                       Voltar à loja
                     </Link>

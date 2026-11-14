@@ -115,7 +115,7 @@ export function ProductCard(props: {
               <Link
                 to="/produto/$slug"
                 params={{ slug: props.product.slug }}
-                class="group/notify mt-3 inline-flex h-[34px] w-full items-center justify-center gap-1.5 rounded-full border border-[#E5D4F0] bg-[#FAF6FC] px-4 text-[12px] font-semibold text-[#3D1260] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white hover:shadow-[0_6px_16px_rgba(61,18,96,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3D1260]/30"
+                class="group/notify mt-3 inline-flex h-[34px] w-full items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-4 text-[12px] font-semibold text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30"
               >
                 <Bell
                   class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
@@ -175,7 +175,7 @@ export function ProductCard(props: {
                 <Link
                   to="/produto/$slug"
                   params={{ slug: props.product.slug }}
-                  class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-full px-4 text-[13.5px] font-bold"
+                  class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-4 text-[13.5px] font-bold"
                 >
                   Comprar
                 </Link>
@@ -185,7 +185,7 @@ export function ProductCard(props: {
                 type="button"
                 disabled={adding()}
                 onClick={() => void handleQuickBuy()}
-                class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-full px-4 text-[13.5px] font-bold disabled:opacity-60"
+                class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-4 text-[13.5px] font-bold disabled:opacity-60"
               >
                 {adding() ? "Adicionando…" : "Comprar"}
               </button>
@@ -198,7 +198,7 @@ export function ProductCard(props: {
               )}
               target="_blank"
               rel="noopener noreferrer"
-              class="mf-btn-whats mt-2 flex h-[32px] w-full items-center justify-center gap-1.5 rounded-full px-3 text-[11.5px] font-medium"
+              class="mf-btn-whats mt-2 flex h-[32px] w-full items-center justify-center gap-1.5 rounded-lg px-3 text-[11.5px] font-medium"
             >
               <svg
                 viewBox="0 0 24 24"

@@ -224,8 +224,8 @@ export function CatalogListingView(props: CatalogListingProps) {
               {props.title}
             </h1>
             <div class="mt-2 flex items-center gap-2" aria-hidden="true">
-              <span class="h-[3px] w-7 rounded-full bg-gradient-to-r from-[#3D1260] via-[#7E22CE] to-[#C22583]" />
-              <span class="h-px w-12 bg-gradient-to-r from-[#DFC5EC] to-transparent" />
+              <span class="h-[3px] w-7 rounded-sm bg-[#93509e]" />
+              <span class="h-px w-12 bg-[#DFC5EC]" />
             </div>
             <Show when={props.subtitle}>
               <p class="mt-2 max-w-2xl text-sm text-[#5B486B]">
@@ -240,9 +240,9 @@ export function CatalogListingView(props: CatalogListingProps) {
                 type="button"
                 aria-expanded={mobileFiltersOpen()}
                 onClick={() => setMobileFiltersOpen(!mobileFiltersOpen())}
-                class="inline-flex h-10 items-center gap-1.5 rounded-full border border-[#E5DAE9] bg-[#F5F2F7] px-4 text-xs font-bold text-[#3D1260] lg:hidden"
+                class="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-4 text-xs font-bold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white lg:hidden"
               >
-                <SlidersHorizontal class="size-3.5 text-[#C22583]" />
+                <SlidersHorizontal class="size-3.5" />
                 <span>Filtros</span>
               </button>
             </Show>
@@ -265,7 +265,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                   setSort(e.currentTarget.value);
                   setPage(1);
                 }}
-                class="h-10 rounded-full border border-[#E5DAE9] bg-[#F5F2F7] px-4 text-sm font-bold text-[#3D1260] focus:border-[#C22583] focus:outline-none"
+                class="h-10 rounded-lg border border-[#E5DAE9] bg-[#F5F2F7] px-4 text-sm font-bold text-[#3D1260] focus:border-[#93509e] focus:outline-none"
               >
                 <option value="relevance">Relevância</option>
                 <option value="newest">Lançamentos</option>
@@ -394,7 +394,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                     value={minPrice()}
                     onInput={(e) => setMinPrice(e.currentTarget.value)}
                     aria-label="Preço mínimo"
-                    class="h-9 w-full rounded-full border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#C22583] focus:outline-none"
+                    class="h-9 w-full rounded-lg border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
                   />
                   <input
                     type="number"
@@ -404,12 +404,12 @@ export function CatalogListingView(props: CatalogListingProps) {
                     value={maxPrice()}
                     onInput={(e) => setMaxPrice(e.currentTarget.value)}
                     aria-label="Preço máximo"
-                    class="h-9 w-full rounded-full border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#C22583] focus:outline-none"
+                    class="h-9 w-full rounded-lg border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
                   />
                 </div>
                 <button
                   type="submit"
-                  class="h-9 w-full rounded-full bg-[#3D1260] text-xs font-bold text-white transition-colors hover:bg-[#C22583]"
+                  class="h-9 w-full rounded-lg bg-[#93509e] text-xs font-bold text-white transition-colors hover:bg-[#7c3f87]"
                 >
                   Aplicar preço
                 </button>
@@ -456,7 +456,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  class="mt-4 rounded-lg bg-[var(--mf-primary)] px-5 py-2.5 text-sm font-semibold text-white"
+                  class="mt-4 rounded-lg bg-[#93509e] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7c3f87]"
                 >
                   Ver todos os itens
                 </button>
@@ -479,7 +479,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                     type="button"
                     disabled={page() <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-40"
+                    class="rounded-lg border border-[#93509e] bg-white px-4 py-2 text-sm font-medium text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white disabled:opacity-40"
                   >
                     Anterior
                   </button>
@@ -490,7 +490,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                     type="button"
                     disabled={page() >= lastPage()}
                     onClick={() => setPage((p) => Math.min(lastPage(), p + 1))}
-                    class="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-40"
+                    class="rounded-lg border border-[#93509e] bg-white px-4 py-2 text-sm font-medium text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white disabled:opacity-40"
                   >
                     Próxima
                   </button>

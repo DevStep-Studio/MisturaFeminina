@@ -96,7 +96,7 @@ export function PromoPopup() {
               <button
                 type="button"
                 onClick={copyCoupon}
-                class="inline-flex items-center gap-1.5 rounded-md bg-[var(--mf-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--mf-primary-hover)]"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-[#93509e] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87]"
               >
                 <Show when={copied()} fallback={<Copy class="h-3.5 w-3.5" />}>
                   <Check class="h-3.5 w-3.5" />
@@ -109,7 +109,7 @@ export function PromoPopup() {
           <button
             type="button"
             onClick={close}
-            class="mt-5 w-full rounded-lg border border-zinc-300 bg-white py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+            class="mt-5 w-full rounded-lg border border-[#93509e] bg-white py-2.5 text-sm font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
           >
             Continuar comprando
           </button>

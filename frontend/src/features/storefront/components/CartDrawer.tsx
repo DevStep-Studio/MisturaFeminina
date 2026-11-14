@@ -73,9 +73,9 @@ export function CartDrawer() {
           {/* Free Shipping Progress Bar */}
           <Show when={thresholdCents() > 0}>
             <div class="border-b border-zinc-200 px-5 py-3.5">
-              <div class="h-3 w-full overflow-hidden rounded-full border border-[#DF2895] bg-white">
+              <div class="h-3 w-full overflow-hidden rounded-md border border-[#93509e] bg-white">
                 <div
-                  class="h-full rounded-full bg-[#DF2895] transition-all duration-300"
+                  class="h-full rounded-md bg-[#93509e] transition-all duration-300"
                   style={{ width: `${progressPercent()}%` }}
                 />
               </div>
@@ -113,7 +113,7 @@ export function CartDrawer() {
                   <Link
                     to="/categorias"
                     onClick={closeDrawer}
-                    class="mt-5 inline-flex min-h-10 items-center rounded-full bg-[#C22583] px-6 text-sm font-bold text-white transition-colors hover:bg-[#9E1A69]"
+                    class="mt-5 inline-flex min-h-10 items-center rounded-lg bg-[#93509e] px-6 text-sm font-bold text-white transition-colors hover:bg-[#7c3f87]"
                   >
                     Explorar Produtos
                   </Link>
@@ -259,7 +259,7 @@ export function CartDrawer() {
                                   true,
                                 )
                               }
-                              class="shrink-0 rounded-full bg-[#62298D] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#3D1260] disabled:opacity-50"
+                              class="shrink-0 rounded-lg bg-[#93509e] px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-50"
                             >
                               Comprar
                             </button>
@@ -294,14 +294,14 @@ export function CartDrawer() {
                 <Link
                   to="/carrinho"
                   onClick={closeDrawer}
-                  class="inline-flex min-h-11 items-center justify-center rounded-full border border-[#E5DAE9] bg-white px-4 text-sm font-bold text-[#3D1260] hover:bg-zinc-50"
+                  class="inline-flex min-h-11 items-center justify-center rounded-lg border border-[#93509e] bg-white px-4 text-sm font-bold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                 >
                   Ver Carrinho
                 </Link>
                 <Link
                   to="/checkout"
                   onClick={closeDrawer}
-                  class="inline-flex min-h-11 items-center justify-center rounded-full bg-[#C22583] px-4 text-sm font-bold text-white hover:bg-[#9E1A69]"
+                  class="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#93509e] px-4 text-sm font-bold text-white transition-colors hover:bg-[#7c3f87]"
                 >
                   Finalizar
                 </Link>

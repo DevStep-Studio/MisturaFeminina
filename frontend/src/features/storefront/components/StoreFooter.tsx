@@ -72,7 +72,7 @@ export function StoreFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
+                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -94,7 +94,7 @@ export function StoreFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="YouTube da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
+                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -118,7 +118,7 @@ export function StoreFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TikTok da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
+                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -138,7 +138,7 @@ export function StoreFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
+                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#13b918] bg-white text-[#0d8211] transition hover:border-[#0d8211] hover:bg-[#0d8211] hover:text-white"
               >
                 <MessageCircle class="h-4 w-4" aria-hidden="true" />
               </a>
@@ -332,7 +332,7 @@ export function StoreFooter() {
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Voltar ao topo"
-        class="fixed bottom-5 right-5 z-40 inline-flex size-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-[#3D1260] shadow-md transition hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white"
+        class="fixed bottom-5 right-5 z-40 inline-flex size-10 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white"
       >
         <ChevronUp class="h-4 w-4" aria-hidden="true" />
       </button>

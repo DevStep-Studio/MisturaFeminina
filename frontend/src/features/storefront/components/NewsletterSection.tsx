@@ -66,9 +66,9 @@ export function NewsletterSection() {
     >
       <div class="mx-auto flex max-w-7xl flex-col gap-6 px-4 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex items-start gap-3.5">
-          <div class="flex size-11 shrink-0 items-center justify-center rounded-full border border-[#E5D8EE] bg-white shadow-2xs">
+          <div class="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[#E5D8EE] bg-white shadow-2xs">
             <Mail
-              class="h-5 w-5 text-[#3D1260]"
+              class="h-5 w-5 text-[#93509e]"
               stroke-width={1.75}
               aria-hidden="true"
             />
@@ -102,7 +102,7 @@ export function NewsletterSection() {
                 value={name()}
                 onInput={(e) => setName(e.currentTarget.value)}
                 placeholder="Digite o seu nome"
-                class="h-10 w-full rounded-full border border-zinc-200/90 bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-2xs transition focus:border-[#62298D] focus:outline-none focus:ring-2 focus:ring-[#3D1260]/20"
+                class="h-10 w-full rounded-lg border border-zinc-200/90 bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-2xs transition focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/20"
               />
             </div>
             <div class="flex-[1.15]">
@@ -116,13 +116,13 @@ export function NewsletterSection() {
                 value={email()}
                 onInput={(e) => setEmail(e.currentTarget.value)}
                 placeholder="Digite seu e-mail"
-                class="h-10 w-full rounded-full border border-zinc-200/90 bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-2xs transition focus:border-[#62298D] focus:outline-none focus:ring-2 focus:ring-[#3D1260]/20"
+                class="h-10 w-full rounded-lg border border-zinc-200/90 bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-2xs transition focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/20"
               />
             </div>
             <button
               type="submit"
               disabled={busy()}
-              class="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#3D1260] px-6 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#2E0C49] disabled:opacity-60"
+              class="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#93509e] px-6 text-xs font-bold uppercase tracking-wider text-white transition hover:bg-[#7c3f87] disabled:opacity-60"
             >
               <span>{busy() ? "ENVIANDO..." : "CADASTRAR"}</span>
               <ChevronRight class="h-3.5 w-3.5" aria-hidden="true" />

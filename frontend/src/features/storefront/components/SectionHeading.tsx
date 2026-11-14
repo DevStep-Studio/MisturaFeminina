@@ -45,9 +45,9 @@ export function SectionHeading(props: SectionHeadingProps) {
             class="mt-2.5 flex items-center justify-center gap-2"
             aria-hidden="true"
           >
-            <span class="h-px w-8 bg-gradient-to-r from-transparent to-[#DFC5EC] sm:w-10" />
-            <span class="h-[3px] w-7 rounded-full bg-gradient-to-r from-[#3D1260] via-[#7E22CE] to-[#C22583]" />
-            <span class="h-px w-8 bg-gradient-to-l from-transparent to-[#DFC5EC] sm:w-10" />
+            <span class="h-px w-8 bg-[#DFC5EC] sm:w-10" />
+            <span class="h-[3px] w-7 rounded-sm bg-[#93509e]" />
+            <span class="h-px w-8 bg-[#DFC5EC] sm:w-10" />
           </div>
 
           <Show when={props.action}>
@@ -70,8 +70,8 @@ export function SectionHeading(props: SectionHeadingProps) {
             class="mt-2 flex items-center justify-center gap-2 sm:justify-start"
             aria-hidden="true"
           >
-            <span class="h-[3px] w-7 rounded-full bg-gradient-to-r from-[#3D1260] via-[#7E22CE] to-[#C22583]" />
-            <span class="h-px w-10 bg-gradient-to-r from-[#DFC5EC] to-transparent sm:w-14" />
+            <span class="h-[3px] w-7 rounded-sm bg-[#93509e]" />
+            <span class="h-px w-10 bg-[#DFC5EC] sm:w-14" />
           </div>
 
           <Show when={props.subtitle}>

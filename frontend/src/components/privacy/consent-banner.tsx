@@ -14,7 +14,7 @@ export function ConsentBanner() {
   return (
     <Show when={analyticsEnabled}>
       <button
-        class="fixed right-4 bottom-4 z-40 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+        class="fixed right-4 bottom-4 z-40 rounded-lg border border-[#93509e] bg-white px-3 py-2 text-xs font-semibold text-[#93509e] shadow-sm transition-colors hover:bg-[#93509e] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93509e]"
         onClick={() => setEditing(true)}
       >
         Preferências de privacidade
@@ -37,13 +37,13 @@ export function ConsentBanner() {
           </div>
           <div class="flex flex-wrap gap-3">
             <button
-              class="min-h-11 rounded-md border border-zinc-300 px-4 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+              class="min-h-11 rounded-lg border border-[#93509e] bg-white px-4 py-2 text-sm font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93509e]"
               onClick={() => choose("denied")}
             >
               Recusar análises
             </button>
             <button
-              class="min-h-11 rounded-md bg-zinc-900 px-4 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+              class="min-h-11 rounded-lg bg-[#93509e] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#7c3f87] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93509e]"
               onClick={() => choose("granted")}
             >
               Aceitar análises

@@ -128,7 +128,7 @@ function CartPage() {
                       </Show>
                       <span>{freeProgress()}%</span>
                     </div>
-                    <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-200">
+                    <div class="mt-2 h-2 w-full overflow-hidden rounded-md bg-zinc-200">
                       <div
                         class="h-full bg-[var(--mf-primary)] transition-all"
                         style={{ width: `${freeProgress()}%` }}
@@ -258,7 +258,7 @@ function CartPage() {
                         <button
                           type="submit"
                           disabled={storefrontStore.cartBusy()}
-                          class="h-10 rounded-md bg-zinc-900 px-4 text-xs font-semibold text-white hover:bg-zinc-800"
+                          class="h-10 rounded-lg bg-[#93509e] px-4 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87]"
                         >
                           Aplicar
                         </button>

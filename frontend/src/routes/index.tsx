@@ -126,7 +126,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                       )
                     }
                     aria-label="Banner anterior"
-                    class="absolute left-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[#D8BFD8]/75 text-[#3F3F46] shadow transition-colors hover:bg-white sm:left-4 sm:size-11"
+                    class="absolute left-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white/95 text-[#93509e] shadow transition-colors hover:bg-[#93509e] hover:text-white sm:left-4 sm:size-11"
                   >
                     <ChevronLeft class="h-5 w-5" />
                   </button>
@@ -136,7 +136,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                       setIndex((i) => (i + 1) % props.banners.length)
                     }
                     aria-label="Próximo banner"
-                    class="absolute right-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[#D8BFD8]/75 text-[#3F3F46] shadow transition-colors hover:bg-white sm:right-4 sm:size-11"
+                    class="absolute right-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white/95 text-[#93509e] shadow transition-colors hover:bg-[#93509e] hover:text-white sm:right-4 sm:size-11"
                   >
                     <ChevronRight class="h-5 w-5" />
                   </button>
@@ -148,10 +148,10 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                           type="button"
                           onClick={() => setIndex(idx())}
                           aria-label={`Ir para banner ${idx() + 1}`}
-                          class={`h-2.5 w-2.5 rounded-full transition ${
+                          class={`h-2.5 w-6 rounded-sm transition ${
                             index() === idx()
-                              ? "bg-white"
-                              : "bg-zinc-400 hover:bg-zinc-200"
+                              ? "bg-[#93509e] ring-1 ring-white"
+                              : "bg-white/80 hover:bg-white"
                           }`}
                         />
                       )}
@@ -223,13 +223,13 @@ function CouponStripBlock(props: {
               {renderCouponSubtitle(props.section.subtitle, coupon().code)}
             </p>
             <div class="inline-flex h-[36px] shrink-0 items-stretch sm:h-[38px]">
-              <span class="inline-flex items-center justify-center rounded-l-full border-[1.5px] border-r-0 border-dashed border-[#5E2889] bg-white px-6 text-[13px] font-bold tracking-normal text-[#5E2889] sm:px-7 sm:text-[14px]">
+              <span class="inline-flex items-center justify-center rounded-l-lg border-[1.5px] border-r-0 border-dashed border-[#93509e] bg-white px-6 text-[13px] font-bold tracking-normal text-[#93509e] sm:px-7 sm:text-[14px]">
                 {coupon().code}
               </span>
               <button
                 type="button"
                 onClick={() => void copy(coupon().code)}
-                class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-r-full bg-[#5E2889] px-5 text-[13px] font-bold text-white transition-colors hover:bg-[#4B1E6E] sm:px-6 sm:text-[14px]"
+                class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-r-lg bg-[#93509e] px-5 text-[13px] font-bold text-white transition-colors hover:bg-[#7c3f87] sm:px-6 sm:text-[14px]"
               >
                 <Show when={copied()}>
                   <Check class="h-3.5 w-3.5" aria-hidden="true" />
@@ -276,7 +276,7 @@ function CategoryCirclesBlock(props: {
                     params={{ slug: cat.slug }}
                     class="group flex flex-col items-center text-center focus-visible:outline-none"
                   >
-                    <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border border-[#EAE4F2] bg-white shadow-[0_2px_10px_rgba(43,10,80,0.04)] transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:border-[#C22583]/45 group-hover:shadow-[0_14px_28px_-6px_rgba(94,40,137,0.18)] group-hover:ring-4 group-hover:ring-[#C22583]/10 group-focus-visible:ring-2 group-focus-visible:ring-[#5E2889]">
+                    <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border border-[#EAE4F2] bg-white shadow-[0_2px_10px_rgba(43,10,80,0.04)] transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:border-[#93509e]/50 group-hover:shadow-[0_14px_28px_-6px_rgba(147,80,158,0.22)] group-hover:ring-4 group-hover:ring-[#93509e]/10 group-focus-visible:ring-2 group-focus-visible:ring-[#93509e]">
                       <img
                         src={assetUrl(cat.image_path)}
                         alt={cat.name}
@@ -284,7 +284,7 @@ function CategoryCirclesBlock(props: {
                         loading="lazy"
                       />
                     </div>
-                    <span class="mt-3 inline-flex items-center justify-center rounded-full px-3.5 py-1 text-[13px] font-bold leading-normal text-[#2B0A50] transition-all duration-300 ease-out group-hover:bg-[#F8EFFB] group-hover:text-[#A81C73] sm:text-[14px]">
+                    <span class="mt-3 inline-flex items-center justify-center rounded-lg px-3.5 py-1 text-[13px] font-bold leading-normal text-[#2B0A50] transition-all duration-300 ease-out group-hover:bg-[#93509e] group-hover:text-white sm:text-[14px]">
                       {cat.name}
                     </span>
                   </Link>
@@ -297,7 +297,7 @@ function CategoryCirclesBlock(props: {
                 type="button"
                 onClick={() => setOffset((o) => o - 1)}
                 aria-label="Categorias anteriores"
-                class="absolute left-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#2B0A50]/10 bg-white/95 text-[#5E2889] shadow-[0_4px_14px_rgba(43,10,80,0.10)] backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-[#5E2889] hover:bg-[#5E2889] hover:text-white hover:shadow-[0_6px_18px_rgba(94,40,137,0.24)] active:scale-95"
+                class="absolute left-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition-all duration-200 hover:bg-[#93509e] hover:text-white active:scale-95"
               >
                 <ChevronLeft class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
               </button>
@@ -305,7 +305,7 @@ function CategoryCirclesBlock(props: {
                 type="button"
                 onClick={() => setOffset((o) => o + 1)}
                 aria-label="Próximas categorias"
-                class="absolute right-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#2B0A50]/10 bg-white/95 text-[#5E2889] shadow-[0_4px_14px_rgba(43,10,80,0.10)] backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-[#5E2889] hover:bg-[#5E2889] hover:text-white hover:shadow-[0_6px_18px_rgba(94,40,137,0.24)] active:scale-95"
+                class="absolute right-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition-all duration-200 hover:bg-[#93509e] hover:text-white active:scale-95"
               >
                 <ChevronRight class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
               </button>
@@ -373,7 +373,7 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
               action={
                 <Link
                   to={viewAllHref()}
-                  class="group inline-flex items-center justify-center gap-1.5 rounded-full border border-[#3D1260]/15 bg-white px-5 py-2 text-[13px] font-semibold text-[#3D1260] shadow-2xs transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white hover:shadow-[0_6px_16px_rgba(61,18,96,0.16)]"
+                  class="group inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-5 py-2 text-[13px] font-semibold text-[#93509e] shadow-2xs transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.18)]"
                 >
                   <span>Ver tudo</span>
                   <ChevronRight
@@ -403,7 +403,7 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
                 type="button"
                 onClick={() => setOffset((o) => o - 1)}
                 aria-label={`Produtos anteriores em ${props.section.title || "vitrine"}`}
-                class="absolute left-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#FAF6F1]/75 text-[#EF4BEB] shadow-sm backdrop-blur-[5px] transition hover:bg-[#FAF6F1] sm:left-1.5"
+                class="absolute left-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:left-1.5"
               >
                 <ChevronLeft class="h-5 w-5" aria-hidden="true" />
               </button>
@@ -411,7 +411,7 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
                 type="button"
                 onClick={() => setOffset((o) => o + 1)}
                 aria-label={`Próximos produtos em ${props.section.title || "vitrine"}`}
-                class="absolute right-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-full bg-[#FAF6F1]/75 text-[#EF4BEB] shadow-sm backdrop-blur-[5px] transition hover:bg-[#FAF6F1] sm:right-1.5"
+                class="absolute right-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:right-1.5"
               >
                 <ChevronRight class="h-5 w-5" aria-hidden="true" />
               </button>
@@ -461,7 +461,7 @@ function BrandCarouselBlock(props: {
             <Show when={showViewAll()}>
               <Link
                 to="/marcas"
-                class="group inline-flex items-center gap-1 rounded-full border border-[#E5D4F0] bg-[#FAF6FC] px-3.5 py-1.5 text-xs font-semibold text-[#3D1260] transition-all duration-300 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white"
+                class="group inline-flex items-center gap-1 rounded-lg border border-[#93509e] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#93509e] transition-all duration-300 hover:bg-[#93509e] hover:text-white"
               >
                 <span>Todas as marcas</span>
                 <ChevronRight
@@ -508,7 +508,7 @@ function BrandCarouselBlock(props: {
               type="button"
               onClick={() => setOffset((o) => o - 1)}
               aria-label={`Marcas anteriores em ${props.section.title || "As melhores marcas"}`}
-              class="absolute left-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
+              class="absolute left-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:size-9"
             >
               <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
@@ -516,7 +516,7 @@ function BrandCarouselBlock(props: {
               type="button"
               onClick={() => setOffset((o) => o + 1)}
               aria-label={`Próximas marcas em ${props.section.title || "As melhores marcas"}`}
-              class="absolute right-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
+              class="absolute right-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:size-9"
             >
               <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
@@ -555,7 +555,7 @@ function TestimonialsCarouselBlock(props: {
             <For each={visibleReviews().slice(0, 4)}>
               {(rev, idx) => (
                 <article
-                  class={`relative min-h-[176px] flex-col justify-between overflow-hidden rounded-lg bg-gradient-to-br from-[#FDE2FE] via-[#FACBFB] to-[#F5B4FA] p-4 shadow-xs ${
+                  class={`relative min-h-[176px] flex-col justify-between overflow-hidden rounded-lg border border-[#E5D2EA] bg-[#F6EBF8] p-4 shadow-xs ${
                     idx() === 0
                       ? "flex"
                       : idx() === 1
@@ -565,7 +565,7 @@ function TestimonialsCarouselBlock(props: {
                 >
                   <div>
                     <div class="mb-2 flex items-center gap-2 text-[11px] font-medium text-[#5B2168]">
-                      <span class="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[#62298D] text-[10px] font-bold text-white shadow-xs">
+                      <span class="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-[#93509e] text-[10px] font-bold text-white shadow-xs">
                         {authorInitials(rev.author_name)}
                       </span>
                       <span class="truncate font-semibold text-[#3D1260]">
@@ -616,7 +616,7 @@ function TestimonialsCarouselBlock(props: {
               type="button"
               onClick={() => setOffset((o) => o - 1)}
               aria-label={`Depoimentos anteriores em ${props.section.title || "Quem compra indica!"}`}
-              class="absolute left-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
+              class="absolute left-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:size-9"
             >
               <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>
@@ -624,7 +624,7 @@ function TestimonialsCarouselBlock(props: {
               type="button"
               onClick={() => setOffset((o) => o + 1)}
               aria-label={`Próximos depoimentos em ${props.section.title || "Quem compra indica!"}`}
-              class="absolute right-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:size-9"
+              class="absolute right-0 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:size-9"
             >
               <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
             </button>

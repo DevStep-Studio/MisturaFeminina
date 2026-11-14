@@ -37,7 +37,7 @@ export function BenefitsBar() {
   return (
     <Show when={tickerItems().length > 0}>
       <div
-        class="relative w-full overflow-hidden border-b border-white/10 bg-gradient-to-r from-[#26093D] via-[#4A1575] to-[#26093D] text-[12px] font-medium tracking-[0.02em] text-white select-none sm:text-[12.5px]"
+        class="relative w-full overflow-hidden border-b border-white/10 bg-[#3D1260] text-[12px] font-medium tracking-[0.02em] text-white select-none sm:text-[12.5px]"
         aria-label="Benefícios da loja"
       >
         <div class="mf-ticker-track py-2">
@@ -59,7 +59,7 @@ export function BenefitsBar() {
                         {(item) => (
                           <span class="inline-flex items-center whitespace-nowrap">
                             <span class="inline-flex items-center gap-2">
-                              <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-white/15 text-[#F5D0FE]">
+                              <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-white/15 text-[#F5D0FE]">
                                 {renderTickerIcon(item)}
                               </span>
                               <span>{item}</span>

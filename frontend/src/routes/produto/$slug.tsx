@@ -442,7 +442,7 @@ function ProductDetailPage() {
                             type="button"
                             onClick={() => stepGalleryImage(-1)}
                             aria-label="Imagem anterior"
-                            class="hidden size-6 shrink-0 items-center justify-center rounded-full bg-[#FAF0FC] text-[#3D1260] transition hover:bg-[#F3DDF9] sm:inline-flex"
+                            class="hidden size-6 shrink-0 items-center justify-center rounded-md border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white sm:inline-flex"
                           >
                             <ChevronUp class="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
@@ -474,7 +474,7 @@ function ProductDetailPage() {
                             type="button"
                             onClick={() => stepGalleryImage(1)}
                             aria-label="Próxima imagem"
-                            class="hidden size-6 shrink-0 items-center justify-center rounded-full bg-[#FAF0FC] text-[#3D1260] transition hover:bg-[#F3DDF9] sm:inline-flex"
+                            class="hidden size-6 shrink-0 items-center justify-center rounded-md border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white sm:inline-flex"
                           >
                             <ChevronDown
                               class="h-3.5 w-3.5"
@@ -578,7 +578,7 @@ function ProductDetailPage() {
                               );
                               if (selected) chooseVariant(selected);
                             }}
-                            class="h-10 min-w-[165px] appearance-none rounded-full bg-[#FDF2FA] pl-4 pr-9 text-xs font-medium text-[#2E0C49] focus:outline-none focus:ring-2 focus:ring-[#62298D]"
+                            class="h-10 min-w-[165px] appearance-none rounded-lg border border-[#E5DAE9] bg-[#FAF5FB] pl-4 pr-9 text-xs font-medium text-[#2E0C49] focus:outline-none focus:ring-2 focus:ring-[#93509e]"
                           >
                             <option value="" disabled>
                               Selecione
@@ -673,7 +673,7 @@ function ProductDetailPage() {
                           class="space-y-4 rounded-2xl border border-[#E5D4F0] bg-[#FAF7FC] p-4 sm:p-5"
                         >
                           <div class="flex items-start gap-3">
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E5D4F0] bg-white text-[#3D1260]">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E5D4F0] bg-white text-[#93509e]">
                               <Bell class="h-4 w-4" aria-hidden="true" />
                             </span>
                             <div>
@@ -695,7 +695,7 @@ function ProductDetailPage() {
                               onInput={(e) =>
                                 setRestockName(e.currentTarget.value)
                               }
-                              class="h-10 rounded-full border border-zinc-200/90 bg-white px-4 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-[#3D1260] focus:outline-none"
+                              class="h-10 rounded-lg border border-zinc-200/90 bg-white px-4 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none"
                             />
                             <input
                               id="restock-email-input"
@@ -707,13 +707,13 @@ function ProductDetailPage() {
                               onInput={(e) =>
                                 setRestockEmail(e.currentTarget.value)
                               }
-                              class="h-10 rounded-full border border-zinc-200/90 bg-white px-4 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-[#3D1260] focus:outline-none"
+                              class="h-10 rounded-lg border border-zinc-200/90 bg-white px-4 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none"
                             />
                           </div>
                           <button
                             type="submit"
                             disabled={restockBusy()}
-                            class="group/notify inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-[#3D1260] px-5 text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#2E0C49] hover:shadow-[0_8px_20px_rgba(61,18,96,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3D1260]/40 disabled:opacity-60"
+                            class="group/notify inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#93509e] px-5 text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#7c3f87] hover:shadow-[0_8px_20px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/40 disabled:opacity-60"
                           >
                             <Bell
                               class="h-4 w-4 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
@@ -738,12 +738,12 @@ function ProductDetailPage() {
                     >
                       <div class="space-y-2.5 pt-1">
                         <div class="flex items-center gap-3">
-                          <div class="inline-flex h-11 w-28 shrink-0 items-center justify-between rounded-full bg-[#FDF2FA] px-3">
+                          <div class="inline-flex h-11 w-28 shrink-0 items-center justify-between rounded-lg border border-[#E5D4F0] bg-white px-3">
                             <button
                               type="button"
                               aria-label="Diminuir quantidade"
                               onClick={() => setQty((q) => Math.max(1, q - 1))}
-                              class="rounded p-1 text-[#C918BF] transition hover:bg-white/70"
+                              class="rounded-md p-1 text-[#93509e] transition hover:bg-[#F5ECF7]"
                             >
                               <Minus class="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
@@ -756,7 +756,7 @@ function ProductDetailPage() {
                               onClick={() =>
                                 setQty((q) => Math.min(maxQty(), q + 1))
                               }
-                              class="rounded p-1 text-[#C918BF] transition hover:bg-white/70"
+                              class="rounded-md p-1 text-[#93509e] transition hover:bg-[#F5ECF7]"
                             >
                               <Plus class="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
@@ -766,7 +766,7 @@ function ProductDetailPage() {
                             type="button"
                             disabled={adding()}
                             onClick={() => void handleAddToCart()}
-                            class="mf-btn-buy flex h-11 flex-1 items-center justify-center rounded-full px-6 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                            class="mf-btn-buy flex h-11 flex-1 items-center justify-center rounded-lg px-6 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
                           >
                             {adding() ? "ADICIONANDO..." : "COMPRAR"}
                           </button>
@@ -780,7 +780,7 @@ function ProductDetailPage() {
                             )}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="mf-btn-whats flex h-9 w-full items-center justify-center gap-1.5 rounded-full text-xs font-medium"
+                            class="mf-btn-whats flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-xs font-medium"
                           >
                             <svg
                               viewBox="0 0 24 24"
@@ -1044,7 +1044,7 @@ function ProductDetailPage() {
                               <button
                                 type="submit"
                                 disabled={revBusy()}
-                                class="h-9 rounded-full bg-[#3D1260] px-5 text-xs font-semibold text-white hover:bg-[#2E0C49] disabled:opacity-60"
+                                class="h-9 rounded-lg bg-[#93509e] px-5 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
                               >
                                 {revBusy()
                                   ? "Enviando..."
@@ -1108,7 +1108,7 @@ function ProductDetailPage() {
 
                     <div class="mt-6 flex items-center justify-center gap-2 text-xs text-[#2E0C49]">
                       <span>Páginas:</span>
-                      <span class="inline-flex size-6 items-center justify-center rounded-full bg-[#2E0C49] text-[11px] font-bold text-white">
+                      <span class="inline-flex size-6 items-center justify-center rounded-md bg-[#93509e] text-[11px] font-bold text-white">
                         1
                       </span>
                     </div>
@@ -1168,7 +1168,7 @@ function ProductDetailPage() {
                             });
                             el?.focus();
                           }}
-                          class="group/notify inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-[#E5D4F0] bg-[#FAF6FC] px-6 text-xs font-semibold text-[#3D1260] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white hover:shadow-[0_6px_16px_rgba(61,18,96,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3D1260]/30"
+                          class="group/notify inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-6 text-xs font-semibold text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30"
                         >
                           <Bell
                             class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
@@ -1182,7 +1182,7 @@ function ProductDetailPage() {
                         type="button"
                         disabled={adding()}
                         onClick={() => void handleAddToCart()}
-                        class="mf-btn-buy h-10 rounded-full px-8 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                        class="mf-btn-buy h-10 rounded-lg px-8 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
                       >
                         {adding() ? "ADICIONANDO..." : "COMPRAR"}
                       </button>

@@ -228,7 +228,7 @@ export function StoreHeader() {
               <button
                 type="submit"
                 aria-label="Buscar"
-                class="absolute right-0.5 inline-flex size-9 items-center justify-center rounded-full text-[var(--mf-accent)] hover:bg-[#FCE7F6]"
+                class="absolute right-0.5 inline-flex size-9 items-center justify-center rounded-md text-[#93509e] hover:bg-[#F5ECF7]"
               >
                 <Search class="size-[22px] stroke-[2]" aria-hidden="true" />
               </button>
@@ -262,7 +262,7 @@ export function StoreHeader() {
                 <button
                   type="button"
                   onClick={submitSearch}
-                  class="mt-1 w-full rounded-lg bg-[#FCE7F6] py-2 text-center text-xs font-semibold text-[#2E1049] hover:bg-[#F7D1EE]"
+                  class="mt-1 w-full rounded-lg border border-[#93509e] bg-white py-2 text-center text-xs font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                 >
                   Ver todos os resultados para “{searchQuery()}”
                 </button>
@@ -378,7 +378,7 @@ export function StoreHeader() {
                     </p>
                     <form
                       onSubmit={submitQuickTrack}
-                      class="mt-2 flex items-center rounded-full border border-[#EFE3F2] bg-[#FAF5FA] py-1.5 pl-4 pr-1.5 focus-within:border-[#C22583]"
+                      class="mt-2 flex items-center rounded-lg border border-[#EFE3F2] bg-[#FAF5FA] py-1.5 pl-3.5 pr-1.5 focus-within:border-[#93509e]"
                     >
                       <input
                         type="text"
@@ -391,7 +391,7 @@ export function StoreHeader() {
                       <button
                         type="submit"
                         aria-label="Consultar código de rastreio"
-                        class="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-[#C22583] transition-colors hover:bg-white"
+                        class="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-[#93509e] text-white transition-colors hover:bg-[#7c3f87]"
                       >
                         <ChevronRight class="size-4" aria-hidden="true" />
                       </button>
@@ -404,7 +404,7 @@ export function StoreHeader() {
             <Show when={isStaff()}>
               <Link
                 to="/admin"
-                class="hidden items-center gap-1 rounded-full border border-[var(--mf-primary)] px-2.5 py-1 text-xs font-bold text-[var(--mf-primary)] hover:bg-white md:inline-flex"
+                class="hidden items-center gap-1 rounded-lg border border-[#93509e] bg-white px-2.5 py-1 text-xs font-bold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white md:inline-flex"
               >
                 <Shield class="size-3.5" aria-hidden="true" />
                 <span>Painel</span>
@@ -454,7 +454,7 @@ export function StoreHeader() {
                           to="/entrar"
                           search={{ redirect: "" }}
                           onClick={closeAllMenus}
-                          class="flex w-full items-center justify-center gap-2 rounded-full bg-[#C22583] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9E1A69]"
+                          class="flex w-full items-center justify-center gap-2 rounded-lg bg-[#93509e] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#7c3f87]"
                         >
                           <LogIn class="size-4" aria-hidden="true" />
                           <span>Entrar</span>
@@ -485,7 +485,7 @@ export function StoreHeader() {
                     <Link
                       to="/minha-conta"
                       onClick={closeAllMenus}
-                      class="flex w-full items-center justify-center rounded-full bg-[#C22583] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9E1A69]"
+                      class="flex w-full items-center justify-center rounded-lg bg-[#93509e] py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#7c3f87]"
                     >
                       Minha Conta
                     </Link>
@@ -529,7 +529,7 @@ export function StoreHeader() {
                 class="size-[30px] stroke-[1.6] text-[var(--mf-accent)]"
                 aria-hidden="true"
               />
-              <span class="absolute -right-0.5 top-0 inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#2E1049] px-1 text-[11px] font-bold text-white">
+              <span class="absolute -right-0.5 top-0 inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-md bg-[#93509e] px-1 text-[11px] font-bold text-white">
                 {cartCount()}
               </span>
             </button>
@@ -758,8 +758,7 @@ export function StoreHeader() {
             <Link
               to="/promocoes"
               onClick={closeAllMenus}
-              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:opacity-95 2xl:gap-2 2xl:px-5 2xl:text-[13.5px]"
-              style={{ "background-color": "var(--mf-secondary)" }}
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#93509e] px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-[#7c3f87] 2xl:gap-2 2xl:px-5 2xl:text-[13.5px]"
             >
               <BadgePercent class="size-4 shrink-0" aria-hidden="true" />
               <span>Promoções</span>
@@ -790,7 +789,7 @@ export function StoreHeader() {
                         type="button"
                         aria-label="Ofertas anteriores"
                         onClick={promoSlidePrev}
-                        class="absolute left-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-zinc-200/80 bg-white/95 text-[#3D1260] shadow-xs hover:bg-[#FAF6FC]"
+                        class="absolute left-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-xs transition-colors hover:bg-[#93509e] hover:text-white"
                       >
                         <ChevronLeft class="size-4" aria-hidden="true" />
                       </button>
@@ -798,7 +797,7 @@ export function StoreHeader() {
                         type="button"
                         aria-label="Próximas ofertas"
                         onClick={promoSlideNext}
-                        class="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-zinc-200/80 bg-white/95 text-[#3D1260] shadow-xs hover:bg-[#FAF6FC]"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-xs transition-colors hover:bg-[#93509e] hover:text-white"
                       >
                         <ChevronRight class="size-4" aria-hidden="true" />
                       </button>
@@ -815,7 +814,7 @@ export function StoreHeader() {
                     <Link
                       to="/promocoes"
                       onClick={closeAllMenus}
-                      class="mt-5 inline-flex items-center justify-center rounded-full bg-[#3D1260] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#2E0C49]"
+                      class="mt-5 inline-flex items-center justify-center rounded-lg bg-[#93509e] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#7c3f87]"
                     >
                       Ver todos os produtos
                     </Link>
@@ -898,22 +897,21 @@ export function StoreHeader() {
                   <Link
                     to="/promocoes"
                     onClick={() => setMobileMenuOpen(false)}
-                    class="block rounded-lg px-3 py-2.5 text-center text-sm font-bold text-white"
-                    style={{ "background-color": "var(--mf-primary)" }}
+                    class="block rounded-lg bg-[#93509e] px-3 py-2.5 text-center text-sm font-bold text-white transition-colors hover:bg-[#7c3f87]"
                   >
                     Ver Promoções
                   </Link>
                   <Link
                     to="/novidades"
                     onClick={() => setMobileMenuOpen(false)}
-                    class="block rounded-lg border border-line px-3 py-2.5 text-center text-sm font-medium text-ink"
+                    class="block rounded-lg border border-[#93509e] bg-white px-3 py-2.5 text-center text-sm font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                   >
                     Novidades
                   </Link>
                   <Link
                     to="/rastrear-pedido"
                     onClick={() => setMobileMenuOpen(false)}
-                    class="block rounded-lg border border-line px-3 py-2.5 text-center text-sm font-medium text-ink"
+                    class="block rounded-lg border border-[#93509e] bg-white px-3 py-2.5 text-center text-sm font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                   >
                     Rastrear Pedido
                   </Link>
@@ -924,7 +922,7 @@ export function StoreHeader() {
                         : "/entrar"
                     }
                     onClick={() => setMobileMenuOpen(false)}
-                    class="block rounded-lg border border-line px-3 py-2.5 text-center text-sm font-medium text-ink"
+                    class="block rounded-lg border border-[#93509e] bg-white px-3 py-2.5 text-center text-sm font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                   >
                     Minha Conta
                   </Link>

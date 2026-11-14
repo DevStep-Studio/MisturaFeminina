@@ -96,7 +96,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
             <button
               type="submit"
               disabled={loading()}
-              class="h-10 shrink-0 rounded-md bg-zinc-900 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+              class="h-10 shrink-0 rounded-lg bg-[#93509e] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
             >
               {loading() ? "Calculando..." : "Calcular"}
             </button>
@@ -198,7 +198,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
 
           <form
             onSubmit={calculate}
-            class="flex h-10 flex-1 items-center rounded-full border border-zinc-200/70 bg-[#FAF7FB] pl-4 pr-1.5 sm:max-w-[300px]"
+            class="flex h-10 flex-1 items-center rounded-lg border border-zinc-200/70 bg-[#FAF7FB] pl-4 pr-1.5 sm:max-w-[300px]"
           >
             <label for={`cep-${props.mode}`} class="sr-only">
               CEP de entrega
@@ -216,7 +216,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
             <button
               type="submit"
               disabled={loading()}
-              class="shrink-0 rounded-full px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#2E0C49] transition hover:text-[#62298D] disabled:opacity-60"
+              class="shrink-0 rounded-md bg-[#93509e] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-white transition hover:bg-[#7c3f87] disabled:opacity-60"
             >
               {loading() ? "..." : "CALCULAR"}
             </button>

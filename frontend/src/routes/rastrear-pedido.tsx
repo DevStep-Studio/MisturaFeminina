@@ -197,7 +197,7 @@ function TrackOrderPage() {
                       href={res().order.shipment!.tracking_url!}
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white"
+                      class="rounded-lg bg-[#93509e] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87]"
                     >
                       Abrir rastreio na transportadora
                     </a>

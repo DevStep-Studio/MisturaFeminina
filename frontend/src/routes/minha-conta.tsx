@@ -324,7 +324,7 @@ function MyAccountPage() {
                   >
                     <Link
                       to="/admin"
-                      class="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+                      class="rounded-lg bg-[#93509e] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87]"
                     >
                       Acessar Backoffice (/admin)
                     </Link>
@@ -332,7 +332,7 @@ function MyAccountPage() {
                   <button
                     type="button"
                     onClick={() => void handleLogout()}
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-4 py-2 text-xs font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                   >
                     <LogOut class="h-4 w-4" />
                     Sair
@@ -677,7 +677,7 @@ function MyAccountPage() {
                           <button
                             type="button"
                             onClick={() => void start2fa()}
-                            class="mt-3 rounded-lg border border-zinc-300 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-50"
+                            class="mt-3 rounded-lg border border-[#93509e] bg-white px-4 py-2 text-xs font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                           >
                             Configurar TOTP (Google Authenticator)
                           </button>
@@ -705,7 +705,7 @@ function MyAccountPage() {
                                 />
                                 <button
                                   type="submit"
-                                  class="h-9 rounded-md bg-zinc-900 px-4 font-semibold text-white"
+                                  class="h-9 rounded-lg bg-[#93509e] px-4 font-semibold text-white transition-colors hover:bg-[#7c3f87]"
                                 >
                                   Ativar 2FA
                                 </button>
@@ -730,7 +730,7 @@ function MyAccountPage() {
                         <button
                           type="button"
                           onClick={() => void exportLgpdData()}
-                          class="mt-3 inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-zinc-100"
+                          class="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#93509e] bg-white px-4 py-2 text-xs font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                         >
                           <Download class="h-4 w-4" />
                           Baixar meus dados (JSON)
@@ -771,7 +771,7 @@ function MyAccountPage() {
                         />
                         <button
                           type="submit"
-                          class="rounded-lg bg-zinc-900 px-4 py-2 text-xs font-semibold text-white"
+                          class="rounded-lg bg-[#93509e] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87]"
                         >
                           Enviar solicitação
                         </button>

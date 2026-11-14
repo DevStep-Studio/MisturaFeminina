@@ -11,10 +11,10 @@ const DEFAULT_SETTINGS: StoreSettings = {
   logo_light_url: "/storage/brand/logo-mf.png",
   logo_dark_url: "/storage/brand/logo-mf-dark.png",
   favicon_url: "/storage/brand/favicon.png",
-  primary_color: "#C22583",
-  primary_hover_color: "#9E1A69",
+  primary_color: "#93509E",
+  primary_hover_color: "#7C3F87",
   secondary_color: "#62298D",
-  accent_color: "#EF4EEB",
+  accent_color: "#93509E",
   font_family: "system-ui",
   cnpj: "00.000.000/0001-00",
   company_legal_name: "Mistura Feminina Cosméticos Ltda.",
@@ -120,18 +120,27 @@ const [storefrontLoaded, setStorefrontLoaded] = createSignal(false);
 export function applyThemeFromSettings(settings: StoreSettings): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  if (settings.primary_color) {
-    root.style.setProperty("--mf-primary", settings.primary_color);
-  }
-  if (settings.primary_hover_color) {
-    root.style.setProperty("--mf-primary-hover", settings.primary_hover_color);
-  }
+  const legacyPrimary = new Set(["#c22583", "#5949e5", "#ef4eeb"]);
+  const primary = settings.primary_color?.trim();
+  root.style.setProperty(
+    "--mf-primary",
+    !primary || legacyPrimary.has(primary.toLowerCase()) ? "#93509E" : primary,
+  );
+  const primaryHover = settings.primary_hover_color?.trim();
+  root.style.setProperty(
+    "--mf-primary-hover",
+    !primaryHover || primaryHover.toLowerCase() === "#9e1a69"
+      ? "#7C3F87"
+      : primaryHover,
+  );
   if (settings.secondary_color) {
     root.style.setProperty("--mf-secondary", settings.secondary_color);
   }
-  if (settings.accent_color) {
-    root.style.setProperty("--mf-accent", settings.accent_color);
-  }
+  const accent = settings.accent_color?.trim();
+  root.style.setProperty(
+    "--mf-accent",
+    !accent || legacyPrimary.has(accent.toLowerCase()) ? "#93509E" : accent,
+  );
   if (settings.favicon_url) {
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     if (link) {
