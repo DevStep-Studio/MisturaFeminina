@@ -1,4 +1,4 @@
-import { type ParentProps, onMount } from "solid-js";
+import { type ParentProps, onCleanup, onMount } from "solid-js";
 import { loadStorefrontBootstrap, refreshCart } from "../store";
 import { BenefitsBar } from "./BenefitsBar";
 import { CartDrawer } from "./CartDrawer";
@@ -10,6 +10,36 @@ export function StoreShell(props: ParentProps) {
   onMount(() => {
     void loadStorefrontBootstrap();
     void refreshCart();
+
+    if (typeof window !== "undefined" && "IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-revealed");
+              observer.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.05, rootMargin: "0px 0px -40px 0px" },
+      );
+
+      const observeElements = () => {
+        const elements = document.querySelectorAll(
+          ".mf-scroll-reveal:not(.is-revealed)",
+        );
+        for (const el of elements) {
+          observer.observe(el);
+        }
+      };
+
+      observeElements();
+      const interval = setInterval(observeElements, 600);
+      onCleanup(() => {
+        clearInterval(interval);
+        observer.disconnect();
+      });
+    }
   });
 
   return (

@@ -5,7 +5,7 @@ import Mail from "lucide-solid/icons/mail";
 import MessageCircle from "lucide-solid/icons/message-circle";
 import Phone from "lucide-solid/icons/phone";
 import ShieldCheck from "lucide-solid/icons/shield-check";
-import { For, Show, createMemo } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { assetUrl, whatsappUrl } from "../../../lib/format";
 import { storefrontStore } from "../store";
 
@@ -21,6 +21,16 @@ const PAYMENT_BADGES = [
 export function StoreFooter() {
   const settings = () => storefrontStore.settings();
   const categories = () => storefrontStore.bootstrap().menu_categories;
+  const [showBackToTop, setShowBackToTop] = createSignal(false);
+
+  if (typeof window !== "undefined") {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 250);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    onCleanup(() => window.removeEventListener("scroll", handleScroll));
+  }
 
   const groupedPages = createMemo(() => {
     const pages = storefrontStore
@@ -332,7 +342,11 @@ export function StoreFooter() {
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Voltar ao topo"
-        class="fixed bottom-5 right-5 z-40 inline-flex size-10 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white"
+        class={`fixed bottom-5 right-5 z-40 inline-flex size-10 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-[0_4px_16px_rgba(147,80,158,0.2)] transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-[#93509e] hover:text-white ${
+          showBackToTop()
+            ? "translate-y-0 scale-100 opacity-100"
+            : "pointer-events-none translate-y-4 scale-90 opacity-0"
+        }`}
       >
         <ChevronUp class="h-4 w-4" aria-hidden="true" />
       </button>

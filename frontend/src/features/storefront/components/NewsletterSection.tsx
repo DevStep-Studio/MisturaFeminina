@@ -62,7 +62,7 @@ export function NewsletterSection() {
   return (
     <section
       aria-labelledby="newsletter-heading"
-      class="border-t border-zinc-200/80 bg-[#F7F3FA] py-8 sm:py-10"
+      class="mf-scroll-reveal border-t border-zinc-200/80 bg-[#F7F3FA] py-8 sm:py-10"
     >
       <div class="mx-auto flex max-w-7xl flex-col gap-6 px-4 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex items-start gap-3.5">

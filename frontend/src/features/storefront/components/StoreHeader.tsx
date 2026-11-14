@@ -40,6 +40,23 @@ export function StoreHeader() {
     createSignal<HeaderPopoverKey>(null);
   const [trackCode, setTrackCode] = createSignal("");
   const [promoOffset, setPromoOffset] = createSignal(0);
+  const [isScrolled, setIsScrolled] = createSignal(false);
+  const [scrollProgress, setScrollProgress] = createSignal(0);
+
+  createEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateScroll = () => {
+      const y = window.scrollY || document.documentElement.scrollTop;
+      setIsScrolled(y > 15);
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(
+        max > 0 ? Math.min(100, Math.max(0, (y / max) * 100)) : 0,
+      );
+    };
+    window.addEventListener("scroll", updateScroll, { passive: true });
+    updateScroll();
+    onCleanup(() => window.removeEventListener("scroll", updateScroll));
+  });
 
   const settings = () => storefrontStore.settings();
   const categories = () => storefrontStore.bootstrap().menu_categories;
@@ -191,7 +208,11 @@ export function StoreHeader() {
   return (
     <header
       ref={headerRef}
-      class="sticky top-0 z-40 border-b border-[#EBD4EC] bg-[#FFF3FF]"
+      class={`sticky top-0 z-40 bg-[#FFF3FF] transition-all duration-300 ${
+        isScrolled()
+          ? "border-b border-[#DFC2E3] shadow-[0_6px_22px_rgba(46,12,73,0.08)]"
+          : "border-b border-[#EBD4EC]"
+      }`}
     >
       <div class="border-b border-[#F9A2F6] bg-white">
         <div class="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:grid lg:h-[72px] lg:grid-cols-[1fr_auto_1fr] lg:py-0">
@@ -956,6 +977,13 @@ export function StoreHeader() {
           />
         </div>
       </Show>
+
+      {/* Scroll Progress Indicator Bar */}
+      <div
+        class="absolute bottom-0 left-0 h-[2.5px] bg-[#93509e] transition-[width] duration-100 ease-out"
+        style={{ width: `${scrollProgress()}%` }}
+        aria-hidden="true"
+      />
     </header>
   );
 }

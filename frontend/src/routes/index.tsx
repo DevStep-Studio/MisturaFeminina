@@ -260,7 +260,7 @@ function CategoryCirclesBlock(props: {
 
   return (
     <Show when={props.categories.length > 0}>
-      <section class="bg-white pt-6 pb-8 sm:pt-8 sm:pb-10">
+      <section class="mf-scroll-reveal bg-white pt-6 pb-8 sm:pt-8 sm:pb-10">
         <div class="mx-auto w-[96%] max-w-[1520px]">
           <SectionHeading
             title={props.section.title || "Navegue por Categorias"}
@@ -347,11 +347,11 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
   return (
     <Show when={products().length > 0}>
       <section
-        class={
+        class={`mf-scroll-reveal ${
           isCountdownOffers()
             ? "bg-[#F3F3F3] pb-[24px] pt-[30px]"
             : "bg-white py-8 sm:py-10"
-        }
+        }`}
       >
         <div class="mx-auto w-[96%] max-w-[1520px]">
           <Show
@@ -448,7 +448,7 @@ function BrandCarouselBlock(props: {
   return (
     <Show when={props.brands.length > 0}>
       <section
-        class="mx-auto max-w-7xl bg-white px-4 py-8 sm:py-10"
+        class="mf-scroll-reveal mx-auto max-w-7xl bg-white px-4 py-8 sm:py-10"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onFocusIn={() => setPaused(true)}
@@ -544,7 +544,7 @@ function TestimonialsCarouselBlock(props: {
 
   return (
     <Show when={props.reviews.length > 0}>
-      <section class="mx-auto max-w-7xl bg-white px-4 py-8 sm:py-10">
+      <section class="mf-scroll-reveal mx-auto max-w-7xl bg-white px-4 py-8 sm:py-10">
         <SectionHeading
           title={props.section.title || "Quem compra indica!"}
           subtitle={props.section.subtitle}
@@ -699,7 +699,7 @@ function StorefrontHomePage() {
             return (
               <section
                 aria-label="Diferenciais da loja"
-                class="bg-white py-7 sm:py-8"
+                class="mf-scroll-reveal bg-white py-7 sm:py-8"
               >
                 <div class="mx-auto grid max-w-[1440px] grid-cols-2 gap-x-4 gap-y-5 px-4 sm:grid-cols-3 lg:grid-cols-5">
                   <For each={settings().benefits_row}>
@@ -743,7 +743,7 @@ function StorefrontHomePage() {
               <Show when={banners.length > 0}>
                 <section
                   aria-label={section.title || "Destaques promocionais"}
-                  class="mx-auto max-w-7xl px-4 py-6"
+                  class="mf-scroll-reveal mx-auto max-w-7xl px-4 py-6"
                 >
                   <Show when={section.title}>
                     <SectionHeading
