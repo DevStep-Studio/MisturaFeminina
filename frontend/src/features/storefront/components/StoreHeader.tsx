@@ -592,19 +592,19 @@ export function StoreHeader() {
                   onMouseLeave={scheduleClosePopover}
                 >
                   <div class="flex items-center justify-between border-b border-zinc-100 bg-[#FAF8FC] px-6 py-3">
-                    <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
+                    <span class="text-[12.5px] font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
                       Departamentos
                     </span>
                     <Link
                       to="/categorias"
                       onClick={closeAllMenus}
-                      class="inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] transition-colors hover:text-[#2E0C49]"
+                      class="inline-flex items-center gap-1 text-[13.5px] font-semibold text-[#93509e] transition-colors hover:text-[#7c3f87]"
                     >
                       <span>Ver todas as categorias</span>
-                      <ChevronRight class="size-3.5" aria-hidden="true" />
+                      <ChevronRight class="size-4" aria-hidden="true" />
                     </Link>
                   </div>
-                  <div class="grid grid-cols-3 gap-x-6 gap-y-6 p-6 xl:grid-cols-6">
+                  <div class="grid grid-cols-3 gap-x-4 gap-y-6 px-5 py-6 xl:grid-cols-6">
                     <For each={categories()}>
                       {(cat) => (
                         <CategoryMegaColumn
@@ -653,25 +653,25 @@ export function StoreHeader() {
                       <div
                         class={`absolute top-full z-50 mt-1 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/98 p-4 shadow-[0_16px_40px_-12px_rgba(46,16,73,0.14)] backdrop-blur-md ${
                           alignRight() ? "right-0" : "left-0"
-                        } ${cat.featured_product ? "w-[430px]" : "w-[240px]"}`}
+                        } ${cat.featured_product ? "w-[470px]" : "w-[270px]"}`}
                         onMouseEnter={() => openPopover(key())}
                         onMouseLeave={scheduleClosePopover}
                       >
                         <div class="flex gap-4">
                           <div class="min-w-0 flex-1">
                             <div class="mb-2 flex items-center justify-between border-b border-zinc-100 px-2 pb-2.5">
-                              <span class="text-xs font-bold uppercase tracking-[0.12em] text-[#2E0C49]">
+                              <span class="text-[13.5px] font-bold uppercase tracking-[0.1em] text-[#2E0C49]">
                                 {cat.name}
                               </span>
                               <Link
                                 to="/categoria/$slug"
                                 params={{ slug: cat.slug }}
                                 onClick={closeAllMenus}
-                                class="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-[#62298D] transition-colors hover:text-[#2E0C49]"
+                                class="inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-[#93509e] transition-colors hover:text-[#7c3f87]"
                               >
                                 <span>Ver tudo</span>
                                 <ChevronRight
-                                  class="size-3"
+                                  class="size-3.5"
                                   aria-hidden="true"
                                 />
                               </Link>
@@ -869,7 +869,7 @@ export function StoreHeader() {
                         to="/categoria/$slug"
                         params={{ slug: cat.slug }}
                         onClick={() => setMobileMenuOpen(false)}
-                        class="block py-1 text-sm font-semibold text-ink"
+                        class="block py-1 text-[15px] font-semibold text-ink"
                       >
                         {cat.name}
                       </Link>
@@ -881,9 +881,13 @@ export function StoreHeader() {
                                 to="/categoria/$slug"
                                 params={{ slug: child.slug }}
                                 onClick={() => setMobileMenuOpen(false)}
-                                class="block py-1 text-xs text-muted hover:text-brand-600"
+                                class="flex items-center gap-2 py-1 text-[13.5px] text-muted hover:text-[#93509e]"
                               >
-                                {child.name}
+                                <span
+                                  class="size-1.5 shrink-0 rounded-full bg-[#93509e]"
+                                  aria-hidden="true"
+                                />
+                                <span>{child.name}</span>
                               </Link>
                             )}
                           </For>
@@ -952,10 +956,19 @@ function CategoryMegaColumn(props: {
         to="/categoria/$slug"
         params={{ slug: props.category.slug }}
         onClick={props.onSelect}
-        class="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 text-xs font-bold uppercase tracking-[0.1em] text-[#2E0C49] transition-colors hover:text-[#62298D]"
+        class="mb-2 flex items-center justify-between gap-1.5 border-b border-zinc-100 pb-2 text-[13px] font-bold uppercase tracking-[0.04em] text-[#2E0C49] transition-colors hover:text-[#93509e]"
       >
-        <span>{props.category.name}</span>
-        <ChevronRight class="size-3.5 text-zinc-400" aria-hidden="true" />
+        <span class="flex min-w-0 items-center gap-2">
+          <span
+            class="size-2 shrink-0 rounded-full bg-[#93509e]"
+            aria-hidden="true"
+          />
+          <span>{props.category.name}</span>
+        </span>
+        <ChevronRight
+          class="size-3.5 shrink-0 text-zinc-400"
+          aria-hidden="true"
+        />
       </Link>
       <Show when={(props.category.children?.length ?? 0) > 0}>
         <CategorySubtreeList
@@ -980,13 +993,13 @@ function CategorySubtreeList(props: {
               to="/categoria/$slug"
               params={{ slug: child.slug }}
               onClick={props.onSelect}
-              class="group flex items-center justify-between rounded-lg px-2 py-1.5 text-[13px] font-medium text-zinc-600 transition-colors hover:bg-[#FAF6FC] hover:text-[#2E0C49]"
+              class="group flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-[14px] font-medium leading-snug text-[#3D2352] transition-colors hover:bg-[#FAF6FC] hover:text-[#93509e]"
             >
-              <span class="truncate">{child.name}</span>
-              <ChevronRight
-                class="size-3.5 shrink-0 text-zinc-300 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:text-[#62298D] group-hover:opacity-100"
+              <span
+                class="size-1.5 shrink-0 rounded-full bg-[#93509e]/85 transition-transform duration-200 group-hover:scale-125 group-hover:bg-[#93509e]"
                 aria-hidden="true"
               />
+              <span>{child.name}</span>
             </Link>
             <Show when={(child.children?.length ?? 0) > 0}>
               <ul class="ml-2 mt-0.5 space-y-0.5 border-l border-zinc-200/80 pl-2.5">
@@ -997,9 +1010,13 @@ function CategorySubtreeList(props: {
                         to="/categoria/$slug"
                         params={{ slug: grandChild.slug }}
                         onClick={props.onSelect}
-                        class="block rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-[#FAF6FC] hover:text-[#2E0C49]"
+                        class="group/sub flex items-center gap-2 rounded-md px-1.5 py-1 text-[13px] font-medium leading-snug text-zinc-600 transition-colors hover:bg-[#FAF6FC] hover:text-[#93509e]"
                       >
-                        {grandChild.name}
+                        <span
+                          class="size-1.5 shrink-0 rounded-full bg-[#93509e]/65 transition-colors group-hover/sub:bg-[#93509e]"
+                          aria-hidden="true"
+                        />
+                        <span>{grandChild.name}</span>
                       </Link>
                     </li>
                   )}
