@@ -32,7 +32,7 @@ class StorefrontController extends Controller
     {
         $config = $this->settings->getPublicConfig();
 
-        $maxInstallments = (int) ($config['max_installments'] ?? 6);
+        $maxInstallments = 3;
 
         $categories = Category::query()
             ->where('is_active', true)
@@ -48,6 +48,7 @@ class StorefrontController extends Controller
                     ->where('is_active', true)
                     ->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $catIds))
                     ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+                    ->orderByRaw("CASE WHEN sku LIKE 'JK-%' THEN 0 ELSE 1 END ASC")
                     ->orderByDesc('is_featured')
                     ->orderByDesc('sales_count')
                     ->orderBy('id')
@@ -65,6 +66,7 @@ class StorefrontController extends Controller
             ->whereNotNull('promo_price_cents')
             ->whereColumn('promo_price_cents', '<', 'price_cents')
             ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->orderByRaw("CASE WHEN sku LIKE 'JK-%' THEN 0 ELSE 1 END ASC")
             ->orderByDesc('is_featured')
             ->orderByDesc('sales_count')
             ->limit(8)
@@ -76,6 +78,7 @@ class StorefrontController extends Controller
             ->where('is_active', true)
             ->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) > 0'))
             ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->orderByRaw("CASE WHEN sku LIKE 'JK-%' THEN 0 ELSE 1 END ASC")
             ->orderByDesc('is_best_seller')
             ->orderByDesc('is_featured')
             ->limit(4)
