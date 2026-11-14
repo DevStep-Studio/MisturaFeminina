@@ -274,7 +274,7 @@ function CategoryCirclesBlock(props: {
                   <Link
                     to="/categoria/$slug"
                     params={{ slug: cat.slug }}
-                    class="group flex flex-col items-center text-center focus-visible:outline-none"
+                    class="mf-card-stagger group flex flex-col items-center text-center focus-visible:outline-none"
                   >
                     <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border border-[#EAE4F2] bg-white shadow-[0_2px_10px_rgba(43,10,80,0.04)] transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:border-[#93509e]/50 group-hover:shadow-[0_14px_28px_-6px_rgba(147,80,158,0.22)] group-hover:ring-4 group-hover:ring-[#93509e]/10 group-focus-visible:ring-2 group-focus-visible:ring-[#93509e]">
                       <img

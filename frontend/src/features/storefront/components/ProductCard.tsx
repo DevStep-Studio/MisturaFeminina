@@ -30,7 +30,7 @@ export function ProductCard(props: {
 
   return (
     <article
-      class={`group relative flex h-full flex-col rounded-[4px] bg-white p-3 sm:p-4 transition-all ${
+      class={`mf-card-stagger group relative flex h-full flex-col rounded-[4px] bg-white p-3 sm:p-4 transition-all ${
         props.borderless
           ? "border border-transparent"
           : "border border-zinc-200/70"
