@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { For, Show, createResource } from "solid-js";
+import { SectionHeading } from "../features/storefront/components/SectionHeading";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import type { BrandItem } from "../features/storefront/types";
 import { api } from "../lib/api";
@@ -28,12 +29,12 @@ function BrandsDirectoryPage() {
   return (
     <StoreShell>
       <div class="mx-auto max-w-7xl px-4 py-8">
-        <h1 class="text-2xl font-bold text-zinc-900 sm:text-3xl">
-          Marcas Parceiras
-        </h1>
-        <p class="mt-1 text-sm text-zinc-600">
-          Selecione uma marca para visualizar os produtos disponíveis.
-        </p>
+        <SectionHeading
+          as="h1"
+          align="left"
+          title="Marcas Parceiras"
+          subtitle="Selecione uma marca para visualizar os produtos disponíveis."
+        />
 
         <Show
           when={!brands.loading}

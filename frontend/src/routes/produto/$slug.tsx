@@ -17,6 +17,7 @@ import {
 } from "solid-js";
 import { NewsletterSection } from "../../features/storefront/components/NewsletterSection";
 import { ProductCard } from "../../features/storefront/components/ProductCard";
+import { SectionHeading } from "../../features/storefront/components/SectionHeading";
 import { ShippingQuoteWidget } from "../../features/storefront/components/ShippingQuoteWidget";
 import { StoreShell } from "../../features/storefront/components/StoreShell";
 import { addCartItem, storefrontStore } from "../../features/storefront/store";
@@ -1067,13 +1068,8 @@ function ProductDetailPage() {
                   when={p().related_products && p().related_products.length > 0}
                 >
                   <section class="mt-14 pt-6">
-                    <div class="text-center">
-                      <h2 class="text-xl font-extrabold text-[#2E0C49] sm:text-2xl">
-                        Produtos relacionados
-                      </h2>
-                      <div class="mx-auto mt-2 h-[3px] w-9 rounded-full bg-[#2E0C49]" />
-                    </div>
-                    <div class="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                    <SectionHeading title="Produtos relacionados" />
+                    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                       <For each={p().related_products}>
                         {(rel) => <ProductCard product={rel} />}
                       </For>
@@ -1084,14 +1080,9 @@ function ProductDetailPage() {
                 {/* Produtos visualizados */}
                 <Show when={viewedProducts().length > 0}>
                   <section class="mt-14 pt-4">
-                    <div class="text-center">
-                      <h2 class="text-xl font-extrabold text-[#2E0C49] sm:text-2xl">
-                        Produtos visualizados
-                      </h2>
-                      <div class="mx-auto mt-2 h-[3px] w-9 rounded-full bg-[#2E0C49]" />
-                    </div>
+                    <SectionHeading title="Produtos visualizados" />
 
-                    <div class="mt-7 flex flex-wrap items-center justify-center gap-4">
+                    <div class="flex flex-wrap items-center justify-center gap-4">
                       <For each={viewedProducts()}>
                         {(item) => (
                           <Link

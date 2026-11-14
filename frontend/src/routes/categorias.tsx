@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { For, Show, createResource } from "solid-js";
+import { SectionHeading } from "../features/storefront/components/SectionHeading";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import type { CategoryNode } from "../features/storefront/types";
 import { api } from "../lib/api";
@@ -28,13 +29,12 @@ function CategoriesDirectoryPage() {
   return (
     <StoreShell>
       <div class="mx-auto max-w-7xl px-4 py-8">
-        <h1 class="text-2xl font-bold text-zinc-900 sm:text-3xl">
-          Todas as Categorias
-        </h1>
-        <p class="mt-1 text-sm text-zinc-600">
-          Escolha um departamento para navegar pelos nossos cosméticos e
-          acessórios.
-        </p>
+        <SectionHeading
+          as="h1"
+          align="left"
+          title="Todas as Categorias"
+          subtitle="Escolha um departamento para navegar pelos nossos cosméticos e acessórios."
+        />
 
         <Show
           when={!categories.loading}

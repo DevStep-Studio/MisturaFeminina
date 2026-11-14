@@ -12,6 +12,7 @@ import {
 } from "solid-js";
 import { NewsletterSection } from "../features/storefront/components/NewsletterSection";
 import { ProductCard } from "../features/storefront/components/ProductCard";
+import { SectionHeading } from "../features/storefront/components/SectionHeading";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import { storefrontStore } from "../features/storefront/store";
 import type {
@@ -234,12 +235,10 @@ function CategoryCirclesBlock(props: {
     <Show when={props.categories.length > 0}>
       <section class="bg-white pt-6 pb-8 sm:pt-8 sm:pb-10">
         <div class="mx-auto w-[96%] max-w-[1520px]">
-          <div class="mb-6 text-center sm:mb-7">
-            <h2 class="text-[21px] font-extrabold leading-normal text-[#2F0572] sm:text-[23px]">
-              {props.section.title || "Navegue por Categorias"}
-            </h2>
-            <div class="mx-auto mt-[10px] h-[4px] w-[40px] bg-[#2F0572]" />
-          </div>
+          <SectionHeading
+            title={props.section.title || "Navegue por Categorias"}
+            subtitle={props.section.subtitle}
+          />
 
           <div class="relative">
             <div class="grid grid-cols-3 gap-5 sm:grid-cols-4 sm:gap-7 lg:grid-cols-6 lg:gap-10 xl:gap-12">
@@ -331,29 +330,32 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
           <Show
             when={isCountdownOffers()}
             fallback={
-              <div class="mb-7 text-center">
-                <h2 class="text-[21px] font-extrabold text-[#2F0572] sm:text-[24px]">
-                  {props.section.title || "Destaques"}
-                </h2>
-                <div class="mx-auto mt-[10px] h-[4px] w-[40px] bg-[#2F0572]" />
-              </div>
+              <SectionHeading
+                title={props.section.title || "Destaques"}
+                subtitle={props.section.subtitle}
+              />
             }
           >
-            <div class="mb-5 text-center sm:text-left">
-              <h2 class="text-[21px] font-extrabold leading-normal text-[#62298D] sm:text-[24px]">
-                {props.section.title || "Confira nossas ofertas da semana"}
-              </h2>
-              <p class="mt-0.5 text-[14px] font-normal text-[#62298D]">
-                {props.section.subtitle ||
-                  "Produtos com os melhores preços do mercado, confira já!"}
-              </p>
-              <Link
-                to={viewAllHref()}
-                class="mt-[15px] inline-flex items-center justify-center rounded-full bg-[#62298D] px-[35px] py-[9px] text-[14px] font-bold text-white transition-opacity hover:opacity-80"
-              >
-                Ver tudo
-              </Link>
-            </div>
+            <SectionHeading
+              align="left"
+              title={props.section.title || "Confira nossas ofertas da semana"}
+              subtitle={
+                props.section.subtitle ||
+                "Produtos com os melhores preços do mercado, confira já!"
+              }
+              action={
+                <Link
+                  to={viewAllHref()}
+                  class="group inline-flex items-center justify-center gap-1.5 rounded-full border border-[#3D1260]/15 bg-white px-5 py-2 text-[13px] font-semibold text-[#3D1260] shadow-2xs transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white hover:shadow-[0_6px_16px_rgba(61,18,96,0.16)]"
+                >
+                  <span>Ver tudo</span>
+                  <ChevronRight
+                    class="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </Link>
+              }
+            />
           </Show>
 
           <div class="relative">
@@ -425,21 +427,24 @@ function BrandCarouselBlock(props: {
         onFocusIn={() => setPaused(true)}
         onFocusOut={() => setPaused(false)}
       >
-        <div class="relative mb-8 text-center">
-          <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
-            {props.section.title || "As melhores marcas"}
-          </h2>
-          <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
-          <Show when={showViewAll()}>
-            <Link
-              to="/marcas"
-              class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] hover:underline sm:absolute sm:right-0 sm:top-1 sm:mt-0 sm:text-sm"
-            >
-              Todas as marcas
-              <ChevronRight class="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </Show>
-        </div>
+        <SectionHeading
+          title={props.section.title || "As melhores marcas"}
+          subtitle={props.section.subtitle}
+          action={
+            <Show when={showViewAll()}>
+              <Link
+                to="/marcas"
+                class="group inline-flex items-center gap-1 rounded-full border border-[#E5D4F0] bg-[#FAF6FC] px-3.5 py-1.5 text-xs font-semibold text-[#3D1260] transition-all duration-300 hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white"
+              >
+                <span>Todas as marcas</span>
+                <ChevronRight
+                  class="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </Link>
+            </Show>
+          }
+        />
 
         <div class="relative px-8 sm:px-10">
           <div class="grid grid-cols-2 items-center gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -513,12 +518,10 @@ function TestimonialsCarouselBlock(props: {
   return (
     <Show when={props.reviews.length > 0}>
       <section class="mx-auto max-w-7xl bg-white px-4 py-8 sm:py-10">
-        <div class="mb-7 text-center">
-          <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
-            {props.section.title || "Quem compra indica!"}
-          </h2>
-          <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
-        </div>
+        <SectionHeading
+          title={props.section.title || "Quem compra indica!"}
+          subtitle={props.section.subtitle}
+        />
 
         <div class="relative px-4 sm:px-6">
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -736,9 +739,10 @@ function StorefrontHomePage() {
                   class="mx-auto max-w-7xl px-4 py-6"
                 >
                   <Show when={section.title}>
-                    <h2 class="mb-4 text-xl font-bold text-zinc-900">
-                      {section.title}
-                    </h2>
+                    <SectionHeading
+                      title={section.title!}
+                      subtitle={section.subtitle}
+                    />
                   </Show>
                   <div class="grid gap-4 md:grid-cols-2">
                     <For each={banners}>
