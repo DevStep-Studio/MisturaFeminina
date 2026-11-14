@@ -57,7 +57,7 @@ function CategoriesDirectoryPage() {
                       class="h-14 w-14 rounded-lg border border-zinc-200 bg-zinc-50 object-cover"
                     />
                     <div>
-                      <h2 class="text-base font-bold text-zinc-900">
+                      <h2 class="text-base font-bold text-[#93509e]">
                         {cat.name}
                       </h2>
                       <Show when={cat.description}>

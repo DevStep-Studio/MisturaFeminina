@@ -220,13 +220,13 @@ export function CatalogListingView(props: CatalogListingProps) {
 
         <header class="mb-6 flex flex-col gap-4 border-b border-[#EFE3F2] pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 class="text-[22px] font-bold leading-tight tracking-[-0.02em] text-[#26093D] sm:text-[26px]">
+            <h1 class="text-[22px] font-bold leading-tight tracking-[-0.015em] text-[#93509e] sm:text-[26px]">
               {props.title}
             </h1>
-            <div class="mt-2 flex items-center gap-2" aria-hidden="true">
-              <span class="h-[3px] w-7 rounded-sm bg-[#93509e]" />
-              <span class="h-px w-12 bg-[#DFC5EC]" />
-            </div>
+            <span
+              class="mt-2 block h-[2.5px] w-10 rounded-sm bg-[#93509e]"
+              aria-hidden="true"
+            />
             <Show when={props.subtitle}>
               <p class="mt-2 max-w-2xl text-sm text-[#5B486B]">
                 {props.subtitle}

@@ -284,7 +284,7 @@ function CategoryCirclesBlock(props: {
                         loading="lazy"
                       />
                     </div>
-                    <span class="mt-3 inline-flex items-center justify-center rounded-lg px-3.5 py-1 text-[13px] font-bold leading-normal text-[#2B0A50] transition-all duration-300 ease-out group-hover:bg-[#93509e] group-hover:text-white sm:text-[14px]">
+                    <span class="mt-3 inline-flex items-center justify-center rounded-lg px-3.5 py-1 text-[13px] font-bold leading-normal text-[#93509e] transition-all duration-300 ease-out group-hover:bg-[#93509e] group-hover:text-white sm:text-[14px]">
                       {cat.name}
                     </span>
                   </Link>

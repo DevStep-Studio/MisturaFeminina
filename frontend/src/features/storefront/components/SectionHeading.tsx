@@ -20,7 +20,7 @@ export function SectionHeading(props: SectionHeadingProps) {
   const tag = () => (isPageTitle() ? "h1" : "h2");
 
   const headingClass = () =>
-    `font-bold tracking-[-0.02em] leading-tight text-[#26093D] ${
+    `font-bold tracking-[-0.015em] leading-tight text-[#93509e] ${
       isPageTitle()
         ? "text-[22px] sm:text-[26px]"
         : "text-[20px] sm:text-[24px]"
@@ -41,14 +41,10 @@ export function SectionHeading(props: SectionHeadingProps) {
             </p>
           </Show>
 
-          <div
-            class="mt-2.5 flex items-center justify-center gap-2"
+          <span
+            class="mx-auto mt-2.5 block h-[2.5px] w-10 rounded-sm bg-[#93509e]"
             aria-hidden="true"
-          >
-            <span class="h-px w-8 bg-[#DFC5EC] sm:w-10" />
-            <span class="h-[3px] w-7 rounded-sm bg-[#93509e]" />
-            <span class="h-px w-8 bg-[#DFC5EC] sm:w-10" />
-          </div>
+          />
 
           <Show when={props.action}>
             <div class="mt-3 sm:absolute sm:right-0 sm:top-1/2 sm:mt-0 sm:-translate-y-1/2">
@@ -66,13 +62,10 @@ export function SectionHeading(props: SectionHeadingProps) {
             {props.title}
           </Dynamic>
 
-          <div
-            class="mt-2 flex items-center justify-center gap-2 sm:justify-start"
+          <span
+            class="mx-auto mt-2 block h-[2.5px] w-10 rounded-sm bg-[#93509e] sm:mx-0"
             aria-hidden="true"
-          >
-            <span class="h-[3px] w-7 rounded-sm bg-[#93509e]" />
-            <span class="h-px w-10 bg-[#DFC5EC] sm:w-14" />
-          </div>
+          />
 
           <Show when={props.subtitle}>
             <p class="mt-2 max-w-2xl text-[13px] font-normal leading-relaxed text-zinc-600 sm:text-[13.5px]">
