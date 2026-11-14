@@ -56,6 +56,7 @@ interface FacetItem {
   id: number;
   name: string;
   slug: string;
+  products_count?: number;
 }
 
 interface CatalogPaginatedResponse {
@@ -87,6 +88,39 @@ interface CatalogPaginatedResponse {
 
 function toggleSlug(list: string[], slug: string): string[] {
   return list.includes(slug) ? list.filter((s) => s !== slug) : [...list, slug];
+}
+
+function FilterOptionCheckbox(props: {
+  label: string;
+  count?: number;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label class="group flex cursor-pointer items-center gap-3.5">
+      <input
+        type="checkbox"
+        checked={props.checked}
+        onChange={(e) => props.onChange(e.currentTarget.checked)}
+        class="peer sr-only"
+      />
+      <span
+        aria-hidden="true"
+        class={`size-5 shrink-0 rounded-[5px] border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#93509e]/40 ${
+          props.checked
+            ? "border-[#2E0C49] bg-[#2E0C49]"
+            : "border-[#F4D9F7] bg-white group-hover:border-[#93509e]"
+        }`}
+      />
+      <span class="text-[15px] font-bold leading-snug text-[#2E0C49] transition-colors group-hover:text-[#93509e]">
+        {props.label}
+        <Show when={props.count !== undefined}>
+          {" "}
+          <span class="font-normal text-[#4E3B63]">({props.count})</span>
+        </Show>
+      </span>
+    </label>
+  );
 }
 
 export function CatalogListingView(props: CatalogListingProps) {
@@ -334,24 +368,24 @@ export function CatalogListingView(props: CatalogListingProps) {
         </header>
 
         <div
-          class={`grid gap-7 ${props.showFilters !== false ? "lg:grid-cols-[235px_1fr]" : ""}`}
+          class={`grid gap-7 ${props.showFilters !== false ? "lg:grid-cols-[260px_1fr]" : ""}`}
         >
           <Show when={props.showFilters !== false}>
             <aside
               aria-label="Filtros do catálogo"
               class={`${
                 mobileFiltersOpen() ? "block" : "hidden"
-              } space-y-6 rounded-xl border border-[#EFE3F2] bg-white p-5 lg:block lg:self-start lg:border-0 lg:bg-transparent lg:p-0`}
+              } space-y-6 rounded-2xl border border-[#F6E2F8] bg-white p-6 shadow-[0_2px_12px_rgba(46,12,73,0.03)] lg:block lg:self-start`}
             >
               <Show when={hasActiveFilters()}>
-                <div class="flex items-center justify-between border-b border-zinc-100 pb-3">
+                <div class="flex items-center justify-between border-b border-[#F6E2F8] pb-4">
                   <span class="text-xs font-bold uppercase tracking-wide text-[#5B486B]">
                     Filtros ativos
                   </span>
                   <button
                     type="button"
                     onClick={resetFilters}
-                    class="text-xs font-bold text-[#C22583] hover:underline"
+                    class="text-xs font-bold text-[#93509e] hover:underline"
                   >
                     Limpar tudo
                   </button>
@@ -360,27 +394,24 @@ export function CatalogListingView(props: CatalogListingProps) {
 
               {/* Marcas */}
               <Show when={availableBrands().length > 0}>
-                <fieldset class="space-y-2.5 border-b border-zinc-200/80 pb-5">
-                  <legend class="text-base font-extrabold text-[#2E1049]">
+                <fieldset class="space-y-4 border-b border-[#F6E2F8] pb-6">
+                  <legend class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
                     Marcas
                   </legend>
-                  <div class="max-h-56 space-y-2 overflow-y-auto pr-1 pt-1">
+                  <div class="max-h-72 space-y-3.5 overflow-y-auto pr-1 pt-2">
                     <For each={availableBrands()}>
                       {(b) => (
-                        <label class="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-[#3D1260] hover:text-[#C22583]">
-                          <input
-                            type="checkbox"
-                            checked={selectedBrands().includes(b.slug)}
-                            onChange={() => {
-                              setSelectedBrands((prev) =>
-                                toggleSlug(prev, b.slug),
-                              );
-                              setPage(1);
-                            }}
-                            class="size-4 rounded border-[#D8C5DF] accent-[#C22583]"
-                          />
-                          <span>{b.name}</span>
-                        </label>
+                        <FilterOptionCheckbox
+                          label={b.name}
+                          count={b.products_count}
+                          checked={selectedBrands().includes(b.slug)}
+                          onChange={() => {
+                            setSelectedBrands((prev) =>
+                              toggleSlug(prev, b.slug),
+                            );
+                            setPage(1);
+                          }}
+                        />
                       )}
                     </For>
                   </div>
@@ -389,27 +420,24 @@ export function CatalogListingView(props: CatalogListingProps) {
 
               {/* Categorias */}
               <Show when={facetCategories().length > 0}>
-                <fieldset class="space-y-2.5 border-b border-zinc-200/80 pb-5">
-                  <legend class="text-base font-extrabold text-[#2E1049]">
+                <fieldset class="space-y-4 border-b border-[#F6E2F8] pb-6">
+                  <legend class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
                     Categorias
                   </legend>
-                  <div class="max-h-56 space-y-2 overflow-y-auto pr-1 pt-1">
+                  <div class="max-h-72 space-y-3.5 overflow-y-auto pr-1 pt-2">
                     <For each={facetCategories()}>
                       {(c) => (
-                        <label class="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-[#3D1260] hover:text-[#C22583]">
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories().includes(c.slug)}
-                            onChange={() => {
-                              setSelectedCategories((prev) =>
-                                toggleSlug(prev, c.slug),
-                              );
-                              setPage(1);
-                            }}
-                            class="size-4 rounded border-[#D8C5DF] accent-[#C22583]"
-                          />
-                          <span>{c.name}</span>
-                        </label>
+                        <FilterOptionCheckbox
+                          label={c.name}
+                          count={c.products_count}
+                          checked={selectedCategories().includes(c.slug)}
+                          onChange={() => {
+                            setSelectedCategories((prev) =>
+                              toggleSlug(prev, c.slug),
+                            );
+                            setPage(1);
+                          }}
+                        />
                       )}
                     </For>
                   </div>
@@ -417,27 +445,25 @@ export function CatalogListingView(props: CatalogListingProps) {
               </Show>
 
               {/* Disponibilidade */}
-              <div class="space-y-2.5 border-b border-zinc-200/80 pb-5">
-                <p class="text-base font-extrabold text-[#2E1049]">
+              <div class="space-y-4 border-b border-[#F6E2F8] pb-6">
+                <p class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
                   Disponibilidade
                 </p>
-                <label class="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-[#3D1260] hover:text-[#C22583]">
-                  <input
-                    type="checkbox"
+                <div class="pt-1">
+                  <FilterOptionCheckbox
+                    label="Somente em estoque"
                     checked={inStockOnly()}
-                    onChange={(e) => {
-                      setInStockOnly(e.currentTarget.checked);
+                    onChange={(checked) => {
+                      setInStockOnly(checked);
                       setPage(1);
                     }}
-                    class="size-4 rounded border-[#D8C5DF] accent-[#C22583]"
                   />
-                  <span>Somente em estoque</span>
-                </label>
+                </div>
               </div>
 
               {/* Faixa de preço */}
-              <form onSubmit={applyPriceFilter} class="space-y-3">
-                <p class="text-base font-extrabold text-[#2E1049]">
+              <form onSubmit={applyPriceFilter} class="space-y-3.5">
+                <p class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
                   Faixa de preço (R$)
                 </p>
                 <div class="grid grid-cols-2 gap-2">
@@ -449,7 +475,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                     value={minPrice()}
                     onInput={(e) => setMinPrice(e.currentTarget.value)}
                     aria-label="Preço mínimo"
-                    class="h-9 w-full rounded-lg border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
+                    class="h-9 w-full rounded-lg border border-[#F4D9F7] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
                   />
                   <input
                     type="number"
@@ -459,7 +485,7 @@ export function CatalogListingView(props: CatalogListingProps) {
                     value={maxPrice()}
                     onInput={(e) => setMaxPrice(e.currentTarget.value)}
                     aria-label="Preço máximo"
-                    class="h-9 w-full rounded-lg border border-[#E5DAE9] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
+                    class="h-9 w-full rounded-lg border border-[#F4D9F7] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
                   />
                 </div>
                 <button

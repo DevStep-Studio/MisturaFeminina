@@ -391,17 +391,21 @@ class CatalogController extends Controller
             ->paginate($perPage);
 
         $availableBrands = Brand::query()
+            ->select(['id', 'name', 'slug'])
             ->where('is_active', true)
             ->whereHas('products', fn ($q) => $q->whereIn('products.id', $baseIds))
+            ->withCount(['products' => fn ($q) => $q->whereIn('products.id', $baseIds)])
             ->orderBy('name')
-            ->get(['id', 'name', 'slug']);
+            ->get();
 
         $availableCategories = Category::query()
+            ->select(['id', 'name', 'slug', 'parent_id'])
             ->where('is_active', true)
             ->whereHas('products', fn ($q) => $q->whereIn('products.id', $baseIds))
+            ->withCount(['products' => fn ($q) => $q->whereIn('products.id', $baseIds)])
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name', 'slug', 'parent_id']);
+            ->get();
 
         return [
             'products' => $paginator->getCollection()->map(fn (Product $p): array => self::serializeProductCard($p))->values()->all(),
