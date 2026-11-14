@@ -321,6 +321,8 @@ function CategoryCirclesBlock(props: {
 }
 
 function ProductShowcaseBlock(props: { section: HomeSectionData }) {
+  const [offset, setOffset] = createSignal(0);
+
   const products = () =>
     Array.isArray(props.section.data)
       ? (props.section.data as ProductCardData[])
@@ -332,30 +334,57 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
     return "/buscar";
   };
 
+  const visibleProducts = () => {
+    const list = products();
+    if (list.length <= 1) return list;
+    const shift = ((offset() % list.length) + list.length) % list.length;
+    return [...list.slice(shift), ...list.slice(0, shift)];
+  };
+
   return (
     <Show when={products().length > 0}>
       <section class="mx-auto max-w-7xl px-4 py-8 sm:py-10">
-        <div class="relative mb-7 text-center">
+        <div class="mb-5 text-center">
           <h2 class="text-xl font-bold text-[#3D1260] sm:text-2xl">
-            {props.section.title || "Produtos em destaque"}
+            {props.section.title || "Confira nossas ofertas da semana"}
           </h2>
           <div class="mx-auto mt-2.5 h-[3px] w-7 rounded-full bg-[#3D1260]" />
-          <Show when={props.section.subtitle}>
-            <p class="mt-2 text-sm text-zinc-600">{props.section.subtitle}</p>
-          </Show>
-          <Link
-            to={viewAllHref()}
-            class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] hover:underline sm:absolute sm:right-0 sm:top-1 sm:mt-0 sm:text-sm"
-          >
-            Ver todos
-            <ChevronRight class="h-4 w-4" aria-hidden="true" />
-          </Link>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <For each={products()}>
-            {(product) => <ProductCard product={product} />}
-          </For>
+        <div class="relative sm:px-4">
+          <div class="mb-4 flex justify-start">
+            <Link
+              to={viewAllHref()}
+              class="inline-flex items-center justify-center rounded-full bg-[#62298D] px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-[#4C1D70]"
+            >
+              Ver tudo
+            </Link>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <For each={visibleProducts().slice(0, 4)}>
+              {(product) => <ProductCard product={product} />}
+            </For>
+          </div>
+
+          <Show when={products().length > 1}>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o - 1)}
+              aria-label={`Produtos anteriores em ${props.section.title || "vitrine"}`}
+              class="absolute -left-1 top-[148px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:left-0 sm:top-[52%] sm:size-9"
+            >
+              <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o + 1)}
+              aria-label={`Próximos produtos em ${props.section.title || "vitrine"}`}
+              class="absolute -right-1 top-[148px] inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-100 text-[#EC1B9B] shadow-sm transition hover:bg-zinc-200 sm:right-0 sm:top-[52%] sm:size-9"
+            >
+              <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+            </button>
+          </Show>
         </div>
       </section>
     </Show>

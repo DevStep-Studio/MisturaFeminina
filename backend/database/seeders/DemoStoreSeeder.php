@@ -208,7 +208,7 @@ class DemoStoreSeeder extends Seeder
 
         foreach ($productPalette as $file => [$tone, $label, $vol]) {
             $svg = sprintf(
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><rect width="600" height="600" fill="#FFF7FC"/><rect x="195" y="130" width="210" height="310" rx="28" fill="%s"/><rect x="235" y="88" width="130" height="54" rx="10" fill="#2E1049"/><rect x="220" y="210" width="160" height="150" rx="14" fill="#FFFFFF"/><text x="300" y="268" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="700" fill="#2E1049">%s</text><text x="300" y="302" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#C22583">Mistura Feminina</text><text x="300" y="335" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#666666">%s</text></svg>',
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><rect width="600" height="600" fill="#FFFFFF"/><rect x="195" y="130" width="210" height="310" rx="28" fill="%s"/><rect x="235" y="88" width="130" height="54" rx="10" fill="#2E1049"/><rect x="220" y="210" width="160" height="150" rx="14" fill="#FFFFFF"/><text x="300" y="268" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="700" fill="#2E1049">%s</text><text x="300" y="302" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#C22583">Mistura Feminina</text><text x="300" y="335" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#666666">%s</text></svg>',
                 $tone,
                 htmlspecialchars($label, ENT_XML1),
                 htmlspecialchars($vol, ENT_XML1),
@@ -763,7 +763,7 @@ class DemoStoreSeeder extends Seeder
             ['key' => 'coupon_banner', 'type' => 'coupon_strip', 'title' => 'Aproveite um Desconto Especial!', 'subtitle' => 'Na sua primeira compra, use o cupom BEMVINDA10 e ganhe 10% OFF!', 'config' => [], 'order' => 2],
             ['key' => 'benefits_strip', 'type' => 'benefits_row', 'title' => null, 'subtitle' => null, 'config' => [], 'order' => 3],
             ['key' => 'categories_row', 'type' => 'category_circles', 'title' => 'Navegue por Categorias', 'subtitle' => 'Encontre exatamente o que sua rotina precisa', 'config' => ['limit' => 8], 'order' => 4],
-            ['key' => 'offers_week', 'type' => 'product_showcase', 'title' => 'Ofertas da Semana', 'subtitle' => 'Descontos válidos enquanto durarem os estoques', 'config' => ['filter' => 'offers', 'limit' => 8, 'cta_url' => '/promocoes'], 'order' => 5],
+            ['key' => 'offers_week', 'type' => 'product_showcase', 'title' => 'Confira nossas ofertas da semana', 'subtitle' => 'Descontos válidos enquanto durarem os estoques', 'config' => ['filter' => 'offers', 'limit' => 8, 'cta_url' => '/promocoes'], 'order' => 5],
             ['key' => 'promo_banners', 'type' => 'banner_grid', 'title' => null, 'subtitle' => null, 'config' => [], 'order' => 6],
             ['key' => 'new_arrivals', 'type' => 'product_showcase', 'title' => 'Novidades na Loja', 'subtitle' => 'Lançamentos recém-chegados ao catálogo', 'config' => ['filter' => 'new_arrivals', 'limit' => 8, 'cta_url' => '/novidades'], 'order' => 7],
             ['key' => 'brands_row', 'type' => 'brand_showcase', 'title' => 'Marcas em Destaque', 'subtitle' => 'Qualidade selecionada pela Mistura Feminina Cosméticos', 'config' => ['limit' => 8], 'order' => 8],
