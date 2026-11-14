@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/solid-router";
-import ChevronRight from "lucide-solid/icons/chevron-right";
 import ChevronUp from "lucide-solid/icons/chevron-up";
 import Lock from "lucide-solid/icons/lock";
 import Mail from "lucide-solid/icons/mail";
@@ -7,16 +6,16 @@ import MessageCircle from "lucide-solid/icons/message-circle";
 import Phone from "lucide-solid/icons/phone";
 import ShieldCheck from "lucide-solid/icons/shield-check";
 import { For, Show, createMemo } from "solid-js";
-import { assetUrl, whatsappUrl } from "../../../lib/format";
+import { whatsappUrl } from "../../../lib/format";
 import { storefrontStore } from "../store";
 
 const PAYMENT_BADGES = [
-  { label: "VISA", color: "text-[#1A1F71]" },
-  { label: "Mastercard", color: "text-[#B91C1C]" },
-  { label: "Elo", color: "text-[#0369A1]" },
-  { label: "Amex", color: "text-[#005EA6]" },
-  { label: "Hipercard", color: "text-[#991B1B]" },
-  { label: "Pix", color: "text-[#047857]" },
+  "VISA",
+  "Mastercard",
+  "Elo",
+  "Amex",
+  "Hipercard",
+  "Pix",
 ] as const;
 
 export function StoreFooter() {
@@ -41,46 +40,72 @@ export function StoreFooter() {
     );
 
   return (
-    <footer class="relative bg-gradient-to-b from-[#FDC8FC] to-[#FDBDFA] text-[#3D1260]">
-      <div class="mx-auto max-w-7xl px-4 pb-6 pt-8 text-center">
-        <Link
-          to="/categorias"
-          class="inline-flex items-center gap-1 rounded-full border border-[#62298D] bg-white px-6 py-2 text-xs font-bold text-[#3D1260] shadow-xs transition hover:bg-[#3D1260] hover:text-white"
-        >
-          <span>Mapa de Categorias</span>
-          <ChevronRight class="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
-      </div>
-
-      <div class="mx-auto grid max-w-7xl gap-8 px-4 pb-12 pt-2 sm:grid-cols-2 lg:grid-cols-[0.85fr_0.95fr_1.1fr_1.35fr_1.1fr]">
+    <footer class="relative border-t border-zinc-200/80 bg-white text-[#2E0C49]">
+      <div class="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.85fr_0.95fr_1.25fr_1.05fr]">
         <div class="flex flex-col items-start space-y-4">
-          <Link to="/" class="inline-flex items-center">
-            <img
-              src={assetUrl(settings().logo_light_url)}
-              alt={settings().store_name}
-              onError={(e) => {
-                e.currentTarget.src = "/logo-mf.png";
-              }}
-              class="h-12 w-auto max-w-[180px] object-contain"
-              loading="lazy"
-            />
+          <Link
+            to="/"
+            class="inline-flex items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62298D]"
+          >
+            <svg
+              viewBox="0 0 42 36"
+              class="h-8 w-9 shrink-0 -rotate-12"
+              fill="none"
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient
+                  id="mf-footer-butterfly-grad"
+                  x1="0"
+                  y1="0"
+                  x2="40"
+                  y2="36"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%" stop-color="#FF33B8" />
+                  <stop offset="55%" stop-color="#EC1B9B" />
+                  <stop offset="100%" stop-color="#62298D" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M21 15C16 4 3 1 2 10c-.6 5.5 6.5 9.5 14 9.5-5.5 2-9 6.5-6.5 11.2 2.4 4.5 9.2 2.3 11.5-5.7 2.3 8 9.1 10.2 11.5 5.7 2.5-4.7-1-9.2-6.5-11.2 7.5 0 14.6-4 14-9.5C39 1 26 4 21 15z"
+                fill="url(#mf-footer-butterfly-grad)"
+              />
+              <ellipse cx="21" cy="18.5" rx="1.6" ry="7.5" fill="#4C1D6E" />
+            </svg>
+            <span class="flex flex-col items-center leading-none">
+              <span
+                class="text-[26px] font-black tracking-tight text-[#3D1260]"
+                style={{ "font-family": 'Georgia, "Times New Roman", serif' }}
+              >
+                Mistura
+              </span>{" "}
+              <span class="mt-0.5 pl-[0.38em] text-[8.5px] font-semibold uppercase tracking-[0.38em] text-[#4E3B63]">
+                COSMÉTICOS
+              </span>
+            </span>
           </Link>
 
-          <div class="flex items-center gap-3 text-[#2E0C49]">
+          <p class="max-w-xs text-[13px] leading-relaxed text-zinc-600">
+            Curadoria completa em nail design, esmalteria em gel, cabines e
+            equipamentos profissionais com envio para todo o Brasil.
+          </p>
+
+          <div class="flex items-center gap-2.5">
             <Show when={settings().social_instagram}>
               <a
                 href={settings().social_instagram}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram da Mistura Feminina"
-                class="inline-flex size-8 items-center justify-center rounded-full border border-[#62298D]/30 bg-white/70 transition hover:bg-white"
+                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
               >
                 <svg
                   viewBox="0 0 24 24"
                   class="h-4 w-4"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.8"
                   aria-hidden="true"
                 >
                   <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
@@ -95,14 +120,14 @@ export function StoreFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="YouTube da Mistura Feminina"
-                class="inline-flex size-8 items-center justify-center rounded-full border border-[#62298D]/30 bg-white/70 transition hover:bg-white"
+                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
               >
                 <svg
                   viewBox="0 0 24 24"
                   class="h-4 w-4"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.8"
                   aria-hidden="true"
                 >
                   <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
@@ -119,14 +144,14 @@ export function StoreFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TikTok da Mistura Feminina"
-                class="inline-flex size-8 items-center justify-center rounded-full border border-[#62298D]/30 bg-white/70 transition hover:bg-white"
+                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
               >
                 <svg
                   viewBox="0 0 24 24"
                   class="h-4 w-4"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="1.8"
                   aria-hidden="true"
                 >
                   <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
@@ -139,7 +164,7 @@ export function StoreFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp da Mistura Feminina"
-                class="inline-flex size-8 items-center justify-center rounded-full border border-[#62298D]/30 bg-white/70 transition hover:bg-white"
+                class="inline-flex size-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50/80 text-[#3D1260] transition hover:border-[#62298D] hover:bg-[#F7F3FA] hover:text-[#2E0C49]"
               >
                 <MessageCircle class="h-4 w-4" aria-hidden="true" />
               </a>
@@ -147,16 +172,18 @@ export function StoreFooter() {
           </div>
         </div>
 
-        <div class="space-y-3">
-          <h2 class="text-[15px] font-bold text-[#2E0C49]">Categorias</h2>
-          <ul class="space-y-2 text-[13px] font-medium text-[#3D1260]">
-            <For each={categories().slice(0, 8)}>
+        <div class="space-y-3.5">
+          <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
+            Categorias
+          </h2>
+          <ul class="space-y-2.5 text-[13px] text-zinc-600">
+            <For each={categories().slice(0, 6)}>
               {(cat) => (
                 <li>
                   <Link
                     to="/categoria/$slug"
                     params={{ slug: cat.slug }}
-                    class="transition-colors hover:text-[#2E0C49] hover:underline"
+                    class="transition-colors hover:text-[#3D1260]"
                   >
                     {cat.name}
                   </Link>
@@ -165,16 +192,21 @@ export function StoreFooter() {
             </For>
             <li>
               <Link
-                to="/marcas"
-                class="transition-colors hover:text-[#2E0C49] hover:underline"
+                to="/categorias"
+                class="transition-colors hover:text-[#3D1260]"
               >
+                Mapa de Categorias
+              </Link>
+            </li>
+            <li>
+              <Link to="/marcas" class="transition-colors hover:text-[#3D1260]">
                 Marcas parceiras
               </Link>
             </li>
             <li>
               <Link
                 to="/promocoes"
-                class="transition-colors hover:text-[#2E0C49] hover:underline"
+                class="transition-colors hover:text-[#3D1260]"
               >
                 Promoções
               </Link>
@@ -182,16 +214,18 @@ export function StoreFooter() {
           </ul>
         </div>
 
-        <div class="space-y-3">
-          <h2 class="text-[15px] font-bold text-[#2E0C49]">Institucional</h2>
-          <ul class="space-y-2 text-[13px] font-medium text-[#3D1260]">
+        <div class="space-y-3.5">
+          <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
+            Institucional
+          </h2>
+          <ul class="space-y-2.5 text-[13px] text-zinc-600">
             <For each={groupedPages()}>
               {(page) => (
                 <li>
                   <Link
                     to="/$slug"
                     params={{ slug: page.slug }}
-                    class="transition-colors hover:text-[#2E0C49] hover:underline"
+                    class="transition-colors hover:text-[#3D1260]"
                   >
                     {page.title}
                   </Link>
@@ -201,7 +235,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/rastrear-pedido"
-                class="transition-colors hover:text-[#2E0C49] hover:underline"
+                class="transition-colors hover:text-[#3D1260]"
               >
                 Rastrear Pedido
               </Link>
@@ -209,7 +243,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/minha-conta"
-                class="transition-colors hover:text-[#2E0C49] hover:underline"
+                class="transition-colors hover:text-[#3D1260]"
               >
                 Minha Conta
               </Link>
@@ -217,7 +251,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/contato"
-                class="transition-colors hover:text-[#2E0C49] hover:underline"
+                class="transition-colors hover:text-[#3D1260]"
               >
                 Fale Conosco
               </Link>
@@ -225,18 +259,23 @@ export function StoreFooter() {
           </ul>
         </div>
 
-        <div class="space-y-3">
-          <h2 class="text-[15px] font-bold text-[#2E0C49]">Atendimento</h2>
-          <ul class="space-y-2.5 text-[13px] font-medium text-[#3D1260]">
+        <div class="space-y-3.5">
+          <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
+            Atendimento
+          </h2>
+          <ul class="space-y-3 text-[13px] text-zinc-600">
             <Show when={settings().whatsapp_number || settings().phone}>
               <li>
                 <a
                   href={whatsHref()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-2 hover:underline"
+                  class="inline-flex items-center gap-2 transition-colors hover:text-[#3D1260]"
                 >
-                  <Phone class="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <Phone
+                    class="h-4 w-4 shrink-0 text-[#62298D]"
+                    aria-hidden="true"
+                  />
                   <span>{settings().phone || settings().whatsapp_number}</span>
                 </a>
               </li>
@@ -245,49 +284,53 @@ export function StoreFooter() {
               <li>
                 <a
                   href={`mailto:${settings().email}`}
-                  class="inline-flex items-center gap-2 hover:underline"
+                  class="inline-flex items-center gap-2 transition-colors hover:text-[#3D1260]"
                 >
-                  <Mail class="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <Mail
+                    class="h-4 w-4 shrink-0 text-[#62298D]"
+                    aria-hidden="true"
+                  />
                   <span>{settings().email}</span>
                 </a>
               </li>
             </Show>
+            <li class="pt-1 text-xs text-zinc-500">
+              Seg. a Sex. das 9h às 18h
+            </li>
           </ul>
         </div>
 
-        <div class="space-y-5">
-          <div>
-            <h2 class="mb-2.5 text-[15px] font-bold text-[#2E0C49]">
+        <div class="space-y-6">
+          <div class="space-y-3">
+            <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
               Formas de pagamento
             </h2>
             <div class="flex flex-wrap gap-1.5">
               <For each={PAYMENT_BADGES}>
                 {(badge) => (
-                  <span
-                    class={`inline-flex h-7 items-center justify-center rounded border border-zinc-200 bg-white px-2 text-[10px] font-extrabold shadow-2xs ${badge.color}`}
-                  >
-                    {badge.label}
+                  <span class="inline-flex h-7 items-center justify-center rounded-md border border-zinc-200/90 bg-zinc-50/80 px-2.5 text-[11px] font-semibold tracking-wide text-zinc-700">
+                    {badge}
                   </span>
                 )}
               </For>
             </div>
           </div>
 
-          <div>
-            <h2 class="mb-2.5 text-[15px] font-bold text-[#2E0C49]">
-              Selos de Segurança
+          <div class="space-y-3">
+            <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
+              Segurança
             </h2>
             <div class="flex flex-wrap gap-2">
-              <span class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#2E0C49] shadow-2xs">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200/90 bg-zinc-50/80 px-2.5 py-1.5 text-[11px] font-medium text-zinc-700">
                 <ShieldCheck
-                  class="h-4 w-4 shrink-0 text-emerald-700"
+                  class="h-3.5 w-3.5 shrink-0 text-[#3D1260]"
                   aria-hidden="true"
                 />
                 <span>Site Seguro SSL</span>
               </span>
-              <span class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#2E0C49] shadow-2xs">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-zinc-200/90 bg-zinc-50/80 px-2.5 py-1.5 text-[11px] font-medium text-zinc-700">
                 <Lock
-                  class="h-4 w-4 shrink-0 text-[#3D1260]"
+                  class="h-3.5 w-3.5 shrink-0 text-[#3D1260]"
                   aria-hidden="true"
                 />
                 <span>Loja Protegida</span>
@@ -297,18 +340,16 @@ export function StoreFooter() {
         </div>
       </div>
 
-      <div class="border-t border-zinc-200 bg-white px-4 py-5 text-center text-xs text-zinc-700">
-        <div class="mx-auto max-w-7xl space-y-1.5">
+      <div class="border-t border-zinc-200/70 bg-[#FAF8FC] px-4 py-5 text-xs text-zinc-600">
+        <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-center sm:flex-row sm:text-left">
           <p>
             {settings().company_legal_name || settings().store_name}
             <Show when={settings().cnpj}> • CNPJ: {settings().cnpj}</Show>
-            <Show when={settings().address}> / {settings().address}</Show>
+            <Show when={settings().address}> • {settings().address}</Show>
             {" — "}© {new Date().getFullYear()} Todos os direitos reservados.
           </p>
-          <p class="text-[11px] text-zinc-600">
-            Preços, estoque e condições de parcelamento em até{" "}
-            {settings().max_installments}x sem juros sujeitos a confirmação no
-            carrinho.
+          <p class="shrink-0 text-[11px] text-zinc-600">
+            Em até {settings().max_installments}x sem juros no cartão.
           </p>
         </div>
       </div>
@@ -317,9 +358,9 @@ export function StoreFooter() {
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Voltar ao topo"
-        class="fixed bottom-5 right-5 z-40 inline-flex size-11 items-center justify-center rounded-full bg-[#E82EA6] text-white shadow-lg transition hover:bg-[#C22583]"
+        class="fixed bottom-5 right-5 z-40 inline-flex size-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-[#3D1260] shadow-md transition hover:border-[#3D1260] hover:bg-[#3D1260] hover:text-white"
       >
-        <ChevronUp class="h-5 w-5" aria-hidden="true" />
+        <ChevronUp class="h-4 w-4" aria-hidden="true" />
       </button>
     </footer>
   );
