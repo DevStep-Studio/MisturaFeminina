@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import { For, Show, createResource } from "solid-js";
+import { CatalogBanner } from "../features/storefront/components/CatalogListingView";
 import { SectionHeading } from "../features/storefront/components/SectionHeading";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import type { CategoryNode } from "../features/storefront/types";
@@ -28,6 +29,10 @@ function CategoriesDirectoryPage() {
 
   return (
     <StoreShell>
+      <CatalogBanner
+        src="/storage/seed/hero-3-desktop.jpg"
+        alt="Frete Grátis para todo Brasil — Envios para todo o país"
+      />
       <div class="mx-auto max-w-7xl px-4 py-8">
         <SectionHeading
           as="h1"

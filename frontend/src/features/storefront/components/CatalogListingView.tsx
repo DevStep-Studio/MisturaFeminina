@@ -3,6 +3,7 @@ import ChevronRight from "lucide-solid/icons/chevron-right";
 import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
 import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { api } from "../../../lib/api";
+import { assetUrl } from "../../../lib/format";
 import type { BrandItem, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
 import { StoreShell } from "./StoreShell";
@@ -16,6 +17,39 @@ export interface CatalogListingProps {
   brands?: BrandItem[];
   showFilters?: boolean;
   emptyMessage?: string;
+  bannerImage?: string | null;
+  bannerAlt?: string;
+  bannerHref?: string | null;
+}
+
+/** Full-width promotional banner displayed above catalog and category listings. */
+export function CatalogBanner(props: {
+  src: string;
+  alt: string;
+  href?: string | null;
+}) {
+  const image = (
+    <img
+      src={assetUrl(props.src)}
+      alt={props.alt}
+      class="block aspect-[3/1] max-h-[620px] w-full object-cover object-center"
+    />
+  );
+
+  return (
+    <section
+      aria-label="Banner do catálogo"
+      class="relative overflow-hidden bg-[#7c3f87]"
+    >
+      <div class="relative mx-auto max-w-[1920px]">
+        <Show when={props.href} fallback={image}>
+          <a href={props.href!} class="block">
+            {image}
+          </a>
+        </Show>
+      </div>
+    </section>
+  );
 }
 
 interface FacetItem {
@@ -185,8 +219,29 @@ export function CatalogListingView(props: CatalogListingProps) {
     setPage(1);
   }
 
+  const isOffersCollection = () => props.fixedParams?.collection === "ofertas";
+
+  const bannerSrc = () =>
+    props.bannerImage ??
+    (isOffersCollection()
+      ? "/storage/seed/hero-1-desktop.jpg"
+      : "/storage/seed/hero-3-desktop.jpg");
+
+  const bannerAlt = () =>
+    props.bannerAlt ??
+    (isOffersCollection()
+      ? "Black Friday — Aproveite as ofertas, produtos a partir de R$ 1,90"
+      : "Frete Grátis para todo Brasil — Envios para todo o país");
+
   return (
     <StoreShell>
+      <Show when={props.bannerImage !== null}>
+        <CatalogBanner
+          src={bannerSrc()}
+          alt={bannerAlt()}
+          href={props.bannerHref}
+        />
+      </Show>
       <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Show when={props.breadcrumbs && props.breadcrumbs.length > 0}>
           <nav
