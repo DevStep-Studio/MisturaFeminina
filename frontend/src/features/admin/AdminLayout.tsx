@@ -154,7 +154,10 @@ export function AdminLayout(
                 settings().logo_dark_url || settings().logo_light_url,
               )}
               alt={settings().store_name}
-              class="h-8 w-auto max-w-[140px] object-contain"
+              onError={(e) => {
+                e.currentTarget.src = "/logo-mf-dark.png";
+              }}
+              class="h-9 w-auto max-w-[140px] object-contain"
             />
             <span class="rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-300">
               Admin

@@ -1,14 +1,14 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Link, useNavigate } from "@tanstack/solid-router";
+import BadgePercent from "lucide-solid/icons/badge-percent";
+import ChevronDown from "lucide-solid/icons/chevron-down";
+import Headset from "lucide-solid/icons/headset";
 import Menu from "lucide-solid/icons/menu";
 import Search from "lucide-solid/icons/search";
+import Shield from "lucide-solid/icons/shield";
 import ShoppingBag from "lucide-solid/icons/shopping-bag";
 import UserIcon from "lucide-solid/icons/user";
-import MessageCircle from "lucide-solid/icons/message-circle";
-import ChevronDown from "lucide-solid/icons/chevron-down";
 import X from "lucide-solid/icons/x";
-import PackageSearch from "lucide-solid/icons/package-search";
-import Shield from "lucide-solid/icons/shield";
 import { api } from "../../../lib/api";
 import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
 import { hasPermission } from "../../../security/permissions";
@@ -86,162 +86,167 @@ export function StoreHeader() {
   };
 
   return (
-    <header class="sticky top-0 z-40 border-b border-line bg-white">
-      <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <div class="flex items-center gap-2 lg:hidden">
-          <button
-            type="button"
-            class="inline-flex size-11 items-center justify-center rounded-lg border border-line text-ink hover:bg-zinc-50"
-            aria-label="Abrir menu de categorias"
-            aria-expanded={mobileMenuOpen()}
-            onClick={() => setMobileMenuOpen(true)}
-          >
-            <Menu class="size-5" aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* Desktop Search Left (mirrors clean reference proportions without clutter) */}
-        <div class="relative hidden max-w-xs flex-1 lg:block">
-          <form onSubmit={submitSearch} class="relative flex items-center">
-            <label for="header-search-desktop" class="sr-only">
-              Buscar produtos
-            </label>
-            <input
-              id="header-search-desktop"
-              type="search"
-              value={searchQuery()}
-              onInput={(e) => handleSearchInput(e.currentTarget.value)}
-              onFocus={() => {
-                if (suggestions().length > 0) setShowDropdown(true);
-              }}
-              onBlur={() => setTimeout(() => setShowDropdown(false), 180)}
-              placeholder="O que deseja procurar?"
-              class="h-11 w-full rounded-lg border border-line bg-zinc-50 pl-3.5 pr-11 text-sm text-ink placeholder:text-zinc-500 focus:border-brand-600 focus:bg-white focus:outline-none"
-            />
+    <header class="sticky top-0 z-40 border-b border-[#EBD4EC] bg-[#FFF3FF]">
+      <div class="border-b border-[#F9A2F6]">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:grid lg:h-[74px] lg:grid-cols-[1fr_auto_1fr] lg:py-0">
+          <div class="flex items-center gap-2 lg:hidden">
             <button
-              type="submit"
-              aria-label="Buscar"
-              class="absolute right-1 inline-flex size-9 items-center justify-center rounded-md text-brand-600 hover:bg-brand-50"
+              type="button"
+              class="inline-flex size-10 items-center justify-center rounded-lg text-[#2E1049] hover:bg-[#FCE7F6]"
+              aria-label="Abrir menu de categorias"
+              aria-expanded={mobileMenuOpen()}
+              onClick={() => setMobileMenuOpen(true)}
             >
-              <Search class="size-4" aria-hidden="true" />
+              <Menu class="size-5" aria-hidden="true" />
             </button>
-          </form>
-          <Show when={showDropdown() && suggestions().length > 0}>
-            <div class="absolute left-0 right-0 top-12 z-50 rounded-xl border border-line bg-white p-2 shadow-lg">
-              <For each={suggestions()}>
-                {(item) => (
-                  <Link
-                    to="/produto/$slug"
-                    params={{ slug: item.slug }}
-                    onClick={() => setShowDropdown(false)}
-                    class="flex items-center gap-3 rounded-lg p-2 hover:bg-zinc-50"
-                  >
-                    <img
-                      src={assetUrl(item.primary_image)}
-                      alt={item.primary_image_alt}
-                      class="size-10 shrink-0 rounded bg-[#FAF7F8] object-contain"
-                    />
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate text-xs font-medium text-ink">
-                        {item.name}
-                      </p>
-                      <p class="text-xs font-bold text-brand-600">
-                        {formatCents(item.effective_price_cents)}
-                      </p>
-                    </div>
-                  </Link>
-                )}
-              </For>
+          </div>
+
+          {/* Desktop Search Left (clean underline-less search with pink magnifier matching reference) */}
+          <div class="relative hidden max-w-[300px] lg:block">
+            <form onSubmit={submitSearch} class="relative flex items-center">
+              <label for="header-search-desktop" class="sr-only">
+                Buscar produtos
+              </label>
+              <input
+                id="header-search-desktop"
+                type="search"
+                value={searchQuery()}
+                onInput={(e) => handleSearchInput(e.currentTarget.value)}
+                onFocus={() => {
+                  if (suggestions().length > 0) setShowDropdown(true);
+                }}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 180)}
+                placeholder="O que deseja procurar?"
+                class="h-10 w-full rounded-md bg-transparent pl-1 pr-10 text-sm font-medium text-[#2E1049] placeholder:text-[#4E3B63] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[var(--mf-accent)]"
+              />
               <button
-                type="button"
-                onClick={submitSearch}
-                class="mt-1 w-full rounded-lg bg-zinc-100 py-2 text-center text-xs font-semibold text-ink hover:bg-zinc-200"
+                type="submit"
+                aria-label="Buscar"
+                class="absolute right-0.5 inline-flex size-9 items-center justify-center rounded-full text-[var(--mf-accent)] hover:bg-[#FCE7F6]"
               >
-                Ver todos os resultados para “{searchQuery()}”
+                <Search class="size-5 stroke-[2]" aria-hidden="true" />
               </button>
-            </div>
-          </Show>
-        </div>
+            </form>
+            <Show when={showDropdown() && suggestions().length > 0}>
+              <div class="absolute left-0 right-0 top-11 z-50 w-80 rounded-xl border border-line bg-white p-2 shadow-lg">
+                <For each={suggestions()}>
+                  {(item) => (
+                    <Link
+                      to="/produto/$slug"
+                      params={{ slug: item.slug }}
+                      onClick={() => setShowDropdown(false)}
+                      class="flex items-center gap-3 rounded-lg p-2 hover:bg-[#FFF3FF]"
+                    >
+                      <img
+                        src={assetUrl(item.primary_image)}
+                        alt={item.primary_image_alt}
+                        class="size-10 shrink-0 rounded bg-[#FAF7F8] object-contain"
+                      />
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-xs font-medium text-ink">
+                          {item.name}
+                        </p>
+                        <p class="text-xs font-bold text-brand-600">
+                          {formatCents(item.effective_price_cents)}
+                        </p>
+                      </div>
+                    </Link>
+                  )}
+                </For>
+                <button
+                  type="button"
+                  onClick={submitSearch}
+                  class="mt-1 w-full rounded-lg bg-[#FCE7F6] py-2 text-center text-xs font-semibold text-[#2E1049] hover:bg-[#F7D1EE]"
+                >
+                  Ver todos os resultados para “{searchQuery()}”
+                </button>
+              </div>
+            </Show>
+          </div>
 
-        {/* Brand Logo Centered */}
-        <Link
-          to="/"
-          class="flex shrink-0 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
-          aria-label={settings().store_name}
-        >
-          <img
-            src={assetUrl(settings().logo_light_url)}
-            alt={settings().store_name}
-            class="h-10 w-auto max-w-[200px] object-contain sm:h-11"
-          />
-        </Link>
-
-        {/* Actions Right */}
-        <div class="flex items-center justify-end gap-1 sm:gap-3 lg:flex-1">
-          <a
-            href={whatsappUrl(
-              settings().whatsapp_number,
-              settings().whatsapp_default_message,
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-ink hover:bg-zinc-50 md:inline-flex"
-          >
-            <MessageCircle class="size-4 text-brand-600" aria-hidden="true" />
-            <span>Atendimento</span>
-          </a>
-
+          {/* Brand Logo Centered */}
           <Link
-            to="/rastrear-pedido"
-            class="hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-ink hover:bg-zinc-50 xl:inline-flex"
+            to="/"
+            class="flex shrink-0 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+            aria-label={settings().store_name}
           >
-            <PackageSearch class="size-4 text-brand-600" aria-hidden="true" />
-            <span>Rastrear</span>
+            <img
+              src={assetUrl(settings().logo_light_url)}
+              alt={settings().store_name}
+              onError={(e) => {
+                e.currentTarget.src = "/logo-mf.png";
+              }}
+              class="h-11 w-auto max-w-[200px] object-contain sm:h-13"
+            />
           </Link>
 
-          <Show when={isStaff()}>
+          {/* Actions Right: Atendimento, Minha Conta, Sacola */}
+          <div class="flex items-center justify-end gap-3 sm:gap-5">
+            <a
+              href={whatsappUrl(
+                settings().whatsapp_number,
+                settings().whatsapp_default_message,
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="hidden items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)] md:inline-flex"
+            >
+              <Headset
+                class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
+                aria-hidden="true"
+              />
+              <span>Atendimento</span>
+            </a>
+
+            <Show when={isStaff()}>
+              <Link
+                to="/admin"
+                class="hidden items-center gap-1 rounded-full border border-[var(--mf-primary)] px-2.5 py-1 text-xs font-bold text-[var(--mf-primary)] hover:bg-white md:inline-flex"
+              >
+                <Shield class="size-3.5" aria-hidden="true" />
+                <span>Painel</span>
+              </Link>
+            </Show>
+
             <Link
-              to="/admin"
-              class="hidden items-center gap-1.5 rounded-lg border border-brand-600 px-2.5 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 md:inline-flex"
+              to={
+                session.status() === "authenticated"
+                  ? "/minha-conta"
+                  : "/entrar"
+              }
+              class="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
             >
-              <Shield class="size-3.5" aria-hidden="true" />
-              <span>Painel</span>
+              <UserIcon
+                class="size-6 shrink-0 stroke-[1.75] text-[var(--mf-accent)]"
+                aria-hidden="true"
+              />
+              <span class="hidden sm:inline">
+                {session.user()
+                  ? session.user()!.name.split(" ")[0]
+                  : "Minha Conta"}
+              </span>
             </Link>
-          </Show>
 
-          <Link
-            to={
-              session.status() === "authenticated" ? "/minha-conta" : "/entrar"
-            }
-            class="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-ink hover:bg-zinc-50"
-          >
-            <UserIcon class="size-4 text-brand-600" aria-hidden="true" />
-            <span class="hidden sm:inline">
-              {session.user()
-                ? session.user()!.name.split(" ")[0]
-                : "Minha Conta"}
-            </span>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => storefrontStore.setDrawerOpen(true)}
-            aria-label={`Abrir carrinho com ${cartCount()} itens`}
-            class="relative inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border border-line px-3 text-sm font-semibold text-ink hover:border-brand-600 hover:bg-brand-50"
-          >
-            <ShoppingBag class="size-4 text-brand-600" aria-hidden="true" />
-            <span
-              class="inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold text-white"
-              style={{ "background-color": "var(--mf-primary)" }}
+            <button
+              type="button"
+              onClick={() => storefrontStore.setDrawerOpen(true)}
+              aria-label={`Abrir carrinho com ${cartCount()} itens`}
+              class="relative inline-flex size-10 items-center justify-center rounded-lg text-[#2E1049] hover:bg-[#FCE7F6]"
             >
-              {cartCount()}
-            </span>
-          </button>
+              <ShoppingBag
+                class="size-6 stroke-[1.75] text-[var(--mf-accent)]"
+                aria-hidden="true"
+              />
+              <span class="absolute right-0 top-0 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#2E1049] px-1 text-[10px] font-bold text-white">
+                {cartCount()}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Mobile Search Bar */}
-      <div class="border-t border-zinc-100 px-4 py-2 lg:hidden">
+      <div class="border-b border-[#F2D4F0] bg-[#FFF3FF] px-4 py-2 lg:hidden">
         <form onSubmit={submitSearch} class="relative flex items-center">
           <label for="header-search-mobile" class="sr-only">
             Buscar produtos
@@ -252,12 +257,12 @@ export function StoreHeader() {
             value={searchQuery()}
             onInput={(e) => handleSearchInput(e.currentTarget.value)}
             placeholder="O que deseja procurar?"
-            class="h-10 w-full rounded-lg border border-line bg-zinc-50 pl-3.5 pr-10 text-sm text-ink placeholder:text-zinc-500 focus:border-brand-600 focus:bg-white focus:outline-none"
+            class="h-10 w-full rounded-lg border border-[#EBD4EC] bg-white pl-3.5 pr-10 text-sm text-[#2E1049] placeholder:text-[#5B486B] focus:border-[var(--mf-accent)] focus:outline-none"
           />
           <button
             type="submit"
             aria-label="Buscar"
-            class="absolute right-1 inline-flex size-8 items-center justify-center text-brand-600"
+            class="absolute right-1 inline-flex size-8 items-center justify-center text-[var(--mf-accent)]"
           >
             <Search class="size-4" aria-hidden="true" />
           </button>
@@ -267,12 +272,12 @@ export function StoreHeader() {
       {/* Desktop Category Navigation Bar */}
       <nav
         aria-label="Departamentos da loja"
-        class="hidden border-t border-line bg-white lg:block"
+        class="hidden bg-[#FFF3FF] lg:block"
       >
-        <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-2">
-          <div class="flex items-center gap-5 text-sm font-medium text-ink">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2">
+          <div class="flex items-center gap-4 text-[13px] font-bold text-[#2E1049] xl:gap-5">
             <div
-              class="relative"
+              class="relative shrink-0"
               onMouseEnter={() => setAllCatsOpen(true)}
               onMouseLeave={() => setAllCatsOpen(false)}
             >
@@ -280,9 +285,9 @@ export function StoreHeader() {
                 type="button"
                 aria-expanded={allCatsOpen()}
                 onClick={() => setAllCatsOpen(!allCatsOpen())}
-                class="inline-flex items-center gap-1.5 py-1.5 font-semibold text-ink hover:text-brand-600"
+                class="inline-flex items-center gap-1.5 whitespace-nowrap py-1.5 font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
               >
-                <Menu class="size-4" aria-hidden="true" />
+                <Menu class="size-4 stroke-[2.25]" aria-hidden="true" />
                 <span>Todas Categorias</span>
               </button>
               <Show when={allCatsOpen()}>
@@ -299,18 +304,18 @@ export function StoreHeader() {
               </Show>
             </div>
 
-            <For each={categories().slice(0, 6)}>
+            <For each={categories().slice(0, 7)}>
               {(cat) => (
-                <div class="group relative">
+                <div class="group relative shrink-0">
                   <Link
                     to="/categoria/$slug"
                     params={{ slug: cat.slug }}
-                    class="inline-flex items-center gap-1 py-1.5 text-ink hover:text-brand-600"
+                    class="inline-flex items-center gap-1 whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)]"
                   >
                     <span>{cat.name}</span>
                     <Show when={(cat.children?.length ?? 0) > 0}>
                       <ChevronDown
-                        class="size-3.5 text-zinc-400"
+                        class="size-3.5 text-[#4E3B63]"
                         aria-hidden="true"
                       />
                     </Show>
@@ -322,7 +327,7 @@ export function StoreHeader() {
                           <Link
                             to="/categoria/$slug"
                             params={{ slug: child.slug }}
-                            class="block rounded-lg px-3 py-2 text-xs font-medium text-ink hover:bg-brand-50 hover:text-brand-600"
+                            class="block rounded-lg px-3 py-2 text-xs font-medium text-[#2E1049] hover:bg-[#FFF3FF] hover:text-[var(--mf-primary)]"
                           >
                             {child.name}
                           </Link>
@@ -337,10 +342,11 @@ export function StoreHeader() {
 
           <Link
             to="/promocoes"
-            class="inline-flex items-center rounded-full px-4 py-1.5 text-xs font-bold text-white transition-colors"
-            style={{ "background-color": "var(--mf-primary)" }}
+            class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:opacity-95"
+            style={{ "background-color": "var(--mf-secondary)" }}
           >
-            Promoções
+            <BadgePercent class="size-4 shrink-0" aria-hidden="true" />
+            <span>Promoções</span>
           </Link>
         </div>
       </nav>

@@ -62,12 +62,12 @@ class DemoStoreSeeder extends Seeder
         File::put($dir.'/favicon.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#8B2252"/><path d="M16 45V19l16 15 16-15v26" stroke="#FFFFFF" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
 
         $banners = [
-            'hero-1-desktop.svg' => [1440, 440, '#231F20', '#8B2252', 'SEMANA DA BELEZA', 'Até 35% OFF em Esmaltes, Skincare e Cabelos', 'BEMVINDA10: 10% OFF NA 1ª COMPRA'],
-            'hero-1-mobile.svg' => [768, 420, '#231F20', '#8B2252', 'SEMANA DA BELEZA', 'Até 35% OFF no catálogo selecionado', 'CUPOM BEMVINDA10'],
-            'hero-2-desktop.svg' => [1440, 440, '#8B2252', '#C44577', 'CUIDADOS DIÁRIOS', 'Sérum, hidratação intensa e proteção solar', 'FRETE GRÁTIS ACIMA DE R$ 299'],
-            'hero-2-mobile.svg' => [768, 420, '#8B2252', '#C44577', 'CUIDADOS DIÁRIOS', 'Sérum e hidratação de alta performance', 'PARCELE EM 6X SEM JUROS'],
-            'promo-1.svg' => [700, 260, '#5E1537', '#FFFFFF', 'UNHAS & GEL', 'Esmaltes e preparação profissional', 'VER LINHA'],
-            'promo-2.svg' => [700, 260, '#231F20', '#F7E9EF', 'KITS COM DESCONTO', 'Monte sua rotina completa economizando', 'VER KITS'],
+            'hero-1-desktop.svg' => [1440, 440, '#62298D', '#C22583', 'SEMANA DA BELEZA', 'Até 35% OFF em Esmaltes, Skincare e Cabelos', 'BEMVINDA10: 10% OFF NA 1ª COMPRA'],
+            'hero-1-mobile.svg' => [768, 420, '#62298D', '#C22583', 'SEMANA DA BELEZA', 'Até 35% OFF no catálogo selecionado', 'CUPOM BEMVINDA10'],
+            'hero-2-desktop.svg' => [1440, 440, '#C22583', '#94509F', 'CUIDADOS DIÁRIOS', 'Sérum, hidratação intensa e proteção solar', 'FRETE GRÁTIS ACIMA DE R$ 299'],
+            'hero-2-mobile.svg' => [768, 420, '#C22583', '#94509F', 'CUIDADOS DIÁRIOS', 'Sérum e hidratação de alta performance', 'PARCELE EM 6X SEM JUROS'],
+            'promo-1.svg' => [700, 260, '#9E1A69', '#FFFFFF', 'UNHAS & GEL', 'Esmaltes e preparação profissional', 'VER LINHA'],
+            'promo-2.svg' => [700, 260, '#62298D', '#FFF3FF', 'KITS COM DESCONTO', 'Monte sua rotina completa economizando', 'VER KITS'],
         ];
 
         foreach ($banners as $filename => [$w, $h, $bg, $accent, $eyebrow, $title, $sub]) {
@@ -83,23 +83,23 @@ class DemoStoreSeeder extends Seeder
         }
 
         $productPalette = [
-            'prod-esmalte' => ['#8B2252', 'Esmalte Gel', '15ml'],
-            'prod-serum' => ['#A8436A', 'Sérum Facial', '30ml'],
-            'prod-batom' => ['#9E1C42', 'Batom Velvet', '4g'],
-            'prod-mascara' => ['#4A1F38', 'Máscara Capilar', '300g'],
-            'prod-hidratante' => ['#6B385B', 'Loção Hidratante', '200ml'],
-            'prod-cabine' => ['#2B2628', 'Cabine LED UV', '48W'],
-            'prod-oleo' => ['#7E425D', 'Óleo Reparador', '60ml'],
-            'prod-kit' => ['#8B2252', 'Kit Cronograma', '3 Itens'],
-            'prod-base' => ['#A06278', 'Base Soft Matte', '30ml'],
-            'prod-primer' => ['#60374A', 'Primer Preparador', '15ml'],
-            'prod-bruma' => ['#7D4E66', 'Bruma Fixadora', '120ml'],
-            'prod-pincel' => ['#3B2F34', 'Kit Pincéis', '8 Peças'],
+            'prod-esmalte' => ['#C22583', 'Esmalte Gel', '15ml'],
+            'prod-serum' => ['#94509F', 'Sérum Facial', '30ml'],
+            'prod-batom' => ['#9E1A69', 'Batom Velvet', '4g'],
+            'prod-mascara' => ['#62298D', 'Máscara Capilar', '300g'],
+            'prod-hidratante' => ['#B8428E', 'Loção Hidratante', '200ml'],
+            'prod-cabine' => ['#2E1049', 'Cabine LED UV', '48W'],
+            'prod-oleo' => ['#A83D82', 'Óleo Reparador', '60ml'],
+            'prod-kit' => ['#C22583', 'Kit Cronograma', '3 Itens'],
+            'prod-base' => ['#C968A3', 'Base Soft Matte', '30ml'],
+            'prod-primer' => ['#7B357A', 'Primer Preparador', '15ml'],
+            'prod-bruma' => ['#94509F', 'Bruma Fixadora', '120ml'],
+            'prod-pincel' => ['#4A2068', 'Kit Pincéis', '8 Peças'],
         ];
 
         foreach ($productPalette as $file => [$tone, $label, $vol]) {
             $svg = sprintf(
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><rect width="600" height="600" fill="#FAF7F8"/><rect x="195" y="130" width="210" height="310" rx="28" fill="%s"/><rect x="235" y="88" width="130" height="54" rx="10" fill="#231F20"/><rect x="220" y="210" width="160" height="150" rx="14" fill="#FFFFFF"/><text x="300" y="268" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="700" fill="#231F20">%s</text><text x="300" y="302" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#8B2252">Mistura Feminina</text><text x="300" y="335" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#666666">%s</text></svg>',
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600"><rect width="600" height="600" fill="#FFF7FC"/><rect x="195" y="130" width="210" height="310" rx="28" fill="%s"/><rect x="235" y="88" width="130" height="54" rx="10" fill="#2E1049"/><rect x="220" y="210" width="160" height="150" rx="14" fill="#FFFFFF"/><text x="300" y="268" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="700" fill="#2E1049">%s</text><text x="300" y="302" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#C22583">Mistura Feminina</text><text x="300" y="335" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#666666">%s</text></svg>',
                 $tone,
                 htmlspecialchars($label, ENT_XML1),
                 htmlspecialchars($vol, ENT_XML1),

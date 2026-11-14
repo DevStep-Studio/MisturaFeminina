@@ -50,7 +50,7 @@ export function ProductCard(props: { product: ProductCardData }) {
           <Show when={props.product.in_stock && props.product.is_new_arrival}>
             <span
               class="rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
-              style={{ "background-color": "var(--mf-accent)" }}
+              style={{ "background-color": "var(--mf-primary)" }}
             >
               Lançamento
             </span>

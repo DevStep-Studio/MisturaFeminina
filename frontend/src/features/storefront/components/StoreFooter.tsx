@@ -37,7 +37,10 @@ export function StoreFooter() {
                 settings().logo_dark_url || settings().logo_light_url,
               )}
               alt={settings().store_name}
-              class="h-10 w-auto max-w-[190px] object-contain"
+              onError={(e) => {
+                e.currentTarget.src = "/logo-mf-dark.png";
+              }}
+              class="h-12 w-auto max-w-[200px] object-contain"
               loading="lazy"
             />
           </Link>
@@ -175,14 +178,14 @@ export function StoreFooter() {
               </li>
             </Show>
             <Show when={settings().phone}>
-              <li class="flex items-center gap-2">
-                <Phone class="h-4 w-4 shrink-0 text-zinc-400" />
+              <li class="flex items-center gap-2 text-zinc-100">
+                <Phone class="h-4 w-4 shrink-0 text-[#F9A2F6]" />
                 <span>{settings().phone}</span>
               </li>
             </Show>
             <Show when={settings().email}>
-              <li class="flex items-center gap-2">
-                <Mail class="h-4 w-4 shrink-0 text-zinc-400" />
+              <li class="flex items-center gap-2 text-zinc-100">
+                <Mail class="h-4 w-4 shrink-0 text-[#F9A2F6]" />
                 <a
                   href={`mailto:${settings().email}`}
                   class="hover:text-white hover:underline"
@@ -192,25 +195,25 @@ export function StoreFooter() {
               </li>
             </Show>
             <Show when={settings().address}>
-              <li class="flex items-start gap-2">
-                <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
+              <li class="flex items-start gap-2 text-zinc-100">
+                <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[#F9A2F6]" />
                 <span>{settings().address}</span>
               </li>
             </Show>
           </ul>
 
           <div class="pt-2">
-            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-white">
               Formas de pagamento
             </p>
             <div class="flex flex-wrap gap-1.5 text-xs">
-              <span class="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200">
+              <span class="rounded border border-[#8C52B8] bg-[#4C1D70] px-2 py-1 text-white">
                 Pix Instantâneo
               </span>
-              <span class="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200">
+              <span class="rounded border border-[#8C52B8] bg-[#4C1D70] px-2 py-1 text-white">
                 Cartão em até {settings().max_installments}x
               </span>
-              <span class="inline-flex items-center gap-1 rounded border border-emerald-800 bg-emerald-950 px-2 py-1 text-emerald-300">
+              <span class="inline-flex items-center gap-1 rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-emerald-200">
                 <ShieldCheck class="h-3.5 w-3.5" />
                 Ambiente Seguro
               </span>

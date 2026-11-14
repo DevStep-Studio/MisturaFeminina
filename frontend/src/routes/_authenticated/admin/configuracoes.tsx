@@ -309,7 +309,7 @@ function AdminSettingsPage() {
                   <div class="mt-1 flex items-center gap-2">
                     <input
                       type="color"
-                      value={String(form()[field] ?? "#8B2252")}
+                      value={String(form()[field] ?? "#C22583")}
                       onInput={(e) =>
                         setForm((p) => ({
                           ...p,
