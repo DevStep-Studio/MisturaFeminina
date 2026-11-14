@@ -103,6 +103,66 @@ class AdminContentController extends Controller
         return response()->json(['data' => HomeSection::query()->orderBy('sort_order')->get()]);
     }
 
+    public function storeHomeSection(Request $request): JsonResponse
+    {
+        $allowedTypes = [
+            'hero_carousel',
+            'coupon_strip',
+            'benefits_row',
+            'category_circles',
+            'product_showcase',
+            'banner_grid',
+            'brand_showcase',
+            'testimonials',
+            'newsletter',
+        ];
+
+        $validated = $request->validate([
+            'key' => ['nullable', 'string', 'max:80'],
+            'type' => ['required', 'string', Rule::in($allowedTypes)],
+            'title' => ['nullable', 'string', 'max:180'],
+            'subtitle' => ['nullable', 'string', 'max:255'],
+            'config' => ['nullable', 'array'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'is_active' => ['boolean'],
+        ]);
+
+        $baseKey = Str::slug((string) ($validated['key'] ?? $validated['title'] ?? $validated['type']), '_');
+        $key = $baseKey !== '' ? $baseKey : 'section';
+        if (HomeSection::query()->where('key', $key)->exists()) {
+            $key .= '_'.strtolower(Str::random(4));
+        }
+
+        $nextOrder = ((int) HomeSection::query()->max('sort_order')) + 1;
+
+        $section = HomeSection::query()->create([
+            'key' => $key,
+            'type' => $validated['type'],
+            'title' => $validated['title'] ?? null,
+            'subtitle' => $validated['subtitle'] ?? null,
+            'config' => $validated['config'] ?? [],
+            'sort_order' => (int) ($validated['sort_order'] ?? $nextOrder),
+            'is_active' => (bool) ($validated['is_active'] ?? true),
+        ]);
+
+        Cache::flush();
+        $this->audit->record('home_section.created', $request->user(), 'home_section', $section->id, null, ['key' => $section->key, 'type' => $section->type], $request);
+
+        return response()->json(['data' => $section], 201);
+    }
+
+    public function destroyHomeSection(Request $request, int $id): JsonResponse
+    {
+        $section = HomeSection::query()->findOrFail($id);
+        $key = $section->key;
+        $section->delete();
+
+        Cache::flush();
+        $this->audit->record('home_section.deleted', $request->user(), 'home_section', $id, ['key' => $key], null, $request);
+
+        return response()->json(['message' => 'Seção removida da página inicial.']);
+    }
+
     public function updateHomeSections(Request $request): JsonResponse
     {
         $validated = $request->validate([

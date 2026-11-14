@@ -151,3 +151,36 @@ test('customer LGPD export, 2FA TOTP verification, sitemap, and backup command w
     $output = Artisan::output();
     expect($output)->toContain('Backup');
 });
+
+test('admin can create, list on home, and delete dynamic niche home sections with RBAC', function (): void {
+    $customer = User::query()->where('email', 'cliente@misturafeminina.local')->firstOrFail();
+    $admin = User::query()->where('email', 'admin@misturafeminina.local')->firstOrFail();
+
+    $this->actingAs($customer)->postJson('/api/v1/admin/home-sections', [
+        'type' => 'product_showcase',
+        'title' => 'Nicho Teste',
+    ])->assertStatus(403);
+
+    $created = $this->actingAs($admin)->postJson('/api/v1/admin/home-sections', [
+        'type' => 'product_showcase',
+        'title' => 'Cuidados Skincare',
+        'config' => [
+            'filter' => 'category',
+            'category_slug' => 'skincare',
+            'limit' => 4,
+            'borderless' => true,
+            'show_view_all' => false,
+        ],
+        'is_active' => true,
+    ])->assertCreated();
+
+    $sectionId = (int) $created->json('data.id');
+    expect($sectionId)->toBeGreaterThan(0);
+
+    $homeResp = $this->getJson('/api/v1/storefront/home')->assertOk();
+    $titles = collect($homeResp->json('data.sections'))->pluck('title')->all();
+    expect($titles)->toContain('Cuidados Skincare');
+
+    $this->actingAs($admin)->deleteJson("/api/v1/admin/home-sections/{$sectionId}")
+        ->assertOk();
+});

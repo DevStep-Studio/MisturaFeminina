@@ -51,11 +51,6 @@ export function ProductCard(props: {
 
         {/* Top-left Status Badges */}
         <div class="pointer-events-none absolute left-1 top-1 flex flex-col gap-1">
-          <Show when={!props.product.in_stock}>
-            <span class="rounded-full bg-zinc-900 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:px-2.5 sm:text-[10px]">
-              Esgotado
-            </span>
-          </Show>
           <Show when={props.product.in_stock && props.product.is_new_arrival}>
             <span class="rounded-full bg-[#C22583] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:px-2.5 sm:text-[10px]">
               Lançamento
@@ -63,12 +58,21 @@ export function ProductCard(props: {
           </Show>
         </div>
 
-        {/* Top-right Discount Badge */}
-        <Show when={props.product.discount_percent > 0}>
-          <span class="pointer-events-none absolute right-1 top-1 flex size-10 flex-col items-center justify-center rounded-full bg-[#3D1260] text-[9px] font-extrabold leading-tight text-white sm:size-11 sm:text-[10px]">
-            <span>-{props.product.discount_percent}%</span>
-            <span>OFF</span>
-          </span>
+        {/* Top-right Discount or Out-of-Stock Badge */}
+        <Show
+          when={props.product.in_stock}
+          fallback={
+            <span class="pointer-events-none absolute right-1 top-1 rounded-full bg-red-600 px-3 py-1 text-[10px] font-bold text-white">
+              Esgotado
+            </span>
+          }
+        >
+          <Show when={props.product.discount_percent > 0}>
+            <span class="pointer-events-none absolute right-1 top-1 flex size-10 flex-col items-center justify-center rounded-full bg-[#3D1260] text-[9px] font-extrabold leading-tight text-white sm:size-11 sm:text-[10px]">
+              <span>-{props.product.discount_percent}%</span>
+              <span>OFF</span>
+            </span>
+          </Show>
         </Show>
       </div>
 
@@ -81,57 +85,61 @@ export function ProductCard(props: {
           {props.product.name}
         </Link>
 
-        <div class="mt-2.5 flex-1">
-          <div class="flex items-baseline justify-center gap-1.5">
-            <Show
-              when={
-                props.product.effective_price_cents < props.product.price_cents
-              }
-            >
-              <span class="text-xs text-zinc-500 line-through">
-                {formatCents(props.product.price_cents)}
-              </span>
-            </Show>
-            <span class="text-[17px] font-extrabold text-[#C22583]">
-              {formatCents(props.product.effective_price_cents)}
-            </span>
-          </div>
-
-          <Show when={props.product.installments_count > 1}>
-            <p class="mt-1 flex items-center justify-center gap-1 text-[11px] text-[#3D1260]">
-              <CreditCard class="size-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                ou{" "}
-                <strong class="font-bold text-[#C22583]">
-                  {props.product.installments_count}x
-                </strong>{" "}
-                de{" "}
-                <strong class="font-bold text-[#C22583]">
-                  {formatCents(props.product.installment_cents)}
-                </strong>{" "}
-                Sem juros
-              </span>
-            </p>
-          </Show>
-        </div>
-
-        <Show when={feedback()}>
-          <p class="mt-1 text-xs font-medium text-danger">{feedback()}</p>
-        </Show>
-
-        <div class="mt-3 space-y-2">
-          <Show
-            when={props.product.in_stock}
-            fallback={
+        <Show
+          when={props.product.in_stock}
+          fallback={
+            <div class="mt-4 flex flex-1 flex-col items-center justify-center pb-4">
+              <p class="text-base font-bold text-[#3D1260]">Esgotado :(</p>
               <Link
                 to="/produto/$slug"
                 params={{ slug: props.product.slug }}
-                class="inline-flex min-h-9 w-full items-center justify-center rounded-full border border-[#3D1260] bg-white px-3 py-1.5 text-center text-[11px] font-bold leading-tight text-[#3D1260] transition-colors hover:bg-zinc-50 sm:px-4 sm:text-xs"
+                class="mt-1.5 inline-flex items-center justify-center text-xs font-bold text-[#3D1260] transition-colors hover:text-[#C22583] hover:underline"
               >
-                Avise-me quando chegar
+                Avise-me quando chegar ›
               </Link>
-            }
-          >
+            </div>
+          }
+        >
+          <div class="mt-2.5 flex-1">
+            <div class="flex items-baseline justify-center gap-1.5">
+              <Show
+                when={
+                  props.product.effective_price_cents <
+                  props.product.price_cents
+                }
+              >
+                <span class="text-xs text-zinc-500 line-through">
+                  {formatCents(props.product.price_cents)}
+                </span>
+              </Show>
+              <span class="text-[17px] font-extrabold text-[#C22583]">
+                {formatCents(props.product.effective_price_cents)}
+              </span>
+            </div>
+
+            <Show when={props.product.installments_count > 1}>
+              <p class="mt-1 flex items-center justify-center gap-1 text-[11px] text-[#3D1260]">
+                <CreditCard class="size-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  ou{" "}
+                  <strong class="font-bold text-[#C22583]">
+                    {props.product.installments_count}x
+                  </strong>{" "}
+                  de{" "}
+                  <strong class="font-bold text-[#C22583]">
+                    {formatCents(props.product.installment_cents)}
+                  </strong>{" "}
+                  Sem juros
+                </span>
+              </p>
+            </Show>
+          </div>
+
+          <Show when={feedback()}>
+            <p class="mt-1 text-xs font-medium text-danger">{feedback()}</p>
+          </Show>
+
+          <div class="mt-3 space-y-2">
             <Show
               when={!props.product.has_multiple_variants}
               fallback={
@@ -153,21 +161,24 @@ export function ProductCard(props: {
                 {adding() ? "Adicionando…" : "Comprar"}
               </button>
             </Show>
-          </Show>
 
-          <a
-            href={whatsappUrl(
-              settings().whatsapp_number,
-              `Olá! Tenho interesse no produto: ${props.product.name} (SKU ${props.product.sku})`,
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex min-h-8 w-full items-center justify-center gap-1 rounded-full border border-emerald-500 bg-white px-2 py-1 text-[10.5px] font-semibold leading-tight text-emerald-700 transition-colors hover:bg-emerald-50 sm:gap-1.5 sm:px-3 sm:text-[11px]"
-          >
-            <MessageCircle class="size-3 shrink-0 sm:size-3.5" aria-hidden="true" />
-            <span class="whitespace-nowrap">Comprar pelo Whats</span>
-          </a>
-        </div>
+            <a
+              href={whatsappUrl(
+                settings().whatsapp_number,
+                `Olá! Tenho interesse no produto: ${props.product.name} (SKU ${props.product.sku})`,
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex min-h-8 w-full items-center justify-center gap-1 rounded-full border border-emerald-500 bg-white px-2 py-1 text-[10.5px] font-semibold leading-tight text-emerald-700 transition-colors hover:bg-emerald-50 sm:gap-1.5 sm:px-3 sm:text-[11px]"
+            >
+              <MessageCircle
+                class="size-3 shrink-0 sm:size-3.5"
+                aria-hidden="true"
+              />
+              <span class="whitespace-nowrap">Comprar pelo Whats</span>
+            </a>
+          </div>
+        </Show>
       </div>
     </article>
   );

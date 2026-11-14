@@ -135,7 +135,9 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::delete('banners/{id}', [AdminContentController::class, 'destroyBanner'])->middleware('permission:banners.write');
         Route::post('banners/reorder', [AdminContentController::class, 'reorderBanners'])->middleware('permission:banners.write');
         Route::get('home-sections', [AdminContentController::class, 'listHomeSections'])->middleware('permission:content.view');
+        Route::post('home-sections', [AdminContentController::class, 'storeHomeSection'])->middleware('permission:content.write');
         Route::put('home-sections', [AdminContentController::class, 'updateHomeSections'])->middleware('permission:content.write');
+        Route::delete('home-sections/{id}', [AdminContentController::class, 'destroyHomeSection'])->middleware('permission:content.write');
         Route::get('pages', [AdminContentController::class, 'listPages'])->middleware('permission:content.view');
         Route::post('pages', [AdminContentController::class, 'storePage'])->middleware('permission:content.write');
         Route::put('pages/{id}', [AdminContentController::class, 'updatePage'])->middleware('permission:content.write');

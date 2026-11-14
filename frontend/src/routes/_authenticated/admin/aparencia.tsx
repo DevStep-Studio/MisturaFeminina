@@ -53,6 +53,36 @@ interface AdminContentPage {
   footer_group: string | null;
 }
 
+interface AdminOptionItem {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+const HOME_SECTION_TYPES = [
+  {
+    value: "product_showcase",
+    label: "Vitrine de Produtos (Ofertas / Nicho / Marca)",
+  },
+  { value: "hero_carousel", label: "Banner Principal (Carrossel)" },
+  { value: "coupon_strip", label: "Faixa de Cupom" },
+  { value: "benefits_row", label: "Diferenciais da Loja (5 colunas)" },
+  { value: "category_circles", label: "Navegue por Categorias (Círculos)" },
+  { value: "banner_grid", label: "Grade de Banners Promocionais" },
+  { value: "brand_showcase", label: "Grade de Logotipos de Marcas" },
+  { value: "testimonials", label: "Avaliações de Clientes" },
+  { value: "newsletter", label: "Newsletter" },
+];
+
+const SHOWCASE_FILTERS = [
+  { value: "offers", label: "Ofertas / Promoções" },
+  { value: "category", label: "Nicho / Categoria" },
+  { value: "brand", label: "Marca" },
+  { value: "new_arrivals", label: "Novidades / Lançamentos" },
+  { value: "best_sellers", label: "Mais Vendidos" },
+  { value: "featured", label: "Produtos em Destaque" },
+];
+
 function AdminAppearancePage() {
   const [tab, setTab] = createSignal<"banners" | "home" | "paginas">("banners");
   const [bTitle, setBTitle] = createSignal("");
@@ -61,6 +91,16 @@ function AdminAppearancePage() {
   const [bMobile, setBMobile] = createSignal("");
   const [bAlt, setBAlt] = createSignal("");
   const [bUrl, setBUrl] = createSignal("/promocoes");
+
+  const [newSecType, setNewSecType] = createSignal("product_showcase");
+  const [newSecTitle, setNewSecTitle] = createSignal("");
+  const [newSecSubtitle, setNewSecSubtitle] = createSignal("");
+  const [newSecFilter, setNewSecFilter] = createSignal("category");
+  const [newSecCategorySlug, setNewSecCategorySlug] = createSignal("");
+  const [newSecBrandSlug, setNewSecBrandSlug] = createSignal("");
+  const [newSecLimit, setNewSecLimit] = createSignal(8);
+  const [newSecBorderless, setNewSecBorderless] = createSignal(true);
+  const [newSecShowViewAll, setNewSecShowViewAll] = createSignal(false);
 
   const [sectionsDraft, setSectionsDraft] = createSignal<AdminHomeSection[]>(
     [],
@@ -80,6 +120,16 @@ function AdminAppearancePage() {
     const list = res.data ?? [];
     setSectionsDraft(list);
     return list;
+  });
+
+  const [categoriesList] = createResource(async () => {
+    const res = await api<{ data: AdminOptionItem[] }>("/admin/categories");
+    return res.data ?? [];
+  });
+
+  const [brandsList] = createResource(async () => {
+    const res = await api<{ data: AdminOptionItem[] }>("/admin/brands");
+    return res.data ?? [];
   });
 
   const [pages, { refetch: refetchPages }] = createResource(async () => {
@@ -165,6 +215,74 @@ function AdminAppearancePage() {
         err instanceof ApiError ? err.message : "Erro ao salvar seções.",
       );
     }
+  }
+
+  async function createSection(e: Event) {
+    e.preventDefault();
+    setFeedback(null);
+    const config: Record<string, unknown> =
+      newSecType() === "product_showcase"
+        ? {
+            filter: newSecFilter(),
+            category_slug:
+              newSecFilter() === "category"
+                ? newSecCategorySlug() || undefined
+                : undefined,
+            brand_slug:
+              newSecFilter() === "brand"
+                ? newSecBrandSlug() || undefined
+                : undefined,
+            limit: Number(newSecLimit()) || 8,
+            borderless: newSecBorderless(),
+            show_view_all: newSecShowViewAll(),
+          }
+        : {};
+    try {
+      await api("/admin/home-sections", {
+        method: "POST",
+        body: {
+          type: newSecType(),
+          title: newSecTitle().trim() || undefined,
+          subtitle: newSecSubtitle().trim() || undefined,
+          config,
+          is_active: true,
+        },
+      });
+      setNewSecTitle("");
+      setNewSecSubtitle("");
+      await refetchSections();
+      setFeedback("Nova seção criada e publicada na loja.");
+    } catch (err) {
+      setFeedback(
+        err instanceof ApiError ? err.message : "Erro ao criar seção.",
+      );
+    }
+  }
+
+  async function deleteSection(id: number) {
+    setFeedback(null);
+    try {
+      await api(`/admin/home-sections/${id}`, { method: "DELETE" });
+      await refetchSections();
+      setFeedback("Seção removida.");
+    } catch (err) {
+      setFeedback(
+        err instanceof ApiError ? err.message : "Erro ao remover seção.",
+      );
+    }
+  }
+
+  function updateSectionConfig(
+    idx: number,
+    sec: AdminHomeSection,
+    patch: Record<string, unknown>,
+  ) {
+    const next = [...sectionsDraft()];
+    next[idx] = {
+      ...sec,
+      config: { ...(sec.config ?? {}), ...patch },
+    };
+    setSectionsDraft(next);
   }
 
   async function savePage(e: Event) {
@@ -349,77 +467,321 @@ function AdminAppearancePage() {
       </Show>
 
       <Show when={tab() === "home"}>
-        <Show when={!sections.loading}>
-          <div class="space-y-3 rounded-xl border border-zinc-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-              <h2 class="text-base font-bold text-zinc-900">
-                Construtor da Página Inicial
-              </h2>
-              <button
-                type="button"
-                onClick={() => void saveSections()}
-                class="rounded-lg bg-[var(--mf-primary)] px-4 py-2 text-xs font-bold text-white"
-              >
-                Salvar ordem e títulos
-              </button>
+        <div class="space-y-6">
+          <form
+            onSubmit={(e) => void createSection(e)}
+            class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5"
+          >
+            <h2 class="text-base font-bold text-zinc-900">
+              Nova Seção na Página Inicial (Vitrine por Nicho, Marca ou Bloco)
+            </h2>
+            <div class="grid gap-3 md:grid-cols-3">
+              <div>
+                <label class="text-xs font-semibold text-zinc-700">
+                  Tipo de Seção
+                </label>
+                <select
+                  value={newSecType()}
+                  onChange={(e) => setNewSecType(e.currentTarget.value)}
+                  class="mt-1 h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                >
+                  <For each={HOME_SECTION_TYPES}>
+                    {(opt) => <option value={opt.value}>{opt.label}</option>}
+                  </For>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-zinc-700">
+                  Título exibido na Home
+                </label>
+                <input
+                  type="text"
+                  value={newSecTitle()}
+                  onInput={(e) => setNewSecTitle(e.currentTarget.value)}
+                  placeholder="Ex: Esmaltes em Gel, Mistura Lab..."
+                  class="mt-1 h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                />
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-zinc-700">
+                  Subtítulo (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={newSecSubtitle()}
+                  onInput={(e) => setNewSecSubtitle(e.currentTarget.value)}
+                  class="mt-1 h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm"
+                />
+              </div>
             </div>
-            <For each={sectionsDraft()}>
-              {(sec, idx) => (
-                <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm">
-                  <div class="flex items-center gap-3">
+
+            <Show when={newSecType() === "product_showcase"}>
+              <div class="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 md:grid-cols-4">
+                <div>
+                  <label class="text-xs font-semibold text-zinc-700">
+                    Origem dos Produtos
+                  </label>
+                  <select
+                    value={newSecFilter()}
+                    onChange={(e) => setNewSecFilter(e.currentTarget.value)}
+                    class="mt-1 h-9 w-full rounded border border-zinc-300 bg-white px-2 text-xs"
+                  >
+                    <For each={SHOWCASE_FILTERS}>
+                      {(f) => <option value={f.value}>{f.label}</option>}
+                    </For>
+                  </select>
+                </div>
+                <Show when={newSecFilter() === "category"}>
+                  <div>
+                    <label class="text-xs font-semibold text-zinc-700">
+                      Nicho / Categoria
+                    </label>
+                    <select
+                      value={newSecCategorySlug()}
+                      onChange={(e) =>
+                        setNewSecCategorySlug(e.currentTarget.value)
+                      }
+                      class="mt-1 h-9 w-full rounded border border-zinc-300 bg-white px-2 text-xs"
+                    >
+                      <option value="">Selecione a categoria</option>
+                      <For each={categoriesList() ?? []}>
+                        {(c) => <option value={c.slug}>{c.name}</option>}
+                      </For>
+                    </select>
+                  </div>
+                </Show>
+                <Show when={newSecFilter() === "brand"}>
+                  <div>
+                    <label class="text-xs font-semibold text-zinc-700">
+                      Marca
+                    </label>
+                    <select
+                      value={newSecBrandSlug()}
+                      onChange={(e) =>
+                        setNewSecBrandSlug(e.currentTarget.value)
+                      }
+                      class="mt-1 h-9 w-full rounded border border-zinc-300 bg-white px-2 text-xs"
+                    >
+                      <option value="">Selecione a marca</option>
+                      <For each={brandsList() ?? []}>
+                        {(b) => <option value={b.slug}>{b.name}</option>}
+                      </For>
+                    </select>
+                  </div>
+                </Show>
+                <div>
+                  <label class="text-xs font-semibold text-zinc-700">
+                    Máximo de Produtos
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={newSecLimit()}
+                    onInput={(e) =>
+                      setNewSecLimit(Number(e.currentTarget.value || 8))
+                    }
+                    class="mt-1 h-9 w-full rounded border border-zinc-300 bg-white px-2 text-xs"
+                  />
+                </div>
+                <div class="flex flex-col justify-end gap-1.5 text-xs text-zinc-800">
+                  <label class="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={sec.is_active}
-                      onChange={(e) => {
-                        const next = [...sectionsDraft()];
-                        next[idx()] = {
-                          ...sec,
-                          is_active: e.currentTarget.checked,
-                        };
-                        setSectionsDraft(next);
-                      }}
+                      checked={newSecBorderless()}
+                      onChange={(e) =>
+                        setNewSecBorderless(e.currentTarget.checked)
+                      }
                     />
-                    <div>
-                      <p class="font-bold text-zinc-900">{sec.type}</p>
-                      <input
-                        type="text"
-                        value={sec.title ?? ""}
-                        placeholder="Título da seção"
-                        onInput={(e) => {
-                          const next = [...sectionsDraft()];
-                          next[idx()] = {
-                            ...sec,
-                            title: e.currentTarget.value,
-                          };
-                          setSectionsDraft(next);
-                        }}
-                        class="mt-1 h-8 rounded border border-zinc-300 bg-white px-2 text-xs"
-                      />
-                    </div>
-                  </div>
-                  <div class="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => moveSection(idx(), -1)}
-                      aria-label="Mover para cima"
-                      class="rounded border border-zinc-300 bg-white p-1.5"
-                    >
-                      <ArrowUp class="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveSection(idx(), 1)}
-                      aria-label="Mover para baixo"
-                      class="rounded border border-zinc-300 bg-white p-1.5"
-                    >
-                      <ArrowDown class="h-4 w-4" />
-                    </button>
-                  </div>
+                    Cards sem borda (estilo nicho/marca)
+                  </label>
+                  <label class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={newSecShowViewAll()}
+                      onChange={(e) =>
+                        setNewSecShowViewAll(e.currentTarget.checked)
+                      }
+                    />
+                    Exibir botão "Ver tudo"
+                  </label>
                 </div>
-              )}
-            </For>
-          </div>
-        </Show>
+              </div>
+            </Show>
+
+            <button
+              type="submit"
+              class="rounded-lg bg-[var(--mf-primary)] px-4 py-2 text-xs font-bold text-white"
+            >
+              Criar seção na Home
+            </button>
+          </form>
+
+          <Show when={!sections.loading}>
+            <div class="space-y-3 rounded-xl border border-zinc-200 bg-white p-5">
+              <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-zinc-900">
+                  Construtor da Página Inicial
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => void saveSections()}
+                  class="rounded-lg bg-[var(--mf-primary)] px-4 py-2 text-xs font-bold text-white"
+                >
+                  Salvar ordem e alterações
+                </button>
+              </div>
+              <For each={sectionsDraft()}>
+                {(sec, idx) => (
+                  <div class="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div class="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={sec.is_active}
+                          aria-label={`Ativar seção ${sec.title || sec.type}`}
+                          onChange={(e) => {
+                            const next = [...sectionsDraft()];
+                            next[idx()] = {
+                              ...sec,
+                              is_active: e.currentTarget.checked,
+                            };
+                            setSectionsDraft(next);
+                          }}
+                        />
+                        <div>
+                          <p class="font-bold text-zinc-900">
+                            {sec.type}{" "}
+                            <span class="font-normal text-xs text-zinc-500">
+                              ({sec.key})
+                            </span>
+                          </p>
+                          <input
+                            type="text"
+                            value={sec.title ?? ""}
+                            placeholder="Título da seção"
+                            onInput={(e) => {
+                              const next = [...sectionsDraft()];
+                              next[idx()] = {
+                                ...sec,
+                                title: e.currentTarget.value,
+                              };
+                              setSectionsDraft(next);
+                            }}
+                            class="mt-1 h-8 w-64 rounded border border-zinc-300 bg-white px-2 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => moveSection(idx(), -1)}
+                          aria-label="Mover para cima"
+                          class="rounded border border-zinc-300 bg-white p-1.5"
+                        >
+                          <ArrowUp class="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSection(idx(), 1)}
+                          aria-label="Mover para baixo"
+                          class="rounded border border-zinc-300 bg-white p-1.5"
+                        >
+                          <ArrowDown class="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteSection(sec.id)}
+                          class="ml-1 rounded border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+
+                    <Show when={sec.type === "product_showcase"}>
+                      <div class="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-2 text-xs">
+                        <select
+                          value={String(sec.config?.filter ?? "featured")}
+                          onChange={(e) =>
+                            updateSectionConfig(idx(), sec, {
+                              filter: e.currentTarget.value,
+                            })
+                          }
+                          class="h-8 rounded border border-zinc-300 bg-white px-2"
+                        >
+                          <For each={SHOWCASE_FILTERS}>
+                            {(f) => <option value={f.value}>{f.label}</option>}
+                          </For>
+                        </select>
+                        <Show
+                          when={String(sec.config?.filter ?? "") === "category"}
+                        >
+                          <select
+                            value={String(sec.config?.category_slug ?? "")}
+                            onChange={(e) =>
+                              updateSectionConfig(idx(), sec, {
+                                category_slug: e.currentTarget.value,
+                              })
+                            }
+                            class="h-8 rounded border border-zinc-300 bg-white px-2"
+                          >
+                            <option value="">Categoria</option>
+                            <For each={categoriesList() ?? []}>
+                              {(c) => <option value={c.slug}>{c.name}</option>}
+                            </For>
+                          </select>
+                        </Show>
+                        <Show
+                          when={String(sec.config?.filter ?? "") === "brand"}
+                        >
+                          <select
+                            value={String(sec.config?.brand_slug ?? "")}
+                            onChange={(e) =>
+                              updateSectionConfig(idx(), sec, {
+                                brand_slug: e.currentTarget.value,
+                              })
+                            }
+                            class="h-8 rounded border border-zinc-300 bg-white px-2"
+                          >
+                            <option value="">Marca</option>
+                            <For each={brandsList() ?? []}>
+                              {(b) => <option value={b.slug}>{b.name}</option>}
+                            </For>
+                          </select>
+                        </Show>
+                        <label class="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(sec.config?.borderless)}
+                            onChange={(e) =>
+                              updateSectionConfig(idx(), sec, {
+                                borderless: e.currentTarget.checked,
+                              })
+                            }
+                          />
+                          Sem borda
+                        </label>
+                        <label class="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={sec.config?.show_view_all !== false}
+                            onChange={(e) =>
+                              updateSectionConfig(idx(), sec, {
+                                show_view_all: e.currentTarget.checked,
+                              })
+                            }
+                          />
+                          Ver tudo
+                        </label>
+                      </div>
+                    </Show>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+        </div>
       </Show>
 
       <Show when={tab() === "paginas"}>

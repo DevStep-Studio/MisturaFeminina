@@ -123,7 +123,9 @@ class StorefrontController extends Controller
                         default => $query->where('is_featured', true),
                     };
 
-                    $payload = $query->orderByDesc('id')
+                    $payload = $query
+                        ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = products.id AND pv.is_active = 1 AND (pv.stock_qty - pv.reserved_qty) > 0) THEN 0 ELSE 1 END ASC')
+                        ->orderByDesc('id')
                         ->limit((int) ($cfg['limit'] ?? 8))
                         ->get()
                         ->map(fn (Product $p): array => CatalogController::serializeProductCard($p))
