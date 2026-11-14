@@ -351,7 +351,7 @@ export function StoreHeader() {
 
               <Show when={activePopover() === "support"}>
                 <div
-                  class="absolute right-0 top-full z-50 w-[295px] rounded-b-xl border-x border-b border-[#F2D4F0] border-t-[3px] border-t-[#DF2895] bg-white p-5 text-left shadow-2xl"
+                  class="absolute right-0 top-full z-50 mt-1 w-[295px] rounded-2xl border border-zinc-200/80 bg-white/98 p-5 text-left shadow-[0_16px_40px_-12px_rgba(46,16,73,0.14)] backdrop-blur-md"
                   onMouseEnter={() => openPopover("support")}
                   onMouseLeave={scheduleClosePopover}
                 >
@@ -468,7 +468,7 @@ export function StoreHeader() {
 
               <Show when={activePopover() === "account"}>
                 <div
-                  class="absolute right-0 top-full z-50 w-[250px] rounded-b-xl border-x border-b border-[#F2D4F0] border-t-[3px] border-t-[#DF2895] bg-white p-5 text-left shadow-2xl"
+                  class="absolute right-0 top-full z-50 mt-1 w-[250px] rounded-2xl border border-zinc-200/80 bg-white/98 p-5 text-left shadow-[0_16px_40px_-12px_rgba(46,16,73,0.14)] backdrop-blur-md"
                   onMouseEnter={() => openPopover("account")}
                   onMouseLeave={scheduleClosePopover}
                 >
@@ -613,11 +613,24 @@ export function StoreHeader() {
 
               <Show when={activePopover() === "all"}>
                 <div
-                  class="absolute left-6 right-6 top-full z-50 rounded-b-xl border border-[#F2D4F0] bg-white p-7 shadow-2xl"
+                  class="absolute left-4 right-4 top-full z-50 mt-1 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/98 shadow-[0_20px_48px_-12px_rgba(46,16,73,0.14)] backdrop-blur-md xl:left-6 xl:right-6"
                   onMouseEnter={() => openPopover("all")}
                   onMouseLeave={scheduleClosePopover}
                 >
-                  <div class="grid grid-cols-3 gap-x-8 gap-y-6 xl:grid-cols-4">
+                  <div class="flex items-center justify-between border-b border-zinc-100 bg-[#FAF8FC] px-6 py-3">
+                    <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
+                      Departamentos
+                    </span>
+                    <Link
+                      to="/categorias"
+                      onClick={closeAllMenus}
+                      class="inline-flex items-center gap-1 text-xs font-semibold text-[#62298D] transition-colors hover:text-[#2E0C49]"
+                    >
+                      <span>Ver todas as categorias</span>
+                      <ChevronRight class="size-3.5" aria-hidden="true" />
+                    </Link>
+                  </div>
+                  <div class="grid grid-cols-3 gap-x-6 gap-y-6 p-6 xl:grid-cols-6">
                     <For each={categories()}>
                       {(cat) => (
                         <CategoryMegaColumn
@@ -631,7 +644,7 @@ export function StoreHeader() {
               </Show>
             </div>
 
-            {/* Top-level Categories with Rich 2-Col Mega Dropdown */}
+            {/* Top-level Categories with Rich Minimalist Dropdown */}
             <For each={categories().slice(0, 8)}>
               {(cat, idx) => {
                 const key = () => `cat:${cat.id}` as const;
@@ -664,37 +677,34 @@ export function StoreHeader() {
                       }
                     >
                       <div
-                        class={`absolute top-full z-50 rounded-b-xl border border-[#F2D4F0] bg-white p-6 shadow-2xl ${
+                        class={`absolute top-full z-50 mt-1 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/98 p-4 shadow-[0_16px_40px_-12px_rgba(46,16,73,0.14)] backdrop-blur-md ${
                           alignRight() ? "right-0" : "left-0"
-                        } ${cat.featured_product ? "w-[560px]" : "w-[300px]"}`}
+                        } ${cat.featured_product ? "w-[430px]" : "w-[240px]"}`}
                         onMouseEnter={() => openPopover(key())}
                         onMouseLeave={scheduleClosePopover}
                       >
-                        <div class="flex gap-5">
-                          <div
-                            class={`min-w-0 flex-1 ${
-                              cat.featured_product
-                                ? "border-r border-zinc-100 pr-5"
-                                : ""
-                            }`}
-                          >
-                            <div class="flex items-center justify-between gap-2 border-b border-zinc-100 pb-3">
-                              <span class="text-base font-extrabold text-[#3D1260]">
+                        <div class="flex gap-4">
+                          <div class="min-w-0 flex-1">
+                            <div class="mb-2 flex items-center justify-between border-b border-zinc-100 px-2 pb-2.5">
+                              <span class="text-xs font-bold uppercase tracking-[0.12em] text-[#2E0C49]">
                                 {cat.name}
                               </span>
                               <Link
                                 to="/categoria/$slug"
                                 params={{ slug: cat.slug }}
                                 onClick={closeAllMenus}
-                                class="inline-flex shrink-0 items-center rounded-full bg-[#C22583] px-3.5 py-1 text-xs font-bold text-white transition-colors hover:bg-[#9E1A69]"
+                                class="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-[#62298D] transition-colors hover:text-[#2E0C49]"
                               >
-                                + ver tudo
+                                <span>Ver tudo</span>
+                                <ChevronRight
+                                  class="size-3"
+                                  aria-hidden="true"
+                                />
                               </Link>
                             </div>
-                            <div class="mt-3 max-h-[340px] overflow-y-auto pr-1">
+                            <div class="max-h-[320px] overflow-y-auto pr-1">
                               <CategorySubtreeList
                                 nodes={cat.children ?? []}
-                                boldTopLevel={true}
                                 onSelect={closeAllMenus}
                               />
                             </div>
@@ -702,12 +712,40 @@ export function StoreHeader() {
 
                           <Show when={cat.featured_product}>
                             {(featured) => (
-                              <div class="w-[220px] shrink-0">
-                                <ProductCard
-                                  product={featured()}
-                                  borderless={true}
-                                />
-                              </div>
+                              <Link
+                                to="/produto/$slug"
+                                params={{ slug: featured().slug }}
+                                onClick={closeAllMenus}
+                                class="group flex w-[172px] shrink-0 flex-col justify-between rounded-xl border border-zinc-100 bg-[#FAF8FC] p-3 transition hover:border-[#E5D8EE]"
+                              >
+                                <span class="text-[10px] font-bold uppercase tracking-[0.14em] text-[#62298D]">
+                                  Destaque
+                                </span>
+                                <div class="my-2 aspect-square w-full overflow-hidden rounded-lg bg-white p-2">
+                                  <img
+                                    src={assetUrl(featured().primary_image)}
+                                    alt={featured().name}
+                                    class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-105"
+                                    loading="lazy"
+                                  />
+                                </div>
+                                <div>
+                                  <p class="line-clamp-2 text-xs font-medium leading-snug text-[#2E0C49]">
+                                    {featured().name}
+                                  </p>
+                                  <div class="mt-2 flex items-center justify-between">
+                                    <span class="text-xs font-extrabold text-[#3D1260]">
+                                      {formatCents(
+                                        featured().effective_price_cents,
+                                      )}
+                                    </span>
+                                    <ChevronRight
+                                      class="size-3.5 text-[#62298D] transition-transform group-hover:translate-x-0.5"
+                                      aria-hidden="true"
+                                    />
+                                  </div>
+                                </div>
+                              </Link>
                             )}
                           </Show>
                         </div>
@@ -755,7 +793,7 @@ export function StoreHeader() {
 
             <Show when={activePopover() === "promo"}>
               <div
-                class="absolute left-6 right-6 top-full z-50 overflow-hidden rounded-b-xl border border-[#F2D4F0] bg-white shadow-2xl"
+                class="absolute left-6 right-6 top-full z-50 mt-1 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/98 shadow-[0_20px_48px_-12px_rgba(46,16,73,0.14)] backdrop-blur-md"
                 onMouseEnter={() => openPopover("promo")}
                 onMouseLeave={scheduleClosePopover}
               >
@@ -778,7 +816,7 @@ export function StoreHeader() {
                         type="button"
                         aria-label="Ofertas anteriores"
                         onClick={promoSlidePrev}
-                        class="absolute left-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-[#F2D4F0] bg-white/95 text-[#3D1260] shadow hover:bg-[#FCE7F6]"
+                        class="absolute left-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-zinc-200/80 bg-white/95 text-[#3D1260] shadow-xs hover:bg-[#FAF6FC]"
                       >
                         <ChevronLeft class="size-4" aria-hidden="true" />
                       </button>
@@ -786,14 +824,14 @@ export function StoreHeader() {
                         type="button"
                         aria-label="Próximas ofertas"
                         onClick={promoSlideNext}
-                        class="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-[#F2D4F0] bg-white/95 text-[#3D1260] shadow hover:bg-[#FCE7F6]"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-8 items-center justify-center rounded-full border border-zinc-200/80 bg-white/95 text-[#3D1260] shadow-xs hover:bg-[#FAF6FC]"
                       >
                         <ChevronRight class="size-4" aria-hidden="true" />
                       </button>
                     </Show>
                   </div>
 
-                  <div class="flex flex-col items-center justify-center border-l border-zinc-100 bg-[#FCF9FC] px-6 py-8 text-center">
+                  <div class="flex flex-col items-center justify-center border-l border-zinc-100 bg-[#FAF8FC] px-6 py-8 text-center">
                     <p class="text-2xl font-black uppercase tracking-tight text-[#3D1260]">
                       OFERTAS ESPECIAIS
                     </p>
@@ -803,7 +841,7 @@ export function StoreHeader() {
                     <Link
                       to="/promocoes"
                       onClick={closeAllMenus}
-                      class="mt-5 inline-flex items-center justify-center rounded-full bg-[#C22583] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#9E1A69]"
+                      class="mt-5 inline-flex items-center justify-center rounded-full bg-[#3D1260] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#2E0C49]"
                     >
                       Ver todos os produtos
                     </Link>
@@ -928,18 +966,16 @@ function CategoryMegaColumn(props: {
         to="/categoria/$slug"
         params={{ slug: props.category.slug }}
         onClick={props.onSelect}
-        class="text-[13px] font-extrabold text-[#3D1260] hover:text-[#C22583]"
+        class="mb-2 flex items-center justify-between border-b border-zinc-100 pb-2 text-xs font-bold uppercase tracking-[0.1em] text-[#2E0C49] transition-colors hover:text-[#62298D]"
       >
-        {props.category.name}
+        <span>{props.category.name}</span>
+        <ChevronRight class="size-3.5 text-zinc-400" aria-hidden="true" />
       </Link>
       <Show when={(props.category.children?.length ?? 0) > 0}>
-        <div class="mt-2">
-          <CategorySubtreeList
-            nodes={props.category.children ?? []}
-            boldTopLevel={false}
-            onSelect={props.onSelect}
-          />
-        </div>
+        <CategorySubtreeList
+          nodes={props.category.children ?? []}
+          onSelect={props.onSelect}
+        />
       </Show>
     </div>
   );
@@ -947,11 +983,10 @@ function CategoryMegaColumn(props: {
 
 function CategorySubtreeList(props: {
   nodes: CategoryNode[];
-  boldTopLevel: boolean;
   onSelect: () => void;
 }) {
   return (
-    <ul class="space-y-1.5">
+    <ul class="space-y-0.5">
       <For each={props.nodes}>
         {(child) => (
           <li>
@@ -959,18 +994,16 @@ function CategorySubtreeList(props: {
               to="/categoria/$slug"
               params={{ slug: child.slug }}
               onClick={props.onSelect}
-              class={`flex items-start gap-2 text-[13px] text-[#3D1260] transition-colors hover:text-[#C22583] ${
-                props.boldTopLevel ? "font-bold" : "font-medium"
-              }`}
+              class="group flex items-center justify-between rounded-lg px-2 py-1.5 text-[13px] font-medium text-zinc-600 transition-colors hover:bg-[#FAF6FC] hover:text-[#2E0C49]"
             >
-              <span
-                class="mt-1.5 size-1.5 shrink-0 bg-[#3D1260]"
+              <span class="truncate">{child.name}</span>
+              <ChevronRight
+                class="size-3.5 shrink-0 text-zinc-300 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:text-[#62298D] group-hover:opacity-100"
                 aria-hidden="true"
               />
-              <span>{child.name}</span>
             </Link>
             <Show when={(child.children?.length ?? 0) > 0}>
-              <ul class="mt-1 space-y-1 pl-4">
+              <ul class="ml-2 mt-0.5 space-y-0.5 border-l border-zinc-200/80 pl-2.5">
                 <For each={child.children}>
                   {(grandChild) => (
                     <li>
@@ -978,16 +1011,9 @@ function CategorySubtreeList(props: {
                         to="/categoria/$slug"
                         params={{ slug: grandChild.slug }}
                         onClick={props.onSelect}
-                        class="flex items-start gap-1.5 text-[12.5px] font-normal text-[#4E3B63] transition-colors hover:text-[#C22583]"
+                        class="block rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-[#FAF6FC] hover:text-[#2E0C49]"
                       >
-                        <span
-                          class="mt-1.5 inline-flex shrink-0 items-center gap-0.5"
-                          aria-hidden="true"
-                        >
-                          <span class="size-1 bg-[#3D1260]" />
-                          <span class="size-1 bg-[#3D1260]" />
-                        </span>
-                        <span>{grandChild.name}</span>
+                        {grandChild.name}
                       </Link>
                     </li>
                   )}
