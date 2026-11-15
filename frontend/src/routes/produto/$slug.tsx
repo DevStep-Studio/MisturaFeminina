@@ -1187,37 +1187,42 @@ function ProductDetailPage() {
 
               <NewsletterSection />
 
-              {/* Sticky bottom buy bar */}
-              <div class="fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200/80 bg-white/95 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] backdrop-blur-xs">
-                <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 pr-16 xl:pr-4">
-                  <div class="flex min-w-0 items-center gap-3">
+              {/* Sticky bottom buy bar (docked above MobileBottomNav on small screens, bottom-0 on desktop) */}
+              <div class="fixed inset-x-0 bottom-[53px] md:bottom-0 z-30 border-t border-zinc-200/90 bg-white/95 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all duration-200">
+                <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
+                  <div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
                     <img
                       src={assetUrl(activeImage() || p().primary_image)}
                       alt={p().name}
-                      class="h-12 w-12 shrink-0 object-contain"
+                      class="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-lg border border-zinc-100 object-contain"
                     />
-                    <span class="truncate text-xs font-extrabold text-[#2E0C49] sm:text-sm">
-                      {p().name}
-                    </span>
+                    <div class="min-w-0">
+                      <span class="block truncate text-xs font-semibold text-zinc-900 sm:text-sm">
+                        {p().name}
+                      </span>
+                      <span class="block text-xs font-bold text-[#93509e] sm:hidden">
+                        {formatCents(currentPriceCents())}
+                      </span>
+                    </div>
                   </div>
 
-                  <div class="flex shrink-0 items-center gap-4">
+                  <div class="flex shrink-0 items-center gap-3 sm:gap-4">
                     <div class="hidden text-right sm:block">
-                      <div class="text-base font-extrabold text-[#C918BF] sm:text-lg">
+                      <div class="text-base font-extrabold text-[#93509e] sm:text-lg">
                         {formatCents(currentPriceCents())}
                       </div>
-                      <p class="flex items-center justify-end gap-1 text-[11px] text-[#2E0C49]">
+                      <p class="flex items-center justify-end gap-1 text-[11px] text-zinc-600">
                         <CreditCard class="h-3.5 w-3.5" aria-hidden="true" />
                         <span>
                           ou{" "}
-                          <strong class="font-bold text-[#C918BF]">
+                          <strong class="font-bold text-[#93509e]">
                             {installments()}x
                           </strong>{" "}
                           de{" "}
-                          <strong class="font-bold text-[#C918BF]">
+                          <strong class="font-bold text-[#93509e]">
                             {formatCents(installmentValue())}
                           </strong>{" "}
-                          Sem juros
+                          sem juros
                         </span>
                       </p>
                     </div>
@@ -1237,7 +1242,7 @@ function ProductDetailPage() {
                             });
                             el?.focus();
                           }}
-                          class="group/notify inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-4 text-xs font-semibold whitespace-nowrap text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30"
+                          class="group/notify inline-flex h-9 sm:h-10 items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-3 sm:px-4 text-xs font-semibold whitespace-nowrap text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30"
                         >
                           <Bell
                             class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
@@ -1253,7 +1258,7 @@ function ProductDetailPage() {
                         type="button"
                         disabled={adding()}
                         onClick={() => void handleAddToCart()}
-                        class="mf-btn-buy h-10 rounded-lg px-8 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                        class="mf-btn-buy h-9 sm:h-10 rounded-lg px-5 sm:px-8 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
                       >
                         {adding() ? "ADICIONANDO..." : "COMPRAR"}
                       </button>

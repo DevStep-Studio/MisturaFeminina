@@ -26,10 +26,10 @@ Route::prefix('storefront')->group(function (): void {
     Route::get('bootstrap', [StorefrontController::class, 'bootstrap']);
     Route::get('home', [StorefrontController::class, 'home']);
     Route::get('pages/{slug}', [StorefrontController::class, 'page']);
-    Route::post('newsletter/subscribe', [StorefrontController::class, 'subscribeNewsletter']);
+    Route::post('newsletter/subscribe', [StorefrontController::class, 'subscribeNewsletter'])->middleware('throttle:10,1');
     Route::get('newsletter/unsubscribe/{token}', [StorefrontController::class, 'unsubscribeNewsletter']);
-    Route::post('contact', [StorefrontController::class, 'contact']);
-    Route::post('events', [StorefrontController::class, 'trackEvent']);
+    Route::post('contact', [StorefrontController::class, 'contact'])->middleware('throttle:10,1');
+    Route::post('events', [StorefrontController::class, 'trackEvent'])->middleware('throttle:60,1');
 });
 
 Route::prefix('catalog')->group(function (): void {
@@ -40,9 +40,9 @@ Route::prefix('catalog')->group(function (): void {
     Route::get('products', [CatalogController::class, 'products']);
     Route::get('search', [CatalogController::class, 'search']);
     Route::get('products/{slug}', [CatalogController::class, 'show']);
-    Route::post('products/{slug}/shipping-quote', [CatalogController::class, 'quoteProductShipping']);
-    Route::post('products/{slug}/restock-alert', [CatalogController::class, 'restockAlert']);
-    Route::post('products/{slug}/reviews', [CatalogController::class, 'storeReview']);
+    Route::post('products/{slug}/shipping-quote', [CatalogController::class, 'quoteProductShipping'])->middleware('throttle:30,1');
+    Route::post('products/{slug}/restock-alert', [CatalogController::class, 'restockAlert'])->middleware('throttle:15,1');
+    Route::post('products/{slug}/reviews', [CatalogController::class, 'storeReview'])->middleware('throttle:10,1');
 });
 
 // Cart (Guest X-Cart-Token / Cookie or Authenticated User)
@@ -58,10 +58,10 @@ Route::prefix('cart')->group(function (): void {
 });
 
 // Checkout & Order Tracking
-Route::post('checkout', [CheckoutController::class, 'store']);
+Route::post('checkout', [CheckoutController::class, 'store'])->middleware('throttle:10,1');
 Route::get('orders/track/{publicToken}', [CheckoutController::class, 'trackByToken']);
-Route::post('orders/track-lookup', [CheckoutController::class, 'trackLookup']);
-Route::post('orders/{publicToken}/retry-payment', [CheckoutController::class, 'retryPayment']);
+Route::post('orders/track-lookup', [CheckoutController::class, 'trackLookup'])->middleware('throttle:20,1');
+Route::post('orders/{publicToken}/retry-payment', [CheckoutController::class, 'retryPayment'])->middleware('throttle:10,1');
 
 // Payment Webhooks & Sandbox Simulator
 Route::post('webhooks/mercadopago', [WebhookController::class, 'mercadoPago']);

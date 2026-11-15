@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/solid-router";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
+import X from "lucide-solid/icons/x";
 import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
@@ -97,7 +98,7 @@ function FilterOptionCheckbox(props: {
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label class="group flex cursor-pointer items-center gap-3.5">
+    <label class="group flex min-h-[38px] cursor-pointer items-center gap-3 select-none">
       <input
         type="checkbox"
         checked={props.checked}
@@ -106,17 +107,32 @@ function FilterOptionCheckbox(props: {
       />
       <span
         aria-hidden="true"
-        class={`size-5 shrink-0 rounded-[5px] border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#93509e]/40 ${
+        class={`size-5 shrink-0 rounded-[5px] border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#93509e]/40 ${
           props.checked
-            ? "border-[#2E0C49] bg-[#2E0C49]"
-            : "border-[#F4D9F7] bg-white group-hover:border-[#93509e]"
+            ? "border-[#93509e] bg-[#93509e] text-white"
+            : "border-zinc-300 bg-white group-hover:border-[#93509e]"
         }`}
-      />
-      <span class="text-[15px] font-bold leading-snug text-[#2E0C49] transition-colors group-hover:text-[#93509e]">
+      >
+        <Show when={props.checked}>
+          <svg
+            class="h-3.5 w-3.5 stroke-current"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="3"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M4.5 12.75l6 6 9-13.5"
+            />
+          </svg>
+        </Show>
+      </span>
+      <span class="text-sm font-medium text-zinc-800 transition-colors group-hover:text-[#93509e]">
         {props.label}
         <Show when={props.count !== undefined}>
           {" "}
-          <span class="font-normal text-[#4E3B63]">({props.count})</span>
+          <span class="text-xs font-normal text-zinc-500">({props.count})</span>
         </Show>
       </span>
     </label>
@@ -267,6 +283,117 @@ export function CatalogListingView(props: CatalogListingProps) {
       ? "Black Friday — Aproveite as ofertas, produtos a partir de R$ 1,90"
       : "Frete Grátis para todo Brasil — Envios para todo o país");
 
+  const FilterContent = () => (
+    <div class="space-y-6">
+      <Show when={hasActiveFilters()}>
+        <div class="flex items-center justify-between border-b border-zinc-200 pb-4">
+          <span class="text-xs font-bold uppercase tracking-wide text-zinc-500">
+            Filtros ativos
+          </span>
+          <button
+            type="button"
+            onClick={resetFilters}
+            class="text-xs font-bold text-[#93509e] hover:underline"
+          >
+            Limpar tudo
+          </button>
+        </div>
+      </Show>
+
+      {/* Marcas */}
+      <Show when={availableBrands().length > 0}>
+        <fieldset class="space-y-4 border-b border-zinc-200 pb-6">
+          <legend class="text-base font-bold text-zinc-900">Marcas</legend>
+          <div class="max-h-60 space-y-2.5 overflow-y-auto pr-1 pt-1">
+            <For each={availableBrands()}>
+              {(b) => (
+                <FilterOptionCheckbox
+                  label={b.name}
+                  count={b.products_count}
+                  checked={selectedBrands().includes(b.slug)}
+                  onChange={() => {
+                    setSelectedBrands((prev) => toggleSlug(prev, b.slug));
+                    setPage(1);
+                  }}
+                />
+              )}
+            </For>
+          </div>
+        </fieldset>
+      </Show>
+
+      {/* Categorias */}
+      <Show when={facetCategories().length > 0}>
+        <fieldset class="space-y-4 border-b border-zinc-200 pb-6">
+          <legend class="text-base font-bold text-zinc-900">Categorias</legend>
+          <div class="max-h-60 space-y-2.5 overflow-y-auto pr-1 pt-1">
+            <For each={facetCategories()}>
+              {(c) => (
+                <FilterOptionCheckbox
+                  label={c.name}
+                  count={c.products_count}
+                  checked={selectedCategories().includes(c.slug)}
+                  onChange={() => {
+                    setSelectedCategories((prev) => toggleSlug(prev, c.slug));
+                    setPage(1);
+                  }}
+                />
+              )}
+            </For>
+          </div>
+        </fieldset>
+      </Show>
+
+      {/* Disponibilidade */}
+      <div class="space-y-3 border-b border-zinc-200 pb-6">
+        <p class="text-base font-bold text-zinc-900">Disponibilidade</p>
+        <div class="pt-1">
+          <FilterOptionCheckbox
+            label="Somente em estoque"
+            checked={inStockOnly()}
+            onChange={(checked) => {
+              setInStockOnly(checked);
+              setPage(1);
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Faixa de preço */}
+      <form onSubmit={applyPriceFilter} class="space-y-3">
+        <p class="text-base font-bold text-zinc-900">Faixa de preço (R$)</p>
+        <div class="grid grid-cols-2 gap-2">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            placeholder="Mín."
+            value={minPrice()}
+            onInput={(e) => setMinPrice(e.currentTarget.value)}
+            aria-label="Preço mínimo"
+            class="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none"
+          />
+          <input
+            type="number"
+            min="0"
+            step="1"
+            placeholder="Máx."
+            value={maxPrice()}
+            onInput={(e) => setMaxPrice(e.currentTarget.value)}
+            aria-label="Preço máximo"
+            class="h-9 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none"
+          />
+        </div>
+        <button
+          type="submit"
+          class="h-9 w-full rounded-lg bg-[#93509e] text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#7c3f87]"
+        >
+          Aplicar preço
+        </button>
+      </form>
+    </div>
+  );
+
   return (
     <StoreShell>
       <Show when={props.bannerImage !== null}>
@@ -374,134 +501,70 @@ export function CatalogListingView(props: CatalogListingProps) {
           </div>
         </header>
 
+        {/* Mobile Filter Slide-over Drawer */}
+        <Show when={props.showFilters !== false && mobileFiltersOpen()}>
+          <div
+            class="fixed inset-0 z-50 lg:hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtros do catálogo"
+          >
+            <div
+              class="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-200"
+              onClick={() => setMobileFiltersOpen(false)}
+              aria-hidden="true"
+            />
+            <div class="fixed inset-y-0 right-0 flex w-full max-w-xs flex-col bg-white shadow-2xl">
+              <div class="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
+                <div class="flex items-center gap-2">
+                  <SlidersHorizontal class="h-4 w-4 text-[#93509e]" />
+                  <h3 class="text-base font-bold text-zinc-900">Filtros</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  class="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+                  aria-label="Fechar filtros"
+                >
+                  <X class="h-5 w-5" />
+                </button>
+              </div>
+
+              <div class="flex-1 overflow-y-auto px-5 py-4 pb-20">
+                <FilterContent />
+              </div>
+
+              <div class="border-t border-zinc-200 bg-zinc-50 p-4 flex items-center gap-2">
+                <Show when={hasActiveFilters()}>
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    class="h-11 px-3 text-xs font-semibold text-zinc-600 hover:text-zinc-900"
+                  >
+                    Limpar
+                  </button>
+                </Show>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  class="flex-1 h-11 rounded-lg bg-[#93509e] text-center text-xs font-bold uppercase tracking-wider text-white shadow-sm hover:bg-[#7c3f87]"
+                >
+                  Ver {total()} {total() === 1 ? "produto" : "produtos"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Show>
+
         <div
           class={`grid gap-7 ${props.showFilters !== false ? "lg:grid-cols-[260px_1fr]" : ""}`}
         >
           <Show when={props.showFilters !== false}>
             <aside
               aria-label="Filtros do catálogo"
-              class={`${
-                mobileFiltersOpen() ? "block" : "hidden"
-              } space-y-6 rounded-2xl border border-[#F6E2F8] bg-white p-6 shadow-[0_2px_12px_rgba(46,12,73,0.03)] lg:block lg:self-start`}
+              class="hidden lg:block lg:self-start space-y-6 rounded-2xl border border-zinc-200/90 bg-white p-6 shadow-[0_2px_12px_rgba(46,12,73,0.03)]"
             >
-              <Show when={hasActiveFilters()}>
-                <div class="flex items-center justify-between border-b border-[#F6E2F8] pb-4">
-                  <span class="text-xs font-bold uppercase tracking-wide text-[#5B486B]">
-                    Filtros ativos
-                  </span>
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    class="text-xs font-bold text-[#93509e] hover:underline"
-                  >
-                    Limpar tudo
-                  </button>
-                </div>
-              </Show>
-
-              {/* Marcas */}
-              <Show when={availableBrands().length > 0}>
-                <fieldset class="space-y-4 border-b border-[#F6E2F8] pb-6">
-                  <legend class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
-                    Marcas
-                  </legend>
-                  <div class="max-h-72 space-y-3.5 overflow-y-auto pr-1 pt-2">
-                    <For each={availableBrands()}>
-                      {(b) => (
-                        <FilterOptionCheckbox
-                          label={b.name}
-                          count={b.products_count}
-                          checked={selectedBrands().includes(b.slug)}
-                          onChange={() => {
-                            setSelectedBrands((prev) =>
-                              toggleSlug(prev, b.slug),
-                            );
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </For>
-                  </div>
-                </fieldset>
-              </Show>
-
-              {/* Categorias */}
-              <Show when={facetCategories().length > 0}>
-                <fieldset class="space-y-4 border-b border-[#F6E2F8] pb-6">
-                  <legend class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
-                    Categorias
-                  </legend>
-                  <div class="max-h-72 space-y-3.5 overflow-y-auto pr-1 pt-2">
-                    <For each={facetCategories()}>
-                      {(c) => (
-                        <FilterOptionCheckbox
-                          label={c.name}
-                          count={c.products_count}
-                          checked={selectedCategories().includes(c.slug)}
-                          onChange={() => {
-                            setSelectedCategories((prev) =>
-                              toggleSlug(prev, c.slug),
-                            );
-                            setPage(1);
-                          }}
-                        />
-                      )}
-                    </For>
-                  </div>
-                </fieldset>
-              </Show>
-
-              {/* Disponibilidade */}
-              <div class="space-y-4 border-b border-[#F6E2F8] pb-6">
-                <p class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
-                  Disponibilidade
-                </p>
-                <div class="pt-1">
-                  <FilterOptionCheckbox
-                    label="Somente em estoque"
-                    checked={inStockOnly()}
-                    onChange={(checked) => {
-                      setInStockOnly(checked);
-                      setPage(1);
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Faixa de preço */}
-              <form onSubmit={applyPriceFilter} class="space-y-3.5">
-                <p class="text-xl font-extrabold tracking-tight text-[#2E0C49]">
-                  Faixa de preço (R$)
-                </p>
-                <div class="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="Mín."
-                    value={minPrice()}
-                    onInput={(e) => setMinPrice(e.currentTarget.value)}
-                    aria-label="Preço mínimo"
-                    class="h-9 w-full rounded-lg border border-[#F4D9F7] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="Máx."
-                    value={maxPrice()}
-                    onInput={(e) => setMaxPrice(e.currentTarget.value)}
-                    aria-label="Preço máximo"
-                    class="h-9 w-full rounded-lg border border-[#F4D9F7] bg-[#FBF9FC] px-3 text-sm text-[#3D1260] placeholder:text-[#5B486B] focus:border-[#93509e] focus:outline-none"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  class="h-9 w-full rounded-lg bg-[#93509e] text-xs font-bold text-white transition-colors hover:bg-[#7c3f87]"
-                >
-                  Aplicar preço
-                </button>
-              </form>
+              <FilterContent />
             </aside>
           </Show>
 

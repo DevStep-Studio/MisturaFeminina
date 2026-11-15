@@ -42,3 +42,4 @@ Upgrade the Mistura Feminina Admin Panel into a modern, high-performance, and vi
 2. Frontend unit tests (`npm test`), linter (`npm run lint`), prettier (`npm run format:check`), and production build (`npm run build`).
 3. End-to-end visual verification using Playwright: capture screenshots of the new Dashboard, Orders, and Products views.
 4. Auto-commit per project rules.
+

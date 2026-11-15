@@ -239,7 +239,7 @@ class AdminContentController extends Controller
     /** @return array<string, mixed> */
     private function validatePage(Request $request, ?int $ignoreId = null): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'title' => ['required', 'string', 'max:180'],
             'slug' => ['nullable', 'string', 'max:160', Rule::unique('content_pages', 'slug')->ignore($ignoreId)],
             'content_html' => ['required', 'string'],
@@ -250,5 +250,23 @@ class AdminContentController extends Controller
             'footer_group' => ['nullable', 'string', 'max:60'],
             'sort_order' => ['integer', 'min:0'],
         ]);
+
+        if (! empty($validated['content_html'])) {
+            $validated['content_html'] = $this->sanitizeHtml($validated['content_html']);
+        }
+
+        return $validated;
+    }
+
+    private function sanitizeHtml(string $html): string
+    {
+        $sanitized = preg_replace('#<script(.*?)>(.*?)</script>#is', '', $html);
+        $sanitized = preg_replace('#<iframe(.*?)>(.*?)</iframe>#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#<object(.*?)>(.*?)</object>#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#<embed(.*?)>(.*?)</embed>#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#\son\w+\s*=\s*(".*?"|\'.*?\'|[^\s>]+)#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#href\s*=\s*["\']\s*javascript:[^"\']*["\']#is', 'href="#"', (string) $sanitized);
+
+        return (string) $sanitized;
     }
 }

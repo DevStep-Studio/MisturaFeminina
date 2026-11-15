@@ -436,7 +436,7 @@ class AdminCatalogController extends Controller
     /** @return array<string, mixed> */
     private function validateProduct(Request $request, ?int $ignoreId = null): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'brand_id' => ['nullable', 'integer', 'exists:brands,id'],
             'name' => ['required', 'string', 'max:200'],
             'slug' => ['nullable', 'string', 'max:220'],
@@ -488,6 +488,26 @@ class AdminCatalogController extends Controller
             'variants.*.is_active' => ['boolean'],
             'variants.*.attribute_value_ids' => ['nullable', 'array'],
         ]);
+
+        foreach (['description', 'short_description', 'ingredients', 'usage_instructions'] as $field) {
+            if (! empty($validated[$field])) {
+                $validated[$field] = $this->sanitizeHtml((string) $validated[$field]);
+            }
+        }
+
+        return $validated;
+    }
+
+    private function sanitizeHtml(string $html): string
+    {
+        $sanitized = preg_replace('#<script(.*?)>(.*?)</script>#is', '', $html);
+        $sanitized = preg_replace('#<iframe(.*?)>(.*?)</iframe>#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#<object(.*?)>(.*?)</object>#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#<embed(.*?)>(.*?)</embed>#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#\son\w+\s*=\s*(".*?"|\'.*?\'|[^\s>]+)#is', '', (string) $sanitized);
+        $sanitized = preg_replace('#href\s*=\s*["\']\s*javascript:[^"\']*["\']#is', 'href="#"', (string) $sanitized);
+
+        return (string) $sanitized;
     }
 
     /** @param array<string, mixed> $validated */
