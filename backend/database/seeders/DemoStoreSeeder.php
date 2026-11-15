@@ -35,21 +35,21 @@ class DemoStoreSeeder extends Seeder
     public function run(): void
     {
         app(RbacSeederService::class)->syncRolesAndPermissions();
+        $this->seedSettings();
+        $this->seedUsers();
+        $this->seedContent();
 
         if (app()->isProduction()) {
             return;
         }
 
         $this->generateSeedAssets();
-        $this->seedSettings();
-        $this->seedUsers();
         $brands = $this->seedBrands();
         $categories = $this->seedCategories();
         $attrs = $this->seedAttributes();
         $this->seedProducts($brands, $categories, $attrs);
         $this->seedReviews();
         $this->seedMarketingAndShipping();
-        $this->seedContent();
     }
 
     private function generateSeedAssets(): void

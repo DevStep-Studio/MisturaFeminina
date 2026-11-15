@@ -29,7 +29,14 @@ export function LoginPage(props: { redirect?: string }) {
   });
   const finish = async () => {
     trackEvent("login", { method: "password" });
-    await navigate({ to: safeRedirect(props.redirect), replace: true });
+    const permissions = session.user()?.permissions ?? [];
+    let destination = props.redirect ? safeRedirect(props.redirect) : "";
+    if (!destination || destination === "/app") {
+      destination = permissions.includes("dashboard.view")
+        ? "/admin"
+        : "/minha-conta";
+    }
+    await navigate({ to: destination, replace: true });
   };
   const handleError = (reason: unknown) => {
     reportError(reason, "login");
