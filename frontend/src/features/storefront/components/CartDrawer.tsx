@@ -5,6 +5,7 @@ import Plus from "lucide-solid/icons/plus";
 import Minus from "lucide-solid/icons/minus";
 import Trash2 from "lucide-solid/icons/trash";
 import { assetUrl, formatCents } from "../../../lib/format";
+import { trackBeginCheckout } from "../../../monitoring/analytics";
 import {
   addCartItem,
   removeCartItem,
@@ -300,7 +301,22 @@ export function CartDrawer() {
                 </Link>
                 <Link
                   to="/checkout"
-                  onClick={closeDrawer}
+                  onClick={() => {
+                    const c = cart();
+                    if (c) {
+                      trackBeginCheckout({
+                        currency: "BRL",
+                        value: c.total_cents / 100,
+                        items: c.items.map((it) => ({
+                          item_id: it.sku,
+                          item_name: it.product_name,
+                          price: it.unit_price_cents / 100,
+                          quantity: it.quantity,
+                        })),
+                      });
+                    }
+                    closeDrawer();
+                  }}
                   class="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#93509e] px-4 text-sm font-bold text-white transition-colors hover:bg-[#7c3f87]"
                 >
                   Finalizar

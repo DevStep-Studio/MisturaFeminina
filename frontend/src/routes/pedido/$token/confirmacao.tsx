@@ -10,6 +10,7 @@ import {
   Show,
   createResource,
   createSignal,
+  createEffect,
   onCleanup,
   onMount,
 } from "solid-js";
@@ -22,6 +23,7 @@ import {
   paymentStatusLabel,
 } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
+import { trackPurchase } from "../../../monitoring/analytics";
 
 export const Route = createFileRoute("/pedido/$token/confirmacao")({
   head: ({ params }) =>
@@ -104,6 +106,23 @@ function OrderConfirmationPage() {
       return res.data;
     },
   );
+
+  createEffect(() => {
+    const o = data()?.order;
+    if (!o) return;
+    trackPurchase({
+      transaction_id: o.order_number,
+      value: o.total_cents / 100,
+      currency: "BRL",
+      shipping: o.shipping_cents / 100,
+      items: o.items.map((i) => ({
+        item_id: i.sku,
+        item_name: i.product_name,
+        price: i.unit_price_cents / 100,
+        quantity: i.quantity,
+      })),
+    });
+  });
 
   onMount(() => {
     const id = window.setInterval(() => {

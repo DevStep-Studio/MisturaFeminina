@@ -26,6 +26,8 @@ Route::prefix('storefront')->group(function (): void {
     Route::get('bootstrap', [StorefrontController::class, 'bootstrap']);
     Route::get('home', [StorefrontController::class, 'home']);
     Route::get('pages/{slug}', [StorefrontController::class, 'page']);
+    Route::get('sitemap.xml', [\App\Http\Controllers\SeoController::class, 'sitemap']);
+    Route::get('robots.txt', [\App\Http\Controllers\SeoController::class, 'robots']);
     Route::post('newsletter/subscribe', [StorefrontController::class, 'subscribeNewsletter'])->middleware('throttle:10,1');
     Route::get('newsletter/unsubscribe/{token}', [StorefrontController::class, 'unsubscribeNewsletter']);
     Route::post('contact', [StorefrontController::class, 'contact'])->middleware('throttle:10,1');

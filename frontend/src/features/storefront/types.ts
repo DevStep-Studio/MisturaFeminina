@@ -52,6 +52,8 @@ export interface CategoryNode {
   banner_mobile_path?: string | null;
   icon?: string | null;
   description?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
   children?: CategoryNode[];
   featured_product?: ProductCardData | null;
 }
@@ -62,6 +64,8 @@ export interface BrandItem {
   slug: string;
   logo_path: string | null;
   description?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
   is_featured: boolean;
   products_count?: number;
 }

@@ -4,15 +4,37 @@ import { CatalogListingView } from "../../features/storefront/components/Catalog
 import { storefrontStore } from "../../features/storefront/store";
 import type { CategoryNode } from "../../features/storefront/types";
 import { api } from "../../lib/api";
-import { seoHead } from "../../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../../lib/seo";
 
 export const Route = createFileRoute("/categoria/$slug")({
-  head: ({ params }) =>
-    seoHead({
-      title: `Categoria ${params.slug} — Mistura Feminina Cosméticos`,
-      description: `Produtos da categoria ${params.slug} na Mistura Feminina Cosméticos.`,
+  loader: async ({ params }) => {
+    try {
+      const res = await api<{ data: { category?: CategoryNode } }>(
+        `/catalog/categories/${params.slug}?per_page=1`,
+        { authenticated: false },
+      );
+      return res.data?.category ?? null;
+    } catch {
+      return null;
+    }
+  },
+  head: ({ loaderData, params }) => {
+    const cat = loaderData;
+    const name = cat?.name || params.slug;
+    return seoHead({
+      title: cat?.seo_title || `${name} — Mistura Feminina Cosméticos`,
+      description:
+        cat?.seo_description ||
+        cat?.description ||
+        `Confira os melhores produtos de ${name} na Mistura Feminina Cosméticos com envio para todo o Brasil.`,
       path: `/categoria/${params.slug}`,
-    }),
+      jsonLd: buildBreadcrumbSchema([
+        { name: "Início", path: "/" },
+        { name: "Categorias", path: "/categorias" },
+        { name, path: `/categoria/${params.slug}` },
+      ]),
+    });
+  },
   component: CategoryPage,
 });
 

@@ -19,6 +19,7 @@ import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
 import { logout } from "../../../security/auth";
 import { hasPermission } from "../../../security/permissions";
 import { session } from "../../../security/session";
+import { trackSearch } from "../../../monitoring/analytics";
 import {
   loadStorefrontBootstrap,
   refreshCart,
@@ -200,6 +201,9 @@ export function StoreHeader() {
   const submitSearch = (e: Event) => {
     e.preventDefault();
     const q = searchQuery().trim();
+    if (q) {
+      trackSearch(q);
+    }
     setShowDropdown(false);
     setMobileMenuOpen(false);
     void navigate({ to: "/buscar", search: { q } });
@@ -313,6 +317,9 @@ export function StoreHeader() {
             <img
               src={assetUrl(settings().logo_light_url || "/logo-mf.png")}
               alt={settings().store_name || "Mistura Feminina Cosméticos"}
+              width="160"
+              height="48"
+              fetchpriority="high"
               class="h-11 w-auto object-contain sm:h-12"
               onError={(e) => {
                 if (!e.currentTarget.dataset.fallback) {

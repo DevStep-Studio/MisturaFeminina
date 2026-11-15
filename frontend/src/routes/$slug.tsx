@@ -68,12 +68,12 @@ function DynamicContentPage() {
     <StoreShell>
       <article class="mx-auto max-w-4xl px-4 py-10">
         <h1 class="text-2xl font-bold text-zinc-900 sm:text-3xl">
-          {data().title}
+          {data()?.title || ""}
         </h1>
         <div
           class="prose prose-zinc mt-6 max-w-none text-sm leading-relaxed text-zinc-700 [&_h2]:mt-6 [&_h2]:text-lg [&_h2]:font-bold [&_p]:mt-3 [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-5"
           // eslint-disable-next-line solid/no-innerhtml
-          innerHTML={data().content_html}
+          innerHTML={data()?.content_html || ""}
         />
       </article>
     </StoreShell>

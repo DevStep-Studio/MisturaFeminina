@@ -45,7 +45,10 @@ export function ProductCard(props: {
           <img
             src={assetUrl(props.product.primary_image)}
             alt={props.product.primary_image_alt}
+            width="300"
+            height="300"
             loading="lazy"
+            decoding="async"
             class="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.03]"
           />
         </Link>

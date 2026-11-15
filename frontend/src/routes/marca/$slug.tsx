@@ -3,15 +3,37 @@ import { createResource } from "solid-js";
 import { CatalogListingView } from "../../features/storefront/components/CatalogListingView";
 import type { BrandItem } from "../../features/storefront/types";
 import { api } from "../../lib/api";
-import { seoHead } from "../../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../../lib/seo";
 
 export const Route = createFileRoute("/marca/$slug")({
-  head: ({ params }) =>
-    seoHead({
-      title: `Marca ${params.slug} — Mistura Feminina Cosméticos`,
-      description: `Produtos da marca ${params.slug} disponíveis na Mistura Feminina Cosméticos.`,
+  loader: async ({ params }) => {
+    try {
+      const res = await api<{ data: { brand?: BrandItem } }>(
+        `/catalog/brands/${params.slug}?per_page=1`,
+        { authenticated: false },
+      );
+      return res.data?.brand ?? null;
+    } catch {
+      return null;
+    }
+  },
+  head: ({ loaderData, params }) => {
+    const brand = loaderData;
+    const name = brand?.name || params.slug;
+    return seoHead({
+      title: brand?.seo_title || `${name} — Mistura Feminina Cosméticos`,
+      description:
+        brand?.seo_description ||
+        brand?.description ||
+        `Encontre produtos oficiais da marca ${name} na Mistura Feminina Cosméticos.`,
       path: `/marca/${params.slug}`,
-    }),
+      jsonLd: buildBreadcrumbSchema([
+        { name: "Início", path: "/" },
+        { name: "Marcas", path: "/marcas" },
+        { name, path: `/marca/${params.slug}` },
+      ]),
+    });
+  },
   component: BrandPage,
 });
 

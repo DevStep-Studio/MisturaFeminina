@@ -6,7 +6,7 @@ export interface SiteEnvironment {
 
 /** Shared by runtime metadata and the Vite sitemap/robots plugin. */
 export function siteSettings(env: SiteEnvironment, development = false) {
-  const url = new URL(env.VITE_SITE_URL || "http://localhost:3000");
+  const url = new URL(env.VITE_SITE_URL || "http://localhost:4321");
   if (
     !["http:", "https:"].includes(url.protocol) ||
     url.username ||
@@ -22,7 +22,11 @@ export function siteSettings(env: SiteEnvironment, development = false) {
   return {
     url: url.origin,
     name: env.VITE_SITE_NAME?.trim() || "Mistura Feminina Cosméticos",
-    indexable: !development && env.VITE_SITE_INDEXABLE === "true",
+    indexable: development
+      ? false
+      : env.VITE_SITE_INDEXABLE === "false"
+        ? false
+        : true,
   };
 }
 

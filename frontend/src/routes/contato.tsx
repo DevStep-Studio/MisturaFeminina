@@ -6,6 +6,7 @@ import { storefrontStore } from "../features/storefront/store";
 import { ApiError, api } from "../lib/api";
 import { whatsappUrl } from "../lib/format";
 import { seoHead } from "../lib/seo";
+import { trackContactClick } from "../monitoring/analytics";
 
 export const Route = createFileRoute("/contato")({
   head: () =>
@@ -51,6 +52,7 @@ function ContactPage() {
         type: "ok",
         text: res.message || "Mensagem enviada com sucesso!",
       });
+      trackContactClick("form");
       setName("");
       setEmail("");
       setPhone("");

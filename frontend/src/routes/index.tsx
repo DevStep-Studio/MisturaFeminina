@@ -25,7 +25,11 @@ import type {
 } from "../features/storefront/types";
 import { api } from "../lib/api";
 import { assetUrl } from "../lib/format";
-import { seoHead } from "../lib/seo";
+import {
+  buildOrganizationSchema,
+  buildWebSiteSchema,
+  seoHead,
+} from "../lib/seo";
 
 export const Route = createFileRoute("/")({
   head: () =>
@@ -34,6 +38,7 @@ export const Route = createFileRoute("/")({
       description:
         "Cosméticos, alongamento de unhas, esmaltes em gel, skincare, cabelos e acessórios profissionais com envio para todo o Brasil.",
       path: "/",
+      jsonLd: [buildOrganizationSchema(), buildWebSiteSchema()],
     }),
   component: StorefrontHomePage,
 });

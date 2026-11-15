@@ -29,7 +29,16 @@ import type {
 } from "../../features/storefront/types";
 import { ApiError, api } from "../../lib/api";
 import { assetUrl, formatCents, whatsappUrl } from "../../lib/format";
-import { seoHead } from "../../lib/seo";
+import {
+  trackAddToCart,
+  trackContactClick,
+  trackViewItem,
+} from "../../monitoring/analytics";
+import {
+  buildBreadcrumbSchema,
+  buildProductSchema,
+  seoHead,
+} from "../../lib/seo";
 
 const VIEWED_STORAGE_KEY = "mf_viewed_products";
 
@@ -67,13 +76,71 @@ function recordViewedProduct(
 }
 
 export const Route = createFileRoute("/produto/$slug")({
-  head: ({ params }) =>
-    seoHead({
-      title: `${params.slug} — Mistura Feminina Cosméticos`,
+  loader: async ({ params }) => {
+    try {
+      const res = await api<{ data: ProductDetailData }>(
+        `/catalog/products/${params.slug}`,
+        { authenticated: false },
+      );
+      return res.data;
+    } catch {
+      return null;
+    }
+  },
+  head: ({ loaderData, params }) => {
+    const p = loaderData;
+    const defVariant =
+      p?.variants.find((v) => v.is_default && v.in_stock) ?? p?.variants[0];
+    const priceCents = defVariant?.price_cents ?? p?.price_cents ?? 0;
+    const effectivePriceCents =
+      defVariant?.effective_price_cents ??
+      p?.effective_price_cents ??
+      priceCents;
+    const promoPriceCents =
+      effectivePriceCents < priceCents ? effectivePriceCents : undefined;
+    const inStock = p ? p.variants.some((v) => v.in_stock) : false;
+
+    return seoHead({
+      title:
+        p?.seo_title ||
+        (p
+          ? `${p.name} — Mistura Feminina Cosméticos`
+          : `${params.slug} — Mistura Feminina Cosméticos`),
       description:
-        "Detalhes, opções, frete e avaliações do produto na Mistura Feminina Cosméticos.",
+        p?.seo_description ||
+        p?.short_description ||
+        "Compre online com os melhores preços e envio rápido para todo o Brasil na Mistura Feminina Cosméticos.",
       path: `/produto/${params.slug}`,
-    }),
+      image: p?.primary_image || undefined,
+      jsonLd: p
+        ? [
+            buildProductSchema({
+              name: p.name,
+              description: p.short_description || p.description,
+              sku: defVariant?.sku || p.sku,
+              brand: p.brand?.name,
+              image: p.primary_image,
+              priceCents,
+              promoPriceCents,
+              inStock,
+              slug: p.slug,
+            }),
+            buildBreadcrumbSchema([
+              { name: "Início", path: "/" },
+              ...(p.categories && p.categories[0]
+                ? [
+                    {
+                      name: p.categories[0].name,
+                      path: `/categoria/${p.categories[0].slug}`,
+                    },
+                  ]
+                : []),
+              { name: p.name, path: `/produto/${p.slug}` },
+            ]),
+          ]
+        : undefined,
+    });
+  },
   component: ProductDetailPage,
 });
 
@@ -150,6 +217,20 @@ function ProductDetailPage() {
     if (typeof document !== "undefined" && p.seo_title) {
       document.title = p.seo_title;
     }
+    trackViewItem({
+      currency: "BRL",
+      value: (def?.effective_price_cents ?? p.effective_price_cents) / 100,
+      items: [
+        {
+          item_id: def?.sku || p.sku,
+          item_name: p.name,
+          price: (def?.effective_price_cents ?? p.effective_price_cents) / 100,
+          item_brand: p.brand?.name,
+          item_category: p.categories && p.categories[0]?.name,
+          quantity: 1,
+        },
+      ],
+    });
   });
 
   const activeVariant = createMemo<ProductVariantData | null>(() => {
@@ -202,6 +283,21 @@ function ProductDetailPage() {
     setFeedback(null);
     try {
       await addCartItem(v.id, qty(), true);
+      const p = product();
+      trackAddToCart({
+        currency: "BRL",
+        value: (v.effective_price_cents * qty()) / 100,
+        items: [
+          {
+            item_id: v.sku,
+            item_name: p?.name || v.name,
+            price: v.effective_price_cents / 100,
+            item_brand: p?.brand?.name,
+            item_category: p?.categories && p.categories[0]?.name,
+            quantity: qty(),
+          },
+        ],
+      });
       setFeedback({ type: "ok", text: "Produto adicionado ao carrinho." });
     } catch (err) {
       setFeedback({
@@ -849,6 +945,7 @@ function ProductDetailPage() {
                             )}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={() => trackContactClick("whatsapp")}
                             class="mf-btn-whats flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-xs font-medium"
                           >
                             <svg

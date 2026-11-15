@@ -16,19 +16,17 @@ class SeoController extends Controller
     {
         $base = rtrim((string) config('app.frontend_url', config('app.url')), '/');
         $urls = [
-            ['loc' => $base.'/', 'priority' => '1.0', 'changefreq' => 'daily'],
-            ['loc' => $base.'/categorias', 'priority' => '0.8', 'changefreq' => 'weekly'],
-            ['loc' => $base.'/marcas', 'priority' => '0.7', 'changefreq' => 'weekly'],
-            ['loc' => $base.'/promocoes', 'priority' => '0.8', 'changefreq' => 'daily'],
-            ['loc' => $base.'/novidades', 'priority' => '0.8', 'changefreq' => 'daily'],
+            ['loc' => $base.'/', 'lastmod' => now()->toDateString()],
+            ['loc' => $base.'/categorias'],
+            ['loc' => $base.'/marcas'],
+            ['loc' => $base.'/promocoes'],
+            ['loc' => $base.'/novidades'],
         ];
 
         Category::query()->where('is_active', true)->get(['slug', 'updated_at'])->each(function (Category $c) use (&$urls, $base): void {
             $urls[] = [
                 'loc' => $base.'/categoria/'.$c->slug,
                 'lastmod' => $c->updated_at?->toAtomString(),
-                'priority' => '0.8',
-                'changefreq' => 'weekly',
             ];
         });
 
@@ -36,8 +34,6 @@ class SeoController extends Controller
             $urls[] = [
                 'loc' => $base.'/marca/'.$b->slug,
                 'lastmod' => $b->updated_at?->toAtomString(),
-                'priority' => '0.7',
-                'changefreq' => 'weekly',
             ];
         });
 
@@ -45,8 +41,6 @@ class SeoController extends Controller
             $urls[] = [
                 'loc' => $base.'/produto/'.$p->slug,
                 'lastmod' => $p->updated_at?->toAtomString(),
-                'priority' => '0.9',
-                'changefreq' => 'daily',
             ];
         });
 
@@ -54,21 +48,17 @@ class SeoController extends Controller
             $urls[] = [
                 'loc' => $base.'/'.$page->slug,
                 'lastmod' => $page->updated_at?->toAtomString(),
-                'priority' => '0.5',
-                'changefreq' => 'monthly',
             ];
         });
 
         $xml = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
         foreach ($urls as $item) {
-            $xml[] = '<url>';
-            $xml[] = '<loc>'.htmlspecialchars($item['loc'], ENT_XML1).'</loc>';
+            $xml[] = '  <url>';
+            $xml[] = '    <loc>'.htmlspecialchars($item['loc'], ENT_XML1).'</loc>';
             if (! empty($item['lastmod'])) {
-                $xml[] = '<lastmod>'.$item['lastmod'].'</lastmod>';
+                $xml[] = '    <lastmod>'.$item['lastmod'].'</lastmod>';
             }
-            $xml[] = '<changefreq>'.$item['changefreq'].'</changefreq>';
-            $xml[] = '<priority>'.$item['priority'].'</priority>';
-            $xml[] = '</url>';
+            $xml[] = '  </url>';
         }
         $xml[] = '</urlset>';
 
@@ -77,14 +67,23 @@ class SeoController extends Controller
 
     public function robots(): Response
     {
-        $base = rtrim((string) config('app.url'), '/');
+        $base = rtrim((string) config('app.frontend_url', config('app.url')), '/');
         $lines = [
             'User-agent: *',
-            'Disallow: /admin',
+            'Allow: /',
+            'Disallow: /admin/',
+            'Disallow: /dashboard/',
             'Disallow: /checkout',
             'Disallow: /carrinho',
             'Disallow: /minha-conta',
+            'Disallow: /login',
+            'Disallow: /entrar',
+            'Disallow: /cadastro',
+            'Disallow: /forgot-password',
+            'Disallow: /reset-password',
+            'Disallow: /buscar',
             'Disallow: /api/',
+            '',
             'Sitemap: '.$base.'/sitemap.xml',
         ];
 

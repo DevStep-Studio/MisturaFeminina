@@ -13,6 +13,7 @@ export const Route = createFileRoute("/buscar")({
       description:
         "Pesquise cosméticos, esmaltes, skincare, cabelos e acessórios na Mistura Feminina.",
       path: "/buscar",
+      noindex: true,
     }),
   component: SearchPage,
 });
