@@ -396,6 +396,12 @@ async function ready(url, child) {
   throw new Error(`Tempo esgotado ao iniciar ${url}.`);
 }
 async function serve() {
+  start(
+    "php",
+    ["artisan", "queue:work", "--sleep=1", "--tries=5", "--timeout=60"],
+    { cwd: backend, managed: true },
+  );
+  start("php", ["artisan", "schedule:work"], { cwd: backend, managed: true });
   const backendChild = start(
     "php",
     ["artisan", "serve", "--host=127.0.0.1", "--port=8000", "--tries=1"],
@@ -414,8 +420,15 @@ async function serve() {
     ready("http://127.0.0.1:8000/up", backendChild),
     ready("http://127.0.0.1:3000", frontendChild),
   ]);
+  for (const child of owned) {
+    if (child.exitCode !== null || child.signalCode) {
+      throw new Error(
+        "Um dos processos de desenvolvimento encerrou antes de ficar pronto.",
+      );
+    }
+  }
   console.log(
-    "\nFrontend: http://localhost:3000\nBackend:  http://localhost:8000\nCtrl+C encerra os dois servidores. MySQL/Redis continuam ativos.\n",
+    "\nFrontend: http://localhost:3000\nBackend:  http://localhost:8000\nCtrl+C encerra servidores, fila e agendador. MySQL/Redis continuam ativos.\n",
   );
   await new Promise((resolveStop, reject) => {
     for (const child of owned)

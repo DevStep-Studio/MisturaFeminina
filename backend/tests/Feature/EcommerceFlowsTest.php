@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Domain\Shared\Enums\PaymentStatus;
 use App\Mail\RestockAvailableMail;
 use App\Models\Coupon;
 use App\Models\IntegrationSetting;
@@ -20,6 +21,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     $this->seed(DemoStoreSeeder::class);
     Mail::fake();
+    realPaymentFakes();
 });
 
 test('storefront bootstrap, home, search, and restock alert work end-to-end', function (): void {
@@ -150,7 +152,7 @@ test('guest cart merges on login, recalculates coupon/shipping, and prevents las
 
 test('pix sandbox webhook HMAC validation and 10x duplicate idempotency work reliably', function (): void {
     IntegrationSetting::query()->where('provider', 'mercadopago')->firstOrFail()->update([
-        'encrypted_credentials' => ['webhook_secret' => 'sbx-secret-key-123'],
+        'encrypted_credentials' => ['access_token' => 'TEST-token', 'webhook_secret' => 'sbx-secret-key-123'],
     ]);
 
     $variant = ProductVariant::query()->where('sku', 'MF-CAB-007')->firstOrFail();
@@ -169,7 +171,7 @@ test('pix sandbox webhook HMAC validation and 10x duplicate idempotency work rel
         ->postJson('/api/v1/checkout', [
             'customer_name' => 'Beatriz Guest',
             'customer_email' => 'beatriz@misturafeminina.local',
-            'customer_phone' => '11977776666',
+            'customer_phone' => '11977776666', 'customer_cpf_cnpj' => '52998224725',
             'shipping_quote_id' => $quoteId,
             'shipping_address' => [
                 'cep' => '01310-100',
@@ -183,27 +185,29 @@ test('pix sandbox webhook HMAC validation and 10x duplicate idempotency work rel
         ])->assertCreated();
 
     $order = Order::query()->where('order_number', $checkout->json('data.order.order_number'))->with('latestPayment')->firstOrFail();
-    $extOrderId = (string) $order->latestPayment->external_order_id;
+    $extOrderId = (string) $order->latestPayment->external_payment_id;
 
     // Tampered webhook signature rejected 401
     $this->withHeaders([
         'x-signature' => 'ts=1730000000,v1=invalidhash',
         'x-request-id' => 'req-999',
-    ])->postJson('/api/v1/webhooks/mercadopago', [
+    ])->postJson('/api/v1/webhooks/mercadopago?data.id='.$extOrderId, [
         'id' => 'evt-1',
-        'type' => 'order',
+        'type' => 'payment',
         'action' => 'order.processed',
         'data' => ['id' => $extOrderId, 'status' => 'processed'],
     ])->assertStatus(401);
 
     // Compute valid HMAC signature per Mercado Pago manifest
-    $ts = '1730000001';
+    $ts = (string) now()->timestamp;
     $reqId = 'req-valid-001';
+    $extOrderId = strtolower($extOrderId);
+    $order->latestPayment->update(['external_payment_id' => $extOrderId]);
     $sig = hash_hmac('sha256', "id:{$extOrderId};request-id:{$reqId};ts:{$ts};", 'sbx-secret-key-123');
 
     $payload = [
         'id' => 'evt-mp-valid-1',
-        'type' => 'order',
+        'type' => 'payment',
         'action' => 'order.processed',
         'data' => ['id' => $extOrderId, 'status' => 'approved'],
     ];
@@ -213,7 +217,7 @@ test('pix sandbox webhook HMAC validation and 10x duplicate idempotency work rel
         $this->withHeaders([
             'x-signature' => "ts={$ts},v1={$sig}",
             'x-request-id' => $reqId,
-        ])->postJson('/api/v1/webhooks/mercadopago', $payload)->assertOk();
+        ])->postJson('/api/v1/webhooks/mercadopago?data.id='.$extOrderId, $payload)->assertOk();
     }
 
     $order->refresh();
@@ -250,7 +254,7 @@ test('declined card releases reservation and expired reservations release via co
         ->postJson('/api/v1/checkout', [
             'customer_name' => 'Julia Teste',
             'customer_email' => 'julia@misturafeminina.local',
-            'customer_phone' => '11999991111',
+            'customer_phone' => '11999991111', 'customer_cpf_cnpj' => '52998224725',
             'shipping_quote_id' => $quoteId,
             'shipping_address' => [
                 'cep' => '01310-100',
@@ -262,11 +266,10 @@ test('declined card releases reservation and expired reservations release via co
             ],
             'payment_method' => 'credit_card',
             'payment_data' => [
-                'installments' => 3,
+                'installments' => 1,
                 'card_token' => 'sbx_tok_rejected',
                 'card_last_four' => '0004',
                 'payment_method_id' => 'master',
-                'sandbox_outcome' => 'rejected',
             ],
         ])->assertCreated();
 
@@ -279,11 +282,10 @@ test('declined card releases reservation and expired reservations release via co
     $retry = $this->postJson("/api/v1/orders/{$publicToken}/retry-payment", [
         'payment_method' => 'credit_card',
         'payment_data' => [
-            'installments' => 2,
+            'installments' => 1,
             'card_token' => 'sbx_tok_ok',
             'card_last_four' => '4242',
             'payment_method_id' => 'visa',
-            'sandbox_outcome' => 'approved',
         ],
     ])->assertOk();
 
@@ -303,7 +305,7 @@ test('declined card releases reservation and expired reservations release via co
         ->postJson('/api/v1/checkout', [
             'customer_name' => 'Ana Expirada',
             'customer_email' => 'ana@misturafeminina.local',
-            'customer_phone' => '11977771111',
+            'customer_phone' => '11977771111', 'customer_cpf_cnpj' => '52998224725',
             'shipping_quote_id' => (int) $quote2->json('data.options.0.quote_id'),
             'shipping_address' => [
                 'cep' => '01310-100',
@@ -317,6 +319,7 @@ test('declined card releases reservation and expired reservations release via co
         ])->assertCreated();
 
     $pendingOrder = Order::query()->where('order_number', $pendingCheckout->json('data.order.order_number'))->firstOrFail();
+    $pendingOrder->latestPayment->update(['status' => PaymentStatus::Expired]);
     $pendingOrder->update(['stock_reserved_until' => now()->subMinutes(5)]);
     StockReservation::query()->where('order_id', $pendingOrder->id)->update(['expires_at' => now()->subMinutes(5)]);
 

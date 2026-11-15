@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\CheckoutController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\StorefrontController;
 use App\Http\Controllers\Api\V1\WebhookController;
+use App\Http\Controllers\SeoController;
 use App\Http\Resources\Api\V1\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -26,8 +27,8 @@ Route::prefix('storefront')->group(function (): void {
     Route::get('bootstrap', [StorefrontController::class, 'bootstrap']);
     Route::get('home', [StorefrontController::class, 'home']);
     Route::get('pages/{slug}', [StorefrontController::class, 'page']);
-    Route::get('sitemap.xml', [\App\Http\Controllers\SeoController::class, 'sitemap']);
-    Route::get('robots.txt', [\App\Http\Controllers\SeoController::class, 'robots']);
+    Route::get('sitemap.xml', [SeoController::class, 'sitemap']);
+    Route::get('robots.txt', [SeoController::class, 'robots']);
     Route::post('newsletter/subscribe', [StorefrontController::class, 'subscribeNewsletter'])->middleware('throttle:10,1');
     Route::get('newsletter/unsubscribe/{token}', [StorefrontController::class, 'unsubscribeNewsletter']);
     Route::post('contact', [StorefrontController::class, 'contact'])->middleware('throttle:10,1');
@@ -66,7 +67,10 @@ Route::post('orders/track-lookup', [CheckoutController::class, 'trackLookup'])->
 Route::post('orders/{publicToken}/retry-payment', [CheckoutController::class, 'retryPayment'])->middleware('throttle:10,1');
 
 // Payment Webhooks & Sandbox Simulator
-Route::post('webhooks/mercadopago', [WebhookController::class, 'mercadoPago']);
+Route::post('webhooks/mercadopago', [WebhookController::class, 'mercadoPago'])->middleware('throttle:120,1');
+Route::post('webhooks/asaas', [WebhookController::class, 'asaas'])->middleware('throttle:120,1');
+Route::get('checkout/config', [CheckoutController::class, 'config']);
+Route::post('orders/{publicToken}/refresh-payment', [CheckoutController::class, 'refreshPayment'])->middleware('throttle:6,1');
 Route::post('sandbox/orders/{publicToken}/simulate-payment', [WebhookController::class, 'simulateSandboxPayment']);
 
 // Authenticated Routes

@@ -11,86 +11,25 @@ use App\Mail\OrderStatusMail;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Payment;
-use App\Models\PaymentEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
 class WebhookProcessorService
 {
-    public function __construct(
-        private readonly MercadoPagoService $mercadoPago,
-        private readonly InventoryService $inventory,
-    ) {}
-
-    /** @param array<string, mixed> $payload */
-    public function processMercadoPago(array $payload, bool $signatureValid): PaymentEvent
-    {
-        $externalEventId = (string) ($payload['id'] ?? $payload['data']['id'] ?? '');
-        $action = (string) ($payload['action'] ?? $payload['type'] ?? 'payment.updated');
-        $topic = (string) ($payload['topic'] ?? $payload['type'] ?? 'order');
-        $resourceId = (string) ($payload['data']['id'] ?? $payload['resource_id'] ?? $externalEventId);
-
-        $dedupKey = sha1("mercadopago|{$topic}|{$action}|{$externalEventId}|{$resourceId}|".($payload['status'] ?? $payload['data']['status'] ?? ''));
-
-        $existing = PaymentEvent::query()->where('deduplication_key', $dedupKey)->first();
-        if ($existing && $existing->status === 'processed') {
-            return $existing;
-        }
-
-        $event = $existing ?? PaymentEvent::query()->create([
-            'provider' => 'mercadopago',
-            'external_event_id' => $externalEventId ?: null,
-            'topic' => $topic,
-            'action' => $action,
-            'deduplication_key' => $dedupKey,
-            'signature_valid' => $signatureValid,
-            'payload' => $payload,
-            'status' => 'received',
-        ]);
-
-        if (! $signatureValid) {
-            $event->update(['status' => 'failed', 'error_message' => 'Assinatura HMAC inválida.']);
-
-            return $event;
-        }
-
-        $payment = Payment::query()
-            ->where('external_order_id', $resourceId)
-            ->orWhere('external_payment_id', $resourceId)
-            ->first();
-
-        if (! $payment && isset($payload['external_reference'])) {
-            $order = Order::query()->where('order_number', (string) $payload['external_reference'])->first();
-            $payment = $order?->latestPayment;
-        }
-
-        if (! $payment) {
-            $event->update(['status' => 'ignored', 'error_message' => 'Pagamento não localizado localmente.', 'processed_at' => now()]);
-
-            return $event;
-        }
-
-        $event->update(['payment_id' => $payment->id]);
-
-        $remote = $this->mercadoPago->fetchRemoteOrderStatus($payment);
-        $newPaymentStatus = $remote['status'] ?? $this->mercadoPago->mapStatus((string) ($payload['data']['status'] ?? $payload['status'] ?? 'pending'));
-        $feeCents = $remote['fee_cents'] ?? $payment->fee_cents;
-
-        $this->applyPaymentTransition($payment, $newPaymentStatus, $feeCents, 'Webhook '.$action);
-        $event->update(['status' => 'processed', 'processed_at' => now()]);
-
-        return $event->fresh();
-    }
+    public function __construct(private readonly InventoryService $inventory) {}
 
     public function applyPaymentTransition(Payment $payment, PaymentStatus $newStatus, int $feeCents = 0, string $note = ''): void
     {
         $notifyPayload = DB::transaction(function () use ($payment, $newStatus, $feeCents, $note): ?array {
+            /** @var Order $order */
+            $order = Order::query()->whereKey($payment->order_id)->lockForUpdate()->firstOrFail();
             /** @var Payment $lockedPayment */
             $lockedPayment = Payment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
-            /** @var Order $order */
-            $order = Order::query()->whereKey($lockedPayment->order_id)->lockForUpdate()->firstOrFail();
 
             $prevPaymentStatus = $lockedPayment->status;
+            if (in_array($order->status, [OrderStatus::Paid, OrderStatus::Preparing, OrderStatus::Shipped, OrderStatus::Delivered], true) && in_array($newStatus, [PaymentStatus::Pending, PaymentStatus::Rejected, PaymentStatus::Cancelled, PaymentStatus::Expired], true)) {
+                return null;
+            }
             if ($prevPaymentStatus === $newStatus && $order->status !== OrderStatus::PendingPayment) {
                 return null;
             }
@@ -110,7 +49,7 @@ class WebhookProcessorService
                 PaymentStatus::Expired => OrderStatus::Expired,
                 PaymentStatus::Refunded, PaymentStatus::ChargedBack => OrderStatus::Refunded,
                 PaymentStatus::PartiallyRefunded => OrderStatus::PartiallyRefunded,
-                PaymentStatus::Pending => OrderStatus::PendingPayment,
+                PaymentStatus::Pending, PaymentStatus::Processing, PaymentStatus::Unknown, PaymentStatus::Failed => OrderStatus::PendingPayment,
             };
 
             if ($newStatus === PaymentStatus::Approved && $prevOrderStatus === OrderStatus::PendingPayment) {

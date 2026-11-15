@@ -1,5 +1,18 @@
 # Evidências de Testes e Critérios de Aceite — Mistura Feminina Cosméticos
 
+## Atualização do checkout real (15/11/2026)
+
+- Backend: 34 testes e 249 asserções passaram no banco de teste SQLite; Larastan sem erros e Pint aplicado.
+- MySQL isolado: 17 cenários de e-commerce/checkout passaram, cobrindo as novas migrations, pagamentos, estoque, webhooks e Correios. O banco local da loja não foi usado nesses testes.
+- Frontend: build, TypeScript, ESLint, Prettier, orçamento de bundle e 39 testes Vitest passaram.
+- Quatro novos cenários Playwright passaram: Mercado Pago Brick, fatura boleto Asaas, checkout desligado em mobile e configuração das integrações no admin. Revisão visual realizada em desktop/mobile.
+- Inicializador: oito testes passaram, incluindo abertura e encerramento de servidores, worker e scheduler; o teste opcional de provisionamento MySQL do launcher não foi executado.
+- A suíte E2E antiga mantém sete falhas de login/loading/recuperação/analytics. As mesmas sete falhas foram reproduzidas no commit original `b188cc7`, em uma cópia isolada, antes das alterações do checkout. Não são regressões desta integração.
+- A suíte global em MySQL também encontrou o teste antigo de backup bloqueado por `mysqldump LOCK TABLES` enquanto `RefreshDatabase` mantém transação aberta. O dump bloqueado do banco de teste foi encerrado; os testes específicos de checkout passaram separadamente. A suíte global SQLite passa.
+- Chamadas financeiras foram substituídas por HTTP fakes. A homologação externa ainda exige credenciais oficiais de sandbox, contrato Correios habilitado e endpoint HTTPS de webhook.
+
+Veja [INTEGRACOES.md](INTEGRACOES.md) para ativação e limites do fluxo atual.
+
 Este documento registra a matriz de validação executada para comprovar a entrega funcional do e-commerce (backend Laravel 13, frontend SolidJS, acessibilidade, performance de bundle e fluxos E2E em navegador real).
 
 ---

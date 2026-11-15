@@ -1,92 +1,65 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Http\Controllers\Api\V1;
 
-use App\Domain\Payments\Services\MercadoPagoService;
-use App\Domain\Payments\Services\WebhookProcessorService;
-use App\Domain\Shared\Enums\PaymentStatus;
+use App\Domain\Payments\Services\PaymentSettings;
 use App\Http\Controllers\Controller;
-use App\Models\Order;
-use App\Models\Payment;
+use App\Jobs\ProcessPaymentEvent;
+use App\Models\PaymentEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
 
 class WebhookController extends Controller
 {
-    public function __construct(
-        private readonly MercadoPagoService $mercadoPago,
-        private readonly WebhookProcessorService $webhooks,
-    ) {}
-
     public function mercadoPago(Request $request): JsonResponse
     {
-        $payload = $request->all();
-        $dataId = (string) ($payload['data']['id'] ?? $request->query('data.id') ?? $request->query('id') ?? '');
-        $xSignature = $request->header('x-signature');
-        $xRequestId = $request->header('x-request-id');
-
-        $signatureValid = $this->mercadoPago->verifyWebhookSignature($xSignature, $xRequestId, $dataId);
-
-        $event = $this->webhooks->processMercadoPago($payload, $signatureValid);
-
-        if (! $signatureValid) {
-            Log::warning('MercadoPago webhook signature rejected', [
-                'event_id' => $event->id,
-                'x_request_id' => $xRequestId,
-            ]);
-
-            return response()->json(['status' => 'rejected', 'reason' => 'invalid_signature'], 401);
+        abort_if(strlen($request->getContent()) > 65536, 413);
+        $settings = app(PaymentSettings::class);
+        $secret = $settings->get('mercadopago', 'webhook_secret');
+        $id = (string) ($request->query('data_id') ?? $request->query('data.id') ?? '');
+        $requestId = $request->header('x-request-id');
+        preg_match('/(?:^|,)\s*ts=(\d+)(?:,|$)/', $request->header('x-signature', ''), $ts);
+        preg_match('/(?:^|,)\s*v1=([a-f0-9]{64})(?:,|$)/i', $request->header('x-signature', ''), $v1);
+        $stamp = (float) ($ts[1] ?? 0);
+        if ($stamp > 100000000000) {
+            $stamp /= 1000;
+        }
+        abort_unless(is_string($secret) && $secret !== '' && $requestId && preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $id) && isset($v1[1],$ts[1]) && abs(now()->timestamp - $stamp) <= 300 && hash_equals(hash_hmac('sha256', 'id:'.strtolower($id).';request-id:'.$requestId.';ts:'.$ts[1].';', $secret), strtolower($v1[1])), 401);
+        abort_if($request->input('data.id') !== null && (string) $request->input('data.id') !== $id, 401);
+        if ($request->input('type') !== 'payment') {
+            return response()->json(['status' => 'ignored']);
         }
 
-        return response()->json([
-            'status' => $event->status,
-            'event_id' => $event->id,
-        ]);
+        return $this->receipt('mercadopago', $id, (string) ($request->input('id') ?? hash('sha256', $request->getContent())));
+    }
+
+    public function asaas(Request $request): JsonResponse
+    {
+        abort_if(strlen($request->getContent()) > 65536, 413);
+        $token = app(PaymentSettings::class)->get('asaas', 'webhook_token');
+        abort_unless(is_string($token) && $token !== '' && hash_equals($token, $request->header('asaas-access-token', '')), 401);
+        if (! str_starts_with((string) $request->input('event'), 'PAYMENT_')) {
+            return response()->json(['status' => 'ignored']);
+        }
+
+        return $this->receipt('asaas', (string) $request->input('payment.id'), (string) $request->input('id'));
+    }
+
+    private function receipt(string $provider, string $id, string $eventId): JsonResponse
+    {
+        abort_unless(preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $id) && preg_match('/^[a-zA-Z0-9_-]{1,150}$/D', $eventId), 422);
+        $env = app(PaymentSettings::class)->get($provider, 'environment');
+        $event = PaymentEvent::firstOrCreate(['deduplication_key' => hash('sha256', "$provider|$env|$eventId")], ['provider' => $provider, 'external_event_id' => $eventId, 'topic' => 'payment', 'action' => 'payment.updated', 'signature_valid' => true, 'payload' => ['resource_id' => $id, 'environment' => $env], 'status' => 'received']);
+        abort_unless(($event->payload['resource_id'] ?? null) === $id, 409);
+        if ($event->wasRecentlyCreated) {
+            ProcessPaymentEvent::dispatch($event->id);
+        }
+
+        return response()->json(['status' => 'received', 'event_id' => $event->id]);
     }
 
     public function simulateSandboxPayment(Request $request, string $publicToken): JsonResponse
     {
-        if (app()->isProduction()) {
-            return response()->json(['message' => 'Simulação de sandbox indisponível em produção.'], 403);
-        }
-
-        $validated = $request->validate([
-            'outcome' => ['required', 'string', Rule::in(['approved', 'rejected', 'expired'])],
-        ]);
-
-        $order = Order::query()->where('public_token', $publicToken)->with('latestPayment')->firstOrFail();
-        /** @var Payment|null $payment */
-        $payment = $order->latestPayment;
-        if (! $payment || $payment->environment !== 'sandbox') {
-            return response()->json(['message' => 'Somente pagamentos em ambiente sandbox podem ser simulados aqui.'], 422);
-        }
-
-        $newStatus = match ($validated['outcome']) {
-            'approved' => PaymentStatus::Approved,
-            'rejected' => PaymentStatus::Rejected,
-            default => PaymentStatus::Expired,
-        };
-
-        $feeCents = $newStatus === PaymentStatus::Approved
-            ? (int) round($payment->gross_amount_cents * ($payment->method->value === 'pix' ? 0.0099 : 0.0399))
-            : 0;
-
-        $this->webhooks->applyPaymentTransition(
-            $payment,
-            $newStatus,
-            $feeCents,
-            'Transição simulada em ambiente sandbox ('.$newStatus->value.')',
-        );
-
-        return response()->json([
-            'data' => [
-                'order_status' => $order->fresh()?->status->value,
-                'payment_status' => $payment->fresh()?->status->value,
-            ],
-        ]);
+        abort(404);
     }
 }

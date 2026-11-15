@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Cart\Services;
 
 use App\Domain\Settings\Services\StoreSettingsService;
+use App\Domain\Shipping\Services\ShippingQuoteService;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Coupon;
@@ -218,12 +219,12 @@ class CartService
 
         $shippingCents = 0;
         $selectedShipping = null;
-        if ($cart->shippingQuote && $cart->shippingQuote->expires_at->isFuture()) {
+        if ($cart->shippingQuote && $cart->shippingQuote->expires_at->isFuture() && $cart->shippingQuote->cart_id === $cart->id && $cart->shippingQuote->items_fingerprint === app(ShippingQuoteService::class)->cartFingerprint($cart)) {
             /** @var ShippingQuote $quote */
             $quote = $cart->shippingQuote;
             $shippingCents = $couponResult['free_shipping'] ? 0 : (int) $quote->price_cents;
             $selectedShipping = [
-                'quote_id' => $quote->id,
+                'quote_id' => $quote->id, 'expires_at' => $quote->expires_at->toIso8601String(),
                 'cep' => $quote->cep,
                 'provider' => $quote->provider,
                 'service_code' => $quote->service_code,

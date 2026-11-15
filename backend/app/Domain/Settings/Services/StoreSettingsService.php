@@ -16,6 +16,7 @@ class StoreSettingsService
     public static function defaults(): array
     {
         return [
+            'payment_provider' => config('checkout.provider', 'mercadopago'),
             'store_name' => 'Mistura Feminina Cosméticos',
             'tagline' => 'Beleza, autocuidado e alta performance para você e seu estúdio',
             'logo_light_url' => '/storage/brand/logo-mf.png',

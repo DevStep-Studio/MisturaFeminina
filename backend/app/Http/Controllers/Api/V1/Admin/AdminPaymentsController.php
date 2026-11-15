@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
-use App\Domain\Payments\Services\MercadoPagoService;
+use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Payments\Services\WebhookProcessorService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Http\Controllers\Controller;
@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 class AdminPaymentsController extends Controller
 {
     public function __construct(
-        private readonly MercadoPagoService $mercadoPago,
+        private readonly PaymentService $payments,
         private readonly WebhookProcessorService $webhooks,
         private readonly AuditLogger $audit,
     ) {}
@@ -47,7 +47,7 @@ class AdminPaymentsController extends Controller
     public function reconcile(Request $request, int $id): JsonResponse
     {
         $payment = Payment::query()->findOrFail($id);
-        $remote = $this->mercadoPago->fetchRemoteOrderStatus($payment);
+        $remote = $this->payments->fetchRemoteOrderStatus($payment);
         if (! $remote) {
             return response()->json([
                 'data' => $payment,

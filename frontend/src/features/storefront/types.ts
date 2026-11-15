@@ -5,6 +5,7 @@ export interface BenefitItem {
 }
 
 export interface StoreSettings {
+  payment_provider?: "mercadopago" | "asaas";
   store_name: string;
   tagline: string;
   logo_light_url: string;
@@ -200,6 +201,7 @@ export interface HomeSectionData {
 }
 
 export interface ShippingOptionData {
+  expires_at?: string;
   quote_id?: number;
   provider: string;
   service_code: string;

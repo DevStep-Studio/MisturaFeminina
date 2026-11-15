@@ -37,7 +37,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'shipping_address_snapshot', 'shipping_service_snapshot',
     'subtotal_cents', 'discount_cents', 'coupon_code', 'shipping_cents',
     'tax_cents', 'total_cents', 'status', 'notes_customer', 'notes_internal',
-    'stock_reserved_until', 'paid_at', 'cancelled_at',
+    'stock_reserved_until', 'paid_at', 'cancelled_at', 'checkout_cart_id', 'checkout_fingerprint', 'payment_provider', 'payment_environment', 'payment_method',
 ])]
 class Order extends Model
 {
@@ -86,7 +86,7 @@ class Order extends Model
     protected function casts(): array
     {
         return [
-            'status' => OrderStatus::class,
+            'status' => OrderStatus::class, 'checkout_cart_id' => 'integer',
             'is_guest' => 'boolean',
             'shipping_address_snapshot' => 'array',
             'shipping_service_snapshot' => 'array',

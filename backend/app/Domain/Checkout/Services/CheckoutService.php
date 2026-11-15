@@ -6,7 +6,8 @@ namespace App\Domain\Checkout\Services;
 
 use App\Domain\Cart\Services\CartService;
 use App\Domain\Catalog\Services\InventoryService;
-use App\Domain\Payments\Services\MercadoPagoService;
+use App\Domain\Payments\Services\PaymentService;
+use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Payments\Services\WebhookProcessorService;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Domain\Shared\Enums\PaymentMethod;
@@ -36,30 +37,44 @@ class CheckoutService
         private readonly CartService $carts,
         private readonly InventoryService $inventory,
         private readonly ShippingQuoteService $shipping,
-        private readonly MercadoPagoService $mercadoPago,
+        private readonly PaymentService $payments,
         private readonly WebhookProcessorService $webhooks,
     ) {}
 
     /**
      * @param  array<string, mixed>  $input
-     * @return array{order: Order, payment: Payment}
+     * @return array{order: Order, payment: Payment|null}
      */
     public function submitCheckout(Cart $cart, ?User $user, array $input, string $idempotencyKey): array
     {
-        $existingOrder = Order::query()->where('idempotency_key', $idempotencyKey)->with('latestPayment')->first();
-        if ($existingOrder && $existingOrder->latestPayment) {
+        $settings = app(PaymentSettings::class);
+        abort_unless($settings->available(), 503, 'Checkout indisponível. Configure os pagamentos.');
+        abort_if(($input['payment_method'] ?? '') === 'debit_card', 422, 'Selecione Pix, crédito ou boleto.');
+        if ($settings->provider() === 'mercadopago' && $input['payment_method'] === 'credit_card' && ! ($input['defer_payment'] ?? false)) {
+            abort_unless(! empty($input['payment_data']['card_token']) && ! empty($input['payment_data']['payment_method_id']), 422, 'Preencha o cartão no formulário seguro.');
+        }
+        $fingerprint = PaymentSettings::digest($input);
+        $existingOrder = Order::where('idempotency_key', $idempotencyKey)->with('latestPayment')->first();
+        if ($existingOrder) {
+            abort_unless($existingOrder->checkout_cart_id === $cart->id && $existingOrder->checkout_fingerprint === $fingerprint, 409, 'Chave de pedido já utilizada com outros dados.');
+
             return ['order' => $existingOrder, 'payment' => $existingOrder->latestPayment];
         }
-
         $address = $input['shipping_address'];
         $cep = $this->shipping->normalizeCep((string) $address['cep']);
         $uf = strtoupper((string) $address['state']);
         $customerEmail = strtolower(trim((string) $input['customer_email']));
 
-        $order = DB::transaction(function () use ($cart, $user, $input, $address, $cep, $uf, $customerEmail, $idempotencyKey): Order {
+        $order = DB::transaction(function () use ($cart, $user, $input, $address, $cep, $uf, $customerEmail, $idempotencyKey, $fingerprint, $settings): Order {
             /** @var Cart $lockedCart */
             $lockedCart = Cart::query()->whereKey($cart->id)->with(['items.product', 'items.variant', 'shippingQuote'])->lockForUpdate()->firstOrFail();
 
+            $existing = Order::where('idempotency_key', $idempotencyKey)->first();
+            if ($existing) {
+                abort_unless($existing->checkout_cart_id === $cart->id && $existing->checkout_fingerprint === $fingerprint, 409, 'Chave de pedido já utilizada.');
+
+                return $existing;
+            }
             if ($lockedCart->items->isEmpty()) {
                 throw ValidationException::withMessages(['cart' => ['Seu carrinho está vazio.']]);
             }
@@ -71,15 +86,17 @@ class CheckoutService
 
             $quote = null;
             if (! empty($input['shipping_quote_id'])) {
-                $quote = ShippingQuote::query()->whereKey((int) $input['shipping_quote_id'])->first();
+                $quote = ShippingQuote::query()->whereKey((int) $input['shipping_quote_id'])->where('cart_id', $lockedCart->id)->lockForUpdate()->first();
             }
-            if (! $quote && $lockedCart->shippingQuote) {
+            if (! $quote && empty($input['shipping_quote_id']) && $lockedCart->shippingQuote) {
                 $quote = $lockedCart->shippingQuote;
             }
-            if (! $quote || $quote->expires_at->isPast() || $quote->cep !== $cep) {
+            if (! $quote || $quote->cart_id !== $lockedCart->id || $quote->expires_at->isPast() || $quote->cep !== $cep || $quote->items_fingerprint !== $this->shipping->cartFingerprint($lockedCart)) {
                 throw ValidationException::withMessages(['shipping_quote_id' => ['Cotação de frete ausente, expirada ou divergente do CEP. Calcule o frete novamente.']]);
             }
 
+            $lockedCart->update(['shipping_quote_id' => $quote->id, 'shipping_cep' => $cep]);
+            $summary = $this->carts->buildSummary($lockedCart, $user, $customerEmail, $uf);
             $shippingCents = $summary['coupon_code'] && $summary['shipping_quote'] !== null
                 ? (int) $summary['shipping_quote']['price_cents']
                 : (int) $quote->price_cents;
@@ -93,6 +110,8 @@ class CheckoutService
                 'order_number' => $orderNumber,
                 'public_token' => Str::uuid()->toString(),
                 'idempotency_key' => $idempotencyKey,
+                'checkout_cart_id' => $lockedCart->id, 'checkout_fingerprint' => $fingerprint,
+                'payment_provider' => $settings->provider(), 'payment_environment' => $settings->get($settings->provider(), 'environment'), 'payment_method' => $input['payment_method'],
                 'user_id' => $user?->id,
                 'is_guest' => $user === null,
                 'customer_name' => trim((string) $input['customer_name']),
@@ -126,7 +145,7 @@ class CheckoutService
                 'total_cents' => $totalCents,
                 'status' => OrderStatus::PendingPayment,
                 'notes_customer' => $input['notes_customer'] ?? null,
-                'stock_reserved_until' => now()->addMinutes(30),
+                'stock_reserved_until' => now()->addMinutes(15),
             ]);
 
             foreach ($summary['items'] as $line) {
@@ -145,7 +164,7 @@ class CheckoutService
                 ]);
             }
 
-            $this->inventory->reserveForOrder($order, $lockedCart->items, 30);
+            $this->inventory->reserveForOrder($order, $lockedCart->items, 15);
 
             if ($summary['coupon_code']) {
                 $coupon = Coupon::query()->where('code', $summary['coupon_code'])->lockForUpdate()->first();
@@ -179,12 +198,17 @@ class CheckoutService
             return $order;
         });
 
+        if (($input['defer_payment'] ?? false) && $order->payment_provider === 'mercadopago') {
+            Mail::to($order->customer_email)->queue(new OrderStatusMail($order, 'Pedido registrado — Conclua o pagamento', 'Seu pedido foi reservado. Acesse o link abaixo para concluir o pagamento no formulário seguro.'));
+
+            return ['order' => $order->fresh(['items', 'latestPayment', 'statusHistories', 'shipment']), 'payment' => $order->latestPayment];
+        }
         $method = PaymentMethod::from((string) $input['payment_method']);
-        $payment = $this->mercadoPago->createOrderPayment(
+        $payment = $this->payments->createOrderPayment(
             $order,
             $method,
             is_array($input['payment_data'] ?? null) ? $input['payment_data'] : [],
-            $idempotencyKey.':pay:1',
+            hash('sha256', $idempotencyKey.':pay:1'),
         );
 
         if ($payment->status === PaymentStatus::Approved) {
@@ -215,8 +239,12 @@ class CheckoutService
 
         $existing = Payment::query()->where('idempotency_key', $idempotencyKey)->first();
         if ($existing) {
+            abort_unless($existing->order_id === $order->id && $existing->request_fingerprint === PaymentSettings::digest(['method' => $method->value, 'input' => $paymentInput]), 409, 'Chave já utilizada.');
+
             return $existing;
         }
+
+        abort_if($order->payments()->whereIn('status', ['processing', 'unknown', 'pending', 'approved'])->exists(), 409, 'Já existe pagamento em andamento. Consulte o pedido.');
 
         // Re-reserve stock if previous failure released reservation
         DB::transaction(function () use ($order): void {
@@ -237,10 +265,10 @@ class CheckoutService
                 });
                 $this->inventory->reserveForOrder($order, $fakeCartItems, 30);
             }
-            $order->update(['status' => OrderStatus::PendingPayment, 'stock_reserved_until' => now()->addMinutes(30)]);
+            $order->update(['status' => OrderStatus::PendingPayment, 'stock_reserved_until' => now()->addMinutes(15)]);
         });
 
-        $payment = $this->mercadoPago->createOrderPayment($order, $method, $paymentInput, $idempotencyKey);
+        $payment = $this->payments->createOrderPayment($order, $method, $paymentInput, $idempotencyKey);
         if ($payment->status === PaymentStatus::Approved) {
             $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Approved, $payment->fee_cents, 'Aprovação em nova tentativa');
         } elseif ($payment->status === PaymentStatus::Rejected) {

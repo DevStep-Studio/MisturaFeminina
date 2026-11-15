@@ -1,12 +1,13 @@
 <?php
 
 use App\Domain\Catalog\Services\InventoryService;
-use App\Domain\Payments\Services\MercadoPagoService;
-use App\Domain\Payments\Services\WebhookProcessorService;
+use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Security\Services\RbacSeederService;
 use App\Domain\Shared\Enums\OrderStatus;
-use App\Domain\Shared\Enums\PaymentStatus;
+use App\Jobs\ProcessPaymentEvent;
 use App\Models\Order;
+use App\Models\Payment;
+use App\Models\PaymentEvent;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
@@ -75,6 +76,7 @@ Artisan::command('mistura:admin {email} {--name=} {--role=superadmin} {--passwor
 Artisan::command('mistura:release-expired-reservations', function (InventoryService $inventory): int {
     $expiredOrders = Order::query()
         ->where('status', OrderStatus::PendingPayment)
+        ->whereDoesntHave('payments', fn ($q) => $q->whereIn('status', ['processing', 'unknown', 'pending']))
         ->whereNotNull('stock_reserved_until')
         ->where('stock_reserved_until', '<=', now())
         ->get();
@@ -95,30 +97,27 @@ Artisan::command('mistura:release-expired-reservations', function (InventoryServ
     return 0;
 })->purpose('Libera reservas de estoque de pedidos pendentes vencidos.');
 
-Artisan::command('mistura:reconcile-payments', function (MercadoPagoService $mp, WebhookProcessorService $webhooks): int {
-    $pendingOrders = Order::query()
-        ->where('status', OrderStatus::PendingPayment)
-        ->where('created_at', '<=', now()->subMinutes(2))
-        ->with('latestPayment')
-        ->limit(50)
-        ->get();
-
+Artisan::command('mistura:reconcile-payments', function (PaymentService $payments): int {
+    $pending = Payment::whereIn('status', ['pending', 'processing', 'unknown'])->where('updated_at', '<=', now()->subMinutes(2))->oldest('updated_at')->limit(100)->get();
     $updated = 0;
-    foreach ($pendingOrders as $order) {
-        $payment = $order->latestPayment;
-        if (! $payment) {
-            continue;
-        }
-        $remote = $mp->fetchRemoteOrderStatus($payment);
-        if ($remote && $remote['status'] !== PaymentStatus::Pending) {
-            $webhooks->applyPaymentTransition($payment, $remote['status'], $remote['fee_cents'], 'Reconciliação automática');
+    foreach ($pending as $payment) {
+        try {
+            $payments->refresh($payment);
             $updated++;
+        } catch (Throwable) {
+            $this->warn('Conciliação pendente para pagamento #'.$payment->id);
+        } finally {
+            $payment->touch();
         }
     }
+    PaymentEvent::where('status', 'received')->where('updated_at', '<', now()->subMinutes(5))->oldest('updated_at')->limit(100)->get()->each(function ($event): void {
+        $event->touch();
+        ProcessPaymentEvent::dispatch($event->id);
+    });
     $this->info("Pagamentos reconciliados: {$updated}");
 
     return 0;
-})->purpose('Reconcilia pedidos pendentes diretamente na API do Mercado Pago.');
+})->purpose('Reconcilia pagamentos pendentes diretamente na API do provedor.');
 
 Artisan::command('mistura:backup', function (): int {
     $dir = storage_path('app/backups');
@@ -190,5 +189,5 @@ Artisan::command('devstep:health', function (): int {
     }
 });
 
-Schedule::command('mistura:release-expired-reservations')->everyFiveMinutes();
-Schedule::command('mistura:reconcile-payments')->everyFiveMinutes();
+Schedule::command('mistura:release-expired-reservations')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('mistura:reconcile-payments')->everyFiveMinutes()->withoutOverlapping();

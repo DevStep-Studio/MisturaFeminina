@@ -29,7 +29,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'idempotency_key', 'method', 'installments', 'gross_amount_cents', 'fee_cents',
     'net_amount_cents', 'status', 'pix_qr_code_base64', 'pix_copy_paste',
     'pix_expires_at', 'card_last_four', 'card_brand', 'failure_reason',
-    'raw_sanitized_response', 'paid_at',
+    'raw_sanitized_response', 'paid_at', 'request_fingerprint', 'checkout_url', 'boleto_url', 'barcode', 'provider_updated_at',
 ])]
 class Payment extends Model
 {
@@ -56,7 +56,7 @@ class Payment extends Model
             'net_amount_cents' => 'integer',
             'pix_expires_at' => 'datetime',
             'raw_sanitized_response' => 'array',
-            'paid_at' => 'datetime',
+            'paid_at' => 'datetime', 'provider_updated_at' => 'datetime',
         ];
     }
 }

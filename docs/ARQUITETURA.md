@@ -15,7 +15,7 @@ O projeto preserva integralmente a arquitetura oficial do repositório **DevStep
 | `Catalog` | `InventoryService` (reserva e baixa atômica em transação com `lockForUpdate` e validação de kits), `CatalogCsvService` (importação/exportação CSV compatível com planilhas). |
 | `Cart` | `CartService` (carrinho persistente para visitante via token UUID `X-Cart-Token` + cookie `mf_cart_token`, mesclagem automática no login, cálculo de descontos por cupom/promoção e frete). |
 | `Checkout` | `CheckoutService` (idempotência via `X-Idempotency-Key`, revalidação server-side de estoque, preços, promoções e cotação de frete, criação transacional do pedido e pagamento). |
-| `Payments` | `MercadoPagoService` (integração Orders API v1 para Pix QR/Copia e Cola e Cartão tokenizado + simulação sandbox auditável) e `WebhookProcessorService` (validação HMAC-SHA256 `x-signature`, tabela `webhook_events` para idempotência e máquina de estados do pedido). |
+| `Payments` | `PaymentService` e `PaymentGateway` (Mercado Pago Payments API v1/Brick e Asaas com fatura hospedada; Pix, crédito à vista e boleto), `PaymentSettings` (admin criptografado/.env), recibos assíncronos em `payment_events` e `WebhookProcessorService` (transições de pedido e estoque). |
 | `Shipping` | `ShippingQuoteService` + `MelhorEnvioProvider` + `CorreiosProvider` + fallback automático para tabela regional configurável no admin (`shipping_rules`), persiste `shipping_quotes` com TTL de 30 min. |
 | `Settings` | `StoreSettingsService` (configurações tipadas em `store_settings`, injetadas em tempo real no `:root` da loja para cores, logo, favicon, contatos e políticas) e `MediaUploadService` (upload seguro validado para `storage/app/public`). |
 | `Security` | `RbacSeederService` (papéis `superadmin`, `manager`, `editor`, `marketing`, `logistics`, `support`, `customer`), `TotpService` (2FA TOTP), `AuditLogger` (`audit_logs` sem dados sensíveis). |
@@ -36,6 +36,6 @@ O projeto preserva integralmente a arquitetura oficial do repositório **DevStep
 ## 4. Fluxos de Segurança & LGPD
 - **Autenticação:** Cookies HTTP-only + SameSite `lax`, proteção CSRF Sanctum e suporte a 2FA TOTP no `/admin`.
 - **PCI-DSS / Zero retenção de cartão:** O backend nunca recebe nem grava número de cartão (PAN) ou CVV em banco ou logs; aceita apenas token de pagamento/bandeira/parcelas/últimos 4 dígitos mascarados.
-- **Idempotência de webhooks e pedidos:** Chaves `idempotency_key` únicas em `orders` e `webhook_events` garantem que retentativas de rede ou entregas duplicadas do Mercado Pago não dupliquem cobranças nem baixas de estoque.
+- **Idempotência de webhooks e pedidos:** Chaves `idempotency_key` únicas em `orders` e `payment_events` garantem que retentativas de rede ou entregas duplicadas dos provedores não dupliquem cobranças nem baixas de estoque.
 - **LGPD:** Banner de consentimento configurável, políticas editáveis no backoffice, e área `/minha-conta` protegida por senha e ownership checks.
 

@@ -116,16 +116,6 @@ class DemoStoreSeeder extends Seeder
         app(StoreSettingsService::class)->setMany(StoreSettingsService::defaults(), 'storefront', true);
 
         IntegrationSetting::query()->updateOrCreate(
-            ['provider' => 'mercadopago'],
-            [
-                'environment' => (string) env('MERCADOPAGO_ENV', 'sandbox'),
-                'public_config' => ['public_key' => (string) env('MERCADOPAGO_PUBLIC_KEY', '')],
-                'is_active' => true,
-                'last_healthcheck_status' => 'sandbox_ready',
-            ]
-        );
-
-        IntegrationSetting::query()->updateOrCreate(
             ['provider' => 'melhorenvio'],
             [
                 'environment' => (string) env('MELHOR_ENVIO_ENV', 'sandbox'),

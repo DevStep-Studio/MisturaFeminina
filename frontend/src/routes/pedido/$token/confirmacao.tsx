@@ -15,7 +15,11 @@ import {
   onMount,
 } from "solid-js";
 import { StoreShell } from "../../../features/storefront/components/StoreShell";
-import { storefrontStore } from "../../../features/storefront/store";
+import { PaymentBrick } from "../../../features/storefront/PaymentBrick";
+import {
+  invoiceUrl,
+  paymentConfig,
+} from "../../../features/storefront/payment-config";
 import { ApiError, api } from "../../../lib/api";
 import {
   formatCents,
@@ -38,6 +42,9 @@ export const Route = createFileRoute("/pedido/$token/confirmacao")({
 
 interface PublicOrderPayload {
   order: {
+    payment_provider: string;
+    payment_environment: string;
+    payment_method: "pix" | "credit_card" | "boleto";
     order_number: string;
     public_token: string;
     status: string;
@@ -74,22 +81,21 @@ interface PublicOrderPayload {
     pix_expires_at: string | null;
     card_last_four: string | null;
     card_brand: string | null;
+    checkout_url?: string | null;
+    boleto_url?: string | null;
+    barcode?: string | null;
     failure_reason: string | null;
     paid_at: string | null;
   } | null;
 }
 
 function pixQrSrc(raw: string): string {
-  if (raw.startsWith("data:")) return raw;
-  if (raw.startsWith("PHN2") || raw.startsWith("PD94")) {
-    return `data:image/svg+xml;base64,${raw}`;
-  }
   return `data:image/png;base64,${raw}`;
 }
 
 function OrderConfirmationPage() {
   const params = Route.useParams();
-  const settings = () => storefrontStore.settings();
+  const [payments] = createResource(paymentConfig);
   const [copied, setCopied] = createSignal(false);
   const [actionBusy, setActionBusy] = createSignal(false);
   const [actionMsg, setActionMsg] = createSignal<string | null>(null);
@@ -109,7 +115,7 @@ function OrderConfirmationPage() {
 
   createEffect(() => {
     const o = data()?.order;
-    if (!o) return;
+    if (!o || data()?.payment?.status !== "approved") return;
     trackPurchase({
       transaction_id: o.order_number,
       value: o.total_cents / 100,
@@ -128,13 +134,14 @@ function OrderConfirmationPage() {
     const id = window.setInterval(() => {
       const current = data();
       if (
+        !document.hidden &&
         current &&
         current.payment &&
-        ["pending", "in_process"].includes(current.payment.status)
+        ["pending", "processing", "unknown"].includes(current.payment.status)
       ) {
         void refetch();
       }
-    }, 5000);
+    }, 10000);
     onCleanup(() => window.clearInterval(id));
   });
 
@@ -148,28 +155,29 @@ function OrderConfirmationPage() {
     }
   }
 
-  async function simulateSandbox(outcome: "approved" | "rejected" | "expired") {
+  async function reloadOrder() {
+    await refetch();
+  }
+  async function refreshRemote() {
     setActionBusy(true);
     setActionMsg(null);
     try {
-      await api(`/sandbox/orders/${params().token}/simulate-payment`, {
+      await api(`/orders/${params().token}/refresh-payment`, {
         method: "POST",
         authenticated: false,
-        body: { outcome },
+        timeoutMs: 60000,
       });
       await refetch();
-      setActionMsg(`Simulação sandbox executada (${outcome}).`);
     } catch (err) {
       setActionMsg(
         err instanceof ApiError
           ? err.message
-          : "Não foi possível simular em sandbox.",
+          : "Não foi possível atualizar o pagamento.",
       );
     } finally {
       setActionBusy(false);
     }
   }
-
   async function retryAsPix() {
     setActionBusy(true);
     setActionMsg(null);
@@ -177,6 +185,7 @@ function OrderConfirmationPage() {
       await api(`/orders/${params().token}/retry-payment`, {
         method: "POST",
         authenticated: false,
+        headers: { "X-Idempotency-Key": crypto.randomUUID() },
         body: { payment_method: "pix" },
       });
       await refetch();
@@ -270,7 +279,8 @@ function OrderConfirmationPage() {
 
                     <button
                       type="button"
-                      onClick={() => void refetch()}
+                      disabled={actionBusy()}
+                      onClick={() => void refreshRemote()}
                       class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
                     >
                       <RefreshCw class="h-3.5 w-3.5" />
@@ -343,7 +353,9 @@ function OrderConfirmationPage() {
                   </Show>
 
                   {/* Retry failed payment */}
-                  <Show when={isFailed()}>
+                  <Show
+                    when={isFailed() && order().payment_provider === "asaas"}
+                  >
                     <div class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
                       <p class="font-semibold">
                         Motivo:{" "}
@@ -361,45 +373,79 @@ function OrderConfirmationPage() {
                     </div>
                   </Show>
 
-                  {/* Sandbox Simulator Banner */}
                   <Show
                     when={
-                      (settings().payment_sandbox_mode ||
-                        payment()?.environment === "sandbox") &&
-                      !isApproved()
+                      payment()?.status === "unknown" ||
+                      payment()?.status === "processing"
                     }
                   >
-                    <div class="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4">
-                      <p class="text-xs font-bold uppercase tracking-wide text-amber-900">
-                        Controles de Simulação Sandbox (
-                        {payment()?.environment || "sandbox"})
-                      </p>
-                      <p class="mt-1 text-xs text-amber-800">
-                        Use os botões abaixo para validar o webhook/confirmação
-                        de pagamento, baixa definitiva do estoque e histórico do
-                        pedido em ambiente de testes.
-                      </p>
-                      <div class="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          disabled={actionBusy()}
-                          onClick={() => void simulateSandbox("approved")}
-                          class="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
-                        >
-                          Simular Pagamento Aprovado
-                        </button>
-                        <button
-                          type="button"
-                          disabled={actionBusy()}
-                          onClick={() => void simulateSandbox("rejected")}
-                          class="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800"
-                        >
-                          Simular Recusa
-                        </button>
-                      </div>
+                    <p
+                      role="status"
+                      class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+                    >
+                      Estamos confirmando o pagamento com o provedor. Atualize o
+                      status antes de tentar novamente.
+                    </p>
+                  </Show>
+                  <Show
+                    when={
+                      order().payment_provider === "mercadopago" &&
+                      payments()?.enabled &&
+                      payments()?.public_key &&
+                      (!payment() ||
+                        ["failed", "rejected"].includes(payment()!.status))
+                    }
+                  >
+                    <div class="mt-5 rounded-xl border border-zinc-200 p-4">
+                      <h2 class="mb-3 text-base font-bold">
+                        Concluir pagamento com segurança
+                      </h2>
+                      <Show when={payment()?.id ?? "initial"} keyed>
+                        {(_attempt) => (
+                          <PaymentBrick
+                            publicKey={payments()!.public_key!}
+                            order={order()}
+                            method={order().payment_method}
+                            onUpdated={reloadOrder}
+                          />
+                        )}
+                      </Show>
                     </div>
                   </Show>
-
+                  <Show
+                    when={
+                      !isApproved() ? invoiceUrl(payment()?.checkout_url) : null
+                    }
+                  >
+                    {(url) => (
+                      <a
+                        class="mt-5 inline-flex rounded-lg bg-[var(--mf-primary)] px-5 py-3 text-sm font-bold text-white"
+                        href={url()}
+                      >
+                        Continuar pagamento no Asaas
+                      </a>
+                    )}
+                  </Show>
+                  <Show when={payment()?.boleto_url && !isApproved()}>
+                    <div class="mt-5 rounded-xl border border-zinc-200 p-4">
+                      <p class="mb-3 text-sm">
+                        O boleto pode levar até três dias úteis para compensar.
+                      </p>
+                      <a
+                        href={payment()!.boleto_url!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="font-semibold text-[var(--mf-primary)] underline"
+                      >
+                        Abrir boleto bancário
+                      </a>
+                      <Show when={payment()?.barcode}>
+                        <p class="mt-3 break-all font-mono text-xs">
+                          {payment()!.barcode}
+                        </p>
+                      </Show>
+                    </div>
+                  </Show>
                   <Show when={actionMsg()}>
                     <p
                       role="status"

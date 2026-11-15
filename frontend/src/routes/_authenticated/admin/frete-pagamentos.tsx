@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { For, Show, createResource, createSignal } from "solid-js";
+import { CheckoutIntegrations } from "../../../features/admin/CheckoutIntegrations";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { ApiError, api } from "../../../lib/api";
 import { formatCents, paymentStatusLabel } from "../../../lib/format";
@@ -30,6 +31,7 @@ interface ShippingRuleRow {
 
 interface AdminPaymentRow {
   id: number;
+  provider: string;
   method: string;
   status: string;
   environment: string;
@@ -116,6 +118,7 @@ function AdminShippingPaymentsPage() {
         </p>
       </Show>
 
+      <CheckoutIntegrations />
       <div class="grid gap-6 lg:grid-cols-2">
         <section class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5">
           <h2 class="text-base font-bold text-zinc-900">
@@ -210,7 +213,7 @@ function AdminShippingPaymentsPage() {
                   <div>
                     <p class="font-bold text-zinc-900">
                       {pay.order?.order_number || `Pagamento #${pay.id}`} ·{" "}
-                      {pay.method.toUpperCase()}
+                      {pay.provider} · {pay.method.toUpperCase()}
                     </p>
                     <p class="text-xs text-zinc-500">
                       {paymentStatusLabel(pay.status)} ({pay.environment}) ·

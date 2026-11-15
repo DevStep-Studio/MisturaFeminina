@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Catalog\Services\InventoryService;
-use App\Domain\Payments\Services\MercadoPagoService;
+use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Domain\Shared\Enums\PaymentStatus;
@@ -26,7 +26,7 @@ class AdminOrderController extends Controller
 {
     public function __construct(
         private readonly InventoryService $inventory,
-        private readonly MercadoPagoService $mercadoPago,
+        private readonly PaymentService $payments,
         private readonly AuditLogger $audit,
     ) {}
 
@@ -223,7 +223,7 @@ class AdminOrderController extends Controller
             return response()->json(['message' => 'O valor do reembolso não pode ultrapassar o valor pago.'], 422);
         }
 
-        $externalRefundId = $this->mercadoPago->refundPayment($payment, $amountCents);
+        $externalRefundId = $this->payments->refundPayment($payment, $amountCents);
         $isFull = $amountCents >= $payment->gross_amount_cents;
 
         DB::transaction(function () use ($request, $order, $payment, $amountCents, $validated, $externalRefundId, $isFull): void {

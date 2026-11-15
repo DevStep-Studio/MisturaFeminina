@@ -222,6 +222,7 @@ if(tool==='php'&&args[0].includes('dev-backend.php')){
 if(tool==='php'&&args[1]==='key:generate'){fs.writeFileSync(dir+'/key-generated','yes');process.exit(0)}
 if(tool==='php'&&args[1]==='migrate'){fs.writeFileSync(dir+'/migrated','yes');process.exit(0)}
 if(tool==='npm'&&args[0]==='ci'){fs.mkdirSync(dir+'/frontend/node_modules');fs.writeFileSync(dir+'/frontend/node_modules/.package-lock.json','{}');process.exit(0)}
+if(tool==='php'&&['queue:work','schedule:work'].includes(args[1])){fs.writeFileSync(dir+'/'+args[1].split(':')[0]+'-pid',String(process.pid));setInterval(()=>{},1000);}
 if((tool==='php'&&args[1]==='serve')||(tool==='npm'&&args[0]==='run')){
  const port=tool==='php'?args.find(x=>x.startsWith('--port=')).split('=')[1]:process.env.DEVSTEP_WEB_PORT;
  const server=cp.spawn(process.execPath,[dir+'/server.mjs',port],{stdio:'inherit'});server.on('exit',()=>process.exit(0));
@@ -259,6 +260,8 @@ if((tool==='php'&&args[1]==='serve')||(tool==='npm'&&args[0]==='run')){
         "database-created",
         "key-generated",
         "migrated",
+        "queue-pid",
+        "schedule-pid",
       ])
         assert.ok(existsSync(`${fixture}/${marker}`));
       assert.match(
@@ -273,6 +276,10 @@ if((tool==='php'&&args[1]==='serve')||(tool==='npm'&&args[0]==='run')){
       child.kill("SIGINT");
       await closed;
       await new Promise((r) => setTimeout(r, 200));
+      for (const marker of ["queue-pid", "schedule-pid"]) {
+        const workerPid = Number(readFileSync(`${fixture}/${marker}`, "utf8"));
+        assert.throws(() => process.kill(workerPid, 0));
+      }
       await assert.rejects(
         fetch(`http://127.0.0.1:${apiPort}/up`, {
           signal: AbortSignal.timeout(1000),

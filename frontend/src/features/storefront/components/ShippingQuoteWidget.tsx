@@ -1,5 +1,5 @@
 import Truck from "lucide-solid/icons/truck";
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
 import { formatCep, formatCents } from "../../../lib/format";
 import { cartHeaders } from "../store";
@@ -21,6 +21,14 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
   const [quotes, setQuotes] = createSignal<ShippingOptionData[]>([]);
   const [queriedCep, setQueriedCep] = createSignal<string | null>(null);
   const [notice, setNotice] = createSignal<string | null>(null);
+
+  createEffect(() => {
+    const value = props.initialCep;
+    if (value !== undefined) {
+      setCep(formatCep(value ?? ""));
+      setQuotes([]);
+    }
+  });
 
   async function calculate(e: Event) {
     e.preventDefault();
@@ -48,6 +56,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
       }>(endpoint, {
         method: "POST",
         authenticated: false,
+        timeoutMs: 90000,
         headers: props.mode === "cart" ? cartHeaders() : {},
         body:
           props.mode === "product"
@@ -55,6 +64,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
             : { cep: digits },
       });
 
+      if (cep().replace(/\D/g, "") !== digits) return;
       setQuotes(res.data.options ?? []);
       setQueriedCep(res.data.cep ?? digits);
       setNotice(res.data.notice ?? null);
@@ -79,7 +89,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
             <span>Calcular frete e prazo</span>
           </div>
 
-          <form onSubmit={calculate} class="flex gap-2">
+          <div class="flex gap-2">
             <label for={`cep-${props.mode}`} class="sr-only">
               CEP de entrega
             </label>
@@ -89,18 +99,22 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
               inputMode="numeric"
               maxLength={9}
               value={cep()}
-              onInput={(e) => setCep(formatCep(e.currentTarget.value))}
+              onInput={(e) => {
+                setCep(formatCep(e.currentTarget.value));
+                setQuotes([]);
+              }}
               placeholder="00000-000"
               class="h-10 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[var(--mf-primary)] focus:outline-none"
             />
             <button
-              type="submit"
+              type="button"
+              onClick={(e) => void calculate(e)}
               disabled={loading()}
               class="h-10 shrink-0 rounded-lg bg-[#93509e] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
             >
               {loading() ? "Calculando..." : "Calcular"}
             </button>
-          </form>
+          </div>
 
           <div class="mt-1.5 flex items-center justify-between text-xs text-zinc-500">
             <a
@@ -196,10 +210,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
             <span>Frete e prazo de entrega</span>
           </div>
 
-          <form
-            onSubmit={calculate}
-            class="flex h-10 flex-1 items-center rounded-lg border border-zinc-200/70 bg-[#FAF7FB] pl-4 pr-1.5 sm:max-w-[300px]"
-          >
+          <div class="flex h-10 flex-1 items-center rounded-lg border border-zinc-200/70 bg-[#FAF7FB] pl-4 pr-1.5 sm:max-w-[300px]">
             <label for={`cep-${props.mode}`} class="sr-only">
               CEP de entrega
             </label>
@@ -209,18 +220,22 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
               inputMode="numeric"
               maxLength={9}
               value={cep()}
-              onInput={(e) => setCep(formatCep(e.currentTarget.value))}
+              onInput={(e) => {
+                setCep(formatCep(e.currentTarget.value));
+                setQuotes([]);
+              }}
               placeholder="Informe seu cep"
               class="min-w-0 flex-1 bg-transparent text-xs text-[#2E0C49] placeholder:text-zinc-500 focus:outline-none"
             />
             <button
-              type="submit"
+              type="button"
+              onClick={(e) => void calculate(e)}
               disabled={loading()}
               class="shrink-0 rounded-md bg-[#93509e] px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-white transition hover:bg-[#7c3f87] disabled:opacity-60"
             >
               {loading() ? "..." : "CALCULAR"}
             </button>
-          </form>
+          </div>
         </div>
 
         <Show when={error()}>

@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Cart\Services\CartService;
 use App\Domain\Checkout\Services\CheckoutService;
+use App\Domain\Payments\Services\PaymentService;
+use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Shared\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\AnalyticsEvent;
@@ -23,15 +25,35 @@ class CheckoutController extends Controller
         private readonly CheckoutService $checkout,
     ) {}
 
+    public function config(): JsonResponse
+    {
+        return response()->json(['data' => app(PaymentSettings::class)->publicConfig()]);
+    }
+
+    public function refreshPayment(string $publicToken): JsonResponse
+    {
+        $order = Order::where('public_token', $publicToken)->with('latestPayment')->firstOrFail();
+        if ($order->latestPayment) {
+            app(PaymentService::class)->refresh($order->latestPayment);
+        }
+
+        return $this->trackByToken($publicToken);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'customer_name' => ['required', 'string', 'min:3', 'max:150'],
             'customer_email' => ['required', 'email', 'max:190'],
             'customer_phone' => ['required', 'string', 'min:8', 'max:30'],
-            'customer_cpf_cnpj' => ['nullable', 'string', 'min:11', 'max:20'],
+            'customer_cpf_cnpj' => ['required', 'string', 'min:11', 'max:20', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! is_string($value) || ! PaymentSettings::document(preg_replace('/\D/', '', $value) ?? '')) {
+                    $fail('CPF ou CNPJ inválido.');
+                }
+            }],
+            'defer_payment' => ['sometimes', 'boolean'],
             'shipping_quote_id' => ['nullable', 'integer', 'exists:shipping_quotes,id'],
-            'shipping_address' => ['required', 'array'],
+            'shipping_address' => ['required', 'array:recipient_name,cep,street,number,complement,neighborhood,city,state'],
             'shipping_address.recipient_name' => ['nullable', 'string', 'max:150'],
             'shipping_address.cep' => ['required', 'string', 'min:8', 'max:9'],
             'shipping_address.street' => ['required', 'string', 'max:180'],
@@ -39,22 +61,19 @@ class CheckoutController extends Controller
             'shipping_address.complement' => ['nullable', 'string', 'max:120'],
             'shipping_address.neighborhood' => ['required', 'string', 'max:120'],
             'shipping_address.city' => ['required', 'string', 'max:120'],
-            'shipping_address.state' => ['required', 'string', 'size:2'],
+            'shipping_address.state' => ['required', Rule::in(explode(',', 'AC,AL,AP,AM,BA,CE,DF,ES,GO,MA,MT,MS,MG,PA,PB,PR,PE,PI,RJ,RN,RS,RO,RR,SC,SP,SE,TO'))],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
-            'payment_data' => ['nullable', 'array'],
-            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'payment_data' => ['nullable', 'array:installments,payment_method_id,card_token,card_last_four,issuer_id'],
+            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:1'],
             'payment_data.payment_method_id' => ['nullable', 'string', 'max:40'],
             'payment_data.card_token' => ['nullable', 'string', 'max:255'],
             'payment_data.card_last_four' => ['nullable', 'string', 'max:4'],
             'payment_data.issuer_id' => ['nullable', 'string', 'max:40'],
-            'payment_data.sandbox_outcome' => ['nullable', 'string', Rule::in(['approved', 'pending', 'rejected'])],
             'notes_customer' => ['nullable', 'string', 'max:500'],
         ]);
 
         $idempotencyKey = trim((string) ($request->header('X-Idempotency-Key') ?: $request->input('idempotency_key') ?: Str::uuid()->toString()));
-        if ($idempotencyKey === '') {
-            $idempotencyKey = Str::uuid()->toString();
-        }
+        abort_unless(strlen($idempotencyKey) <= 100 && preg_match('/^[a-zA-Z0-9:_-]+$/D', $idempotencyKey), 422, 'Chave de pedido inválida.');
 
         $cart = $this->carts->resolveCart($request, false);
         if (! $cart) {
@@ -77,15 +96,15 @@ class CheckoutController extends Controller
             'payload' => [
                 'order_number' => $order->order_number,
                 'total_cents' => $order->total_cents,
-                'payment_method' => $payment->method->value,
-                'payment_status' => $payment->status->value,
+                'payment_method' => $payment?->method->value ?? $validated['payment_method'],
+                'payment_status' => $payment?->status->value,
             ],
         ]);
 
         return response()->json([
             'data' => [
                 'order' => $this->serializePublicOrder($order),
-                'payment' => $this->serializePayment($payment),
+                'payment' => $payment ? $this->serializePayment($payment) : null,
             ],
         ], 201);
     }
@@ -145,16 +164,16 @@ class CheckoutController extends Controller
     {
         $validated = $request->validate([
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
-            'payment_data' => ['nullable', 'array'],
-            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'payment_data' => ['nullable', 'array:installments,payment_method_id,card_token,card_last_four,issuer_id'],
+            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:1'],
             'payment_data.payment_method_id' => ['nullable', 'string', 'max:40'],
             'payment_data.card_token' => ['nullable', 'string', 'max:255'],
             'payment_data.card_last_four' => ['nullable', 'string', 'max:4'],
-            'payment_data.sandbox_outcome' => ['nullable', 'string', Rule::in(['approved', 'pending', 'rejected'])],
         ]);
 
         $order = Order::query()->where('public_token', $publicToken)->with('items')->firstOrFail();
         $idempotencyKey = trim((string) ($request->header('X-Idempotency-Key') ?: Str::uuid()->toString()));
+        abort_unless(strlen($idempotencyKey) <= 100 && preg_match('/^[a-zA-Z0-9:_-]+$/D', $idempotencyKey), 422, 'Chave de pagamento inválida.');
         $payment = $this->checkout->retryPayment(
             $order,
             PaymentMethod::from((string) $validated['payment_method']),
@@ -177,7 +196,7 @@ class CheckoutController extends Controller
             'id' => $order->id,
             'order_number' => $order->order_number,
             'public_token' => $order->public_token,
-            'status' => $order->status->value,
+            'status' => $order->status->value, 'payment_provider' => $order->payment_provider, 'payment_environment' => $order->payment_environment, 'payment_method' => $order->payment_method,
             'customer_first_name' => Str::before(trim($order->customer_name), ' ') ?: 'Cliente',
             'subtotal_cents' => $order->subtotal_cents,
             'discount_cents' => $order->discount_cents,
@@ -240,7 +259,7 @@ class CheckoutController extends Controller
             'pix_expires_at' => $payment->pix_expires_at?->toIso8601String(),
             'card_last_four' => $payment->card_last_four,
             'card_brand' => $payment->card_brand,
-            'failure_reason' => $payment->failure_reason,
+            'failure_reason' => $payment->failure_reason, 'checkout_url' => $payment->checkout_url, 'boleto_url' => $payment->boleto_url, 'barcode' => $payment->barcode,
             'paid_at' => $payment->paid_at?->toIso8601String(),
         ];
     }

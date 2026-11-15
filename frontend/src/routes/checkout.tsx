@@ -1,8 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/solid-router";
+import Barcode from "lucide-solid/icons/barcode";
+import {
+  invoiceUrl,
+  paymentConfig,
+} from "../features/storefront/payment-config";
 import CreditCard from "lucide-solid/icons/credit-card";
 import Lock from "lucide-solid/icons/lock";
 import QrCode from "lucide-solid/icons/qr-code";
-import { For, Show, createSignal, onMount } from "solid-js";
+import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { ShippingQuoteWidget } from "../features/storefront/components/ShippingQuoteWidget";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import {
@@ -47,7 +52,7 @@ interface SavedAddress {
 
 function CheckoutPage() {
   const navigate = useNavigate();
-  const settings = () => storefrontStore.settings();
+  const [payments] = createResource(paymentConfig);
   const cart = () => storefrontStore.cart();
 
   const [name, setName] = createSignal("");
@@ -64,18 +69,9 @@ function CheckoutPage() {
   const [notes, setNotes] = createSignal("");
   const [savedAddresses, setSavedAddresses] = createSignal<SavedAddress[]>([]);
 
-  const [method, setMethod] = createSignal<"pix" | "credit_card">("pix");
-  const [installments, setInstallments] = createSignal(1);
-  const [cardLastFour, setCardLastFour] = createSignal("");
-  const [cardBrand, setCardBrand] = createSignal("visa");
-  const [cardNumberInput, setCardNumberInput] = createSignal("");
-  const [cardHolder, setCardHolder] = createSignal("");
-  const [cardExpiry, setCardExpiry] = createSignal("");
-  const [cardCvv, setCardCvv] = createSignal("");
-  const [sandboxOutcome, setSandboxOutcome] = createSignal<
-    "approved" | "pending" | "rejected"
-  >("approved");
-
+  const [method, setMethod] = createSignal<"pix" | "credit_card" | "boleto">(
+    "pix",
+  );
   const [cepLoading, setCepLoading] = createSignal(false);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -113,29 +109,6 @@ function CheckoutPage() {
     setStateUf(addr.state);
   }
 
-  async function ensureShippingQuoteForCep(
-    digits: string,
-  ): Promise<number | undefined> {
-    const current = cart();
-    if (current?.shipping_quote?.quote_id && current.shipping_cep === digits) {
-      return current.shipping_quote.quote_id;
-    }
-    try {
-      const quoted = await api<{
-        data: { options?: { quote_id?: number }[] };
-      }>("/cart/shipping/quote", {
-        method: "POST",
-        authenticated: false,
-        headers: cartHeaders(),
-        body: { cep: digits },
-      });
-      await refreshCart();
-      return quoted.data.options?.[0]?.quote_id;
-    } catch {
-      return undefined;
-    }
-  }
-
   async function lookupCep(raw: string) {
     const digits = raw.replace(/\D/g, "");
     setCep(formatCep(digits));
@@ -144,7 +117,6 @@ function CheckoutPage() {
     try {
       const [resp] = await Promise.all([
         fetch(`https://viacep.com.br/ws/${digits}/json/`).catch(() => null),
-        ensureShippingQuoteForCep(digits),
       ]);
       if (resp && resp.ok) {
         const data = (await resp.json()) as {
@@ -185,58 +157,34 @@ function CheckoutPage() {
 
     setSubmitting(true);
     try {
-      const cardDigits = cardNumberInput().replace(/\D/g, "");
-      const derivedLastFour =
-        cardLastFour().trim() ||
-        (cardDigits.length >= 4 ? cardDigits.slice(-4) : "4242");
-
-      if (method() === "credit_card") {
-        if (
-          !settings().payment_sandbox_mode &&
-          (cardDigits.length < 13 ||
-            cardCvv().length < 3 ||
-            !cardHolder().trim() ||
-            !cardExpiry().trim())
-        ) {
-          setError("Preencha os dados completos do cartão para prosseguir.");
-          setSubmitting(false);
-          return;
-        }
+      if (!payments()?.enabled) throw new Error("Pagamentos indisponíveis.");
+      if (
+        !c.shipping_quote?.quote_id ||
+        c.shipping_cep !== cleanCep ||
+        (c.shipping_quote.expires_at &&
+          Date.parse(c.shipping_quote.expires_at) <= Date.now())
+      ) {
+        setError(
+          "Calcule e selecione uma entrega válida para o CEP informado.",
+        );
+        return;
       }
-
-      const paymentData =
-        method() === "credit_card"
-          ? {
-              installments: installments(),
-              payment_method_id: cardBrand(),
-              card_last_four: derivedLastFour,
-              // Never log/persist PAN/CVV; pass tokenized sandbox token when testing
-              card_token: settings().payment_sandbox_mode
-                ? `tok_sandbox_${derivedLastFour}`
-                : undefined,
-              sandbox_outcome: settings().payment_sandbox_mode
-                ? sandboxOutcome()
-                : undefined,
-            }
-          : undefined;
-
-      const ensuredQuoteId = await ensureShippingQuoteForCep(cleanCep);
-
       const res = await api<{
         data: {
           order: { public_token: string };
+          payment: { checkout_url?: string | null } | null;
         };
       }>("/checkout", {
         method: "POST",
         authenticated: false,
+        timeoutMs: 90000,
         headers: cartHeaders({ "X-Idempotency-Key": idempotencyKey() }),
         body: {
           customer_name: name().trim(),
           customer_email: email().trim(),
           customer_phone: phone().trim(),
           customer_cpf_cnpj: cpf().trim() || undefined,
-          shipping_quote_id:
-            ensuredQuoteId ?? c.shipping_quote?.quote_id ?? undefined,
+          shipping_quote_id: c.shipping_quote.quote_id,
           shipping_address: {
             recipient_name: name().trim(),
             cep: cleanCep,
@@ -248,15 +196,17 @@ function CheckoutPage() {
             state: stateUf().trim().toUpperCase(),
           },
           payment_method: method(),
-          payment_data: paymentData,
+          defer_payment: payments()?.provider === "mercadopago",
           notes_customer: notes().trim() || undefined,
         },
       });
 
-      // Clear sensitive ephemeral fields immediately from component state
-      setCardNumberInput("");
-      setCardCvv("");
-      await refreshCart();
+      await refreshCart().catch(() => null);
+      const handoff = invoiceUrl(res.data.payment?.checkout_url);
+      if (payments()?.provider === "asaas" && handoff) {
+        window.location.assign(handoff);
+        return;
+      }
       await navigate({
         to: "/pedido/$token/confirmacao",
         params: { token: res.data.order.public_token },
@@ -290,7 +240,9 @@ function CheckoutPage() {
           <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
             <Lock class="h-3.5 w-3.5" />
             Ambiente protegido ·{" "}
-            {settings().payment_sandbox_mode ? "Modo Sandbox" : "Produção"}
+            {payments()?.environment === "sandbox"
+              ? "Ambiente de teste"
+              : "Pagamento seguro"}
           </span>
         </div>
 
@@ -392,6 +344,7 @@ function CheckoutPage() {
                       <input
                         id="co-cpf"
                         type="text"
+                        required
                         value={cpf()}
                         onInput={(e) =>
                           setCpf(formatCpfCnpj(e.currentTarget.value))
@@ -572,7 +525,10 @@ function CheckoutPage() {
                 {/* 3. Payment method */}
                 <section class="rounded-xl border border-zinc-200 bg-white p-5">
                   <h2 class="mb-4 text-base font-bold text-zinc-900">
-                    3. Pagamento (Mercado Pago)
+                    3. Pagamento ·{" "}
+                    {payments()?.provider === "asaas"
+                      ? "Asaas"
+                      : "Mercado Pago"}
                   </h2>
 
                   <div class="grid gap-3 sm:grid-cols-2">
@@ -611,208 +567,31 @@ function CheckoutPage() {
                           Cartão de Crédito
                         </p>
                         <p class="text-xs text-zinc-600">
-                          Em até {settings().max_installments}x sem juros
+                          Pagamento à vista no ambiente seguro
                         </p>
                       </div>
                     </button>
                   </div>
 
-                  <Show when={method() === "credit_card"}>
-                    <div class="mt-4 space-y-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                      <Show when={settings().payment_sandbox_mode}>
-                        <div class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                          <strong>Modo Sandbox ativo:</strong> nenhuma cobrança
-                          real será feita. Você pode informar dados fictícios e
-                          escolher o desfecho de teste abaixo.
-                          <div class="mt-2 flex flex-wrap gap-3">
-                            <label class="inline-flex items-center gap-1.5 font-semibold">
-                              <input
-                                type="radio"
-                                name="sb-outcome"
-                                checked={sandboxOutcome() === "approved"}
-                                onChange={() => setSandboxOutcome("approved")}
-                              />
-                              Aprovar teste
-                            </label>
-                            <label class="inline-flex items-center gap-1.5 font-semibold">
-                              <input
-                                type="radio"
-                                name="sb-outcome"
-                                checked={sandboxOutcome() === "pending"}
-                                onChange={() => setSandboxOutcome("pending")}
-                              />
-                              Em análise (pendente)
-                            </label>
-                            <label class="inline-flex items-center gap-1.5 font-semibold">
-                              <input
-                                type="radio"
-                                name="sb-outcome"
-                                checked={sandboxOutcome() === "rejected"}
-                                onChange={() => setSandboxOutcome("rejected")}
-                              />
-                              Recusar teste
-                            </label>
-                          </div>
-                        </div>
-                      </Show>
-
-                      <div class="grid gap-3 sm:grid-cols-2">
-                        <div class="sm:col-span-2">
-                          <label
-                            for="cc-num"
-                            class="block text-xs font-semibold text-zinc-700"
-                          >
-                            Número do cartão
-                          </label>
-                          <input
-                            id="cc-num"
-                            type="text"
-                            inputMode="numeric"
-                            autocomplete="cc-number"
-                            placeholder="0000 0000 0000 4242"
-                            value={cardNumberInput()}
-                            onInput={(e) =>
-                              setCardNumberInput(e.currentTarget.value)
-                            }
-                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label
-                            for="cc-holder"
-                            class="block text-xs font-semibold text-zinc-700"
-                          >
-                            Nome impresso no cartão
-                          </label>
-                          <input
-                            id="cc-holder"
-                            type="text"
-                            autocomplete="cc-name"
-                            value={cardHolder()}
-                            onInput={(e) =>
-                              setCardHolder(e.currentTarget.value)
-                            }
-                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
-                          />
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                          <div>
-                            <label
-                              for="cc-exp"
-                              class="block text-xs font-semibold text-zinc-700"
-                            >
-                              Validade
-                            </label>
-                            <input
-                              id="cc-exp"
-                              type="text"
-                              autocomplete="cc-exp"
-                              placeholder="MM/AA"
-                              value={cardExpiry()}
-                              onInput={(e) =>
-                                setCardExpiry(e.currentTarget.value)
-                              }
-                              class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label
-                              for="cc-cvv"
-                              class="block text-xs font-semibold text-zinc-700"
-                            >
-                              CVV
-                            </label>
-                            <input
-                              id="cc-cvv"
-                              type="password"
-                              autocomplete="cc-csc"
-                              maxLength={4}
-                              value={cardCvv()}
-                              onInput={(e) => setCardCvv(e.currentTarget.value)}
-                              class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label
-                            for="cc-brand"
-                            class="block text-xs font-semibold text-zinc-700"
-                          >
-                            Bandeira
-                          </label>
-                          <select
-                            id="cc-brand"
-                            value={cardBrand()}
-                            onChange={(e) =>
-                              setCardBrand(e.currentTarget.value)
-                            }
-                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
-                          >
-                            <option value="visa">Visa</option>
-                            <option value="master">Mastercard</option>
-                            <option value="elo">Elo</option>
-                            <option value="amex">American Express</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label
-                            for="cc-inst"
-                            class="block text-xs font-semibold text-zinc-700"
-                          >
-                            Parcelamento
-                          </label>
-                          <select
-                            id="cc-inst"
-                            value={installments()}
-                            onChange={(e) =>
-                              setInstallments(Number(e.currentTarget.value))
-                            }
-                            class="mt-1 h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm"
-                          >
-                            <For
-                              each={Array.from(
-                                {
-                                  length: Math.max(
-                                    1,
-                                    settings().max_installments || 6,
-                                  ),
-                                },
-                                (_, i) => i + 1,
-                              )}
-                            >
-                              {(n) => (
-                                <option value={n}>
-                                  {n}x de{" "}
-                                  {formatCents(Math.ceil(c().total_cents / n))}{" "}
-                                  sem juros
-                                </option>
-                              )}
-                            </For>
-                          </select>
-                        </div>
-                        <Show when={settings().payment_sandbox_mode}>
-                          <div class="sm:col-span-2">
-                            <label
-                              for="cc-l4"
-                              class="block text-xs font-semibold text-zinc-700"
-                            >
-                              Últimos 4 dígitos (opcional em sandbox)
-                            </label>
-                            <input
-                              id="cc-l4"
-                              type="text"
-                              maxLength={4}
-                              placeholder="4242"
-                              value={cardLastFour()}
-                              onInput={(e) =>
-                                setCardLastFour(e.currentTarget.value)
-                              }
-                              class="mt-1 h-9 w-32 rounded-md border border-zinc-300 bg-white px-3 text-sm"
-                            />
-                          </div>
-                        </Show>
-                      </div>
-                    </div>
+                  <button
+                    type="button"
+                    aria-pressed={method() === "boleto"}
+                    onClick={() => setMethod("boleto")}
+                    class={`mt-3 flex w-full items-center gap-3 rounded-xl border p-4 text-left ${method() === "boleto" ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]" : "border-zinc-200"}`}
+                  >
+                    <Barcode class="h-6 w-6 text-[var(--mf-primary)]" />
+                    <span class="text-sm font-bold">Boleto bancário</span>
+                  </button>
+                  <p class="mt-4 text-xs text-zinc-600">
+                    {payments()?.provider === "asaas"
+                      ? "Após confirmar o pedido, você será direcionada à fatura oficial do Asaas."
+                      : "Após confirmar o pedido, conclua no formulário seguro do Mercado Pago."}
+                  </p>
+                  <Show when={!payments.loading && !payments()?.enabled}>
+                    <p role="alert" class="mt-3 text-sm text-red-700">
+                      Pagamentos indisponíveis no momento. Tente novamente mais
+                      tarde.
+                    </p>
                   </Show>
                 </section>
 
@@ -894,14 +673,12 @@ function CheckoutPage() {
 
                   <button
                     type="submit"
-                    disabled={submitting()}
+                    disabled={submitting() || !payments()?.enabled}
                     class="mt-5 flex h-12 w-full items-center justify-center rounded-lg bg-[var(--mf-primary)] px-5 text-sm font-bold text-white transition hover:bg-[var(--mf-primary-hover)] disabled:opacity-60"
                   >
                     {submitting()
                       ? "Processando pedido..."
-                      : method() === "pix"
-                        ? "Gerar Pix e Finalizar Pedido"
-                        : "Confirmar Pagamento com Cartão"}
+                      : "Confirmar pedido"}
                   </button>
                 </div>
               </aside>

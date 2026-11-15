@@ -95,6 +95,9 @@ export function orderStatusLabel(status: string): string {
 export function paymentStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     pending: "Pendente",
+    processing: "Em processamento",
+    unknown: "Aguardando confirmação",
+    failed: "Operação não concluída",
     approved: "Aprovado",
     rejected: "Recusado",
     cancelled: "Cancelado",

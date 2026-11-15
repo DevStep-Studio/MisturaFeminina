@@ -74,6 +74,10 @@ cd frontend && npx playwright test --config=playwright.real.config.ts
 
 - `php artisan mistura:admin {email} --role=superadmin`: Cria/atualiza administrador com papel RBAC.
 - `php artisan mistura:release-expired-reservations`: Libera reservas de estoque de pedidos pendentes expirados.
-- `php artisan mistura:reconcile-payments`: Reconcilia pedidos pendentes na API do Mercado Pago.
+- `php artisan mistura:reconcile-payments`: Reconcilia pedidos pendentes nas APIs Mercado Pago/Asaas.
 - `php artisan mistura:backup`: Cria snapshot consistente do banco em `storage/app/backups/`.
 - `php artisan devstep:health`: Verifica conexão com banco de dados e Redis/fila.
+
+## Checkout real e Correios
+
+Configure as integrações opcionais em **Admin → Frete e Pagamentos** ou no `backend/.env`, execute `php artisan migrate` e siga [o guia de integrações](docs/INTEGRACOES.md). O checkout usa o catálogo e o layout existentes, Payment Brick do Mercado Pago ou fatura Asaas, com Pix, crédito à vista e boleto. Os inicializadores também executam fila e agendador. Não há pagamentos fictícios quando faltam credenciais; a homologação externa depende das contas de teste da lojista.

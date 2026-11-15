@@ -159,12 +159,10 @@ class CartController extends Controller
         $cart = $this->carts->resolveCart($request, true);
         $quote = ShippingQuote::query()
             ->where('id', (int) $validated['quote_id'])
-            ->where(function ($q) use ($cart): void {
-                $q->where('cart_id', $cart->id)->orWhereNull('cart_id');
-            })
+            ->where('cart_id', $cart->id)
             ->firstOrFail();
 
-        if ($quote->expires_at->isPast()) {
+        if ($quote->expires_at->isPast() || $quote->items_fingerprint !== $this->shipping->cartFingerprint($cart)) {
             return response()->json(['message' => 'Cotação expirada. Calcule o frete novamente.'], 422);
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Shipping\Services;
 
+use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Settings\Services\StoreSettingsService;
 use App\Domain\Shipping\Contracts\ShippingProvider;
 use App\Domain\Shipping\Providers\CorreiosProvider;
@@ -22,6 +23,19 @@ class ShippingQuoteService
         private readonly MelhorEnvioProvider $melhorEnvio,
         private readonly CorreiosProvider $correios,
     ) {}
+
+    private function itemsFingerprint(array $items): string
+    {
+        $normalized = array_map(fn (array $item): array => ['id' => (string) $item['id'], 'quantity' => (int) $item['quantity'], 'price' => (int) $item['insurance_cents'], 'weight' => (int) $item['weight_grams'], 'width' => (int) $item['width'], 'height' => (int) $item['height'], 'length' => (int) $item['length']], $items);
+        usort($normalized, fn (array $a, array $b): int => strcmp($a['id'], $b['id']));
+
+        return PaymentSettings::digest($normalized);
+    }
+
+    public function cartFingerprint(Cart $cart): string
+    {
+        return $this->itemsFingerprint($cart->items()->with(['product', 'variant'])->get()->map(fn ($item): array => ['id' => $item->variant->sku, 'quantity' => $item->quantity, 'insurance_cents' => $item->variant->effectivePriceCents(), 'weight_grams' => $item->variant->weight_grams ?? $item->product->weight_grams, 'width' => $item->variant->width_cm ?? $item->product->width_cm, 'height' => $item->variant->height_cm ?? $item->product->height_cm, 'length' => $item->variant->length_cm ?? $item->product->length_cm])->all());
+    }
 
     public function normalizeCep(string $cep): string
     {
@@ -71,13 +85,13 @@ class ShippingQuoteService
     public function quoteForItems(string $rawCep, array $items, int $subtotalCents, ?Cart $cart = null): array
     {
         $cep = $this->normalizeCep($rawCep);
+        $fingerprint = $this->itemsFingerprint($items);
         $uf = $this->inferUfFromCep($cep);
         $config = $this->settings->getPublicConfig();
         $originCep = preg_replace('/\D/', '', (string) ($config['origin_cep'] ?? '01001000')) ?: '01001000';
 
         $externalOptions = [];
         $externalAttempted = false;
-        $externalFailed = false;
 
         /** @var list<ShippingProvider> $providers */
         $providers = [$this->melhorEnvio, $this->correios];
@@ -91,11 +105,14 @@ class ShippingQuoteService
                 foreach ($quotes as $q) {
                     $externalOptions[] = $q;
                 }
+            } catch (ValidationException $e) {
+                throw $e;
             } catch (\Throwable $e) {
-                $externalFailed = true;
-                Log::warning('Shipping provider error', ['provider' => $provider->code(), 'message' => $e->getMessage()]);
+                Log::warning('Shipping provider error', ['provider' => $provider->code()]);
             }
         }
+
+        abort_if($externalAttempted && $externalOptions === [], 503, 'Nenhuma tarifa em tempo real disponível. Tente calcular o frete novamente.');
 
         $totalWeightGrams = max(100, array_sum(array_map(fn (array $i): int => $i['weight_grams'] * $i['quantity'], $items)));
         $now = now();
@@ -171,6 +188,9 @@ class ShippingQuoteService
             $freeShippingActive = true;
         }
 
+        if ($cart && $fingerprint !== $this->cartFingerprint($cart)) {
+            throw ValidationException::withMessages(['cart' => 'Seu carrinho mudou durante a cotação. Calcule o frete novamente.']);
+        }
         $persisted = [];
         foreach ($combined as $opt) {
             $finalPrice = $opt['price_cents'];
@@ -189,11 +209,11 @@ class ShippingQuoteService
                 'estimated_days' => $opt['estimated_days'],
                 'is_fallback' => $opt['is_fallback'],
                 'raw_response' => $opt['raw'],
-                'expires_at' => now()->addMinutes(30),
+                'expires_at' => now()->addMinutes(15), 'items_fingerprint' => $cart ? $fingerprint : null,
             ]);
 
             $persisted[] = [
-                'quote_id' => $quote->id,
+                'quote_id' => $quote->id, 'expires_at' => $quote->expires_at->toIso8601String(),
                 'cep' => $quote->cep,
                 'provider' => $quote->provider,
                 'service_code' => $quote->service_code,
@@ -205,14 +225,9 @@ class ShippingQuoteService
             ];
         }
 
-        $notice = null;
-        if ($fallbackUsed) {
-            $notice = $externalFailed
-                ? 'Cotação em tempo real temporariamente indisponível; exibindo tabela configurada pela loja.'
-                : ($externalAttempted
-                    ? 'Nenhuma transportadora online retornou tarifa para este CEP; exibindo modalidades configuradas.'
-                    : 'Tarifa calculada pela tabela logística configurada pela loja (aguardando credenciais de transportadora para cotação ao vivo).');
-        }
+        $notice = $fallbackUsed
+            ? 'Tarifa calculada pelas modalidades cadastradas pela loja. Nenhuma transportadora online está configurada.'
+            : null;
 
         return [
             'cep' => $cep,

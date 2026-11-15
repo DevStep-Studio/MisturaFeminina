@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Settings\Services\StoreSettingsService;
+use App\Domain\Shipping\Providers\CorreiosProvider;
 use App\Http\Controllers\Controller;
 use App\Models\IntegrationSetting;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +30,7 @@ class AdminSettingsController extends Controller
     public function updateStore(Request $request): JsonResponse
     {
         $allowedKeys = array_keys(StoreSettingsService::defaults());
+        $request->validate(['payment_provider' => ['sometimes', Rule::in(['mercadopago', 'asaas'])]]);
         $payload = $request->only($allowedKeys);
 
         if ($payload === []) {
@@ -42,18 +45,19 @@ class AdminSettingsController extends Controller
 
     public function listIntegrations(): JsonResponse
     {
-        $providers = ['mercadopago', 'melhorenvio', 'correios', 'smtp', 'analytics'];
+        $providers = ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics'];
         $existing = IntegrationSetting::query()->get()->keyBy('provider');
 
-        $list = array_map(function (string $provider) use ($existing): array {
+        $settings = app(PaymentSettings::class);
+        $list = array_map(function (string $provider) use ($existing, $settings): array {
             /** @var IntegrationSetting|null $row */
             $row = $existing->get($provider);
 
             return [
                 'provider' => $provider,
-                'environment' => $row ? $row->environment : 'sandbox',
+                'environment' => $settings->get($provider, 'environment', 'sandbox'),
                 'public_config' => $row ? $row->public_config : [],
-                'is_active' => $row ? $row->is_active : false,
+                'is_active' => (bool) $settings->get($provider, 'enabled', false),
                 'has_credentials' => is_array($row?->encrypted_credentials) && count(array_filter($row->encrypted_credentials)) > 0,
                 'credential_keys' => is_array($row?->encrypted_credentials) ? array_keys(array_filter($row->encrypted_credentials)) : [],
                 'last_healthcheck_at' => $row?->last_healthcheck_at?->toIso8601String(),
@@ -66,7 +70,7 @@ class AdminSettingsController extends Controller
 
     public function updateIntegration(Request $request, string $provider): JsonResponse
     {
-        if (! in_array($provider, ['mercadopago', 'melhorenvio', 'correios', 'smtp', 'analytics'], true)) {
+        if (! in_array($provider, ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics'], true)) {
             return response()->json(['message' => 'Provedor inválido.'], 404);
         }
 
@@ -77,6 +81,11 @@ class AdminSettingsController extends Controller
             'is_active' => ['boolean'],
         ]);
 
+        $publicKeys = $provider === 'correios' ? ['origin_zip', 'services'] : ($provider === 'mercadopago' ? ['public_key'] : []);
+        $secretKeys = match ($provider) {
+            'mercadopago' => ['access_token', 'webhook_secret'], 'asaas' => ['api_key', 'webhook_token'], 'correios' => ['username', 'password', 'card', 'contract', 'regional'], default => ['token', 'access_token']
+        };
+        abort_if(array_diff(array_keys($validated['public_config'] ?? []), $publicKeys) !== [] || array_diff(array_keys($validated['credentials'] ?? []), $secretKeys) !== [], 422, 'Campos de integração inválidos.');
         $setting = IntegrationSetting::query()->firstOrNew(['provider' => $provider]);
         $currentCreds = is_array($setting->encrypted_credentials) ? $setting->encrypted_credentials : [];
 
@@ -118,9 +127,19 @@ class AdminSettingsController extends Controller
     public function healthcheckIntegration(string $provider): JsonResponse
     {
         $setting = IntegrationSetting::query()->where('provider', $provider)->first();
-        $status = 'sandbox_simulated';
+        $status = 'not_configured';
 
-        if ($provider === 'mercadopago') {
+        if ($provider === 'asaas') {
+            $settings = app(PaymentSettings::class);
+            $key = $settings->get('asaas', 'api_key');
+            if ($key) {
+                $base = $settings->get('asaas', 'environment') === 'production' ? 'https://api.asaas.com/v3' : 'https://api-sandbox.asaas.com/v3';
+                $resp = Http::timeout(6)->withHeaders(['access_token' => $key, 'User-Agent' => 'MisturaFeminina/1.0'])->get($base.'/customers', ['limit' => 1]);
+                $status = $resp->successful() ? 'connected' : 'error_http_'.$resp->status();
+            }
+        } elseif ($provider === 'correios') {
+            $status = app(CorreiosProvider::class)->isConfigured() ? 'configured' : 'not_configured';
+        } elseif ($provider === 'mercadopago') {
             $token = $setting?->encrypted_credentials['access_token'] ?? config('services.mercadopago.access_token');
             if (is_string($token) && $token !== '') {
                 $resp = Http::timeout(6)->withToken($token)->get('https://api.mercadopago.com/users/me');
