@@ -17,6 +17,8 @@ export interface SeoProductOptions {
   promoPriceCents?: number | null;
   inStock: boolean;
   slug: string;
+  ratingValue?: number;
+  reviewCount?: number;
 }
 
 export interface SeoOptions {
@@ -24,6 +26,9 @@ export interface SeoOptions {
   description: string;
   path: string;
   image?: string;
+  type?: "website" | "product" | "article";
+  price?: string;
+  currency?: string;
   noindex?: boolean;
   googleSiteVerification?: string;
   jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
@@ -38,10 +43,16 @@ export function buildOrganizationSchema(overrides?: {
 }) {
   return {
     "@context": "https://schema.org",
-    "@type": "Organization",
+    "@type": ["Organization", "OnlineStore"],
     name: overrides?.name || site.name,
     url: overrides?.url || site.url,
     logo: new URL(overrides?.logo || "/logo-mf.png", site.url).href,
+    description:
+      "Loja online oficial da Mistura Feminina Cosméticos. Beleza, maquiagem, esmaltes em gel, skincare e produtos profissionais.",
+    address: {
+      "@type": "PostalAddress",
+      addressCountry: "BR",
+    },
     contactPoint: overrides?.phone
       ? [
           {
@@ -98,6 +109,12 @@ export function buildProductSchema(product: SeoProductOptions) {
     ? new URL(product.image, site.url).href
     : new URL("/placeholder-product.svg", site.url).href;
 
+  const validUntil = new Date(
+    new Date().getFullYear() + 1,
+    11,
+    31,
+  ).toISOString().split("T")[0];
+
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -118,6 +135,7 @@ export function buildProductSchema(product: SeoProductOptions) {
       url: productUrl,
       priceCurrency: "BRL",
       price: effectivePrice,
+      priceValidUntil: validUntil,
       availability: product.inStock
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
@@ -126,13 +144,64 @@ export function buildProductSchema(product: SeoProductOptions) {
         "@type": "Organization",
         name: site.name,
       },
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "BR",
+        returnPolicyCategory:
+          "https://schema.org/MerchantReturnFiniteReturnWindow",
+        merchantReturnDays: 7,
+        returnMethod: "https://schema.org/ReturnByMail",
+        returnFees: "https://schema.org/FreeReturn",
+        url: new URL("/trocas-e-devolucoes", site.url).href,
+      },
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          value: "0.00",
+          currency: "BRL",
+        },
+        shippingDestination: {
+          "@type": "DefinedRegion",
+          addressCountry: "BR",
+        },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: {
+            "@type": "QuantitativeValue",
+            minValue: 1,
+            maxValue: 2,
+            unitCode: "d",
+          },
+          transitTime: {
+            "@type": "QuantitativeValue",
+            minValue: 2,
+            maxValue: 7,
+            unitCode: "d",
+          },
+        },
+      },
     },
+    ...(product.ratingValue && product.reviewCount && product.reviewCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: product.ratingValue.toFixed(1),
+            reviewCount: product.reviewCount,
+            bestRating: "5",
+            worstRating: "1",
+          },
+        }
+      : {}),
   };
 }
 
 export function seoHead(options: SeoOptions) {
-  const title = `${options.title} | ${site.name}`;
-  const canonical = new URL(options.path, site.url).href;
+  const brandName = "Mistura Feminina";
+  const title = options.title.toLowerCase().includes("mistura feminina")
+    ? options.title
+    : `${options.title} | ${brandName}`;
+  const canonical = new URL(options.path.split("?")[0], site.url).href;
   const image = new URL(options.image || "/og-cover.png", site.url).href;
   const verification =
     options.googleSiteVerification ||
@@ -159,7 +228,7 @@ export function seoHead(options: SeoOptions) {
       ...(verification
         ? [{ name: "google-site-verification", content: verification }]
         : []),
-      { property: "og:type", content: "website" },
+      { property: "og:type", content: options.type || "website" },
       { property: "og:locale", content: "pt_BR" },
       { property: "og:site_name", content: site.name },
       { property: "og:title", content: title },
@@ -167,6 +236,15 @@ export function seoHead(options: SeoOptions) {
       { property: "og:url", content: canonical },
       { property: "og:image", content: image },
       { property: "og:image:alt", content: site.name },
+      ...(options.price
+        ? [
+            { property: "product:price:amount", content: options.price },
+            {
+              property: "product:price:currency",
+              content: options.currency || "BRL",
+            },
+          ]
+        : []),
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: options.description },

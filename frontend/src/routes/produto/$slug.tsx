@@ -100,18 +100,27 @@ export const Route = createFileRoute("/produto/$slug")({
       effectivePriceCents < priceCents ? effectivePriceCents : undefined;
     const inStock = p ? p.variants.some((v) => v.in_stock) : false;
 
+    const reviews = p?.reviews ?? [];
+    const reviewCount = reviews.length;
+    const ratingValue =
+      reviewCount > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+        : undefined;
+    const effectivePriceStr = (effectivePriceCents / 100).toFixed(2);
+
     return seoHead({
       title:
         p?.seo_title ||
-        (p
-          ? `${p.name} — Mistura Feminina Cosméticos`
-          : `${params.slug} — Mistura Feminina Cosméticos`),
+        (p ? `${p.name} | Mistura Feminina` : `${params.slug} | Mistura Feminina`),
       description:
         p?.seo_description ||
         p?.short_description ||
-        "Compre online com os melhores preços e envio rápido para todo o Brasil na Mistura Feminina Cosméticos.",
+        `Conheça ${p?.name || params.slug} na Mistura Feminina. Confira suas características, informações e disponibilidade para comprar online.`,
       path: `/produto/${params.slug}`,
       image: p?.primary_image || undefined,
+      type: "product",
+      price: effectivePriceStr,
+      currency: "BRL",
       jsonLd: p
         ? [
             buildProductSchema({
@@ -124,6 +133,8 @@ export const Route = createFileRoute("/produto/$slug")({
               promoPriceCents,
               inStock,
               slug: p.slug,
+              ratingValue,
+              reviewCount,
             }),
             buildBreadcrumbSchema([
               { name: "Início", path: "/" },
@@ -585,7 +596,15 @@ function ProductDetailPage() {
                       <div class="relative aspect-square flex-1 overflow-hidden rounded-xl bg-white">
                         <img
                           src={assetUrl(activeImage() || p().primary_image)}
-                          alt={p().primary_image_alt || p().name}
+                          alt={
+                            p().primary_image_alt ||
+                            `${p().name} — Mistura Feminina Cosméticos`
+                          }
+                          loading="eager"
+                          fetchpriority="high"
+                          decoding="async"
+                          width="600"
+                          height="600"
                           class="h-full w-full object-contain p-2 sm:p-4"
                         />
                         <Show when={discountPct() > 0}>

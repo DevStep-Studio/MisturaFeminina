@@ -54,9 +54,9 @@ function consentCommand(action: "default" | "update", granted: boolean) {
   ensureGtagFunction();
   window.gtag!("consent", action, {
     analytics_storage: granted ? "granted" : "denied",
-    ad_storage: "denied",
-    ad_user_data: "denied",
-    ad_personalization: "denied",
+    ad_storage: granted ? "granted" : "denied",
+    ad_user_data: granted ? "granted" : "denied",
+    ad_personalization: granted ? "granted" : "denied",
   });
 }
 
@@ -269,6 +269,106 @@ export function trackSearch(search_term: string) {
   trackEvent("search", {
     search_term: search_term.trim(),
   });
+}
+
+/** E-commerce GA4: Visualização de lista de itens */
+export function trackViewItemList(params: {
+  item_list_id?: string;
+  item_list_name?: string;
+  items: Ga4Item[];
+}) {
+  trackEvent("view_item_list", {
+    item_list_id: params.item_list_id || "catalog",
+    item_list_name: params.item_list_name || "Catálogo",
+    items: params.items,
+  });
+}
+
+/** E-commerce GA4: Seleção/clique de item na lista */
+export function trackSelectItem(params: {
+  item_list_id?: string;
+  item_list_name?: string;
+  items: Ga4Item[];
+}) {
+  trackEvent("select_item", {
+    item_list_id: params.item_list_id || "catalog",
+    item_list_name: params.item_list_name || "Catálogo",
+    items: params.items,
+  });
+}
+
+/** E-commerce GA4: Visualização do carrinho */
+export function trackViewCart(params: {
+  currency?: string;
+  value?: number;
+  items: Ga4Item[];
+}) {
+  trackEvent("view_cart", {
+    currency: params.currency || "BRL",
+    value: params.value,
+    items: params.items,
+  });
+}
+
+/** E-commerce GA4: Remoção de produto do carrinho */
+export function trackRemoveFromCart(params: {
+  currency?: string;
+  value?: number;
+  items: Ga4Item[];
+}) {
+  trackEvent("remove_from_cart", {
+    currency: params.currency || "BRL",
+    value: params.value,
+    items: params.items,
+  });
+}
+
+/** E-commerce GA4: Adição de informações de frete */
+export function trackAddShippingInfo(params: {
+  currency?: string;
+  value?: number;
+  shipping_tier?: string;
+  items: Ga4Item[];
+}) {
+  trackEvent("add_shipping_info", {
+    currency: params.currency || "BRL",
+    value: params.value,
+    shipping_tier: params.shipping_tier,
+    items: params.items,
+  });
+}
+
+/** E-commerce GA4: Adição de informações de pagamento */
+export function trackAddPaymentInfo(params: {
+  currency?: string;
+  value?: number;
+  payment_type?: string;
+  items: Ga4Item[];
+}) {
+  trackEvent("add_payment_info", {
+    currency: params.currency || "BRL",
+    value: params.value,
+    payment_type: params.payment_type,
+    items: params.items,
+  });
+}
+
+/** E-commerce GA4: Visualização de promoção / banner / cupom */
+export function trackViewPromotion(params: {
+  promotion_id?: string;
+  promotion_name?: string;
+  creative_name?: string;
+}) {
+  trackEvent("view_promotion", params);
+}
+
+/** E-commerce GA4: Seleção / clique de promoção */
+export function selectPromotion(params: {
+  promotion_id?: string;
+  promotion_name?: string;
+  creative_name?: string;
+}) {
+  trackEvent("select_promotion", params);
 }
 
 /** GA4: Cliques em contato / WhatsApp */

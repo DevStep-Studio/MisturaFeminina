@@ -34,9 +34,9 @@ import {
 export const Route = createFileRoute("/")({
   head: () =>
     seoHead({
-      title: "Mistura Feminina Cosméticos — Loja Online",
+      title: "Mistura Feminina | Cosméticos, Maquiagem e Beleza",
       description:
-        "Cosméticos, alongamento de unhas, esmaltes em gel, skincare, cabelos e acessórios profissionais com envio para todo o Brasil.",
+        "Encontre cosméticos, maquiagens e produtos de beleza na Mistura Feminina. Explore nosso catálogo e descubra opções para seus cuidados diários.",
       path: "/",
       jsonLd: [buildOrganizationSchema(), buildWebSiteSchema()],
     }),
@@ -104,6 +104,11 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                 <img
                   src={assetUrl(banner().desktop_image_path)}
                   alt={banner().alt_text || banner().title}
+                  loading="eager"
+                  fetchpriority="high"
+                  decoding="async"
+                  width="1920"
+                  height="650"
                   class={
                     banner().mobile_image_path
                       ? "block aspect-[3/4] max-h-[520px] w-full object-cover object-center md:aspect-[1920/650] md:max-h-none"

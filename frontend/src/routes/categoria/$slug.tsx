@@ -22,11 +22,11 @@ export const Route = createFileRoute("/categoria/$slug")({
     const cat = loaderData;
     const name = cat?.name || params.slug;
     return seoHead({
-      title: cat?.seo_title || `${name} — Mistura Feminina Cosméticos`,
+      title: cat?.seo_title || `${name} | Mistura Feminina`,
       description:
         cat?.seo_description ||
         cat?.description ||
-        `Confira os melhores produtos de ${name} na Mistura Feminina Cosméticos com envio para todo o Brasil.`,
+        `Confira nossa seleção de ${name} na Mistura Feminina. Conheça os produtos disponíveis e encontre opções para sua rotina de beleza.`,
       path: `/categoria/${params.slug}`,
       jsonLd: buildBreadcrumbSchema([
         { name: "Início", path: "/" },

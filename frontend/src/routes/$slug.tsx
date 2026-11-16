@@ -52,10 +52,10 @@ export const Route = createFileRoute("/$slug")({
     seoHead({
       title:
         loaderData?.seo_title ||
-        `${loaderData?.title || params.slug} — Mistura Feminina Cosméticos`,
+        `${loaderData?.title || params.slug} | Mistura Feminina`,
       description:
         loaderData?.seo_description ||
-        "Conteúdo institucional da Mistura Feminina Cosméticos.",
+        "Informações institucionais, políticas comerciais e atendimento da Mistura Feminina Cosméticos.",
       path: `/${params.slug}`,
     }),
   component: DynamicContentPage,

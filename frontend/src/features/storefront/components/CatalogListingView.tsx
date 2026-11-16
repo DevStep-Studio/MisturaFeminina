@@ -434,7 +434,7 @@ export function CatalogListingView(props: CatalogListingProps) {
           </nav>
         </Show>
 
-        <header class="mb-6 flex flex-col gap-4 border-b border-[#EFE3F2] pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <header class="mb-6 flex flex-col gap-4 pb-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div class="inline-flex items-center gap-2.5">
               <span
@@ -444,11 +444,6 @@ export function CatalogListingView(props: CatalogListingProps) {
               <h1 class="text-[23px] font-extrabold leading-tight tracking-[-0.02em] text-[#2E0C49] sm:text-[28px]">
                 {props.title}
               </h1>
-            </div>
-            <div class="mt-2 flex items-center gap-1.5" aria-hidden="true">
-              <span class="h-1 w-9 rounded-xs bg-[#93509e]" />
-              <span class="h-0.5 w-3 rounded-xs bg-[#D8B4DE]" />
-              <span class="h-px w-12 bg-[#E5CCE8] sm:w-16" />
             </div>
             <Show when={props.subtitle}>
               <p class="mt-2 max-w-2xl text-sm font-medium text-[#5B486B]">

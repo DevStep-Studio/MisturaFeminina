@@ -6,9 +6,9 @@ import { seoHead } from "../lib/seo";
 export const Route = createFileRoute("/novidades")({
   head: () =>
     seoHead({
-      title: "Novidades e Lançamentos — Mistura Feminina Cosméticos",
+      title: "Lançamentos e Novidades | Mistura Feminina",
       description:
-        "Confira os últimos lançamentos em cosméticos, unhas e skincare.",
+        "Descubra os lançamentos mais recentes em produtos de beleza, maquiagem e cuidados pessoais na Mistura Feminina.",
       path: "/novidades",
     }),
   component: NewArrivalsPage,

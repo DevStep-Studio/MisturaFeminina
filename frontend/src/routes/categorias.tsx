@@ -11,9 +11,9 @@ import { seoHead } from "../lib/seo";
 export const Route = createFileRoute("/categorias")({
   head: () =>
     seoHead({
-      title: "Todas as Categorias — Mistura Feminina Cosméticos",
+      title: "Todas as Categorias | Mistura Feminina",
       description:
-        "Explore todos os departamentos e categorias da Mistura Feminina Cosméticos.",
+        "Explore todas as categorias de produtos de beleza, maquiagem, cabelos e unhas da Mistura Feminina.",
       path: "/categorias",
     }),
   component: CategoriesDirectoryPage,

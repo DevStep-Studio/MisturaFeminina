@@ -31,6 +31,8 @@ interface AdminProductRow {
   weight_grams: number;
   short_description: string | null;
   description: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
   brand_id: number | null;
   is_active: boolean;
   is_featured: boolean;
@@ -83,6 +85,8 @@ function AdminProductsPage() {
   const [imagePath, setImagePath] = createSignal("");
   const [shortDesc, setShortDesc] = createSignal("");
   const [fullDesc, setFullDesc] = createSignal("");
+  const [seoTitle, setSeoTitle] = createSignal("");
+  const [seoDesc, setSeoDesc] = createSignal("");
   const [isActive, setIsActive] = createSignal(true);
   const [isFeatured, setIsFeatured] = createSignal(false);
   const [isNew, setIsNew] = createSignal(true);
@@ -164,6 +168,8 @@ function AdminProductsPage() {
     setImagePath(p.images?.[0]?.path || "");
     setShortDesc(p.short_description || "");
     setFullDesc(p.description || "");
+    setSeoTitle(p.seo_title || "");
+    setSeoDesc(p.seo_description || "");
     setIsActive(p.is_active);
     setIsFeatured(p.is_featured);
     setIsNew(p.is_new_arrival);
@@ -182,6 +188,8 @@ function AdminProductsPage() {
     setImagePath("");
     setShortDesc("");
     setFullDesc("");
+    setSeoTitle("");
+    setSeoDesc("");
     setIsActive(true);
     setIsFeatured(false);
     setIsNew(true);
@@ -218,6 +226,8 @@ function AdminProductsPage() {
       weight_grams: Number(weightGrams()) || 200,
       short_description: shortDesc().trim() || undefined,
       description: fullDesc().trim() || undefined,
+      seo_title: seoTitle().trim() || undefined,
+      seo_description: seoDesc().trim() || undefined,
       is_active: isActive(),
       is_featured: isFeatured(),
       is_new_arrival: isNew(),
@@ -589,6 +599,87 @@ function AdminProductsPage() {
               onInput={(e) => setFullDesc(e.currentTarget.value)}
               class="w-full rounded-md border border-zinc-300 p-2.5 text-xs"
             />
+
+            {/* Otimização de SEO (Google / Buscadores) */}
+            <div class="space-y-3 rounded-lg border border-purple-200 bg-purple-50/50 p-3.5 text-xs">
+              <div class="flex items-center justify-between">
+                <p class="font-bold text-[#3D1260]">
+                  Otimização de SEO (Google & Buscadores)
+                </p>
+                <span class="text-[10px] text-zinc-500">
+                  Opcional — fallback automático ativo
+                </span>
+              </div>
+
+              <div>
+                <div class="flex justify-between">
+                  <label class="font-semibold text-zinc-700">Título SEO</label>
+                  <span class="text-[10px] text-zinc-500">
+                    {seoTitle().length || (name() ? name().length + 19 : 0)} /
+                    60 caracteres
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  placeholder={
+                    name()
+                      ? `${name()} | Mistura Feminina`
+                      : "Título personalizado para o Google"
+                  }
+                  value={seoTitle()}
+                  onInput={(e) => setSeoTitle(e.currentTarget.value)}
+                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-xs"
+                />
+              </div>
+
+              <div>
+                <div class="flex justify-between">
+                  <label class="font-semibold text-zinc-700">
+                    Meta Description
+                  </label>
+                  <span class="text-[10px] text-zinc-500">
+                    {seoDesc().length || (shortDesc() ? shortDesc().length : 0)}{" "}
+                    / 160 caracteres
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder={
+                    shortDesc() ||
+                    `Conheça ${name() || "o produto"} na Mistura Feminina. Confira suas características, informações e disponibilidade para comprar online.`
+                  }
+                  value={seoDesc()}
+                  onInput={(e) => setSeoDesc(e.currentTarget.value)}
+                  class="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2.5 text-xs"
+                />
+              </div>
+
+              {/* Pré-visualização do Google */}
+              <div class="rounded border border-zinc-200 bg-white p-2.5 shadow-2xs">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  Pré-visualização no Google
+                </p>
+                <p class="mt-1 text-sm font-semibold text-[#1a0dab] line-clamp-1">
+                  {seoTitle().trim() ||
+                    (name()
+                      ? `${name()} | Mistura Feminina`
+                      : "Nome do Produto | Mistura Feminina")}
+                </p>
+                <p class="text-[11px] text-[#006621] truncate">
+                  https://www.misturafeminina.com.br/produto/
+                  {sku()
+                    ? sku().toLowerCase()
+                    : name()
+                      ? name().toLowerCase().replace(/\s+/g, "-")
+                      : "slug-do-produto"}
+                </p>
+                <p class="mt-0.5 text-xs text-[#545454] line-clamp-2">
+                  {seoDesc().trim() ||
+                    shortDesc().trim() ||
+                    `Conheça ${name() || "o produto"} na Mistura Feminina. Confira suas características, informações e disponibilidade para comprar online.`}
+                </p>
+              </div>
+            </div>
 
             <div class="flex flex-wrap gap-4 text-xs">
               <label class="inline-flex items-center gap-1.5">

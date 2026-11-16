@@ -6,9 +6,9 @@ import { seoHead } from "../lib/seo";
 export const Route = createFileRoute("/promocoes")({
   head: () =>
     seoHead({
-      title: "Ofertas e Promoções — Mistura Feminina Cosméticos",
+      title: "Ofertas e Promoções | Mistura Feminina",
       description:
-        "Aproveite cosméticos e acessórios com desconto na Mistura Feminina.",
+        "Confira as melhores ofertas e descontos imperdíveis em cosméticos, esmaltes e maquiagens na Mistura Feminina.",
       path: "/promocoes",
     }),
   component: PromotionsPage,

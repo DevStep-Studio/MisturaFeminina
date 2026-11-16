@@ -11,9 +11,9 @@ import { trackContactClick } from "../monitoring/analytics";
 export const Route = createFileRoute("/contato")({
   head: () =>
     seoHead({
-      title: "Fale Conosco — Mistura Feminina Cosméticos",
+      title: "Fale Conosco e Atendimento | Mistura Feminina",
       description:
-        "Entre em contato com a central de atendimento da Mistura Feminina Cosméticos.",
+        "Entre em contato com a equipe da Mistura Feminina Cosméticos. Atendimento rápido via WhatsApp e e-mail para todo o Brasil.",
       path: "/contato",
     }),
   component: ContactPage,

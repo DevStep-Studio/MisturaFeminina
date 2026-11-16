@@ -10,9 +10,9 @@ import { seoHead } from "../lib/seo";
 export const Route = createFileRoute("/marcas")({
   head: () =>
     seoHead({
-      title: "Marcas Parceiras — Mistura Feminina Cosméticos",
+      title: "Marcas Oficiais | Mistura Feminina",
       description:
-        "Conheça todas as marcas disponíveis na Mistura Feminina Cosméticos.",
+        "Conheça todas as marcas de beleza e cosméticos disponíveis na Mistura Feminina Cosméticos.",
       path: "/marcas",
     }),
   component: BrandsDirectoryPage,

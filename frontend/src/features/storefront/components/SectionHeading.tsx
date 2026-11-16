@@ -51,15 +51,6 @@ export function SectionHeading(props: SectionHeadingProps) {
             </p>
           </Show>
 
-          <div
-            class="mt-2.5 flex items-center justify-center gap-1.5"
-            aria-hidden="true"
-          >
-            <span class="h-0.5 w-3 rounded-xs bg-[#D8B4DE]" />
-            <span class="h-1 w-9 rounded-xs bg-[#93509e]" />
-            <span class="h-0.5 w-3 rounded-xs bg-[#D8B4DE]" />
-          </div>
-
           <Show when={props.action}>
             <div class="mt-3 sm:absolute sm:right-0 sm:top-1/2 sm:mt-0 sm:-translate-y-1/2">
               {props.action}

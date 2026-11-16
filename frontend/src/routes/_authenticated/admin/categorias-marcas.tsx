@@ -42,6 +42,9 @@ function AdminCategoriesBrandsPage() {
   const [catName, setCatName] = createSignal("");
   const [catParentId, setCatParentId] = createSignal("");
   const [catImage, setCatImage] = createSignal("");
+  const [catDesc, setCatDesc] = createSignal("");
+  const [catSeoTitle, setCatSeoTitle] = createSignal("");
+  const [catSeoDesc, setCatSeoDesc] = createSignal("");
   const [brandName, setBrandName] = createSignal("");
   const [brandLogo, setBrandLogo] = createSignal("");
   const [brandFeatured, setBrandFeatured] = createSignal(true);
@@ -77,6 +80,9 @@ function AdminCategoriesBrandsPage() {
         body: {
           name: catName().trim(),
           parent_id: catParentId() ? Number(catParentId()) : null,
+          description: catDesc().trim() || undefined,
+          seo_title: catSeoTitle().trim() || undefined,
+          seo_description: catSeoDesc().trim() || undefined,
           image_path: catImage().trim() || undefined,
           show_in_menu: true,
           is_active: true,
@@ -84,6 +90,9 @@ function AdminCategoriesBrandsPage() {
       });
       setCatName("");
       setCatImage("");
+      setCatDesc("");
+      setCatSeoTitle("");
+      setCatSeoDesc("");
       await refetchCats();
       setFeedback("Categoria salva com sucesso.");
     } catch (err) {
@@ -175,6 +184,29 @@ function AdminCategoriesBrandsPage() {
                   if (file) void uploadAsset(file, setCatImage);
                 }}
                 class="text-xs"
+              />
+            </div>
+            <textarea
+              rows={2}
+              placeholder="Descrição da categoria (aparece no topo da página e ajuda no SEO)"
+              value={catDesc()}
+              onInput={(e) => setCatDesc(e.currentTarget.value)}
+              class="w-full rounded-md border border-zinc-300 bg-white p-2 text-xs"
+            />
+            <div class="grid gap-2 sm:grid-cols-2">
+              <input
+                type="text"
+                placeholder={catName() ? `${catName()} | Mistura Feminina` : "Título SEO"}
+                value={catSeoTitle()}
+                onInput={(e) => setCatSeoTitle(e.currentTarget.value)}
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
+              />
+              <input
+                type="text"
+                placeholder="Meta description personalizada"
+                value={catSeoDesc()}
+                onInput={(e) => setCatSeoDesc(e.currentTarget.value)}
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
               />
             </div>
             <button
