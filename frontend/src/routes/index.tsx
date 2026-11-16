@@ -539,6 +539,38 @@ function authorInitials(name: string): string {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+const REVIEW_AVATARS: Record<string, string> = {
+  "Beatriz Nogueira": "/avatars/beatriz-nogueira.jpg",
+  "Studio Aline Unhas": "/avatars/aline-unhas.jpg",
+  "Juliana Mendes": "/avatars/juliana-mendes.jpg",
+  "Camila Ferreira": "/avatars/camila-ferreira.jpg",
+  "Larissa Costa": "/avatars/larissa-costa.jpg",
+  "Mariana Rocha": "/avatars/mariana-rocha.jpg",
+};
+
+function ReviewAvatar(props: { author: string }) {
+  const [imgError, setImgError] = createSignal(false);
+  const avatarSrc = () => REVIEW_AVATARS[props.author] ?? null;
+
+  return (
+    <Show
+      when={avatarSrc() && !imgError()}
+      fallback={
+        <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[#93509e] text-[10px] font-bold text-white shadow-xs">
+          {authorInitials(props.author)}
+        </span>
+      }
+    >
+      <img
+        src={avatarSrc()!}
+        alt={props.author}
+        class="size-7 shrink-0 rounded-full object-cover border border-[#93509e]/30 shadow-xs ring-1 ring-white"
+        onError={() => setImgError(true)}
+      />
+    </Show>
+  );
+}
+
 function TestimonialsCarouselBlock(props: {
   section: HomeSectionData;
   reviews: HomeReview[];
@@ -570,9 +602,7 @@ function TestimonialsCarouselBlock(props: {
                 >
                   <div>
                     <div class="mb-2 flex items-center gap-2 text-[11px] font-medium text-[#5B2168]">
-                      <span class="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-[#93509e] text-[10px] font-bold text-white shadow-xs">
-                        {authorInitials(rev.author_name)}
-                      </span>
+                      <ReviewAvatar author={rev.author_name} />
                       <span class="truncate font-semibold text-[#3D1260]">
                         {rev.author_name}
                       </span>
