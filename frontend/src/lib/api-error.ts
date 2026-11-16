@@ -15,6 +15,7 @@ export class ApiError extends Error {
     public readonly status = 0,
     public readonly requestId?: string,
     public readonly validation: Record<string, string[]> = {},
+    public readonly redirectTo?: string,
   ) {
     super(
       kind === "timeout"

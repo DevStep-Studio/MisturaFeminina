@@ -15,6 +15,11 @@ import {
 } from "solid-js";
 import { api } from "../../../lib/api";
 import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
+import {
+  selectPromotion,
+  trackAddToCart,
+  trackViewPromotion,
+} from "../../../monitoring/analytics";
 import { addCartItem, storefrontStore } from "../store";
 import type { ProductCardData } from "../types";
 
@@ -80,6 +85,11 @@ export function PromoPopup() {
     // Open with a brief gentle delay on initial visit
     const timer = setTimeout(() => {
       setOpen(true);
+      trackViewPromotion({
+        promotion_id: couponCode(),
+        promotion_name: settings().popup_title || "Cupom 10% OFF",
+        creative_name: "promo_popup_modal",
+      });
     }, 700);
 
     onCleanup(() => clearTimeout(timer));
@@ -114,6 +124,11 @@ export function PromoPopup() {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
+      selectPromotion({
+        promotion_id: code,
+        promotion_name: settings().popup_title || "Cupom 10% OFF",
+        creative_name: "promo_popup_copy",
+      });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
@@ -125,6 +140,19 @@ export function PromoPopup() {
     setAddingId(product.id);
     try {
       await addCartItem(product.default_variant_id, 1, true);
+      trackAddToCart({
+        currency: "BRL",
+        value: product.effective_price_cents / 100,
+        items: [
+          {
+            item_id: product.sku,
+            item_name: product.name,
+            price: product.effective_price_cents / 100,
+            item_brand: product.brand?.name,
+            quantity: 1,
+          },
+        ],
+      });
       close();
     } catch {
       // ignore
@@ -246,7 +274,8 @@ export function PromoPopup() {
                         <div class="mt-2 flex items-baseline justify-center gap-1.5">
                           <Show
                             when={
-                              product.effective_price_cents < product.price_cents
+                              product.effective_price_cents <
+                              product.price_cents
                             }
                           >
                             <span class="text-[12px] font-medium text-zinc-400 line-through">
@@ -282,7 +311,9 @@ export function PromoPopup() {
                         {/* Actions */}
                         <div class="mt-3.5 flex w-full flex-col gap-2">
                           <Show
-                            when={product.default_variant_id && product.in_stock}
+                            when={
+                              product.default_variant_id && product.in_stock
+                            }
                             fallback={
                               <Link
                                 to="/produto/$slug"

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/solid-router";
+import { createFileRoute, Link, redirect } from "@tanstack/solid-router";
 import BadgePercent from "lucide-solid/icons/badge-percent";
 import Bell from "lucide-solid/icons/bell";
 import ChevronDown from "lucide-solid/icons/chevron-down";
@@ -83,7 +83,10 @@ export const Route = createFileRoute("/produto/$slug")({
         { authenticated: false },
       );
       return res.data;
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 301 && err.redirectTo) {
+        throw redirect({ to: err.redirectTo, replace: true });
+      }
       return null;
     }
   },
@@ -111,7 +114,9 @@ export const Route = createFileRoute("/produto/$slug")({
     return seoHead({
       title:
         p?.seo_title ||
-        (p ? `${p.name} | Mistura Feminina` : `${params.slug} | Mistura Feminina`),
+        (p
+          ? `${p.name} | Mistura Feminina`
+          : `${params.slug} | Mistura Feminina`),
       description:
         p?.seo_description ||
         p?.short_description ||
@@ -225,9 +230,6 @@ function ProductDetailPage() {
         primary_image: p.images[0]?.path || p.primary_image || null,
       }),
     );
-    if (typeof document !== "undefined" && p.seo_title) {
-      document.title = p.seo_title;
-    }
     trackViewItem({
       currency: "BRL",
       value: (def?.effective_price_cents ?? p.effective_price_cents) / 100,
@@ -484,33 +486,11 @@ function ProductDetailPage() {
             }
           };
 
-          const productJsonLd = () =>
-            JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Product",
-              name: p().name,
-              sku: activeVariant()?.sku ?? p().sku,
-              description: p().short_description || p().description || p().name,
-              brand: p().brand
-                ? { "@type": "Brand", name: p().brand!.name }
-                : undefined,
-              offers: {
-                "@type": "Offer",
-                priceCurrency: "BRL",
-                price: (currentPriceCents() / 100).toFixed(2),
-                availability: inStock()
-                  ? "https://schema.org/InStock"
-                  : "https://schema.org/OutOfStock",
-              },
-            });
-
           const variantGroupLabel = () =>
             p().name.split(" ").slice(0, 2).join(" ");
 
           return (
             <>
-              <script type="application/ld+json">{productJsonLd()}</script>
-
               <div class="mx-auto max-w-7xl px-4 pb-14 pt-4 sm:pt-6">
                 <nav
                   aria-label="Navegação estrutural"

@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/solid-router";
+import { createFileRoute, redirect } from "@tanstack/solid-router";
 import { createResource } from "solid-js";
 import { CatalogListingView } from "../../features/storefront/components/CatalogListingView";
 import { storefrontStore } from "../../features/storefront/store";
 import type { CategoryNode } from "../../features/storefront/types";
-import { api } from "../../lib/api";
+import { ApiError, api } from "../../lib/api";
 import { buildBreadcrumbSchema, seoHead } from "../../lib/seo";
 
 export const Route = createFileRoute("/categoria/$slug")({
@@ -14,7 +14,10 @@ export const Route = createFileRoute("/categoria/$slug")({
         { authenticated: false },
       );
       return res.data?.category ?? null;
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 301 && err.redirectTo) {
+        throw redirect({ to: err.redirectTo, replace: true });
+      }
       return null;
     }
   },

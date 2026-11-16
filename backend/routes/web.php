@@ -14,3 +14,4 @@ Route::post('/reset-password', [AuthController::class, 'reset'])->middleware('th
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap']);
 Route::get('/robots.txt', [SeoController::class, 'robots']);
 Route::get('/llms.txt', [SeoController::class, 'llms']);
+Route::get('/merchant-feed.xml', [SeoController::class, 'merchantFeed']);

@@ -7,7 +7,7 @@ import { For, Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { ApiError, api } from "../../../lib/api";
 import { assetUrl, formatCents } from "../../../lib/format";
-import { seoHead } from "../../../lib/seo";
+import { seoHead, site } from "../../../lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
   head: () =>
@@ -75,6 +75,7 @@ function AdminProductsPage() {
   const [search, setSearch] = createSignal("");
   const [editingId, setEditingId] = createSignal<number | null>(null);
   const [name, setName] = createSignal("");
+  const [slug, setSlug] = createSignal("");
   const [sku, setSku] = createSignal("");
   const [brandId, setBrandId] = createSignal("");
   const [selectedCats, setSelectedCats] = createSignal<number[]>([]);
@@ -83,6 +84,7 @@ function AdminProductsPage() {
   const [stockQty, setStockQty] = createSignal(20);
   const [weightGrams, setWeightGrams] = createSignal(200);
   const [imagePath, setImagePath] = createSignal("");
+  const [imageAlt, setImageAlt] = createSignal("");
   const [shortDesc, setShortDesc] = createSignal("");
   const [fullDesc, setFullDesc] = createSignal("");
   const [seoTitle, setSeoTitle] = createSignal("");
@@ -156,6 +158,7 @@ function AdminProductsPage() {
   function loadProductIntoForm(p: AdminProductRow) {
     setEditingId(p.id);
     setName(p.name);
+    setSlug(p.slug);
     setSku(p.sku);
     setBrandId(p.brand_id ? String(p.brand_id) : "");
     setSelectedCats((p.categories ?? []).map((c) => c.id));
@@ -166,6 +169,7 @@ function AdminProductsPage() {
     setStockQty(p.variants?.[0]?.stock_qty ?? 0);
     setWeightGrams(p.weight_grams || 200);
     setImagePath(p.images?.[0]?.path || "");
+    setImageAlt(p.images?.[0]?.alt_text || "");
     setShortDesc(p.short_description || "");
     setFullDesc(p.description || "");
     setSeoTitle(p.seo_title || "");
@@ -178,6 +182,7 @@ function AdminProductsPage() {
   function resetForm() {
     setEditingId(null);
     setName("");
+    setSlug("");
     setSku("");
     setBrandId("");
     setSelectedCats([]);
@@ -186,6 +191,7 @@ function AdminProductsPage() {
     setStockQty(20);
     setWeightGrams(200);
     setImagePath("");
+    setImageAlt("");
     setShortDesc("");
     setFullDesc("");
     setSeoTitle("");
@@ -218,6 +224,7 @@ function AdminProductsPage() {
 
     const payload = {
       name: name().trim(),
+      slug: slug().trim() || undefined,
       sku: sku().trim().toUpperCase(),
       brand_id: brandId() ? Number(brandId()) : null,
       category_ids: selectedCats(),
@@ -235,7 +242,7 @@ function AdminProductsPage() {
         ? [
             {
               path: imagePath().trim(),
-              alt_text: name().trim(),
+              alt_text: imageAlt().trim() || name().trim(),
               is_primary: true,
             },
           ]
@@ -563,7 +570,7 @@ function AdminProductsPage() {
                 <div class="mt-2 flex items-center gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
                   <img
                     src={assetUrl(imagePath())}
-                    alt="Preview"
+                    alt={imageAlt() || name() || "Preview"}
                     class="size-10 rounded border border-zinc-200 bg-white object-contain"
                   />
                   <div class="min-w-0 flex-1 text-xs">
@@ -576,12 +583,22 @@ function AdminProductsPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setImagePath("")}
+                    onClick={() => {
+                      setImagePath("");
+                      setImageAlt("");
+                    }}
                     class="text-xs text-red-600 hover:underline"
                   >
                     Remover
                   </button>
                 </div>
+                <input
+                  type="text"
+                  placeholder="Texto alternativo (alt) da imagem para SEO e acessibilidade"
+                  value={imageAlt()}
+                  onInput={(e) => setImageAlt(e.currentTarget.value)}
+                  class="mt-2 h-8 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
+                />
               </Show>
             </div>
 
@@ -609,6 +626,29 @@ function AdminProductsPage() {
                 <span class="text-[10px] text-zinc-500">
                   Opcional — fallback automático ativo
                 </span>
+              </div>
+
+              <div>
+                <div class="flex justify-between">
+                  <label class="font-semibold text-zinc-700">
+                    Slug da URL (opcional)
+                  </label>
+                  <span class="text-[10px] text-zinc-500">
+                    Ao alterar em produto existente, cria redirect 301
+                    automático
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  placeholder={
+                    name()
+                      ? name().toLowerCase().replace(/\s+/g, "-")
+                      : "gerado-automaticamente"
+                  }
+                  value={slug()}
+                  onInput={(e) => setSlug(e.currentTarget.value)}
+                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-xs"
+                />
               </div>
 
               <div>
@@ -666,12 +706,11 @@ function AdminProductsPage() {
                       : "Nome do Produto | Mistura Feminina")}
                 </p>
                 <p class="text-[11px] text-[#006621] truncate">
-                  https://www.misturafeminina.com.br/produto/
-                  {sku()
-                    ? sku().toLowerCase()
-                    : name()
+                  {site.url}/produto/
+                  {slug().trim() ||
+                    (name()
                       ? name().toLowerCase().replace(/\s+/g, "-")
-                      : "slug-do-produto"}
+                      : "slug-do-produto")}
                 </p>
                 <p class="mt-0.5 text-xs text-[#545454] line-clamp-2">
                   {seoDesc().trim() ||

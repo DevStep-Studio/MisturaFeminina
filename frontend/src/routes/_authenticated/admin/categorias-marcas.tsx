@@ -22,6 +22,9 @@ interface AdminCategory {
   id: number;
   name: string;
   slug: string;
+  description?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
   parent_id: number | null;
   image_path: string | null;
   sort_order: number;
@@ -33,19 +36,30 @@ interface AdminBrand {
   id: number;
   name: string;
   slug: string;
+  description?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
   logo_path: string | null;
   is_featured: boolean;
   is_active: boolean;
 }
 
 function AdminCategoriesBrandsPage() {
+  const [editingCatId, setEditingCatId] = createSignal<number | null>(null);
   const [catName, setCatName] = createSignal("");
+  const [catSlug, setCatSlug] = createSignal("");
   const [catParentId, setCatParentId] = createSignal("");
   const [catImage, setCatImage] = createSignal("");
   const [catDesc, setCatDesc] = createSignal("");
   const [catSeoTitle, setCatSeoTitle] = createSignal("");
   const [catSeoDesc, setCatSeoDesc] = createSignal("");
+
+  const [editingBrandId, setEditingBrandId] = createSignal<number | null>(null);
   const [brandName, setBrandName] = createSignal("");
+  const [brandSlug, setBrandSlug] = createSignal("");
+  const [brandDesc, setBrandDesc] = createSignal("");
+  const [brandSeoTitle, setBrandSeoTitle] = createSignal("");
+  const [brandSeoDesc, setBrandSeoDesc] = createSignal("");
   const [brandLogo, setBrandLogo] = createSignal("");
   const [brandFeatured, setBrandFeatured] = createSignal(true);
   const [feedback, setFeedback] = createSignal<string | null>(null);
@@ -71,28 +85,52 @@ function AdminCategoriesBrandsPage() {
     setter(res.data.path);
   }
 
-  async function createCategory(e: Event) {
+  function resetCategoryForm() {
+    setEditingCatId(null);
+    setCatName("");
+    setCatSlug("");
+    setCatParentId("");
+    setCatImage("");
+    setCatDesc("");
+    setCatSeoTitle("");
+    setCatSeoDesc("");
+  }
+
+  function editCategory(cat: AdminCategory) {
+    setEditingCatId(cat.id);
+    setCatName(cat.name);
+    setCatSlug(cat.slug);
+    setCatParentId(cat.parent_id ? String(cat.parent_id) : "");
+    setCatImage(cat.image_path || "");
+    setCatDesc(cat.description || "");
+    setCatSeoTitle(cat.seo_title || "");
+    setCatSeoDesc(cat.seo_description || "");
+  }
+
+  async function saveCategory(e: Event) {
     e.preventDefault();
     setFeedback(null);
     try {
-      await api("/admin/categories", {
-        method: "POST",
-        body: {
-          name: catName().trim(),
-          parent_id: catParentId() ? Number(catParentId()) : null,
-          description: catDesc().trim() || undefined,
-          seo_title: catSeoTitle().trim() || undefined,
-          seo_description: catSeoDesc().trim() || undefined,
-          image_path: catImage().trim() || undefined,
-          show_in_menu: true,
-          is_active: true,
-        },
-      });
-      setCatName("");
-      setCatImage("");
-      setCatDesc("");
-      setCatSeoTitle("");
-      setCatSeoDesc("");
+      const payload = {
+        name: catName().trim(),
+        slug: catSlug().trim() || undefined,
+        parent_id: catParentId() ? Number(catParentId()) : null,
+        description: catDesc().trim() || undefined,
+        seo_title: catSeoTitle().trim() || undefined,
+        seo_description: catSeoDesc().trim() || undefined,
+        image_path: catImage().trim() || undefined,
+        show_in_menu: true,
+        is_active: true,
+      };
+      if (editingCatId()) {
+        await api(`/admin/categories/${editingCatId()}`, {
+          method: "PUT",
+          body: payload,
+        });
+      } else {
+        await api("/admin/categories", { method: "POST", body: payload });
+      }
+      resetCategoryForm();
       await refetchCats();
       setFeedback("Categoria salva com sucesso.");
     } catch (err) {
@@ -107,23 +145,53 @@ function AdminCategoriesBrandsPage() {
     await refetchCats();
   }
 
-  async function createBrand(e: Event) {
+  function resetBrandForm() {
+    setEditingBrandId(null);
+    setBrandName("");
+    setBrandSlug("");
+    setBrandDesc("");
+    setBrandSeoTitle("");
+    setBrandSeoDesc("");
+    setBrandLogo("");
+    setBrandFeatured(true);
+  }
+
+  function editBrand(b: AdminBrand) {
+    setEditingBrandId(b.id);
+    setBrandName(b.name);
+    setBrandSlug(b.slug);
+    setBrandDesc(b.description || "");
+    setBrandSeoTitle(b.seo_title || "");
+    setBrandSeoDesc(b.seo_description || "");
+    setBrandLogo(b.logo_path || "");
+    setBrandFeatured(b.is_featured);
+  }
+
+  async function saveBrand(e: Event) {
     e.preventDefault();
     setFeedback(null);
     try {
-      await api("/admin/brands", {
-        method: "POST",
-        body: {
-          name: brandName().trim(),
-          logo_path: brandLogo().trim() || undefined,
-          is_featured: brandFeatured(),
-          is_active: true,
-        },
-      });
-      setBrandName("");
-      setBrandLogo("");
+      const payload = {
+        name: brandName().trim(),
+        slug: brandSlug().trim() || undefined,
+        description: brandDesc().trim() || undefined,
+        seo_title: brandSeoTitle().trim() || undefined,
+        seo_description: brandSeoDesc().trim() || undefined,
+        logo_path: brandLogo().trim() || undefined,
+        is_featured: brandFeatured(),
+        is_active: true,
+      };
+      if (editingBrandId()) {
+        await api(`/admin/brands/${editingBrandId()}`, {
+          method: "PUT",
+          body: payload,
+        });
+      } else {
+        await api("/admin/brands", { method: "POST", body: payload });
+      }
+      resetBrandForm();
       await refetchBrands();
-      setFeedback("Marca cadastrada com sucesso.");
+      setFeedback("Marca salva com sucesso.");
     } catch (err) {
       setFeedback(
         err instanceof ApiError ? err.message : "Erro ao salvar marca.",
@@ -152,17 +220,26 @@ function AdminCategoriesBrandsPage() {
           <h2 class="text-base font-bold text-zinc-900">Categorias</h2>
 
           <form
-            onSubmit={createCategory}
+            onSubmit={saveCategory}
             class="space-y-2.5 rounded-lg border border-zinc-200 bg-zinc-50 p-3.5 text-sm"
           >
-            <input
-              type="text"
-              required
-              placeholder="Nome da categoria *"
-              value={catName()}
-              onInput={(e) => setCatName(e.currentTarget.value)}
-              class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3"
-            />
+            <div class="grid gap-2 sm:grid-cols-2">
+              <input
+                type="text"
+                required
+                placeholder="Nome da categoria *"
+                value={catName()}
+                onInput={(e) => setCatName(e.currentTarget.value)}
+                class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3"
+              />
+              <input
+                type="text"
+                placeholder="Slug da URL (opcional)"
+                value={catSlug()}
+                onInput={(e) => setCatSlug(e.currentTarget.value)}
+                class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-xs"
+              />
+            </div>
             <div class="grid gap-2 sm:grid-cols-2">
               <select
                 value={catParentId()}
@@ -196,7 +273,9 @@ function AdminCategoriesBrandsPage() {
             <div class="grid gap-2 sm:grid-cols-2">
               <input
                 type="text"
-                placeholder={catName() ? `${catName()} | Mistura Feminina` : "Título SEO"}
+                placeholder={
+                  catName() ? `${catName()} | Mistura Feminina` : "Título SEO"
+                }
                 value={catSeoTitle()}
                 onInput={(e) => setCatSeoTitle(e.currentTarget.value)}
                 class="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
@@ -209,12 +288,23 @@ function AdminCategoriesBrandsPage() {
                 class="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
               />
             </div>
-            <button
-              type="submit"
-              class="h-9 rounded-md bg-[var(--mf-primary)] px-4 text-xs font-bold text-white"
-            >
-              Adicionar categoria
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                type="submit"
+                class="h-9 rounded-md bg-[var(--mf-primary)] px-4 text-xs font-bold text-white"
+              >
+                {editingCatId() ? "Atualizar categoria" : "Adicionar categoria"}
+              </button>
+              <Show when={editingCatId()}>
+                <button
+                  type="button"
+                  onClick={resetCategoryForm}
+                  class="h-9 rounded-md border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700"
+                >
+                  Cancelar
+                </button>
+              </Show>
+            </div>
           </form>
 
           <ul class="divide-y divide-zinc-100 text-sm">
@@ -232,13 +322,22 @@ function AdminCategoriesBrandsPage() {
                       <p class="text-xs text-zinc-500">/{cat.slug}</p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void deleteCategory(cat.id)}
-                    class="text-xs font-semibold text-red-700 hover:underline"
-                  >
-                    Remover
-                  </button>
+                  <div class="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => editCategory(cat)}
+                      class="text-xs font-semibold text-[var(--mf-primary)] hover:underline"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteCategory(cat.id)}
+                      class="text-xs font-semibold text-red-700 hover:underline"
+                    >
+                      Remover
+                    </button>
+                  </div>
                 </li>
               )}
             </For>
@@ -250,17 +349,53 @@ function AdminCategoriesBrandsPage() {
           <h2 class="text-base font-bold text-zinc-900">Marcas</h2>
 
           <form
-            onSubmit={createBrand}
+            onSubmit={saveBrand}
             class="space-y-2.5 rounded-lg border border-zinc-200 bg-zinc-50 p-3.5 text-sm"
           >
-            <input
-              type="text"
-              required
-              placeholder="Nome da marca *"
-              value={brandName()}
-              onInput={(e) => setBrandName(e.currentTarget.value)}
-              class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3"
+            <div class="grid gap-2 sm:grid-cols-2">
+              <input
+                type="text"
+                required
+                placeholder="Nome da marca *"
+                value={brandName()}
+                onInput={(e) => setBrandName(e.currentTarget.value)}
+                class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3"
+              />
+              <input
+                type="text"
+                placeholder="Slug da URL (opcional)"
+                value={brandSlug()}
+                onInput={(e) => setBrandSlug(e.currentTarget.value)}
+                class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-xs"
+              />
+            </div>
+            <textarea
+              rows={2}
+              placeholder="Descrição da marca (aparece na página da marca e ajuda no SEO)"
+              value={brandDesc()}
+              onInput={(e) => setBrandDesc(e.currentTarget.value)}
+              class="w-full rounded-md border border-zinc-300 bg-white p-2 text-xs"
             />
+            <div class="grid gap-2 sm:grid-cols-2">
+              <input
+                type="text"
+                placeholder={
+                  brandName()
+                    ? `${brandName()} | Mistura Feminina`
+                    : "Título SEO"
+                }
+                value={brandSeoTitle()}
+                onInput={(e) => setBrandSeoTitle(e.currentTarget.value)}
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
+              />
+              <input
+                type="text"
+                placeholder="Meta description personalizada"
+                value={brandSeoDesc()}
+                onInput={(e) => setBrandSeoDesc(e.currentTarget.value)}
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
+              />
+            </div>
             <div class="flex flex-wrap items-center gap-3">
               <label class="inline-flex items-center gap-1.5 text-xs">
                 <input
@@ -280,12 +415,23 @@ function AdminCategoriesBrandsPage() {
                 class="text-xs"
               />
             </div>
-            <button
-              type="submit"
-              class="h-9 rounded-md bg-zinc-900 px-4 text-xs font-bold text-white"
-            >
-              Adicionar marca
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                type="submit"
+                class="h-9 rounded-md bg-zinc-900 px-4 text-xs font-bold text-white"
+              >
+                {editingBrandId() ? "Atualizar marca" : "Adicionar marca"}
+              </button>
+              <Show when={editingBrandId()}>
+                <button
+                  type="button"
+                  onClick={resetBrandForm}
+                  class="h-9 rounded-md border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700"
+                >
+                  Cancelar
+                </button>
+              </Show>
+            </div>
           </form>
 
           <ul class="divide-y divide-zinc-100 text-sm">
@@ -303,11 +449,20 @@ function AdminCategoriesBrandsPage() {
                       <p class="text-xs text-zinc-500">/{b.slug}</p>
                     </div>
                   </div>
-                  <Show when={b.is_featured}>
-                    <span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                      Destaque
-                    </span>
-                  </Show>
+                  <div class="flex items-center gap-3">
+                    <Show when={b.is_featured}>
+                      <span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                        Destaque
+                      </span>
+                    </Show>
+                    <button
+                      type="button"
+                      onClick={() => editBrand(b)}
+                      class="text-xs font-semibold text-[var(--mf-primary)] hover:underline"
+                    >
+                      Editar
+                    </button>
+                  </div>
                 </li>
               )}
             </For>

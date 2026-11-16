@@ -10,6 +10,7 @@ use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Shared\Enums\InventoryMovementType;
 use App\Domain\Shared\Enums\ProductType;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\SeoController;
 use App\Models\Attribute;
 use App\Models\Brand;
 use App\Models\Category;
@@ -117,6 +118,7 @@ class AdminCatalogController extends Controller
         });
 
         $this->audit->record('catalog.product_created', $request->user(), 'product', $product->id, null, ['sku' => $product->sku, 'name' => $product->name], $request);
+        SeoController::clearCaches();
 
         return response()->json(['data' => $product->fresh(['brand', 'categories', 'images', 'variants'])], 201);
     }
@@ -182,6 +184,7 @@ class AdminCatalogController extends Controller
         });
 
         $this->audit->record('catalog.product_updated', $request->user(), 'product', $product->id, null, ['name' => $product->name], $request);
+        SeoController::clearCaches();
 
         return response()->json(['data' => $product->fresh(['brand', 'categories', 'images', 'variants'])]);
     }
@@ -191,6 +194,7 @@ class AdminCatalogController extends Controller
         $product = Product::query()->findOrFail($id);
         $product->delete();
         $this->audit->record('catalog.product_deleted', $request->user(), 'product', $product->id, null, ['sku' => $product->sku], $request);
+        SeoController::clearCaches();
 
         return response()->json(['message' => 'Produto arquivado com sucesso.']);
     }
@@ -267,6 +271,7 @@ class AdminCatalogController extends Controller
         }
 
         $category = Category::query()->create(array_merge($validated, ['slug' => $slug]));
+        SeoController::clearCaches();
 
         return response()->json(['data' => $category], 201);
     }
@@ -303,6 +308,7 @@ class AdminCatalogController extends Controller
         }
 
         $category->update($validated);
+        SeoController::clearCaches();
 
         return response()->json(['data' => $category->fresh()]);
     }
@@ -311,6 +317,7 @@ class AdminCatalogController extends Controller
     {
         $category = Category::query()->findOrFail($id);
         $category->delete();
+        SeoController::clearCaches();
 
         return response()->json(['message' => 'Categoria removida.']);
     }
@@ -329,6 +336,8 @@ class AdminCatalogController extends Controller
             'logo_path' => ['nullable', 'string', 'max:500'],
             'is_featured' => ['boolean'],
             'is_active' => ['boolean'],
+            'seo_title' => ['nullable', 'string', 'max:180'],
+            'seo_description' => ['nullable', 'string', 'max:320'],
         ]);
 
         $slug = Str::slug((string) ($validated['slug'] ?? $validated['name']));
@@ -337,6 +346,7 @@ class AdminCatalogController extends Controller
         }
 
         $brand = Brand::query()->create(array_merge($validated, ['slug' => $slug]));
+        SeoController::clearCaches();
 
         return response()->json(['data' => $brand], 201);
     }
@@ -346,13 +356,29 @@ class AdminCatalogController extends Controller
         $brand = Brand::query()->findOrFail($id);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
+            'slug' => ['nullable', 'string', 'max:160'],
             'description' => ['nullable', 'string'],
             'logo_path' => ['nullable', 'string', 'max:500'],
             'is_featured' => ['boolean'],
             'is_active' => ['boolean'],
+            'seo_title' => ['nullable', 'string', 'max:180'],
+            'seo_description' => ['nullable', 'string', 'max:320'],
         ]);
 
+        $oldSlug = $brand->slug;
+        $newSlug = ! empty($validated['slug']) ? Str::slug((string) $validated['slug']) : $oldSlug;
+        if ($newSlug !== $oldSlug && ! Brand::query()->where('slug', $newSlug)->where('id', '!=', $id)->exists()) {
+            SlugRedirect::query()->updateOrCreate(
+                ['entity_type' => 'brand', 'old_slug' => $oldSlug],
+                ['new_slug' => $newSlug]
+            );
+            $validated['slug'] = $newSlug;
+        } else {
+            unset($validated['slug']);
+        }
+
         $brand->update($validated);
+        SeoController::clearCaches();
 
         return response()->json(['data' => $brand->fresh()]);
     }

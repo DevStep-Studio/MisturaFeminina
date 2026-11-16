@@ -109,11 +109,9 @@ export function buildProductSchema(product: SeoProductOptions) {
     ? new URL(product.image, site.url).href
     : new URL("/placeholder-product.svg", site.url).href;
 
-  const validUntil = new Date(
-    new Date().getFullYear() + 1,
-    11,
-    31,
-  ).toISOString().split("T")[0];
+  const validUntil = new Date(new Date().getFullYear() + 1, 11, 31)
+    .toISOString()
+    .split("T")[0];
 
   return {
     "@context": "https://schema.org",

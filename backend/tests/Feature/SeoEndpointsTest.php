@@ -21,6 +21,8 @@ test('robots.txt returns valid directives and points to sitemap', function (): v
         ->toContain('Allow: /')
         ->toContain('Disallow: /admin/')
         ->toContain('Disallow: /checkout')
+        ->toContain('Disallow: /*?*brand=')
+        ->toContain('Disallow: /*?*category=')
         ->toContain('Sitemap: ');
 });
 
@@ -47,4 +49,17 @@ test('llms.txt provides structured markdown information about the store', functi
         ->toContain('## Categorias em Destaque')
         ->toContain('## Políticas Comerciais e Atendimento ao Cliente')
         ->toContain('/categoria/unhas-e-esmalteria');
+});
+
+test('merchant-feed.xml returns valid Google Merchant Center RSS feed with real products', function (): void {
+    $response = $this->get('/merchant-feed.xml');
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'application/xml; charset=UTF-8');
+    expect($response->getContent())
+        ->toContain('<?xml version="1.0" encoding="UTF-8"?>')
+        ->toContain('<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">')
+        ->toContain('<g:price>')
+        ->toContain(' BRL</g:price>')
+        ->toContain('<g:availability>');
 });

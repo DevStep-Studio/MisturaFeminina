@@ -1,11 +1,17 @@
-import { For, Show } from "solid-js";
+import { For, Show, createEffect } from "solid-js";
 import { Link } from "@tanstack/solid-router";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import Plus from "lucide-solid/icons/plus";
 import Minus from "lucide-solid/icons/minus";
 import Trash2 from "lucide-solid/icons/trash";
 import { assetUrl, formatCents } from "../../../lib/format";
-import { trackBeginCheckout } from "../../../monitoring/analytics";
+import {
+  mapCartItemsToGa4,
+  trackAddToCart,
+  trackBeginCheckout,
+  trackRemoveFromCart,
+  trackViewCart,
+} from "../../../monitoring/analytics";
 import {
   addCartItem,
   removeCartItem,
@@ -40,6 +46,17 @@ export function CartDrawer() {
   };
 
   const closeDrawer = () => storefrontStore.setDrawerOpen(false);
+
+  createEffect(() => {
+    const c = cart();
+    if (isOpen() && c && c.items.length > 0) {
+      trackViewCart({
+        currency: "BRL",
+        value: c.total_cents / 100,
+        items: mapCartItemsToGa4(c.items),
+      });
+    }
+  });
 
   return (
     <Show when={isOpen()}>
@@ -186,7 +203,21 @@ export function CartDrawer() {
                             <button
                               type="button"
                               disabled={busy()}
-                              onClick={() => void removeCartItem(item.id)}
+                              onClick={() => {
+                                trackRemoveFromCart({
+                                  currency: "BRL",
+                                  value: item.line_total_cents / 100,
+                                  items: [
+                                    {
+                                      item_id: item.sku,
+                                      item_name: item.product_name,
+                                      price: item.unit_price_cents / 100,
+                                      quantity: item.quantity,
+                                    },
+                                  ],
+                                });
+                                void removeCartItem(item.id);
+                              }}
                               aria-label={`Remover ${item.product_name}`}
                               class="inline-flex size-8 items-center justify-center rounded text-zinc-500 hover:text-red-700"
                             >
@@ -253,13 +284,27 @@ export function CartDrawer() {
                             <button
                               type="button"
                               disabled={busy()}
-                              onClick={() =>
+                              onClick={() => {
                                 void addCartItem(
                                   prod.default_variant_id!,
                                   1,
                                   true,
-                                )
-                              }
+                                ).then(() => {
+                                  trackAddToCart({
+                                    currency: "BRL",
+                                    value: prod.effective_price_cents / 100,
+                                    items: [
+                                      {
+                                        item_id: prod.sku,
+                                        item_name: prod.name,
+                                        price: prod.effective_price_cents / 100,
+                                        item_brand: prod.brand?.name,
+                                        quantity: 1,
+                                      },
+                                    ],
+                                  });
+                                });
+                              }}
                               class="shrink-0 rounded-lg bg-[#93509e] px-3 py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-50"
                             >
                               Comprar
@@ -307,12 +352,7 @@ export function CartDrawer() {
                       trackBeginCheckout({
                         currency: "BRL",
                         value: c.total_cents / 100,
-                        items: c.items.map((it) => ({
-                          item_id: it.sku,
-                          item_name: it.product_name,
-                          price: it.unit_price_cents / 100,
-                          quantity: it.quantity,
-                        })),
+                        items: mapCartItemsToGa4(c.items),
                       });
                     }
                     closeDrawer();

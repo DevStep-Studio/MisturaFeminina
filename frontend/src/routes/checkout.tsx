@@ -24,6 +24,12 @@ import {
   formatPhone,
 } from "../lib/format";
 import { seoHead } from "../lib/seo";
+import {
+  mapCartItemsToGa4,
+  trackAddPaymentInfo,
+  trackAddShippingInfo,
+  trackBeginCheckout,
+} from "../monitoring/analytics";
 import { session } from "../security/session";
 
 export const Route = createFileRoute("/checkout")({
@@ -84,6 +90,13 @@ function CheckoutPage() {
   onMount(() => {
     void refreshCart().then((c) => {
       if (c?.shipping_cep) setCep(formatCep(c.shipping_cep));
+      if (c && c.items.length > 0) {
+        trackBeginCheckout({
+          currency: "BRL",
+          value: c.total_cents / 100,
+          items: mapCartItemsToGa4(c.items),
+        });
+      }
     });
     const u = session.user();
     if (session.status() === "authenticated" && u) {
@@ -169,6 +182,12 @@ function CheckoutPage() {
         );
         return;
       }
+      trackAddPaymentInfo({
+        currency: "BRL",
+        value: c.total_cents / 100,
+        payment_type: method(),
+        items: mapCartItemsToGa4(c.items),
+      });
       const res = await api<{
         data: {
           order: { public_token: string };
@@ -516,7 +535,15 @@ function CheckoutPage() {
                       initialCep={cep()}
                       selectedQuoteId={c().shipping_quote?.quote_id ?? null}
                       onSelectQuote={(q) => {
-                        if (q.quote_id) void selectCartShipping(q.quote_id);
+                        if (q.quote_id) {
+                          void selectCartShipping(q.quote_id);
+                          trackAddShippingInfo({
+                            currency: "BRL",
+                            value: c().total_cents / 100,
+                            shipping_tier: q.service_name,
+                            items: mapCartItemsToGa4(c().items),
+                          });
+                        }
                       }}
                     />
                   </div>

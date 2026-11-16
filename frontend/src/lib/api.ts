@@ -143,6 +143,20 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
     });
     if (!response.ok) {
       let validation: Record<string, string[]> = {};
+      let redirectTo: string | undefined;
+      if (response.status === 301 || response.status === 302) {
+        const payload: unknown = await response.json().catch(() => undefined);
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "redirect_to" in payload &&
+          typeof payload.redirect_to === "string" &&
+          payload.redirect_to.startsWith("/") &&
+          !payload.redirect_to.startsWith("//")
+        ) {
+          redirectTo = payload.redirect_to;
+        }
+      }
       if (response.status === 422) {
         const payload: unknown = await response.json().catch(() => undefined);
         if (
@@ -166,6 +180,7 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
         response.status,
         response.headers.get("X-Request-ID") || requestId,
         validation,
+        redirectTo,
       );
       if (
         options.authenticated !== false &&

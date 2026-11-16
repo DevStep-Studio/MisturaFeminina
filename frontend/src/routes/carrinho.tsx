@@ -20,6 +20,13 @@ import {
 import { ApiError } from "../lib/api";
 import { assetUrl, formatCents } from "../lib/format";
 import { seoHead } from "../lib/seo";
+import {
+  mapCartItemsToGa4,
+  trackAddShippingInfo,
+  trackBeginCheckout,
+  trackRemoveFromCart,
+  trackViewCart,
+} from "../monitoring/analytics";
 
 export const Route = createFileRoute("/carrinho")({
   head: () =>
@@ -39,7 +46,15 @@ function CartPage() {
   const [error, setError] = createSignal<string | null>(null);
 
   onMount(() => {
-    void refreshCart();
+    void refreshCart().then((c) => {
+      if (c && c.items.length > 0) {
+        trackViewCart({
+          currency: "BRL",
+          value: c.total_cents / 100,
+          items: mapCartItemsToGa4(c.items),
+        });
+      }
+    });
   });
 
   const cart = () => storefrontStore.cart();
@@ -219,7 +234,21 @@ function CartPage() {
                             </p>
                             <button
                               type="button"
-                              onClick={() => void removeCartItem(item.id)}
+                              onClick={() => {
+                                trackRemoveFromCart({
+                                  currency: "BRL",
+                                  value: item.line_total_cents / 100,
+                                  items: [
+                                    {
+                                      item_id: item.sku,
+                                      item_name: item.product_name,
+                                      price: item.unit_price_cents / 100,
+                                      quantity: item.quantity,
+                                    },
+                                  ],
+                                });
+                                void removeCartItem(item.id);
+                              }}
                               class="mt-1 inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-red-700"
                             >
                               <Trash2 class="h-3.5 w-3.5" />
@@ -298,7 +327,15 @@ function CartPage() {
                   initialCep={c().shipping_cep}
                   selectedQuoteId={c().shipping_quote?.quote_id ?? null}
                   onSelectQuote={(q) => {
-                    if (q.quote_id) void selectCartShipping(q.quote_id);
+                    if (q.quote_id) {
+                      void selectCartShipping(q.quote_id);
+                      trackAddShippingInfo({
+                        currency: "BRL",
+                        value: c().total_cents / 100,
+                        shipping_tier: q.service_name,
+                        items: mapCartItemsToGa4(c().items),
+                      });
+                    }
                   }}
                 />
 
@@ -339,6 +376,13 @@ function CartPage() {
 
                   <Link
                     to="/checkout"
+                    onClick={() =>
+                      trackBeginCheckout({
+                        currency: "BRL",
+                        value: c().total_cents / 100,
+                        items: mapCartItemsToGa4(c().items),
+                      })
+                    }
                     class="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--mf-primary)] px-5 text-sm font-bold text-white transition hover:bg-[var(--mf-primary-hover)]"
                   >
                     <span>Continuar para o Checkout</span>

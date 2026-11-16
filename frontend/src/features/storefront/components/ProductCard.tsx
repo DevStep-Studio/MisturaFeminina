@@ -3,6 +3,7 @@ import { Link } from "@tanstack/solid-router";
 import Bell from "lucide-solid/icons/bell";
 import CreditCard from "lucide-solid/icons/credit-card";
 import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
+import { trackAddToCart, trackSelectItem } from "../../../monitoring/analytics";
 import { addCartItem, storefrontStore } from "../store";
 import type { ProductCardData } from "../types";
 
@@ -21,6 +22,19 @@ export function ProductCard(props: {
     setFeedback("");
     try {
       await addCartItem(props.product.default_variant_id, 1, true);
+      trackAddToCart({
+        currency: "BRL",
+        value: props.product.effective_price_cents / 100,
+        items: [
+          {
+            item_id: props.product.sku,
+            item_name: props.product.name,
+            price: props.product.effective_price_cents / 100,
+            item_brand: props.product.brand?.name,
+            quantity: 1,
+          },
+        ],
+      });
     } catch {
       setFeedback("Indisponível");
     } finally {
@@ -40,6 +54,18 @@ export function ProductCard(props: {
         <Link
           to="/produto/$slug"
           params={{ slug: props.product.slug }}
+          onClick={() =>
+            trackSelectItem({
+              items: [
+                {
+                  item_id: props.product.sku,
+                  item_name: props.product.name,
+                  price: props.product.effective_price_cents / 100,
+                  item_brand: props.product.brand?.name,
+                },
+              ],
+            })
+          }
           class="block h-full w-full"
         >
           <img

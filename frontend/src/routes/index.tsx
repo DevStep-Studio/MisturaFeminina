@@ -30,6 +30,7 @@ import {
   buildWebSiteSchema,
   seoHead,
 } from "../lib/seo";
+import { selectPromotion } from "../monitoring/analytics";
 
 export const Route = createFileRoute("/")({
   head: () =>
@@ -215,6 +216,11 @@ function CouponStripBlock(props: {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
+      selectPromotion({
+        promotion_id: code,
+        promotion_name: props.section.title || "Cupom Especial",
+        creative_name: "home_coupon_strip",
+      });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
@@ -689,19 +695,8 @@ function StorefrontHomePage() {
   const sections = () => homeData() ?? [];
   const settings = () => storefrontStore.settings();
 
-  const jsonLd = () =>
-    JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Store",
-      name: settings().store_name,
-      description: settings().seo_default_description,
-      url: typeof window !== "undefined" ? window.location.origin : "",
-    });
-
   return (
     <StoreShell>
-      <script type="application/ld+json">{jsonLd()}</script>
-
       <h1 class="sr-only">
         {settings().store_name} — Cosméticos e Cuidados Pessoais
       </h1>

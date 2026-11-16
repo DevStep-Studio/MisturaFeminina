@@ -5,6 +5,7 @@ import X from "lucide-solid/icons/x";
 import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
+import { trackViewItemList } from "../../../monitoring/analytics";
 import type { BrandItem, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
 import { StoreShell } from "./StoreShell";
@@ -204,22 +205,38 @@ export function CatalogListingView(props: CatalogListingProps) {
       if (d.facets?.brands) setFacetBrands(d.facets.brands);
       if (d.facets?.categories) setFacetCategories(d.facets.categories);
 
+      let loadedItems: ProductCardData[] = [];
       if (Array.isArray(d.products)) {
-        setItems(d.products);
-        setTotal(d.meta?.total ?? d.total ?? d.products.length);
+        loadedItems = d.products;
+        setItems(loadedItems);
+        setTotal(d.meta?.total ?? d.total ?? loadedItems.length);
         setLastPage(d.meta?.last_page ?? d.last_page ?? 1);
       } else if (Array.isArray(d.items)) {
-        setItems(d.items);
-        setTotal(d.total ?? d.items.length);
+        loadedItems = d.items;
+        setItems(loadedItems);
+        setTotal(d.total ?? loadedItems.length);
         setLastPage(d.last_page ?? 1);
       } else if (d.products && !Array.isArray(d.products) && d.products.data) {
-        setItems(d.products.data);
-        setTotal(d.products.total ?? d.products.data.length);
+        loadedItems = d.products.data;
+        setItems(loadedItems);
+        setTotal(d.products.total ?? loadedItems.length);
         setLastPage(d.products.last_page ?? 1);
       } else {
         setItems([]);
         setTotal(0);
         setLastPage(1);
+      }
+
+      if (loadedItems.length > 0) {
+        trackViewItemList({
+          item_list_name: props.title,
+          items: loadedItems.slice(0, 12).map((p) => ({
+            item_id: p.sku,
+            item_name: p.name,
+            price: p.effective_price_cents / 100,
+            item_brand: p.brand?.name,
+          })),
+        });
       }
     } catch {
       setError("Não foi possível carregar os produtos desta seção.");

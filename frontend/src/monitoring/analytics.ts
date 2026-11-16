@@ -40,6 +40,22 @@ export interface Ga4Item {
   quantity?: number;
 }
 
+export function mapCartItemsToGa4(
+  items: {
+    sku: string;
+    product_name: string;
+    unit_price_cents: number;
+    quantity: number;
+  }[],
+): Ga4Item[] {
+  return items.map((it) => ({
+    item_id: it.sku,
+    item_name: it.product_name,
+    price: it.unit_price_cents / 100,
+    quantity: it.quantity,
+  }));
+}
+
 function ensureGtagFunction() {
   window.dataLayer ??= [];
   if (!window.gtag) {
