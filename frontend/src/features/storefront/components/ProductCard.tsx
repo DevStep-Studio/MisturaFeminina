@@ -1,8 +1,9 @@
+import { ProductImage } from "./ProductImage";
 import { Show, createSignal } from "solid-js";
 import { Link } from "@tanstack/solid-router";
 import Bell from "lucide-solid/icons/bell";
 import CreditCard from "lucide-solid/icons/credit-card";
-import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
+import { formatCents, whatsappUrl } from "../../../lib/format";
 import { trackAddToCart, trackSelectItem } from "../../../monitoring/analytics";
 import { addCartItem, storefrontStore } from "../store";
 import type { ProductCardData } from "../types";
@@ -68,8 +69,8 @@ export function ProductCard(props: {
           }
           class="block h-full w-full"
         >
-          <img
-            src={assetUrl(props.product.primary_image)}
+          <ProductImage
+            src={props.product.primary_image}
             alt={props.product.primary_image_alt}
             width="300"
             height="300"

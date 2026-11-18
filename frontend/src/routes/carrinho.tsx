@@ -1,3 +1,4 @@
+import { ProductImage } from "../features/storefront/components/ProductImage";
 import { createFileRoute, Link } from "@tanstack/solid-router";
 import ArrowRight from "lucide-solid/icons/arrow-right";
 import Minus from "lucide-solid/icons/minus";
@@ -18,7 +19,7 @@ import {
   updateCartItemQty,
 } from "../features/storefront/store";
 import { ApiError } from "../lib/api";
-import { assetUrl, formatCents } from "../lib/format";
+import { formatCents } from "../lib/format";
 import { seoHead } from "../lib/seo";
 import {
   mapCartItemsToGa4,
@@ -161,8 +162,8 @@ function CartPage() {
                           params={{ slug: item.product_slug }}
                           class="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50"
                         >
-                          <img
-                            src={assetUrl(item.image_url)}
+                          <ProductImage
+                            src={item.image_url}
                             alt={item.product_name}
                             class="h-full w-full object-contain p-1"
                           />

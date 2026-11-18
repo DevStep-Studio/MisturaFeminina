@@ -1,3 +1,4 @@
+import { ProductImage } from "./ProductImage";
 import { Link } from "@tanstack/solid-router";
 import Check from "lucide-solid/icons/check";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
@@ -14,7 +15,7 @@ import {
   onMount,
 } from "solid-js";
 import { api } from "../../../lib/api";
-import { assetUrl, formatCents, whatsappUrl } from "../../../lib/format";
+import { formatCents, whatsappUrl } from "../../../lib/format";
 import {
   selectPromotion,
   trackAddToCart,
@@ -246,8 +247,8 @@ export function PromoPopup() {
                             onClick={close}
                             class="block size-full"
                           >
-                            <img
-                              src={assetUrl(product.primary_image)}
+                            <ProductImage
+                              src={product.primary_image}
                               alt={product.primary_image_alt || product.name}
                               class="size-full object-contain transition-transform duration-300 group-hover:scale-105"
                             />

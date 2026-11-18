@@ -39,7 +39,12 @@ interface AdminProductRow {
   is_new_arrival: boolean;
   brand?: { id: number; name: string } | null;
   categories?: { id: number; name: string }[];
-  images?: { id: number; path: string; alt_text: string | null }[];
+  images?: {
+    id: number;
+    path: string;
+    alt_text: string | null;
+    is_primary?: boolean;
+  }[];
   variants?: {
     id: number;
     sku: string;
@@ -168,8 +173,10 @@ function AdminProductsPage() {
     );
     setStockQty(p.variants?.[0]?.stock_qty ?? 0);
     setWeightGrams(p.weight_grams || 200);
-    setImagePath(p.images?.[0]?.path || "");
-    setImageAlt(p.images?.[0]?.alt_text || "");
+    const primaryImage =
+      p.images?.find((image) => image.is_primary) ?? p.images?.[0];
+    setImagePath(primaryImage?.path || "");
+    setImageAlt(primaryImage?.alt_text || "");
     setShortDesc(p.short_description || "");
     setFullDesc(p.description || "");
     setSeoTitle(p.seo_title || "");
@@ -246,7 +253,7 @@ function AdminProductsPage() {
               is_primary: true,
             },
           ]
-        : undefined,
+        : [],
       variants: [
         {
           id: firstVariantId,

@@ -1,10 +1,11 @@
+import { ProductImage } from "./ProductImage";
 import { For, Show, createEffect } from "solid-js";
 import { Link } from "@tanstack/solid-router";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import Plus from "lucide-solid/icons/plus";
 import Minus from "lucide-solid/icons/minus";
 import Trash2 from "lucide-solid/icons/trash";
-import { assetUrl, formatCents } from "../../../lib/format";
+import { formatCents } from "../../../lib/format";
 import {
   mapCartItemsToGa4,
   trackAddToCart,
@@ -142,8 +143,8 @@ export function CartDrawer() {
                 <For each={cart()?.items ?? []}>
                   {(item) => (
                     <li class="flex gap-3 border-b border-zinc-100 pb-4">
-                      <img
-                        src={assetUrl(item.image_url)}
+                      <ProductImage
+                        src={item.image_url}
                         alt={item.product_name}
                         class="size-16 shrink-0 rounded-lg border border-zinc-200 bg-[#FAF7F8] object-contain p-1"
                       />
@@ -261,8 +262,8 @@ export function CartDrawer() {
                             onClick={closeDrawer}
                             class="size-12 shrink-0 rounded bg-[#FAF7F8] p-1"
                           >
-                            <img
-                              src={assetUrl(prod.primary_image)}
+                            <ProductImage
+                              src={prod.primary_image}
                               alt={prod.primary_image_alt}
                               class="h-full w-full object-contain"
                             />

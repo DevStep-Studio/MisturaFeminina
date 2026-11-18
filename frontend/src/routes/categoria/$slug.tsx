@@ -62,6 +62,8 @@ function CategoryPage() {
     <CatalogListingView
       title={catMeta()?.name || `Departamento: ${params().slug}`}
       subtitle={catMeta()?.description}
+      bannerImage={catMeta()?.banner_desktop_path}
+      bannerAlt={catMeta()?.name}
       breadcrumbs={[
         { label: "Categorias", to: "/categorias" },
         { label: catMeta()?.name || params().slug },

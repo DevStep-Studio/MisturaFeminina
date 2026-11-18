@@ -29,10 +29,7 @@ function CategoriesDirectoryPage() {
 
   return (
     <StoreShell>
-      <CatalogBanner
-        src="/storage/seed/hero-3-desktop.jpg"
-        alt="Frete Grátis para todo Brasil — Envios para todo o país"
-      />
+      <CatalogBanner alt="Mistura Feminina" />
       <div class="mx-auto max-w-7xl px-4 py-8">
         <SectionHeading
           as="h1"

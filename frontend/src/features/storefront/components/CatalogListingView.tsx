@@ -4,10 +4,10 @@ import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
 import X from "lucide-solid/icons/x";
 import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { api } from "../../../lib/api";
-import { assetUrl } from "../../../lib/format";
 import { trackViewItemList } from "../../../monitoring/analytics";
 import type { BrandItem, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
+import { BannerImage } from "./BannerImage";
 import { StoreShell } from "./StoreShell";
 
 export interface CatalogListingProps {
@@ -26,17 +26,11 @@ export interface CatalogListingProps {
 
 /** Full-width promotional banner displayed above catalog and category listings. */
 export function CatalogBanner(props: {
-  src: string;
+  src?: string | null;
   alt: string;
   href?: string | null;
 }) {
-  const image = (
-    <img
-      src={assetUrl(props.src)}
-      alt={props.alt}
-      class="block aspect-[3/1] max-h-[620px] w-full object-cover object-center"
-    />
-  );
+  const image = <BannerImage src={props.src} alt={props.alt} eager />;
 
   return (
     <section
@@ -286,20 +280,6 @@ export function CatalogListingView(props: CatalogListingProps) {
     setPage(1);
   }
 
-  const isOffersCollection = () => props.fixedParams?.collection === "ofertas";
-
-  const bannerSrc = () =>
-    props.bannerImage ??
-    (isOffersCollection()
-      ? "/storage/seed/hero-1-desktop.jpg"
-      : "/storage/seed/hero-3-desktop.jpg");
-
-  const bannerAlt = () =>
-    props.bannerAlt ??
-    (isOffersCollection()
-      ? "Black Friday — Aproveite as ofertas, produtos a partir de R$ 1,90"
-      : "Frete Grátis para todo Brasil — Envios para todo o país");
-
   const FilterContent = () => (
     <div class="space-y-6">
       <Show when={hasActiveFilters()}>
@@ -413,13 +393,11 @@ export function CatalogListingView(props: CatalogListingProps) {
 
   return (
     <StoreShell>
-      <Show when={props.bannerImage !== null}>
-        <CatalogBanner
-          src={bannerSrc()}
-          alt={bannerAlt()}
-          href={props.bannerHref}
-        />
-      </Show>
+      <CatalogBanner
+        src={props.bannerImage}
+        alt={props.bannerAlt ?? props.title}
+        href={props.bannerHref}
+      />
       <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Show when={props.breadcrumbs && props.breadcrumbs.length > 0}>
           <nav

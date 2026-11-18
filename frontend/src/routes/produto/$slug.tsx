@@ -1,3 +1,4 @@
+import { ProductImage } from "../../features/storefront/components/ProductImage";
 import { createFileRoute, Link, redirect } from "@tanstack/solid-router";
 import BadgePercent from "lucide-solid/icons/badge-percent";
 import Bell from "lucide-solid/icons/bell";
@@ -28,7 +29,7 @@ import type {
   ProductVariantData,
 } from "../../features/storefront/types";
 import { ApiError, api } from "../../lib/api";
-import { assetUrl, formatCents, whatsappUrl } from "../../lib/format";
+import { formatCents, whatsappUrl } from "../../lib/format";
 import {
   trackAddToCart,
   trackContactClick,
@@ -218,7 +219,7 @@ function ProductDetailPage() {
       p.variants[0];
     setSelectedVariantId(def?.id ?? null);
     setActiveImage(
-      def?.image_path || p.images[0]?.path || p.primary_image || null,
+      def?.image_path || p.primary_image || p.images[0]?.path || null,
     );
     setQty(1);
     setFeedback(null);
@@ -227,7 +228,7 @@ function ProductDetailPage() {
       recordViewedProduct({
         slug: p.slug,
         name: p.name,
-        primary_image: p.images[0]?.path || p.primary_image || null,
+        primary_image: p.primary_image || p.images[0]?.path || null,
       }),
     );
     trackViewItem({
@@ -549,8 +550,8 @@ function ProductDetailPage() {
                                       : "border-zinc-200 hover:border-zinc-400"
                                   }`}
                                 >
-                                  <img
-                                    src={assetUrl(img.path)}
+                                  <ProductImage
+                                    src={img.path}
                                     alt={img.alt_text || p().name}
                                     class="h-full w-full object-contain"
                                   />
@@ -574,8 +575,8 @@ function ProductDetailPage() {
                       </Show>
 
                       <div class="relative aspect-square flex-1 overflow-hidden rounded-xl bg-white">
-                        <img
-                          src={assetUrl(activeImage() || p().primary_image)}
+                        <ProductImage
+                          src={activeImage() || p().primary_image}
                           alt={
                             p().primary_image_alt ||
                             `${p().name} — Mistura Feminina Cosméticos`
@@ -1258,8 +1259,8 @@ function ProductDetailPage() {
                             params={{ slug: item.slug }}
                             class="flex w-full max-w-[340px] items-center gap-4 rounded-xl border border-zinc-100 bg-white p-3.5 shadow-2xs transition hover:border-zinc-200"
                           >
-                            <img
-                              src={assetUrl(item.primary_image)}
+                            <ProductImage
+                              src={item.primary_image}
                               alt=""
                               class="h-20 w-20 shrink-0 object-contain"
                             />
@@ -1287,8 +1288,8 @@ function ProductDetailPage() {
               <div class="fixed inset-x-0 bottom-[53px] md:bottom-0 z-30 border-t border-zinc-200/90 bg-white/95 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur-md transition-all duration-200">
                 <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
                   <div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                    <img
-                      src={assetUrl(activeImage() || p().primary_image)}
+                    <ProductImage
+                      src={activeImage() || p().primary_image}
                       alt={p().name}
                       class="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-lg border border-zinc-100 object-contain"
                     />

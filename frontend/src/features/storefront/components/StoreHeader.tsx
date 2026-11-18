@@ -1,3 +1,4 @@
+import { ProductImage } from "./ProductImage";
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Link, useNavigate } from "@tanstack/solid-router";
 import BadgePercent from "lucide-solid/icons/badge-percent";
@@ -282,8 +283,8 @@ export function StoreHeader() {
                       onClick={() => setShowDropdown(false)}
                       class="flex items-center gap-3 rounded-lg p-2 hover:bg-[#FFF3FF]"
                     >
-                      <img
-                        src={assetUrl(item.primary_image)}
+                      <ProductImage
+                        src={item.primary_image}
                         alt={item.primary_image_alt}
                         class="size-10 shrink-0 rounded bg-[#FAF7F8] object-contain"
                       />
@@ -738,8 +739,8 @@ export function StoreHeader() {
                                   Destaque
                                 </span>
                                 <div class="my-2 aspect-square w-full overflow-hidden rounded-lg bg-white p-2">
-                                  <img
-                                    src={assetUrl(featured().primary_image)}
+                                  <ProductImage
+                                    src={featured().primary_image}
                                     alt={featured().name}
                                     class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-105"
                                     loading="lazy"

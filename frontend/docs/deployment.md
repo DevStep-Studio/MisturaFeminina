@@ -16,6 +16,44 @@ Para publicação SSH, configure `ENABLE_SSH_DEPLOY=true`, `DEPLOY_PATH` (diret�
 
 Nenhum workflow foi executado remotamente nem deploy publicado por esta implementação. O diretório atual não tinha repositório Git configurado.
 
+## Upload pelo cPanel / Apache
+
+Execute `npm run build` em `frontend` com as variáveis de produção configuradas.
+Publique **o conteúdo de `frontend/dist`**, incluindo o arquivo oculto `.htaccess`,
+na raiz pública exclusiva do frontend (normalmente `public_html`). Faça backup da
+publicação atual e preserve regras específicas da hospedagem ao integrar o `.htaccess`.
+O Apache precisa permitir essas diretivas via `AllowOverride` e ter `mod_rewrite`
+habilitado. `mod_headers` aplica as regras de cache quando disponível.
+
+Envie primeiro `assets/`, `banners/` e os demais arquivos estáticos; envie
+`index.html` por último. Mantenha temporariamente os arquivos com hash das versões
+anteriores em `assets/` para atender abas abertas e HTML em cache. Não apague a pasta
+antes de enviar a nova versão. No Gerenciador de Arquivos do cPanel, habilite a
+exibição de arquivos ocultos para conferir o `.htaccess`.
+
+Após publicar, confira uma rota interna por acesso direto, o tipo JavaScript dos
+arquivos `.js` e o retorno 404 para `/assets/arquivo-inexistente.js`. HTML deve ser
+revalidado; arquivos com hash podem ficar em cache por um ano. Se houver cache de
+HTML na Cloudflare, limpe as páginas afetadas e confira se alguma regra da CDN
+sobrescreve os headers da origem.
+
+### Banners do carrossel principal
+
+Os arquivos abaixo são incluídos automaticamente no build. Em
+`/admin/aparencia`, cadastre os dois como banners ativos na posição `hero`, sem
+imagem mobile (a mesma arte será exibida inteira em todas as telas):
+
+| Título                        | Caminho da imagem desktop    | Link          | Ordem |
+| ----------------------------- | ---------------------------- | ------------- | ----- |
+| Black Friday                  | `/banners/black-friday.jpeg` | `/promocoes`  | 1     |
+| Frete grátis para todo Brasil | `/banners/frete-gratis.jpeg` | `/categorias` | 2     |
+
+Use textos alternativos descritivos das respectivas campanhas. Pause os outros
+banners da posição `hero` para que o carrossel contenha apenas estes dois. Mantenha
+a seção de tipo `hero_carousel` ativa na home. Não execute o seeder de demonstração
+para alterar os banners de produção. Esse cadastro usa a API existente e continua
+editável pelo painel; copiar as imagens por si só não altera os registros da API.
+
 ## Source maps privados
 
 Configure `SENTRY_AUTH_TOKEN` como secret e `SENTRY_ORG`, `SENTRY_PROJECT` como variables. O release usa o SHA do commit tanto no frontend quanto no upload. Quando o token existe, o CI gera mapas hidden, injeta debug IDs, envia ao Sentry e remove os mapas antes de empacotar. Falha no upload bloqueia a publicação. Não salve esse token em VITE.

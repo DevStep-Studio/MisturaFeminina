@@ -11,6 +11,7 @@ import {
   onMount,
 } from "solid-js";
 import { NewsletterSection } from "../features/storefront/components/NewsletterSection";
+import { BannerImage } from "../features/storefront/components/BannerImage";
 import { ProductCard } from "../features/storefront/components/ProductCard";
 import { SectionHeading } from "../features/storefront/components/SectionHeading";
 import { StoreShell } from "../features/storefront/components/StoreShell";
@@ -95,28 +96,12 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
         <Show when={current()}>
           {(banner) => {
             const img = (
-              <picture class="block w-full">
-                <Show when={banner().mobile_image_path}>
-                  <source
-                    media="(max-width: 767px)"
-                    srcset={assetUrl(banner().mobile_image_path)}
-                  />
-                </Show>
-                <img
-                  src={assetUrl(banner().desktop_image_path)}
-                  alt={banner().alt_text || banner().title}
-                  loading="eager"
-                  fetchpriority="high"
-                  decoding="async"
-                  width="1920"
-                  height="650"
-                  class={
-                    banner().mobile_image_path
-                      ? "block aspect-[3/4] max-h-[520px] w-full object-cover object-center md:aspect-[1920/650] md:max-h-none"
-                      : "block aspect-[3/1] max-h-[620px] w-full object-cover object-center"
-                  }
-                />
-              </picture>
+              <BannerImage
+                src={banner().desktop_image_path}
+                mobileSrc={banner().mobile_image_path}
+                alt={banner().alt_text || banner().title}
+                eager
+              />
             );
 
             return (
