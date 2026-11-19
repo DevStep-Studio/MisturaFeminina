@@ -26,12 +26,23 @@ import type { ProductCardData } from "../types";
 
 const POPUP_DISMISSED_KEY = "mf:promo-popup-dismissed:v2";
 
+function getResponsivePageSize(): number {
+  if (typeof window === "undefined") return 3;
+  if (window.matchMedia("(min-width: 768px)").matches) return 3;
+  if (window.matchMedia("(min-width: 640px)").matches) return 2;
+  return 1;
+}
+
 export function PromoPopup() {
   const settings = () => storefrontStore.settings();
   const [open, setOpen] = createSignal(false);
   const [copied, setCopied] = createSignal(false);
   const [addingId, setAddingId] = createSignal<number | null>(null);
   const [page, setPage] = createSignal(0);
+  const [pageSize, setPageSize] = createSignal(getResponsivePageSize());
+
+  let touchStartX: number | null = null;
+  let touchStartY: number | null = null;
 
   // Fetch offers/promotional products for the modal showcase
   const [productsData] = createResource(async () => {
@@ -59,15 +70,35 @@ export function PromoPopup() {
   });
 
   const products = () => productsData() ?? [];
-  const pageSize = 3;
-  const totalPages = () => Math.max(1, Math.ceil(products().length / pageSize));
+  const totalPages = () =>
+    Math.max(1, Math.ceil(products().length / pageSize()));
+  const activePage = () => page() % totalPages();
 
   const visibleProducts = () => {
     const list = products();
     if (list.length === 0) return [];
-    const start = (page() % totalPages()) * pageSize;
-    return list.slice(start, start + pageSize);
+    const size = pageSize();
+    const count = Math.min(size, list.length);
+    const start = activePage() * size;
+    return Array.from(
+      { length: count },
+      (_, idx) => list[(start + idx) % list.length],
+    );
   };
+
+  createEffect(() => {
+    const pages = totalPages();
+    setPage((current) => (current >= pages ? 0 : current));
+  });
+
+  createEffect(() => {
+    if (!open() || typeof document === "undefined") return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    onCleanup(() => {
+      document.body.style.overflow = prevOverflow;
+    });
+  });
 
   createEffect(() => {
     // Check if dismissed in this session
@@ -107,7 +138,7 @@ export function PromoPopup() {
     }
   }
 
-  // Handle ESC key press to close modal
+  // Handle ESC key press and responsive viewport breakpoints
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && open()) {
@@ -115,7 +146,28 @@ export function PromoPopup() {
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    onCleanup(() => window.removeEventListener("keydown", handleKeyDown));
+
+    const mdQuery = window.matchMedia("(min-width: 768px)");
+    const smQuery = window.matchMedia("(min-width: 640px)");
+    const updatePageSize = () => {
+      if (mdQuery.matches) {
+        setPageSize(3);
+      } else if (smQuery.matches) {
+        setPageSize(2);
+      } else {
+        setPageSize(1);
+      }
+    };
+
+    updatePageSize();
+    mdQuery.addEventListener("change", updatePageSize);
+    smQuery.addEventListener("change", updatePageSize);
+
+    onCleanup(() => {
+      window.removeEventListener("keydown", handleKeyDown);
+      mdQuery.removeEventListener("change", updatePageSize);
+      smQuery.removeEventListener("change", updatePageSize);
+    });
   });
 
   const couponCode = () => settings().popup_coupon_code || "DESCONTO10";
@@ -170,6 +222,38 @@ export function PromoPopup() {
     setPage((p) => (p - 1 + totalPages()) % totalPages());
   }
 
+  function handleTouchStart(e: TouchEvent) {
+    if (e.touches.length !== 1) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+
+  function handleTouchEnd(e: TouchEvent) {
+    if (
+      touchStartX === null ||
+      touchStartY === null ||
+      e.changedTouches.length === 0
+    ) {
+      touchStartX = null;
+      touchStartY = null;
+      return;
+    }
+
+    const deltaX = e.changedTouches[0].clientX - touchStartX;
+    const deltaY = e.changedTouches[0].clientY - touchStartY;
+    touchStartX = null;
+    touchStartY = null;
+
+    if (totalPages() <= 1) return;
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (deltaX < 0) {
+        nextPage();
+      } else {
+        prevPage();
+      }
+    }
+  }
+
   return (
     <Show when={open()}>
       <div
@@ -179,30 +263,30 @@ export function PromoPopup() {
         onClick={(e) => {
           if (e.target === e.currentTarget) close();
         }}
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3.5 backdrop-blur-xs sm:p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/65 p-3 backdrop-blur-xs sm:p-5"
       >
-        <div class="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl transition-all">
+        <div class="relative my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl transition-all sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-2xl md:max-w-4xl">
           {/* Floating White Circular Close Button */}
           <button
             type="button"
             onClick={close}
             aria-label="Fechar"
-            class="absolute -right-2.5 -top-2.5 z-30 inline-flex size-9 items-center justify-center rounded-full bg-white text-zinc-800 shadow-md ring-1 ring-black/10 transition-transform duration-200 hover:scale-110 hover:bg-zinc-100 active:scale-95 sm:-right-3 sm:-top-3 sm:size-10"
+            class="absolute right-2.5 top-2.5 z-30 inline-flex size-8 cursor-pointer items-center justify-center rounded-full bg-white text-zinc-800 shadow-md ring-1 ring-black/10 transition-transform duration-200 hover:scale-110 hover:bg-zinc-100 active:scale-95 sm:-right-3 sm:-top-3 sm:size-10"
           >
-            <X class="size-5 stroke-[2.4]" />
+            <X class="size-4 stroke-[2.4] sm:size-5" />
           </button>
 
           {/* Top Purple Header Banner */}
-          <div class="flex flex-col items-center justify-between gap-3 rounded-t-2xl bg-[#4a0e78] px-4 py-3 sm:flex-row sm:px-6 sm:py-3.5 text-white">
+          <div class="flex shrink-0 flex-col items-center justify-between gap-2.5 rounded-t-2xl bg-[#4a0e78] px-11 py-3 text-white sm:flex-row sm:gap-3 sm:px-6 sm:py-3.5">
             <h2
               id="promo-popup-heading"
-              class="text-center text-sm font-bold tracking-tight sm:text-left sm:text-base md:text-lg"
+              class="text-center text-sm font-bold leading-snug tracking-tight sm:text-left sm:text-base md:text-lg"
             >
               {settings().popup_title ||
                 "Aproveite e Utilize o cupom ganhe 10% OFF!"}
             </h2>
 
-            <div class="inline-flex items-center rounded-full border border-dashed border-white/90 bg-white/10 p-0.5 pl-3 sm:pl-4 shadow-2xs">
+            <div class="inline-flex shrink-0 items-center rounded-full border border-dashed border-white/90 bg-white/10 p-0.5 pl-3 shadow-2xs sm:pl-4">
               <span class="mr-2.5 font-mono text-xs font-black tracking-wider text-white uppercase sm:text-sm">
                 {couponCode()}
               </span>
@@ -220,12 +304,12 @@ export function PromoPopup() {
           </div>
 
           {/* Modal Body / Products Showcase */}
-          <div class="relative rounded-b-2xl bg-white p-4 sm:p-6">
+          <div class="relative overflow-y-auto rounded-b-2xl bg-white px-3 py-3.5 sm:p-6">
             <Show
               when={!productsData.loading}
               fallback={
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <For each={[1, 2, 3]}>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 sm:gap-5">
+                  <For each={Array.from({ length: pageSize() }, (_, i) => i)}>
                     {() => (
                       <div class="h-72 animate-pulse rounded-xl bg-zinc-100" />
                     )}
@@ -233,14 +317,18 @@ export function PromoPopup() {
                 </div>
               }
             >
-              <div class="relative">
-                {/* 3 Products Grid */}
+              <div
+                class="relative px-4 sm:px-0"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
+                {/* Responsive Products Grid */}
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 sm:gap-5">
                   <For each={visibleProducts()}>
                     {(product) => (
                       <article class="group relative flex flex-col items-center rounded-xl border border-zinc-100 bg-white p-3 text-center shadow-xs transition hover:shadow-md">
                         {/* Product Image + Discount Badge */}
-                        <div class="relative aspect-square w-full max-w-[200px] overflow-hidden rounded-lg bg-white p-1">
+                        <div class="relative aspect-square w-full max-w-[155px] overflow-hidden rounded-lg bg-white p-1 sm:max-w-[180px] md:max-w-[200px]">
                           <Link
                             to="/produto/$slug"
                             params={{ slug: product.slug }}
@@ -266,13 +354,13 @@ export function PromoPopup() {
                           to="/produto/$slug"
                           params={{ slug: product.slug }}
                           onClick={close}
-                          class="mt-2.5 line-clamp-2 min-h-[2.5rem] text-[13px] font-semibold leading-snug text-[#2F0572] transition-colors hover:text-[#C918BF]"
+                          class="mt-2 line-clamp-2 min-h-[2.25rem] text-[13px] font-semibold leading-snug text-[#2F0572] transition-colors hover:text-[#C918BF] sm:mt-2.5 sm:min-h-[2.5rem]"
                         >
                           {product.name}
                         </Link>
 
                         {/* Prices */}
-                        <div class="mt-2 flex items-baseline justify-center gap-1.5">
+                        <div class="mt-1.5 flex items-baseline justify-center gap-1.5 sm:mt-2">
                           <Show
                             when={
                               product.effective_price_cents <
@@ -310,7 +398,7 @@ export function PromoPopup() {
                         </Show>
 
                         {/* Actions */}
-                        <div class="mt-3.5 flex w-full flex-col gap-2">
+                        <div class="mt-auto flex w-full flex-col gap-2 pt-3 sm:pt-3.5">
                           <Show
                             when={
                               product.default_variant_id && product.in_stock
@@ -370,20 +458,47 @@ export function PromoPopup() {
                     type="button"
                     onClick={prevPage}
                     aria-label="Produtos anteriores"
-                    class="absolute -left-3 top-1/2 -translate-y-1/2 z-10 inline-flex size-9 items-center justify-center rounded-full border border-purple-200 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95 sm:-left-4 sm:size-10"
+                    class="absolute -left-1.5 top-1/2 z-10 inline-flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-purple-200 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95 sm:-left-4 sm:size-10"
                   >
-                    <ChevronLeft class="size-5" />
+                    <ChevronLeft class="size-4 sm:size-5" />
                   </button>
                   <button
                     type="button"
                     onClick={nextPage}
                     aria-label="Próximos produtos"
-                    class="absolute -right-3 top-1/2 -translate-y-1/2 z-10 inline-flex size-9 items-center justify-center rounded-full border border-purple-200 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95 sm:-right-4 sm:size-10"
+                    class="absolute -right-1.5 top-1/2 z-10 inline-flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-purple-200 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95 sm:-right-4 sm:size-10"
                   >
-                    <ChevronRight class="size-5" />
+                    <ChevronRight class="size-4 sm:size-5" />
                   </button>
                 </Show>
               </div>
+
+              {/* Pagination Dots */}
+              <Show when={totalPages() > 1}>
+                <div
+                  class="mt-3 flex items-center justify-center gap-1.5 sm:mt-4"
+                  role="group"
+                  aria-label="Paginação de produtos"
+                >
+                  <For each={Array.from({ length: totalPages() }, (_, i) => i)}>
+                    {(pageIndex) => (
+                      <button
+                        type="button"
+                        onClick={() => setPage(pageIndex)}
+                        aria-label={`Ir para página ${pageIndex + 1} de ${totalPages()}`}
+                        aria-current={
+                          activePage() === pageIndex ? "true" : undefined
+                        }
+                        class={`h-2 cursor-pointer rounded-full transition-all ${
+                          activePage() === pageIndex
+                            ? "w-5 bg-[#93509e]"
+                            : "w-2 bg-purple-200 hover:bg-purple-300"
+                        }`}
+                      />
+                    )}
+                  </For>
+                </div>
+              </Show>
             </Show>
           </div>
         </div>
