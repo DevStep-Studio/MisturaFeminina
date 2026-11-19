@@ -44,6 +44,7 @@ class SeoController extends Controller
                 ['loc' => $base.'/marcas'],
                 ['loc' => $base.'/promocoes'],
                 ['loc' => $base.'/novidades'],
+                ['loc' => $base.'/contato'],
             ];
 
             Category::query()->where('is_active', true)->get(['slug', 'updated_at'])->each(function (Category $c) use (&$urls, $base): void {
@@ -68,6 +69,9 @@ class SeoController extends Controller
             });
 
             ContentPage::query()->where('is_published', true)->get(['slug', 'updated_at'])->each(function (ContentPage $page) use (&$urls, $base): void {
+                if ($page->slug === 'contato') {
+                    return;
+                }
                 $urls[] = [
                     'loc' => $base.'/'.$page->slug,
                     'lastmod' => $page->updated_at?->toAtomString(),
@@ -107,12 +111,17 @@ class SeoController extends Controller
             'Allow: /*.jpg$',
             'Allow: /*.jpeg$',
             'Allow: /*.webp$',
+            'Allow: /*.avif$',
             'Allow: /*.svg$',
+            'Allow: /*.woff2$',
             'Disallow: /admin/',
             'Disallow: /dashboard/',
+            'Disallow: /app',
             'Disallow: /checkout',
             'Disallow: /carrinho',
+            'Disallow: /favoritos',
             'Disallow: /minha-conta',
+            'Disallow: /pedido/',
             'Disallow: /login',
             'Disallow: /entrar',
             'Disallow: /cadastro',
@@ -120,6 +129,8 @@ class SeoController extends Controller
             'Disallow: /reset-password',
             'Disallow: /buscar',
             'Disallow: /api/',
+            'Disallow: /*?*q=',
+            'Disallow: /*?*collection=',
             'Disallow: /*?*sort=',
             'Disallow: /*?*min_price=',
             'Disallow: /*?*max_price=',

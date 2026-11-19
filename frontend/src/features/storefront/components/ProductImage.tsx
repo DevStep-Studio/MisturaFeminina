@@ -21,6 +21,7 @@ export function ProductImage(props: ProductImageProps) {
 
   return (
     <img
+      decoding="async"
       {...rest}
       src={failed() ? fallback : imageSrc()}
       onError={() => {

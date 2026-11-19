@@ -112,6 +112,14 @@ export const Route = createFileRoute("/produto/$slug")({
         : undefined;
     const effectivePriceStr = (effectivePriceCents / 100).toFixed(2);
 
+    const brandSuffix = p?.brand?.name ? ` da marca ${p.brand.name}` : "";
+    const categorySuffix = p?.categories?.[0]?.name
+      ? ` na categoria ${p.categories[0].name}`
+      : "";
+    const fallbackDescription = p
+      ? `Conheça ${p.name}${brandSuffix}${categorySuffix} na Mistura Feminina. Confira características, especificações e disponibilidade para comprar online.`
+      : "Produto não encontrado na Mistura Feminina Cosméticos.";
+
     return seoHead({
       title:
         p?.seo_title ||
@@ -119,28 +127,31 @@ export const Route = createFileRoute("/produto/$slug")({
           ? `${p.name} | Mistura Feminina`
           : `${params.slug} | Mistura Feminina`),
       description:
-        p?.seo_description ||
-        p?.short_description ||
-        `Conheça ${p?.name || params.slug} na Mistura Feminina. Confira suas características, informações e disponibilidade para comprar online.`,
+        p?.seo_description || p?.short_description || fallbackDescription,
       path: `/produto/${params.slug}`,
       image: p?.primary_image || undefined,
       type: "product",
       price: effectivePriceStr,
       currency: "BRL",
+      noindex: !p,
       jsonLd: p
         ? [
             buildProductSchema({
               name: p.name,
               description: p.short_description || p.description,
               sku: defVariant?.sku || p.sku,
+              gtin: defVariant?.gtin || p.gtin,
+              category: p.categories?.[0]?.name,
               brand: p.brand?.name,
               image: p.primary_image,
+              images: p.images?.map((i) => i.path),
               priceCents,
               promoPriceCents,
               inStock,
               slug: p.slug,
               ratingValue,
               reviewCount,
+              reviews: p.reviews,
             }),
             buildBreadcrumbSchema([
               { name: "Início", path: "/" },
@@ -163,11 +174,16 @@ export const Route = createFileRoute("/produto/$slug")({
 
 function ProductDetailPage() {
   const params = Route.useParams();
+  const loaderData = Route.useLoaderData();
   const settings = () => storefrontStore.settings();
 
-  const [product, { refetch }] = createResource(
+  const [product, { refetch }] = createResource<ProductDetailData, string>(
     () => params().slug,
-    async (slug) => {
+    async (slug, { refetching }) => {
+      const initial = loaderData() as ProductDetailData | null | undefined;
+      if (!refetching && initial && initial.slug === slug) {
+        return initial;
+      }
       const res = await api<{ data: ProductDetailData }>(
         `/catalog/products/${slug}`,
         {
@@ -553,6 +569,10 @@ function ProductDetailPage() {
                                   <ProductImage
                                     src={img.path}
                                     alt={img.alt_text || p().name}
+                                    width="80"
+                                    height="80"
+                                    loading="lazy"
+                                    decoding="async"
                                     class="h-full w-full object-contain"
                                   />
                                 </button>
@@ -1262,6 +1282,10 @@ function ProductDetailPage() {
                             <ProductImage
                               src={item.primary_image}
                               alt=""
+                              width="80"
+                              height="80"
+                              loading="lazy"
+                              decoding="async"
                               class="h-20 w-20 shrink-0 object-contain"
                             />
                             <span class="text-xs font-bold text-[#2E0C49]">
@@ -1291,6 +1315,10 @@ function ProductDetailPage() {
                     <ProductImage
                       src={activeImage() || p().primary_image}
                       alt={p().name}
+                      width="48"
+                      height="48"
+                      loading="lazy"
+                      decoding="async"
                       class="h-10 w-10 sm:h-12 sm:w-12 shrink-0 rounded-lg border border-zinc-100 object-contain"
                     />
                     <div class="min-w-0">

@@ -1,5 +1,4 @@
 import { createFileRoute, redirect } from "@tanstack/solid-router";
-import { createResource } from "solid-js";
 import { CatalogListingView } from "../../features/storefront/components/CatalogListingView";
 import { storefrontStore } from "../../features/storefront/store";
 import type { CategoryNode } from "../../features/storefront/types";
@@ -31,6 +30,7 @@ export const Route = createFileRoute("/categoria/$slug")({
         cat?.description ||
         `Confira nossa seleção de ${name} na Mistura Feminina. Conheça os produtos disponíveis e encontre opções para sua rotina de beleza.`,
       path: `/categoria/${params.slug}`,
+      noindex: !cat,
       jsonLd: buildBreadcrumbSchema([
         { name: "Início", path: "/" },
         { name: "Categorias", path: "/categorias" },
@@ -43,20 +43,7 @@ export const Route = createFileRoute("/categoria/$slug")({
 
 function CategoryPage() {
   const params = Route.useParams();
-  const [catMeta] = createResource(
-    () => params().slug,
-    async (slug) => {
-      try {
-        const res = await api<{ data: { category?: CategoryNode } }>(
-          `/catalog/categories/${slug}?per_page=1`,
-          { authenticated: false },
-        );
-        return res.data?.category ?? null;
-      } catch {
-        return null;
-      }
-    },
-  );
+  const catMeta = Route.useLoaderData();
 
   return (
     <CatalogListingView

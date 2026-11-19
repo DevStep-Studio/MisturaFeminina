@@ -1,7 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/solid-router";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import { api } from "../lib/api";
-import { seoHead } from "../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
 
 const RESERVED_NON_CMS_SLUGS = new Set([
   "dashboard",
@@ -48,16 +48,23 @@ export const Route = createFileRoute("/$slug")({
       throw notFound();
     }
   },
-  head: ({ loaderData, params }) =>
-    seoHead({
-      title:
-        loaderData?.seo_title ||
-        `${loaderData?.title || params.slug} | Mistura Feminina`,
+  head: ({ loaderData, params }) => {
+    const title = loaderData?.title || params.slug;
+    return seoHead({
+      title: loaderData?.seo_title || `${title} | Mistura Feminina`,
       description:
         loaderData?.seo_description ||
         "Informações institucionais, políticas comerciais e atendimento da Mistura Feminina Cosméticos.",
       path: `/${params.slug}`,
-    }),
+      noindex: !loaderData,
+      jsonLd: loaderData
+        ? buildBreadcrumbSchema([
+            { name: "Início", path: "/" },
+            { name: title, path: `/${params.slug}` },
+          ])
+        : undefined,
+    });
+  },
   component: DynamicContentPage,
 });
 

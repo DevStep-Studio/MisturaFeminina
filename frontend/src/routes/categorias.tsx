@@ -6,7 +6,7 @@ import { StoreShell } from "../features/storefront/components/StoreShell";
 import type { CategoryNode } from "../features/storefront/types";
 import { api } from "../lib/api";
 import { assetUrl } from "../lib/format";
-import { seoHead } from "../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
 
 export const Route = createFileRoute("/categorias")({
   head: () =>
@@ -15,6 +15,10 @@ export const Route = createFileRoute("/categorias")({
       description:
         "Explore todas as categorias de produtos de beleza, maquiagem, cabelos e unhas da Mistura Feminina.",
       path: "/categorias",
+      jsonLd: buildBreadcrumbSchema([
+        { name: "Início", path: "/" },
+        { name: "Categorias", path: "/categorias" },
+      ]),
     }),
   component: CategoriesDirectoryPage,
 });
@@ -56,6 +60,10 @@ function CategoriesDirectoryPage() {
                     <img
                       src={assetUrl(cat.image_path)}
                       alt={cat.name}
+                      width="56"
+                      height="56"
+                      loading="lazy"
+                      decoding="async"
                       class="h-14 w-14 rounded-lg border border-zinc-200 bg-zinc-50 object-cover"
                     />
                     <div>

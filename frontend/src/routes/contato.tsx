@@ -5,7 +5,7 @@ import { StoreShell } from "../features/storefront/components/StoreShell";
 import { storefrontStore } from "../features/storefront/store";
 import { ApiError, api } from "../lib/api";
 import { whatsappUrl } from "../lib/format";
-import { seoHead } from "../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
 import { trackContactClick } from "../monitoring/analytics";
 
 export const Route = createFileRoute("/contato")({
@@ -15,6 +15,10 @@ export const Route = createFileRoute("/contato")({
       description:
         "Entre em contato com a equipe da Mistura Feminina Cosméticos. Atendimento rápido via WhatsApp e e-mail para todo o Brasil.",
       path: "/contato",
+      jsonLd: buildBreadcrumbSchema([
+        { name: "Início", path: "/" },
+        { name: "Contato", path: "/contato" },
+      ]),
     }),
   component: ContactPage,
 });

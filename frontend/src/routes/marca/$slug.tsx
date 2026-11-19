@@ -1,5 +1,4 @@
 import { createFileRoute, redirect } from "@tanstack/solid-router";
-import { createResource } from "solid-js";
 import { CatalogListingView } from "../../features/storefront/components/CatalogListingView";
 import type { BrandItem } from "../../features/storefront/types";
 import { ApiError, api } from "../../lib/api";
@@ -30,6 +29,7 @@ export const Route = createFileRoute("/marca/$slug")({
         brand?.description ||
         `Confira a linha completa de produtos ${name} na Mistura Feminina. Conheça as opções e compre com envio para todo o Brasil.`,
       path: `/marca/${params.slug}`,
+      noindex: !brand,
       jsonLd: buildBreadcrumbSchema([
         { name: "Início", path: "/" },
         { name: "Marcas", path: "/marcas" },
@@ -42,20 +42,7 @@ export const Route = createFileRoute("/marca/$slug")({
 
 function BrandPage() {
   const params = Route.useParams();
-  const [brandMeta] = createResource(
-    () => params().slug,
-    async (slug) => {
-      try {
-        const res = await api<{ data: { brand?: BrandItem } }>(
-          `/catalog/brands/${slug}?per_page=1`,
-          { authenticated: false },
-        );
-        return res.data?.brand ?? null;
-      } catch {
-        return null;
-      }
-    },
-  );
+  const brandMeta = Route.useLoaderData();
 
   return (
     <CatalogListingView

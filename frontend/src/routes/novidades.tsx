@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { CatalogListingView } from "../features/storefront/components/CatalogListingView";
 import { storefrontStore } from "../features/storefront/store";
-import { seoHead } from "../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
 
 export const Route = createFileRoute("/novidades")({
   head: () =>
@@ -10,6 +10,10 @@ export const Route = createFileRoute("/novidades")({
       description:
         "Descubra os lançamentos mais recentes em produtos de beleza, maquiagem e cuidados pessoais na Mistura Feminina.",
       path: "/novidades",
+      jsonLd: buildBreadcrumbSchema([
+        { name: "Início", path: "/" },
+        { name: "Novidades", path: "/novidades" },
+      ]),
     }),
   component: NewArrivalsPage,
 });

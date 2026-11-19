@@ -30,8 +30,51 @@ export function siteSettings(env: SiteEnvironment, development = false) {
   };
 }
 
-/** Add indexable public content pages when the client application needs them. */
+/** Indexable public storefront pages emitted in static sitemap builds. */
 export const publicPages: Record<
   string,
   { path: string; title: string; description: string }
-> = {};
+> = {
+  home: {
+    path: "/",
+    title: "Mistura Feminina | Cosméticos, Maquiagem e Beleza",
+    description:
+      "Encontre cosméticos, maquiagens e produtos de beleza na Mistura Feminina. Explore nosso catálogo e descubra opções para seus cuidados diários.",
+  },
+  categorias: {
+    path: "/categorias",
+    title: "Todas as Categorias | Mistura Feminina",
+    description:
+      "Explore todas as categorias de produtos de beleza, maquiagem, cabelos e unhas da Mistura Feminina.",
+  },
+  marcas: {
+    path: "/marcas",
+    title: "Marcas Oficiais | Mistura Feminina",
+    description:
+      "Conheça todas as marcas de beleza e cosméticos disponíveis na Mistura Feminina Cosméticos.",
+  },
+  promocoes: {
+    path: "/promocoes",
+    title: "Ofertas e Promoções | Mistura Feminina",
+    description:
+      "Confira as melhores ofertas e descontos imperdíveis em cosméticos, esmaltes e maquiagens na Mistura Feminina.",
+  },
+  novidades: {
+    path: "/novidades",
+    title: "Lançamentos e Novidades | Mistura Feminina",
+    description:
+      "Descubra os lançamentos mais recentes em produtos de beleza, maquiagem e cuidados pessoais na Mistura Feminina.",
+  },
+  contato: {
+    path: "/contato",
+    title: "Fale Conosco e Atendimento | Mistura Feminina",
+    description:
+      "Entre em contato com a equipe da Mistura Feminina Cosméticos. Atendimento rápido via WhatsApp e e-mail para todo o Brasil.",
+  },
+  rastrear: {
+    path: "/rastrear-pedido",
+    title: "Rastrear Pedido — Mistura Feminina Cosméticos",
+    description:
+      "Consulte o status, pagamento e código de rastreio do seu pedido.",
+  },
+};

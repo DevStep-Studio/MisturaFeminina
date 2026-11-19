@@ -71,7 +71,7 @@ export function ProductCard(props: {
         >
           <ProductImage
             src={props.product.primary_image}
-            alt={props.product.primary_image_alt}
+            alt={props.product.primary_image_alt || props.product.name}
             width="300"
             height="300"
             loading="lazy"

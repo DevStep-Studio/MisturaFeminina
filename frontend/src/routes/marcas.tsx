@@ -5,7 +5,7 @@ import { StoreShell } from "../features/storefront/components/StoreShell";
 import type { BrandItem } from "../features/storefront/types";
 import { api } from "../lib/api";
 import { assetUrl } from "../lib/format";
-import { seoHead } from "../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
 
 export const Route = createFileRoute("/marcas")({
   head: () =>
@@ -14,6 +14,10 @@ export const Route = createFileRoute("/marcas")({
       description:
         "Conheça todas as marcas de beleza e cosméticos disponíveis na Mistura Feminina Cosméticos.",
       path: "/marcas",
+      jsonLd: buildBreadcrumbSchema([
+        { name: "Início", path: "/" },
+        { name: "Marcas", path: "/marcas" },
+      ]),
     }),
   component: BrandsDirectoryPage,
 });
@@ -53,6 +57,10 @@ function BrandsDirectoryPage() {
                   <img
                     src={assetUrl(brand.logo_path)}
                     alt={brand.name}
+                    width="160"
+                    height="64"
+                    loading="lazy"
+                    decoding="async"
                     class="h-16 w-auto max-w-[160px] object-contain"
                   />
                   <div class="mt-4">

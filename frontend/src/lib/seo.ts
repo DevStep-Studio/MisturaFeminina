@@ -7,11 +7,21 @@ export interface BreadcrumbItem {
   path?: string;
 }
 
+export interface SeoProductReview {
+  author_name: string;
+  rating: number;
+  body: string;
+  created_at?: string;
+}
+
 export interface SeoProductOptions {
   name: string;
   description?: string | null;
   sku: string;
+  gtin?: string | null;
+  category?: string | null;
   image?: string | null;
+  images?: string[];
   brand?: string | null;
   priceCents: number;
   promoPriceCents?: number | null;
@@ -19,6 +29,17 @@ export interface SeoProductOptions {
   slug: string;
   ratingValue?: number;
   reviewCount?: number;
+  reviews?: SeoProductReview[];
+}
+
+/** Strips HTML tags and normalizes whitespace for clean meta/JSON-LD descriptions. */
+export function stripHtml(input?: string | null): string {
+  if (!input) return "";
+  return input
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export interface SeoOptions {
@@ -105,21 +126,55 @@ export function buildProductSchema(product: SeoProductOptions) {
   ).toFixed(2);
 
   const productUrl = new URL(`/produto/${product.slug}`, site.url).href;
-  const imageUrl = product.image
-    ? new URL(product.image, site.url).href
-    : new URL("/placeholder-product.svg", site.url).href;
+  const rawImages = [
+    ...(product.image ? [product.image] : []),
+    ...(product.images ?? []),
+  ].filter((img): img is string => Boolean(img && img.trim()));
+  const uniqueImages = Array.from(
+    new Set(rawImages.map((img) => new URL(img, site.url).href)),
+  );
+  const imageList =
+    uniqueImages.length > 0
+      ? uniqueImages
+      : [new URL("/placeholder-product.svg", site.url).href];
+
+  const cleanDescription = stripHtml(product.description) || product.name;
+  const cleanGtin = product.gtin?.trim();
+  const hasValidGtin = Boolean(cleanGtin && /^\d{8,14}$/.test(cleanGtin));
+  const cleanCategory = product.category?.trim();
 
   const validUntil = new Date(new Date().getFullYear() + 1, 11, 31)
     .toISOString()
     .split("T")[0];
 
+  const validReviews = (product.reviews ?? [])
+    .filter((r) => r.author_name && r.rating >= 1 && r.rating <= 5)
+    .slice(0, 5)
+    .map((r) => ({
+      "@type": "Review",
+      author: {
+        "@type": "Person",
+        name: r.author_name,
+      },
+      reviewRating: {
+        "@type": "Rating",
+        ratingValue: r.rating,
+        bestRating: 5,
+        worstRating: 1,
+      },
+      ...(r.body ? { reviewBody: stripHtml(r.body) } : {}),
+      ...(r.created_at ? { datePublished: r.created_at.split("T")[0] } : {}),
+    }));
+
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
-    description: product.description || product.name,
+    description: cleanDescription,
     sku: product.sku,
-    image: [imageUrl],
+    ...(hasValidGtin ? { gtin: cleanGtin } : {}),
+    ...(cleanCategory ? { category: cleanCategory } : {}),
+    image: imageList,
     ...(product.brand
       ? {
           brand: {
@@ -191,6 +246,7 @@ export function buildProductSchema(product: SeoProductOptions) {
           },
         }
       : {}),
+    ...(validReviews.length > 0 ? { review: validReviews } : {}),
   };
 }
 
@@ -199,6 +255,7 @@ export function seoHead(options: SeoOptions) {
   const title = options.title.toLowerCase().includes("mistura feminina")
     ? options.title
     : `${options.title} | ${brandName}`;
+  const cleanDescription = stripHtml(options.description);
   const canonical = new URL(options.path.split("?")[0], site.url).href;
   const image = new URL(options.image || "/og-cover.png", site.url).href;
   const verification =
@@ -215,7 +272,7 @@ export function seoHead(options: SeoOptions) {
   return {
     meta: [
       { title },
-      { name: "description", content: options.description },
+      { name: "description", content: cleanDescription },
       {
         name: "robots",
         content:
@@ -230,7 +287,7 @@ export function seoHead(options: SeoOptions) {
       { property: "og:locale", content: "pt_BR" },
       { property: "og:site_name", content: site.name },
       { property: "og:title", content: title },
-      { property: "og:description", content: options.description },
+      { property: "og:description", content: cleanDescription },
       { property: "og:url", content: canonical },
       { property: "og:image", content: image },
       { property: "og:image:alt", content: site.name },
@@ -245,7 +302,7 @@ export function seoHead(options: SeoOptions) {
         : []),
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: title },
-      { name: "twitter:description", content: options.description },
+      { name: "twitter:description", content: cleanDescription },
       { name: "twitter:image", content: image },
     ],
     links: [{ rel: "canonical", href: canonical }],

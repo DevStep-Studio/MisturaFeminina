@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { CatalogListingView } from "../features/storefront/components/CatalogListingView";
 import { storefrontStore } from "../features/storefront/store";
-import { seoHead } from "../lib/seo";
+import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
 
 export const Route = createFileRoute("/promocoes")({
   head: () =>
@@ -10,6 +10,10 @@ export const Route = createFileRoute("/promocoes")({
       description:
         "Confira as melhores ofertas e descontos imperdíveis em cosméticos, esmaltes e maquiagens na Mistura Feminina.",
       path: "/promocoes",
+      jsonLd: buildBreadcrumbSchema([
+        { name: "Início", path: "/" },
+        { name: "Promoções", path: "/promocoes" },
+      ]),
     }),
   component: PromotionsPage,
 });

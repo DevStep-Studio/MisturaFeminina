@@ -19,8 +19,10 @@ test('robots.txt returns valid directives and points to sitemap', function (): v
     expect($response->getContent())
         ->toContain('User-agent: *')
         ->toContain('Allow: /')
+        ->toContain('Allow: /*.avif$')
         ->toContain('Disallow: /admin/')
         ->toContain('Disallow: /checkout')
+        ->toContain('Disallow: /pedido/')
         ->toContain('Disallow: /*?*brand=')
         ->toContain('Disallow: /*?*category=')
         ->toContain('Sitemap: ');
@@ -34,6 +36,7 @@ test('sitemap.xml generates valid xml with categories and products', function ()
     expect($response->getContent())
         ->toContain('<?xml version="1.0" encoding="UTF-8"?>')
         ->toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
+        ->toContain('/contato')
         ->toContain('/categoria/')
         ->toContain('/produto/');
 });
