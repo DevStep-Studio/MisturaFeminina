@@ -342,7 +342,7 @@ export function StoreFooter() {
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Voltar ao topo"
-        class={`fixed bottom-5 right-5 z-40 inline-flex size-10 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-[0_4px_16px_rgba(147,80,158,0.2)] transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-[#93509e] hover:text-white ${
+        class={`fixed right-4 bottom-20 z-40 inline-flex size-10 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-[0_4px_16px_rgba(147,80,158,0.2)] transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-[#93509e] hover:text-white md:right-5 md:bottom-5 ${
           showBackToTop()
             ? "translate-y-0 scale-100 opacity-100"
             : "pointer-events-none translate-y-4 scale-90 opacity-0"
