@@ -3,6 +3,7 @@ import Bath from "lucide-solid/icons/bath";
 import Briefcase from "lucide-solid/icons/briefcase";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import Droplet from "lucide-solid/icons/droplet";
+import Eye from "lucide-solid/icons/eye";
 import Heart from "lucide-solid/icons/heart";
 import Layers from "lucide-solid/icons/layers";
 import Palette from "lucide-solid/icons/palette";
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/categorias")({
 function getCategoryIcon(cat: CategoryNode) {
   const slug = (cat.slug || cat.name || "").toLowerCase();
   if (slug.includes("unha") || slug.includes("esmalte")) return Sparkles;
+  if (slug.includes("cilio") || slug.includes("lash") || slug.includes("olhar") || slug.includes("olho")) return Eye;
   if (slug.includes("maquiag") || slug.includes("make")) return Palette;
   if (slug.includes("facial") || slug.includes("skin") || slug.includes("rosto"))
     return Droplet;

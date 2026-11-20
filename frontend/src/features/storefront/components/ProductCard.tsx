@@ -148,12 +148,6 @@ export function ProductCard(props: {
               Destaque
             </span>
           </Show>
-          <Show when={props.product.in_stock && hasWholesale()}>
-            <span class="inline-flex items-center gap-1 rounded-md border border-[#93509e]/30 bg-white/95 px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784] shadow-2xs backdrop-blur-xs">
-              <Boxes class="size-2.5 text-[#93509e]" aria-hidden="true" />
-              <span>Atacado {minWholesaleQty()}+</span>
-            </span>
-          </Show>
         </div>
 
         {/* Top-right Discount or Out-of-Stock Badge */}
@@ -296,7 +290,7 @@ export function ProductCard(props: {
               <button
                 type="button"
                 onClick={() => setIsWholesaleSelected((prev) => !prev)}
-                class={`group/wholesale inline-flex h-[30px] max-w-full items-center justify-between gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-200 ${
+                class={`group/wholesale inline-flex h-[30px] max-w-full items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-all duration-200 whitespace-nowrap ${
                   isWholesaleSelected()
                     ? "border-[#93509e] bg-[#FAF3FC] text-[#7C2784] ring-1 ring-[#93509e]/40 shadow-xs"
                     : "border-[#ECD4EF] bg-[#FDF8FD] text-[#6E2E78] hover:border-[#93509e] hover:bg-[#FAF3FC]"
@@ -304,38 +298,29 @@ export function ProductCard(props: {
                 title={
                   isWholesaleSelected()
                     ? "Preço de atacado ativo. Clique para voltar ao varejo."
-                    : "Clique para ativar a faixa de atacado com cálculo automático"
+                    : "Clique para ativar a faixa de atacado"
                 }
               >
                 <Boxes
                   class="size-3.5 shrink-0 text-[#93509e]"
                   aria-hidden="true"
                 />
-                <span class="truncate">
-                  <Show
-                    when={isWholesaleSelected()}
-                    fallback={
-                      <>
-                        Atacado a partir de{" "}
-                        <strong class="font-extrabold text-[#93509e]">
-                          {formatCents(wholesaleStartingPriceCents())}
-                        </strong>
-                        /un.
-                        <span class="ml-1 rounded bg-[#93509e]/15 px-1.5 py-0.2 text-[9.5px] font-extrabold text-[#7C2784]">
-                          {minWholesaleQty()}+ un.
-                        </span>
-                      </>
-                    }
-                  >
-                    <>
-                      <span class="font-bold text-emerald-700">✓ Atacado Ativo:</span>{" "}
-                      <strong class="font-extrabold text-[#93509e]">
-                        {formatCents(wholesaleUnitPriceCents())}
+                <Show
+                  when={isWholesaleSelected()}
+                  fallback={
+                    <span class="whitespace-nowrap">
+                      Atacado: a partir de{" "}
+                      <strong class="font-bold text-[#93509e]">
+                        {formatCents(wholesaleStartingPriceCents())}
                       </strong>
-                      /un. ({minWholesaleQty()} un.)
-                    </>
-                  </Show>
-                </span>
+                      {" "}({minWholesaleQty()}+ un.)
+                    </span>
+                  }
+                >
+                  <span class="font-bold text-emerald-700 whitespace-nowrap">
+                    ✓ Atacado Ativo ({minWholesaleQty()} un.)
+                  </span>
+                </Show>
               </button>
             </Show>
           </div>
@@ -364,10 +349,10 @@ export function ProductCard(props: {
                 <Link
                   to="/produto/$slug"
                   params={{ slug: props.product.slug }}
-                  class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-4 text-[13px] font-bold"
+                  class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-4 text-[13px] font-bold whitespace-nowrap"
                 >
                   {isWholesaleSelected()
-                    ? "Escolher Cores no Atacado"
+                    ? "Ver Opções de Atacado"
                     : "Ver Opções"}
                 </Link>
               }
@@ -376,12 +361,12 @@ export function ProductCard(props: {
                 type="button"
                 disabled={adding()}
                 onClick={() => void handleQuickBuy()}
-                class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-3 text-[13px] font-bold disabled:opacity-60"
+                class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-3 text-[13px] font-bold disabled:opacity-60 whitespace-nowrap"
               >
                 {adding()
                   ? "Adicionando…"
                   : isWholesaleSelected()
-                  ? `Comprar no Atacado (${minWholesaleQty()} un. • ${formatCents(totalWholesalePackCents())})`
+                  ? "Comprar no Atacado"
                   : "Comprar"}
               </button>
             </Show>

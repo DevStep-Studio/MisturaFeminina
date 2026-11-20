@@ -918,100 +918,51 @@ function ProductDetailPage() {
                       </p>
                     </div>
 
-                    {/* Progressive wholesale pricing table / benefits notice */}
-                    <div class="rounded-xl border border-[#EBDCF0] bg-[#FAF5FB] p-4 text-[#2E0C49]">
-                      <div class="flex items-start gap-3">
-                        <span class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#E5D0EC] bg-white text-[#93509e]">
-                          <BadgePercent class="h-4 w-4" aria-hidden="true" />
+                    {/* Tabela de Atacado Simplificada */}
+                    <div class="rounded-xl border border-[#ECD4EF] bg-[#FDF9FE] p-3.5 text-[#2E0C49]">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="flex items-center gap-1.5 text-xs font-bold text-[#2E0C49]">
+                          <Boxes class="size-3.5 text-[#93509e]" aria-hidden="true" />
+                          Tabela de Atacado
                         </span>
-                        <div class="min-w-0 flex-1">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <p class="text-[13px] font-extrabold text-[#2E0C49]">
-                              Tabela de Atacado (Cálculo Automático)
-                            </p>
-                            <span class="rounded-md bg-[#93509e] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                              Vantagem
-                            </span>
-                          </div>
-                          <p class="mt-0.5 text-xs text-[#543E69]">
-                            Selecione a quantidade desejada abaixo para que o preço unitário e o total sejam calculados automaticamente.
-                          </p>
-                          <Show when={wholesaleTiers().length > 0}>
-                            <div class="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                              <For each={wholesaleTiers()}>
-                                {(tier) => {
-                                  const minQ = tier.min_quantity ?? (tier as any).min_qty ?? 1;
-                                  const maxQ = tier.max_quantity ?? null;
-                                  const isTierActive = () => qty() >= minQ && (maxQ === null || qty() <= maxQ);
-                                  const tierPriceCents = tier.unit_price_cents ?? (tier.discount_type === 'fixed_price' ? Math.round(Number(tier.discount_value) * 100) : Math.round(basePriceCents() * (1 - Number(tier.discount_value) / 100)));
-                                  return (
-                                    <button
-                                      type="button"
-                                      onClick={() => setQty(minQ)}
-                                      class={`flex flex-col items-center justify-center rounded-lg border p-2 text-center transition-all ${
-                                        isTierActive()
-                                          ? "border-[#93509e] bg-white ring-2 ring-[#93509e]/30 shadow-xs"
-                                          : "border-[#E5D0EC] bg-white/70 hover:border-[#93509e]/60"
-                                      }`}
-                                    >
-                                      <span class="text-[11px] font-bold text-[#543E69]">
-                                        {minQ}{maxQ ? ` a ${maxQ}` : "+"} un.
-                                      </span>
-                                      <span class="text-xs font-black text-[#93509e]">
-                                        {tier.unit_price_formatted ?? formatCents(tierPriceCents)}
-                                      </span>
-                                      <span class="text-[9.5px] font-semibold text-emerald-700">
-                                        {tier.discount_cents ? `Economize ${formatCents(tier.discount_cents)}` : `-${tier.discount_value}%`}
-                                      </span>
-                                    </button>
-                                  );
-                                }}
-                              </For>
-                            </div>
-                          </Show>
-                        </div>
+                        <span class="text-[11px] font-medium text-[#7C558F]">
+                          Preço progressivo por quantidade
+                        </span>
                       </div>
 
-                      <div class="my-3 border-t border-[#EBDCF0]" />
-
-                      <ul class="space-y-2">
-                        <li class="flex items-center gap-2.5 text-xs text-[#2E0C49]">
-                          <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-[#E5D0EC] bg-white text-[#93509e]">
-                            <Truck class="h-3.5 w-3.5" aria-hidden="true" />
-                          </span>
-                          <span>
-                            <strong class="font-bold text-[#93509e]">
-                              Frete Grátis
-                            </strong>{" "}
-                            para pedidos acima de{" "}
-                            <strong class="font-extrabold text-[#2E0C49]">
-                              R$ 149,90
-                            </strong>{" "}
-                            para todo o{" "}
-                            <strong class="font-extrabold text-[#2E0C49]">
-                              RJ
-                            </strong>
-                          </span>
-                        </li>
-                        <li class="flex items-center gap-2.5 text-xs text-[#2E0C49]">
-                          <span class="flex size-6 shrink-0 items-center justify-center rounded-md border border-[#E5D0EC] bg-white text-[#93509e]">
-                            <Truck class="h-3.5 w-3.5" aria-hidden="true" />
-                          </span>
-                          <span>
-                            <strong class="font-bold text-[#93509e]">
-                              Frete Grátis
-                            </strong>{" "}
-                            para pedidos no{" "}
-                            <strong class="font-extrabold text-[#2E0C49]">
-                              Sudeste
-                            </strong>{" "}
-                            acima de{" "}
-                            <strong class="font-extrabold text-[#2E0C49]">
-                              R$ 299,90
-                            </strong>
-                          </span>
-                        </li>
-                      </ul>
+                      <Show when={wholesaleTiers().length > 0}>
+                        <div class="mt-2.5 grid grid-cols-3 gap-2">
+                          <For each={wholesaleTiers()}>
+                            {(tier) => {
+                              const minQ = tier.min_quantity ?? (tier as any).min_qty ?? 1;
+                              const maxQ = tier.max_quantity ?? null;
+                              const isTierActive = () => qty() >= minQ && (maxQ === null || qty() <= maxQ);
+                              const tierPriceCents = tier.unit_price_cents ?? (tier.discount_type === 'fixed_price' ? Math.round(Number(tier.discount_value) * 100) : Math.round(basePriceCents() * (1 - Number(tier.discount_value) / 100)));
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => setQty(minQ)}
+                                  class={`flex flex-col items-center justify-center rounded-lg border py-2 px-1 text-center transition-all ${
+                                    isTierActive()
+                                      ? "border-[#93509e] bg-white ring-1 ring-[#93509e]/30 shadow-2xs"
+                                      : "border-[#ECD4EF] bg-white/80 hover:border-[#93509e]/50"
+                                  }`}
+                                >
+                                  <span class="text-[11.5px] font-bold text-[#543E69] whitespace-nowrap">
+                                    {minQ}{maxQ ? ` a ${maxQ}` : "+"} un.
+                                  </span>
+                                  <span class="text-sm font-extrabold text-[#93509e] whitespace-nowrap">
+                                    {tier.unit_price_formatted ?? formatCents(tierPriceCents)}
+                                  </span>
+                                  <span class="text-[10px] font-semibold text-emerald-700 whitespace-nowrap">
+                                    {tier.discount_cents ? `Economize ${formatCents(tier.discount_cents)}` : `-${tier.discount_value}%`}
+                                  </span>
+                                </button>
+                              );
+                            }}
+                          </For>
+                        </div>
+                      </Show>
                     </div>
 
                     {/* Quantity pill + COMPRAR CTA + WhatsApp CTA or Restock Alert */}
@@ -1116,14 +1067,14 @@ function ProductDetailPage() {
                             type="button"
                             disabled={adding()}
                             onClick={() => void handleAddToCart()}
-                            class="mf-btn-buy flex h-11 flex-1 items-center justify-center rounded-lg px-4 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                            class="mf-btn-buy flex h-11 flex-1 items-center justify-center rounded-lg px-4 text-xs font-bold uppercase tracking-wider disabled:opacity-60 whitespace-nowrap"
                           >
                             {adding()
                               ? "ADICIONANDO..."
                               : isWholesaleActive()
-                              ? `COMPRAR NO ATACADO (${qty()} UN.) • ${formatCents(totalPriceCents())}`
+                              ? `COMPRAR NO ATACADO (${qty()} UN.)`
                               : qty() > 1
-                              ? `COMPRAR ${qty()} UN. • ${formatCents(totalPriceCents())}`
+                              ? `COMPRAR (${qty()} UN.)`
                               : "COMPRAR"}
                           </button>
                         </div>

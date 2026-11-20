@@ -229,11 +229,12 @@ class DemoStoreSeeder extends Seeder
     {
         $roots = [
             ['slug' => 'unhas-e-esmalteria', 'name' => 'Unhas e Esmalteria', 'icon' => 'sparkles', 'image_path' => '/categories/esmaltes-em-gel.png', 'order' => 1],
-            ['slug' => 'maquiagem', 'name' => 'Maquiagem', 'icon' => 'heart', 'image_path' => '/categories/kits.png', 'order' => 2],
-            ['slug' => 'skincare', 'name' => 'Cuidados Faciais', 'icon' => 'droplet', 'image_path' => '/categories/gel.png', 'order' => 3],
-            ['slug' => 'cabelos', 'name' => 'Cabelos', 'icon' => 'sun', 'image_path' => '/categories/top-coat.png', 'order' => 4],
-            ['slug' => 'corpo-e-banho', 'name' => 'Corpo e Banho', 'icon' => 'flower', 'image_path' => '/categories/aspiradores.png', 'order' => 5],
-            ['slug' => 'acessorios-pro', 'name' => 'Acessórios Profissionais', 'icon' => 'briefcase', 'image_path' => '/categories/cabines.png', 'order' => 6],
+            ['slug' => 'cilios', 'name' => 'Cílios', 'icon' => 'eye', 'image_path' => '/categories/kits.png', 'order' => 2],
+            ['slug' => 'maquiagem', 'name' => 'Maquiagem', 'icon' => 'heart', 'image_path' => '/categories/kits.png', 'order' => 3],
+            ['slug' => 'skincare', 'name' => 'Cuidados Faciais', 'icon' => 'droplet', 'image_path' => '/categories/gel.png', 'order' => 4],
+            ['slug' => 'cabelos', 'name' => 'Cabelos', 'icon' => 'sun', 'image_path' => '/categories/top-coat.png', 'order' => 5],
+            ['slug' => 'corpo-e-banho', 'name' => 'Corpo e Banho', 'icon' => 'flower', 'image_path' => '/categories/aspiradores.png', 'order' => 6],
+            ['slug' => 'acessorios-pro', 'name' => 'Acessórios Profissionais', 'icon' => 'briefcase', 'image_path' => '/categories/cabines.png', 'order' => 7],
         ];
 
         $map = [];
@@ -252,37 +253,46 @@ class DemoStoreSeeder extends Seeder
         }
 
         $children = [
-            // Unhas e Esmalteria
+            // Silo 1: Unhas e Esmalteria
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'esmaltes-em-gel', 'name' => 'Esmaltes em Gel', 'image_path' => '/categories/esmaltes-em-gel.png', 'order' => 1],
-            ['parent' => 'unhas-e-esmalteria', 'slug' => 'preparadores-e-primers', 'name' => 'Preparadores e Primers', 'order' => 2],
-            ['parent' => 'unhas-e-esmalteria', 'slug' => 'alongamento-e-geis', 'name' => 'Alongamento e Géis', 'order' => 3],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'alongamento-e-geis', 'name' => 'Alongamento e Géis', 'order' => 2],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'preparadores-e-primers', 'name' => 'Preparadores e Primers', 'order' => 3],
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'top-coat-e-finalizadores', 'name' => 'Top Coat e Finalizadores', 'order' => 4],
-            ['parent' => 'unhas-e-esmalteria', 'slug' => 'top-coat', 'name' => 'Top Coat', 'image_path' => '/categories/top-coat.png', 'order' => 5],
-            ['parent' => 'unhas-e-esmalteria', 'slug' => 'kits', 'name' => 'Kits', 'image_path' => '/categories/kits.png', 'order' => 6],
-            ['parent' => 'unhas-e-esmalteria', 'slug' => 'gel', 'name' => 'Gel', 'image_path' => '/categories/gel.png', 'order' => 7],
-            // Maquiagem
-            ['parent' => 'maquiagem', 'slug' => 'labios', 'name' => 'Lábios e Batons', 'order' => 1],
-            ['parent' => 'maquiagem', 'slug' => 'pele-e-bases', 'name' => 'Pele, Bases e Brumas', 'order' => 2],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'kits', 'name' => 'Kits de Unhas', 'image_path' => '/categories/kits.png', 'order' => 5],
+
+            // Silo 2: Cílios e Lash Designer
+            ['parent' => 'cilios', 'slug' => 'extensao-de-cilios', 'name' => 'Extensão de Cílios', 'order' => 1],
+            ['parent' => 'cilios', 'slug' => 'cilios-posticos', 'name' => 'Cílios Postiços e Tufos', 'order' => 2],
+            ['parent' => 'cilios', 'slug' => 'colas-e-adesivos', 'name' => 'Colas e Adesivos', 'order' => 3],
+            ['parent' => 'cilios', 'slug' => 'pincas-e-acessorios', 'name' => 'Pinças e Acessórios', 'order' => 4],
+            ['parent' => 'cilios', 'slug' => 'lash-lifting', 'name' => 'Lash Lifting e Tintura', 'order' => 5],
+
+            // Silo 3: Maquiagem
+            ['parent' => 'maquiagem', 'slug' => 'pele-e-bases', 'name' => 'Pele e Bases', 'order' => 1],
+            ['parent' => 'maquiagem', 'slug' => 'labios', 'name' => 'Lábios e Batons', 'order' => 2],
             ['parent' => 'maquiagem', 'slug' => 'brumas-e-fixadores', 'name' => 'Brumas e Fixadores', 'order' => 3],
-            // Cuidados Faciais (skincare)
+
+            // Silo 4: Cuidados Faciais (skincare)
             ['parent' => 'skincare', 'slug' => 'seruns-e-tratamentos', 'name' => 'Séruns e Tratamentos', 'order' => 1],
             ['parent' => 'skincare', 'slug' => 'hidratantes-faciais', 'name' => 'Hidratantes e Brumas', 'order' => 2],
-            // Cabelos
+
+            // Silo 5: Cabelos
             ['parent' => 'cabelos', 'slug' => 'kits-capilares', 'name' => 'Kits e Cronograma', 'order' => 1],
             ['parent' => 'cabelos', 'slug' => 'mascaras-de-tratamento', 'name' => 'Máscaras de Reconstrução', 'order' => 2],
             ['parent' => 'cabelos', 'slug' => 'oleos-e-reparadores', 'name' => 'Óleos e Finalizadores', 'order' => 3],
-            // Corpo e Banho
+
+            // Silo 6: Corpo e Banho
             ['parent' => 'corpo-e-banho', 'slug' => 'hidratantes-corporais', 'name' => 'Hidratantes Corporais', 'order' => 1],
             ['parent' => 'corpo-e-banho', 'slug' => 'autocuidado-diario', 'name' => 'Autocuidado Diário', 'order' => 2],
-            // Acessórios Profissionais
+
+            // Silo 7: Acessórios Profissionais
             ['parent' => 'acessorios-pro', 'slug' => 'cabines-e-estufas', 'name' => 'Cabines e Equipamentos', 'order' => 1],
             ['parent' => 'acessorios-pro', 'slug' => 'pinceis-profissionais', 'name' => 'Pincéis e Kits', 'order' => 2],
             ['parent' => 'acessorios-pro', 'slug' => 'brocas-e-lixas', 'name' => 'Brocas e Lixas', 'order' => 3],
-            ['parent' => 'acessorios-pro', 'slug' => 'brocas', 'name' => 'Brocas', 'image_path' => '/categories/brocas.png', 'order' => 4],
-            ['parent' => 'acessorios-pro', 'slug' => 'cabines', 'name' => 'Cabines', 'image_path' => '/categories/cabines.png', 'order' => 5],
-            ['parent' => 'acessorios-pro', 'slug' => 'motores', 'name' => 'Motores', 'image_path' => '/categories/motores.png', 'order' => 6],
-            ['parent' => 'acessorios-pro', 'slug' => 'aspiradores', 'name' => 'Aspiradores', 'image_path' => '/categories/aspiradores.png', 'order' => 7],
-            ['parent' => 'acessorios-pro', 'slug' => 'luminarias', 'name' => 'Luminárias', 'image_path' => '/categories/luminarias.png', 'order' => 8],
+            ['parent' => 'acessorios-pro', 'slug' => 'motores', 'name' => 'Motores', 'image_path' => '/categories/motores.png', 'order' => 4],
+            ['parent' => 'acessorios-pro', 'slug' => 'aspiradores', 'name' => 'Aspiradores', 'image_path' => '/categories/aspiradores.png', 'order' => 5],
+            ['parent' => 'acessorios-pro', 'slug' => 'luminarias', 'name' => 'Luminárias', 'image_path' => '/categories/luminarias.png', 'order' => 6],
+        ];
             // Nível 3 sob Brocas e Lixas
             ['parent' => 'brocas-e-lixas', 'slug' => 'brocas-ceramica', 'name' => 'Brocas de Cerâmica', 'order' => 1],
             ['parent' => 'brocas-e-lixas', 'slug' => 'lixas-profissionais', 'name' => 'Lixas e Polidoras', 'order' => 2],
