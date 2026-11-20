@@ -2,6 +2,7 @@ import { ProductImage } from "./ProductImage";
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { Link, useNavigate } from "@tanstack/solid-router";
 import BadgePercent from "lucide-solid/icons/badge-percent";
+import Boxes from "lucide-solid/icons/boxes";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
@@ -806,6 +807,16 @@ export function StoreHeader() {
             </Show>
           </div>
 
+          {/* Atacado Link */}
+          <Link
+            to="/atacado"
+            onClick={closeAllMenus}
+            class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#93509e] bg-white px-3.5 py-1.5 text-[13px] font-bold text-[#93509e] transition-colors hover:bg-[#FCE7F6] 2xl:gap-2 2xl:px-4 2xl:text-[13.5px]"
+          >
+            <Boxes class="size-4 shrink-0 text-[#93509e]" aria-hidden="true" />
+            <span>Atacado</span>
+          </Link>
+
           {/* Promoções Pill & Mega-Panel */}
           <div
             class="shrink-0"
@@ -961,6 +972,13 @@ export function StoreHeader() {
                     class="block rounded-lg bg-[#93509e] px-3 py-2.5 text-center text-sm font-bold text-white transition-colors hover:bg-[#7c3f87]"
                   >
                     Ver Promoções
+                  </Link>
+                  <Link
+                    to="/atacado"
+                    onClick={() => setMobileMenuOpen(false)}
+                    class="block rounded-lg border-2 border-[#93509e] bg-[#FFF3FF] px-3 py-2.5 text-center text-sm font-bold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
+                  >
+                    Atacado (Preços por Quantidade)
                   </Link>
                   <Link
                     to="/novidades"

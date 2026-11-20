@@ -85,6 +85,18 @@ class Product extends Model
         return $this->hasMany(Review::class);
     }
 
+    /** @return HasMany<WholesaleGroupItem, $this> */
+    public function wholesaleGroupItems(): HasMany
+    {
+        return $this->hasMany(WholesaleGroupItem::class, 'product_id');
+    }
+
+    /** @return HasMany<WholesaleRuleProduct, $this> */
+    public function wholesaleRuleProducts(): HasMany
+    {
+        return $this->hasMany(WholesaleRuleProduct::class, 'product_id');
+    }
+
     public function effectivePriceCents(): int
     {
         if ($this->promo_price_cents !== null && $this->promo_price_cents > 0 && $this->promo_price_cents < $this->price_cents) {

@@ -14,6 +14,7 @@ import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as R403RouteImport } from './routes/403'
 import { Route as R404RouteImport } from './routes/404'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AtacadoRouteImport } from './routes/atacado'
 import { Route as BuscarRouteImport } from './routes/buscar'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as CarrinhoRouteImport } from './routes/carrinho'
@@ -37,6 +38,7 @@ import { Route as MarcaSlugRouteImport } from './routes/marca/$slug'
 import { Route as ProdutoSlugRouteImport } from './routes/produto/$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAparenciaRouteImport } from './routes/_authenticated/admin/aparencia'
+import { Route as AuthenticatedAdminAtacadoRouteImport } from './routes/_authenticated/admin/atacado'
 import { Route as AuthenticatedAdminCategoriasMarcasRouteImport } from './routes/_authenticated/admin/categorias-marcas'
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin/configuracoes'
 import { Route as AuthenticatedAdminEquipeSistemaRouteImport } from './routes/_authenticated/admin/equipe-sistema'
@@ -72,6 +74,11 @@ const R404Route = R404RouteImport.update({
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AtacadoRoute = AtacadoRouteImport.update({
+  id: '/atacado',
+  path: '/atacado',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BuscarRoute = BuscarRouteImport.update({
@@ -190,6 +197,12 @@ const AuthenticatedAdminAparenciaRoute =
     path: '/admin/aparencia',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminAtacadoRoute =
+  AuthenticatedAdminAtacadoRouteImport.update({
+    id: '/admin/atacado',
+    path: '/admin/atacado',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminCategoriasMarcasRoute =
   AuthenticatedAdminCategoriasMarcasRouteImport.update({
     id: '/admin/categorias-marcas',
@@ -265,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/$slug': typeof SlugRoute
   '/403': typeof R403Route
   '/404': typeof R404Route
+  '/atacado': typeof AtacadoRoute
   '/buscar': typeof BuscarRoute
   '/cadastro': typeof CadastroRoute
   '/carrinho': typeof CarrinhoRouteWithChildren
@@ -287,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/marca/$slug': typeof MarcaSlugRoute
   '/produto/$slug': typeof ProdutoSlugRoute
   '/admin/aparencia': typeof AuthenticatedAdminAparenciaRoute
+  '/admin/atacado': typeof AuthenticatedAdminAtacadoRoute
   '/admin/categorias-marcas': typeof AuthenticatedAdminCategoriasMarcasRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/equipe-sistema': typeof AuthenticatedAdminEquipeSistemaRoute
@@ -306,6 +321,7 @@ export interface FileRoutesByTo {
   '/$slug': typeof SlugRoute
   '/403': typeof R403Route
   '/404': typeof R404Route
+  '/atacado': typeof AtacadoRoute
   '/buscar': typeof BuscarRoute
   '/cadastro': typeof CadastroRoute
   '/carrinho': typeof CarrinhoRouteWithChildren
@@ -328,6 +344,7 @@ export interface FileRoutesByTo {
   '/marca/$slug': typeof MarcaSlugRoute
   '/produto/$slug': typeof ProdutoSlugRoute
   '/admin/aparencia': typeof AuthenticatedAdminAparenciaRoute
+  '/admin/atacado': typeof AuthenticatedAdminAtacadoRoute
   '/admin/categorias-marcas': typeof AuthenticatedAdminCategoriasMarcasRoute
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/equipe-sistema': typeof AuthenticatedAdminEquipeSistemaRoute
@@ -349,6 +366,7 @@ export interface FileRoutesById {
   '/403': typeof R403Route
   '/404': typeof R404Route
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/atacado': typeof AtacadoRoute
   '/buscar': typeof BuscarRoute
   '/cadastro': typeof CadastroRoute
   '/carrinho': typeof CarrinhoRouteWithChildren
@@ -371,6 +389,7 @@ export interface FileRoutesById {
   '/marca/$slug': typeof MarcaSlugRoute
   '/produto/$slug': typeof ProdutoSlugRoute
   '/_authenticated/admin/aparencia': typeof AuthenticatedAdminAparenciaRoute
+  '/_authenticated/admin/atacado': typeof AuthenticatedAdminAtacadoRoute
   '/_authenticated/admin/categorias-marcas': typeof AuthenticatedAdminCategoriasMarcasRoute
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/equipe-sistema': typeof AuthenticatedAdminEquipeSistemaRoute
@@ -392,6 +411,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/403'
     | '/404'
+    | '/atacado'
     | '/buscar'
     | '/cadastro'
     | '/carrinho'
@@ -414,6 +434,7 @@ export interface FileRouteTypes {
     | '/marca/$slug'
     | '/produto/$slug'
     | '/admin/aparencia'
+    | '/admin/atacado'
     | '/admin/categorias-marcas'
     | '/admin/configuracoes'
     | '/admin/equipe-sistema'
@@ -433,6 +454,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/403'
     | '/404'
+    | '/atacado'
     | '/buscar'
     | '/cadastro'
     | '/carrinho'
@@ -455,6 +477,7 @@ export interface FileRouteTypes {
     | '/marca/$slug'
     | '/produto/$slug'
     | '/admin/aparencia'
+    | '/admin/atacado'
     | '/admin/categorias-marcas'
     | '/admin/configuracoes'
     | '/admin/equipe-sistema'
@@ -475,6 +498,7 @@ export interface FileRouteTypes {
     | '/403'
     | '/404'
     | '/_authenticated'
+    | '/atacado'
     | '/buscar'
     | '/cadastro'
     | '/carrinho'
@@ -497,6 +521,7 @@ export interface FileRouteTypes {
     | '/marca/$slug'
     | '/produto/$slug'
     | '/_authenticated/admin/aparencia'
+    | '/_authenticated/admin/atacado'
     | '/_authenticated/admin/categorias-marcas'
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/equipe-sistema'
@@ -518,6 +543,7 @@ export interface RootRouteChildren {
   R403Route: typeof R403Route
   R404Route: typeof R404Route
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AtacadoRoute: typeof AtacadoRoute
   BuscarRoute: typeof BuscarRoute
   CadastroRoute: typeof CadastroRoute
   CarrinhoRoute: typeof CarrinhoRouteWithChildren
@@ -576,6 +602,13 @@ declare module '@tanstack/solid-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/atacado': {
+      id: '/atacado'
+      path: '/atacado'
+      fullPath: '/atacado'
+      preLoaderRoute: typeof AtacadoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/buscar': {
@@ -739,6 +772,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AuthenticatedAdminAparenciaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/atacado': {
+      id: '/_authenticated/admin/atacado'
+      path: '/admin/atacado'
+      fullPath: '/admin/atacado'
+      preLoaderRoute: typeof AuthenticatedAdminAtacadoRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/categorias-marcas': {
       id: '/_authenticated/admin/categorias-marcas'
       path: '/admin/categorias-marcas'
@@ -829,6 +869,7 @@ declare module '@tanstack/solid-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedAdminAparenciaRoute: typeof AuthenticatedAdminAparenciaRoute
+  AuthenticatedAdminAtacadoRoute: typeof AuthenticatedAdminAtacadoRoute
   AuthenticatedAdminCategoriasMarcasRoute: typeof AuthenticatedAdminCategoriasMarcasRoute
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminEquipeSistemaRoute: typeof AuthenticatedAdminEquipeSistemaRoute
@@ -844,6 +885,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedAdminAparenciaRoute: AuthenticatedAdminAparenciaRoute,
+  AuthenticatedAdminAtacadoRoute: AuthenticatedAdminAtacadoRoute,
   AuthenticatedAdminCategoriasMarcasRoute:
     AuthenticatedAdminCategoriasMarcasRoute,
   AuthenticatedAdminConfiguracoesRoute: AuthenticatedAdminConfiguracoesRoute,
@@ -892,6 +934,7 @@ const rootRouteChildren: RootRouteChildren = {
   R403Route: R403Route,
   R404Route: R404Route,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AtacadoRoute: AtacadoRoute,
   BuscarRoute: BuscarRoute,
   CadastroRoute: CadastroRoute,
   CarrinhoRoute: CarrinhoRouteWithChildren,

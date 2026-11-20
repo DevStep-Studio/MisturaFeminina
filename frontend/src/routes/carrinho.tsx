@@ -154,6 +154,24 @@ function CartPage() {
                   </div>
                 </Show>
 
+                <Show
+                  when={
+                    c().wholesale_scope_summaries &&
+                    c().wholesale_scope_summaries!.length > 0
+                  }
+                >
+                  <div class="rounded-xl border border-[#E5C2EA] bg-[#FCF8FD] p-4 space-y-2">
+                    <For each={c().wholesale_scope_summaries}>
+                      {(summary) => (
+                        <div class="flex items-center gap-2.5 text-xs font-semibold text-[#66166E]">
+                          <span class="size-2 rounded-full bg-[#93509e] shrink-0" />
+                          <span>{summary.message}</span>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+
                 <ul class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white">
                   <For each={c().items}>
                     {(item) => (
@@ -184,6 +202,12 @@ function CartPage() {
                           <p class="mt-1 text-sm font-semibold text-zinc-900">
                             {formatCents(item.unit_price_cents)} cada
                           </p>
+                          <Show when={item.wholesale_applied}>
+                            <span class="mt-1 inline-flex items-center gap-1 rounded bg-[#F8EFFC] px-2 py-0.5 text-[11px] font-bold text-[#7C2784]">
+                              Preço de Atacado ({item.wholesale_tier_min_qty}+
+                              un.)
+                            </span>
+                          </Show>
                           <Show when={!item.in_stock}>
                             <p class="mt-1 text-xs font-semibold text-red-700">
                               Quantidade acima do estoque disponível (

@@ -78,6 +78,20 @@ class User extends Authenticatable
         return $this->hasMany(ReplenishmentList::class);
     }
 
+    /** @return HasMany<WholesaleCustomerGroupMember, $this> */
+    public function wholesaleMemberships(): HasMany
+    {
+        return $this->hasMany(WholesaleCustomerGroupMember::class, 'user_id');
+    }
+
+    /** @return BelongsToMany<WholesaleCustomerGroup, $this> */
+    public function wholesaleCustomerGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(WholesaleCustomerGroup::class, 'wholesale_customer_group_members', 'user_id', 'customer_group_id')
+            ->withPivot(['status', 'company_name', 'trade_name', 'cnpj_cpf', 'state_registration', 'phone', 'requested_at', 'approved_at', 'approved_by_user_id', 'rejection_reason', 'notes'])
+            ->withTimestamps();
+    }
+
     /** @return list<string> */
     public function roleSlugs(): array
     {

@@ -149,6 +149,7 @@ class CheckoutService
             ]);
 
             foreach ($summary['items'] as $line) {
+                $wholesaleDiscountCents = (int) ($line['wholesale_discount_cents'] ?? 0);
                 OrderItem::query()->create([
                     'order_id' => $order->id,
                     'product_id' => $line['product_id'],
@@ -158,9 +159,15 @@ class CheckoutService
                     'sku_snapshot' => $line['sku'],
                     'quantity' => $line['quantity'],
                     'unit_price_cents' => $line['unit_price_cents'],
-                    'discount_cents' => 0,
+                    'discount_cents' => $wholesaleDiscountCents * $line['quantity'],
                     'total_cents' => $line['line_total_cents'],
                     'weight_grams_snapshot' => 200,
+                    'wholesale_rule_id' => $line['wholesale_rule_id'] ?? null,
+                    'wholesale_rule_name' => $line['wholesale_rule_name'] ?? null,
+                    'wholesale_tier_min_qty' => $line['wholesale_tier_min_qty'] ?? null,
+                    'wholesale_discount_cents' => $wholesaleDiscountCents,
+                    'wholesale_unit_price_cents' => ! empty($line['wholesale_applied']) ? $line['unit_price_cents'] : null,
+                    'original_unit_price_cents' => $line['original_price_cents'] ?? $line['unit_price_cents'],
                 ]);
             }
 

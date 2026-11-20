@@ -52,6 +52,9 @@ class AdminOrderController extends Controller
         if ($request->filled('status')) {
             $query->where('status', (string) $request->query('status'));
         }
+        if ($request->boolean('has_wholesale') || $filter === 'wholesale') {
+            $query->whereHas('items', fn ($iq) => $iq->whereNotNull('wholesale_rule_id'));
+        }
         if ($request->filled('search')) {
             $term = '%'.trim((string) $request->query('search')).'%';
             $query->where(function ($q) use ($term): void {

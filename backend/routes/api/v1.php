@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminReportsController;
 use App\Http\Controllers\Api\V1\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\V1\Admin\AdminShippingController;
 use App\Http\Controllers\Api\V1\Admin\AdminUsersController;
+use App\Http\Controllers\Api\V1\Admin\AdminWholesaleController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\CartController;
 use App\Http\Controllers\Api\V1\CatalogController;
@@ -52,6 +53,12 @@ Route::prefix('catalog')->group(function (): void {
     Route::post('products/{slug}/restock-alert', [CatalogController::class, 'restockAlert'])->middleware('throttle:15,1');
     Route::post('restock-alerts/{token}/cancel', [CatalogController::class, 'cancelRestockAlert'])->middleware('throttle:20,1');
     Route::post('products/{slug}/reviews', [CatalogController::class, 'storeReview'])->middleware('throttle:10,1');
+});
+
+// Wholesale Public Endpoints
+Route::prefix('wholesale')->group(function (): void {
+    Route::get('catalog', [CatalogController::class, 'wholesaleCatalog']);
+    Route::post('reseller-request', [CatalogController::class, 'requestWholesaleAccount'])->middleware('throttle:10,1');
 });
 
 // Cart (Guest X-Cart-Token / Cookie or Authenticated User)
@@ -306,6 +313,37 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             Route::get('replenishment/suggestions/{suggestionId}/explain', [AdminAiAgentController::class, 'explainReplenishmentSuggestion'])->middleware('permission:ai.replenishment');
             Route::post('replenishment/analyses/{analysisId}/save-plan', [AdminAiAgentController::class, 'saveReplenishmentPlan'])->middleware('permission:ai.replenishment');
             Route::get('replenishment/analyses/{analysisId}/export-csv', [AdminAiAgentController::class, 'exportReplenishmentCsv'])->middleware('permission:ai.replenishment');
+        });
+
+        // Central de Atacado (Wholesale System)
+        Route::prefix('wholesale')->group(function (): void {
+            Route::get('overview', [AdminWholesaleController::class, 'overview'])->middleware('permission:wholesale.view');
+            Route::get('rules', [AdminWholesaleController::class, 'rules'])->middleware('permission:wholesale.view');
+            Route::post('rules', [AdminWholesaleController::class, 'storeRule'])->middleware('permission:wholesale.manage');
+            Route::put('rules/{rule}', [AdminWholesaleController::class, 'updateRule'])->middleware('permission:wholesale.manage');
+            Route::patch('rules/{rule}/status', [AdminWholesaleController::class, 'updateRuleStatus'])->middleware('permission:wholesale.manage');
+            Route::delete('rules/{rule}', [AdminWholesaleController::class, 'destroyRule'])->middleware('permission:wholesale.manage');
+
+            Route::get('bulk-grid', [AdminWholesaleController::class, 'bulkGrid'])->middleware('permission:wholesale.pricing');
+            Route::post('bulk-parse', [AdminWholesaleController::class, 'parseExcelPaste'])->middleware('permission:wholesale.pricing');
+            Route::post('bulk-preview', [AdminWholesaleController::class, 'previewBulk'])->middleware('permission:wholesale.pricing');
+            Route::post('bulk-apply', [AdminWholesaleController::class, 'applyBulk'])->middleware('permission:wholesale.pricing');
+
+            Route::get('groups', [AdminWholesaleController::class, 'groups'])->middleware('permission:wholesale.view');
+            Route::post('groups', [AdminWholesaleController::class, 'storeGroup'])->middleware('permission:wholesale.manage');
+            Route::put('groups/{group}', [AdminWholesaleController::class, 'updateGroup'])->middleware('permission:wholesale.manage');
+            Route::delete('groups/{group}', [AdminWholesaleController::class, 'destroyGroup'])->middleware('permission:wholesale.manage');
+
+            Route::get('resellers', [AdminWholesaleController::class, 'resellers'])->middleware('permission:wholesale.resellers');
+            Route::get('customer-groups', [AdminWholesaleController::class, 'customerGroups'])->middleware('permission:wholesale.resellers');
+            Route::post('resellers/{member}/approve', [AdminWholesaleController::class, 'approveReseller'])->middleware('permission:wholesale.resellers');
+            Route::post('resellers/{member}/reject', [AdminWholesaleController::class, 'rejectReseller'])->middleware('permission:wholesale.resellers');
+            Route::post('resellers/{member}/suspend', [AdminWholesaleController::class, 'suspendReseller'])->middleware('permission:wholesale.resellers');
+            Route::post('resellers/{member}/reactivate', [AdminWholesaleController::class, 'reactivateReseller'])->middleware('permission:wholesale.resellers');
+
+            Route::post('simulate', [AdminWholesaleController::class, 'simulate'])->middleware('permission:wholesale.view');
+            Route::get('reports', [AdminWholesaleController::class, 'reports'])->middleware('permission:wholesale.reports');
+            Route::get('reports/export-csv', [AdminWholesaleController::class, 'exportCsv'])->middleware('permission:wholesale.reports');
         });
     });
 });

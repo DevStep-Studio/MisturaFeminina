@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/solid-router";
 import BarChart3 from "lucide-solid/icons/chart-column";
+import Boxes from "lucide-solid/icons/boxes";
 import ExternalLink from "lucide-solid/icons/external-link";
 import FolderTree from "lucide-solid/icons/folder-tree";
 import LayoutDashboard from "lucide-solid/icons/layout-dashboard";
@@ -44,7 +45,8 @@ interface AdminNavItem {
     | "reports"
     | "settings"
     | "system"
-    | "ai";
+    | "ai"
+    | "wholesale";
 }
 
 const NAV_ITEMS: AdminNavItem[] = [
@@ -71,6 +73,12 @@ const NAV_ITEMS: AdminNavItem[] = [
     label: "Produtos & Estoque",
     permission: "catalog.view",
     icon: "products",
+  },
+  {
+    to: "/admin/atacado",
+    label: "Atacado",
+    permission: "wholesale.view",
+    icon: "wholesale",
   },
   {
     to: "/admin/categorias-marcas",
@@ -140,6 +148,8 @@ function renderNavIcon(kind: AdminNavItem["icon"]) {
       return <ShieldCheck class="h-4 w-4" />;
     case "ai":
       return <Sparkles class="h-4 w-4" />;
+    case "wholesale":
+      return <Boxes class="h-4 w-4" />;
   }
 }
 

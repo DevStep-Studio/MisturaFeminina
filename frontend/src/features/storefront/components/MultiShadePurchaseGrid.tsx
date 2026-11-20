@@ -83,15 +83,17 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
   const nextWholesaleHint = createMemo(() => {
     if (!props.wholesaleEnabled || !props.wholesaleGroupVariants) return null;
     const sorted = [...props.wholesaleTiers].sort(
-      (a, b) => a.min_qty - b.min_qty,
+      (a, b) =>
+        (a.min_qty ?? a.min_quantity ?? 0) - (b.min_qty ?? b.min_quantity ?? 0),
     );
     const units = totalUnits();
     for (const t of sorted) {
-      if (units < t.min_qty) {
+      const minQ = t.min_qty ?? t.min_quantity ?? 0;
+      if (units < minQ) {
         return {
-          remaining: t.min_qty - units,
-          min_qty: t.min_qty,
-          discount_percent: t.discount_percent,
+          remaining: minQ - units,
+          min_qty: minQ,
+          discount_percent: t.discount_percent ?? t.discount_value ?? 0,
         };
       }
     }

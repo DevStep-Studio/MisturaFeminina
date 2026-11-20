@@ -84,6 +84,30 @@ export interface CouponSummary {
   value: number;
 }
 
+export interface WholesaleTierData {
+  id?: number;
+  min_quantity: number;
+  max_quantity?: number | null;
+  discount_type: "fixed_price" | "percent" | "fixed_discount";
+  discount_value: number;
+  unit_price_cents?: number;
+  unit_price_formatted?: string;
+  discount_cents?: number;
+}
+
+export interface WholesaleConditionData {
+  has_wholesale: boolean;
+  rule_id?: number | null;
+  rule_name?: string | null;
+  quantity_scope?: string;
+  min_quantity?: number | null;
+  starting_price_cents?: number | null;
+  starting_price_formatted?: string | null;
+  allows_shade_mixing?: boolean;
+  stacking_policy?: string;
+  tiers?: WholesaleTierData[];
+}
+
 export interface ProductCardData {
   id: number;
   name: string;
@@ -107,6 +131,7 @@ export interface ProductCardData {
   category_slug?: string | null;
   comparison_group?: string;
   specs?: ProductSpecItem[];
+  wholesale_condition?: WholesaleConditionData;
 }
 
 export interface ProductVariantData {
@@ -186,6 +211,7 @@ export interface ProductDetailData extends ProductCardData {
   seo_title: string;
   seo_description: string | null;
   wholesale_group_variants?: boolean;
+  wholesale_condition?: WholesaleConditionData;
   comparison_group?: string;
   specs?: Array<{ slug: string; name: string; value: string }>;
   related_products: ProductCardData[];
@@ -340,6 +366,21 @@ export interface ShippingOptionData {
   is_fallback: boolean;
 }
 
+export interface WholesaleScopeSummary {
+  full_scope_id: string;
+  scope_key: string;
+  scope_name: string;
+  scope_type: string;
+  rule_id: number;
+  rule_name: string;
+  current_quantity: number;
+  current_tier_min_qty?: number | null;
+  next_tier_min_qty?: number | null;
+  units_to_next_tier: number;
+  is_tier_unlocked: boolean;
+  message: string;
+}
+
 export interface CartItemData {
   id: number;
   product_id: number;
@@ -355,6 +396,11 @@ export interface CartItemData {
   original_price_cents: number;
   line_total_cents: number;
   image_url: string | null;
+  wholesale_applied?: boolean;
+  wholesale_rule_id?: number | null;
+  wholesale_rule_name?: string | null;
+  wholesale_tier_min_qty?: number | null;
+  wholesale_discount_cents?: number;
 }
 
 export interface CartSummary {
@@ -363,6 +409,9 @@ export interface CartSummary {
   items_count: number;
   subtotal_cents: number;
   wholesale_discount_cents?: number;
+  wholesale_scope_summaries?: WholesaleScopeSummary[];
+  wholesale_stacking_notes?: string[];
+  wholesale_is_active?: boolean;
   promotion_discount_cents: number;
   coupon_code: string | null;
   coupon_discount_cents: number;

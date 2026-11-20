@@ -81,6 +81,10 @@ interface OrderDetailPayload {
     sku_snapshot: string;
     quantity: number;
     total_cents: number;
+    wholesale_rule_id?: number | null;
+    wholesale_rule_name?: string | null;
+    wholesale_tier_min_qty?: number | null;
+    wholesale_discount_cents?: number;
   }[];
   shipment: {
     carrier: string | null;
@@ -114,7 +118,11 @@ function AdminOrdersPage() {
 
   createEffect(() => {
     const s = routeSearch();
-    if (s.filter === "ship_today" || s.filter === "issues") {
+    if (
+      s.filter === "ship_today" ||
+      s.filter === "issues" ||
+      s.filter === "wholesale"
+    ) {
       setOpFilter(s.filter);
     }
     if (s.order && Number.isFinite(Number(s.order))) {
@@ -312,6 +320,19 @@ function AdminOrdersPage() {
               <AlertTriangle class="size-3.5" />
               Com problemas
             </button>
+            <button
+              type="button"
+              onClick={() =>
+                setOpFilter((prev) => (prev === "wholesale" ? "" : "wholesale"))
+              }
+              class={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                opFilter() === "wholesale"
+                  ? "bg-purple-800 text-white shadow-xs"
+                  : "bg-purple-50 text-purple-800 hover:bg-purple-100"
+              }`}
+            >
+              Atacado
+            </button>
           </div>
 
           <button
@@ -469,11 +490,18 @@ function AdminOrdersPage() {
                   <ul class="space-y-1.5 text-xs">
                     <For each={d().items}>
                       {(item) => (
-                        <li class="flex justify-between">
-                          <span>
-                            {item.quantity}x {item.product_name_snapshot} (
-                            {item.variant_name_snapshot})
-                          </span>
+                        <li class="flex items-center justify-between">
+                          <div>
+                            <span>
+                              {item.quantity}x {item.product_name_snapshot} (
+                              {item.variant_name_snapshot})
+                            </span>
+                            <Show when={item.wholesale_rule_name}>
+                              <span class="ml-2 inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784]">
+                                Atacado ({item.wholesale_tier_min_qty}+ un.)
+                              </span>
+                            </Show>
+                          </div>
                           <span class="font-semibold">
                             {formatCents(item.total_cents)}
                           </span>

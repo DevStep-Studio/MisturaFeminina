@@ -27,6 +27,7 @@ class RbacSeederService
             'team' => ['team.view', 'team.manage'],
             'monitoring' => ['monitoring.view', 'audit.view'],
             'ai' => ['ai.view', 'ai.support', 'ai.catalog', 'ai.catalog.approve', 'ai.replenishment', 'ai.settings', 'ai.logs'],
+            'wholesale' => ['wholesale.view', 'wholesale.manage', 'wholesale.pricing', 'wholesale.resellers', 'wholesale.reports'],
         ];
     }
 
@@ -46,10 +47,10 @@ class RbacSeederService
         $roleMap = [
             RoleSlug::Superadmin->value => ['name' => 'Superadministrador', 'permissions' => array_keys($allPermissions)],
             RoleSlug::Admin->value => ['name' => 'Administrador', 'permissions' => array_keys($allPermissions)],
-            RoleSlug::Catalog->value => ['name' => 'Catálogo e Estoque', 'permissions' => ['dashboard.view', 'catalog.view', 'catalog.write', 'catalog.pricing', 'catalog.bulk_edit', 'inventory.manage', 'inventory.receive', 'content.view', 'banners.write', 'ai.view', 'ai.catalog', 'ai.catalog.approve', 'ai.replenishment']],
-            RoleSlug::Support->value => ['name' => 'Atendimento', 'permissions' => ['dashboard.view', 'orders.view', 'orders.assisted', 'orders.occurrences', 'customers.view', 'marketing.view', 'reviews.moderate', 'ai.view', 'ai.support']],
+            RoleSlug::Catalog->value => ['name' => 'Catálogo e Estoque', 'permissions' => ['dashboard.view', 'catalog.view', 'catalog.write', 'catalog.pricing', 'catalog.bulk_edit', 'inventory.manage', 'inventory.receive', 'content.view', 'banners.write', 'ai.view', 'ai.catalog', 'ai.catalog.approve', 'ai.replenishment', 'wholesale.view', 'wholesale.pricing', 'wholesale.manage']],
+            RoleSlug::Support->value => ['name' => 'Atendimento', 'permissions' => ['dashboard.view', 'orders.view', 'orders.assisted', 'orders.occurrences', 'customers.view', 'marketing.view', 'reviews.moderate', 'ai.view', 'ai.support', 'wholesale.view', 'wholesale.resellers']],
             RoleSlug::Fulfillment->value => ['name' => 'Expedição e Logística', 'permissions' => ['dashboard.view', 'orders.view', 'orders.manage', 'orders.occurrences', 'shipping.view', 'shipping.write', 'inventory.manage', 'inventory.receive', 'ai.view', 'ai.replenishment']],
-            RoleSlug::Finance->value => ['name' => 'Financeiro', 'permissions' => ['dashboard.view', 'orders.view', 'orders.refund', 'orders.cancel', 'payments.view', 'payments.manage', 'payments.reconcile', 'reports.view', 'reports.export']],
+            RoleSlug::Finance->value => ['name' => 'Financeiro', 'permissions' => ['dashboard.view', 'orders.view', 'orders.refund', 'orders.cancel', 'payments.view', 'payments.manage', 'payments.reconcile', 'reports.view', 'reports.export', 'wholesale.view', 'wholesale.reports']],
             RoleSlug::Marketing->value => ['name' => 'Marketing e Conteúdo', 'permissions' => ['dashboard.view', 'content.view', 'content.write', 'banners.write', 'marketing.view', 'marketing.write', 'reviews.moderate', 'reports.view']],
             RoleSlug::Customer->value => ['name' => 'Cliente', 'permissions' => []],
         ];

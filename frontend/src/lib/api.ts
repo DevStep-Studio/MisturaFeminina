@@ -41,7 +41,7 @@ function csrfToken() {
 }
 let csrfPending: Promise<void> | undefined;
 export function ensureCsrf() {
-  return (csrfPending ??= api<void>("/sanctum/csrf-cookie", {
+  return (csrfPending ??= baseApi<void>("/sanctum/csrf-cookie", {
     scope: "auth",
     authenticated: false,
     csrf: false,
@@ -67,7 +67,7 @@ async function waitForCsrf(signal: AbortSignal) {
 }
 
 const pendingGets = new Map<string, Promise<unknown>>();
-export function api<T = unknown>(
+function baseApi<T = unknown>(
   path: string,
   signalOrOptions: AbortSignal | ApiOptions = {},
 ): Promise<T> {
@@ -217,3 +217,82 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
     options.signal?.removeEventListener("abort", onAbort);
   }
 }
+
+export interface ApiClient {
+  <T = unknown>(
+    path: string,
+    signalOrOptions?: AbortSignal | ApiOptions,
+  ): Promise<T>;
+  get<T = unknown>(
+    path: string,
+    queryOrOptions?: Record<string, unknown> | ApiOptions,
+  ): Promise<T>;
+  post<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: ApiOptions,
+  ): Promise<T>;
+  put<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: ApiOptions,
+  ): Promise<T>;
+  patch<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: ApiOptions,
+  ): Promise<T>;
+  delete<T = unknown>(path: string, options?: ApiOptions): Promise<T>;
+}
+
+export const api: ApiClient = Object.assign(baseApi, {
+  get<T = unknown>(
+    path: string,
+    queryOrOptions?: Record<string, unknown> | ApiOptions,
+  ): Promise<T> {
+    if (
+      queryOrOptions &&
+      !("method" in queryOrOptions) &&
+      !(queryOrOptions instanceof AbortSignal)
+    ) {
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(queryOrOptions)) {
+        if (v !== undefined && v !== null && v !== "")
+          params.append(k, String(v));
+      }
+      const q = params.toString();
+      const fullPath = q
+        ? `${path}${path.includes("?") ? "&" : "?"}${q}`
+        : path;
+      return baseApi<T>(fullPath, { method: "GET" });
+    }
+    return baseApi<T>(path, {
+      ...(queryOrOptions as ApiOptions),
+      method: "GET",
+    });
+  },
+  post<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: ApiOptions,
+  ): Promise<T> {
+    return baseApi<T>(path, { ...options, method: "POST", body });
+  },
+  put<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: ApiOptions,
+  ): Promise<T> {
+    return baseApi<T>(path, { ...options, method: "PUT", body });
+  },
+  patch<T = unknown>(
+    path: string,
+    body?: unknown,
+    options?: ApiOptions,
+  ): Promise<T> {
+    return baseApi<T>(path, { ...options, method: "PATCH", body });
+  },
+  delete<T = unknown>(path: string, options?: ApiOptions): Promise<T> {
+    return baseApi<T>(path, { ...options, method: "DELETE" });
+  },
+});

@@ -139,6 +139,24 @@ export function CartDrawer() {
                 </div>
               }
             >
+              <Show
+                when={
+                  cart()?.wholesale_scope_summaries &&
+                  cart()!.wholesale_scope_summaries!.length > 0
+                }
+              >
+                <div class="mb-4 rounded-lg border border-[#E5C2EA] bg-[#FCF8FD] p-3 space-y-1.5">
+                  <For each={cart()!.wholesale_scope_summaries}>
+                    {(summary) => (
+                      <div class="flex items-center gap-2 text-xs font-semibold text-[#66166E]">
+                        <span class="size-2 rounded-full bg-[#93509e] shrink-0" />
+                        <span>{summary.message}</span>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+
               <ul class="space-y-4">
                 <For each={cart()?.items ?? []}>
                   {(item) => (
@@ -160,6 +178,12 @@ export function CartDrawer() {
                         <p class="mt-0.5 text-[11px] text-[#5B486B]">
                           {item.variant_name} • SKU {item.sku}
                         </p>
+                        <Show when={item.wholesale_applied}>
+                          <span class="mt-1 inline-flex items-center gap-1 rounded bg-[#F8EFFC] px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784]">
+                            Preço de Atacado ({item.wholesale_tier_min_qty}+
+                            un.)
+                          </span>
+                        </Show>
                         <div class="mt-2 flex items-center justify-between">
                           <div class="inline-flex items-center rounded-lg border border-zinc-200">
                             <button
@@ -325,6 +349,14 @@ export function CartDrawer() {
                   <span>Subtotal</span>
                   <span>{formatCents(cart()?.subtotal_cents)}</span>
                 </div>
+                <Show when={(cart()?.wholesale_discount_cents ?? 0) > 0}>
+                  <div class="flex justify-between font-bold text-[#93509e]">
+                    <span>Economia Atacado</span>
+                    <span>
+                      -{formatCents(cart()?.wholesale_discount_cents)}
+                    </span>
+                  </div>
+                </Show>
                 <Show when={(cart()?.discount_cents ?? 0) > 0}>
                   <div class="flex justify-between font-medium text-emerald-700">
                     <span>Descontos</span>

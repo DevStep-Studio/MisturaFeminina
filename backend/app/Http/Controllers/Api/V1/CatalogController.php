@@ -9,6 +9,8 @@ use App\Domain\Catalog\Services\ProductAttributeService;
 use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Settings\Services\StoreSettingsService;
 use App\Domain\Shipping\Services\ShippingQuoteService;
+use App\Domain\Wholesale\Services\WholesalePricingService;
+use App\Domain\Wholesale\Services\WholesaleResellerService;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
@@ -214,7 +216,7 @@ class CatalogController extends Controller
         ]);
     }
 
-    public function show(string $slug): JsonResponse
+    public function show(Request $request, string $slug): JsonResponse
     {
         $product = Product::query()
             ->where('slug', $slug)
@@ -281,6 +283,7 @@ class CatalogController extends Controller
                 'wholesale_enabled' => (bool) ($config['wholesale_enabled'] ?? false) && $product->wholesale_enabled,
                 'wholesale_group_variants' => (bool) $product->wholesale_group_variants,
                 'wholesale_tiers' => $product->wholesale_tiers ?? [],
+                'wholesale_condition' => app(WholesalePricingService::class)->calculateForProduct($product, $request->user()),
                 'comparison_group' => $this->attributes->resolveComparisonGroup($product),
                 'specs' => $this->attributes->extractComparableSpecs($product),
                 'categories' => $product->categories,
@@ -523,6 +526,9 @@ class CatalogController extends Controller
             ? $attrService->extractComparableSpecs($product)
             : [];
 
+        $wholesalePricing = app(WholesalePricingService::class);
+        $wholesaleCondition = $wholesalePricing->calculateForProduct($product);
+
         return [
             'id' => $product->id,
             'name' => $product->name,
@@ -545,6 +551,7 @@ class CatalogController extends Controller
             'has_multiple_variants' => $activeVariants->count() > 1,
             'comparison_group' => $comparisonGroup,
             'specs' => $specs,
+            'wholesale_condition' => $wholesaleCondition,
         ];
     }
 
@@ -580,5 +587,86 @@ class CatalogController extends Controller
                 'color_hex' => $av->color_hex,
             ])->values()->all(),
         ];
+    }
+
+    public function wholesaleCatalog(Request $request): JsonResponse
+    {
+        /** @var WholesalePricingService $pricingService */
+        $pricingService = app(WholesalePricingService::class);
+        $rules = $pricingService->resolveActiveRules($request->user());
+
+        $query = Product::query()->where('is_active', true);
+
+        // If rules have explicit inclusions, filter by them
+        $hasGeneralRule = $rules->contains(fn ($r) => $r->ruleProducts->where('is_excluded', false)->isEmpty());
+        if (! $hasGeneralRule && $rules->isNotEmpty()) {
+            $allowedProductIds = collect();
+            $allowedCategoryIds = collect();
+            $allowedGroupIds = collect();
+
+            foreach ($rules as $r) {
+                foreach ($r->ruleProducts->where('is_excluded', false) as $rp) {
+                    if ($rp->product_id) {
+                        $allowedProductIds->push($rp->product_id);
+                    }
+                    if ($rp->category_id) {
+                        $allowedCategoryIds->push($rp->category_id);
+                    }
+                    if ($rp->wholesale_group_id) {
+                        $allowedGroupIds->push($rp->wholesale_group_id);
+                    }
+                }
+            }
+
+            $query->where(function ($q) use ($allowedProductIds, $allowedCategoryIds, $allowedGroupIds): void {
+                if ($allowedProductIds->isNotEmpty()) {
+                    $q->orWhereIn('id', $allowedProductIds);
+                }
+                if ($allowedCategoryIds->isNotEmpty()) {
+                    $q->orWhereHas('categories', fn ($cq) => $cq->whereIn('categories.id', $allowedCategoryIds));
+                }
+                if ($allowedGroupIds->isNotEmpty()) {
+                    $q->orWhereHas('wholesaleGroupItems', fn ($gq) => $gq->whereIn('wholesale_group_id', $allowedGroupIds));
+                }
+            });
+        }
+
+        $result = $this->applyProductFiltersAndPaginate($request, $query);
+
+        return response()->json([
+            'data' => [
+                'products' => $result['products'],
+                'meta' => $result['meta'],
+                'facets' => $result['facets'],
+                'active_rules_count' => $rules->count(),
+            ],
+        ]);
+    }
+
+    public function requestWholesaleAccount(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:120',
+            'email' => 'required|email|max:190',
+            'phone' => 'nullable|string|max:30',
+            'cnpj_cpf' => 'nullable|string|max:30',
+            'company_name' => 'nullable|string|max:160',
+            'trade_name' => 'nullable|string|max:160',
+            'state_registration' => 'nullable|string|max:40',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        /** @var WholesaleResellerService $resellerService */
+        $resellerService = app(WholesaleResellerService::class);
+        $member = $resellerService->requestRegistration($validated, $request->user());
+
+        return response()->json([
+            'message' => 'Solicitação de cadastro de atacado enviada com sucesso! Nossa equipe analisará e responderá em breve.',
+            'data' => [
+                'id' => $member->id,
+                'status' => $member->status,
+                'requested_at' => $member->requested_at?->toIso8601String(),
+            ],
+        ], 201);
     }
 }

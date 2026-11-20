@@ -194,6 +194,21 @@ export function ProductCard(props: {
                 </span>
               </p>
             </Show>
+
+            <Show when={props.product.wholesale_condition?.has_wholesale}>
+              <div class="mt-1.5 inline-flex items-center justify-center gap-1 rounded bg-[#F8EFFC] px-2 py-0.5 text-[10.5px] font-bold text-[#7C2784]">
+                <span>
+                  Atacado a partir de{" "}
+                  {formatCents(
+                    props.product.wholesale_condition!.starting_price_cents ??
+                      0,
+                  )}
+                </span>
+                <span class="text-[9.5px] font-medium text-[#93509e]">
+                  ({props.product.wholesale_condition!.min_quantity}+ un.)
+                </span>
+              </div>
+            </Show>
           </div>
 
           <Show when={(props.product.specs?.length ?? 0) > 0}>
