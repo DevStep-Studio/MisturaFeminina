@@ -5,8 +5,6 @@ import Bell from "lucide-solid/icons/bell";
 import Boxes from "lucide-solid/icons/boxes";
 import CreditCard from "lucide-solid/icons/credit-card";
 import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
-import Minus from "lucide-solid/icons/minus";
-import Plus from "lucide-solid/icons/plus";
 import { formatCents, whatsappUrl } from "../../../lib/format";
 import { trackAddToCart, trackSelectItem } from "../../../monitoring/analytics";
 import { isProductInComparator, toggleComparatorProduct } from "../comparator";
@@ -18,10 +16,10 @@ export function ProductCard(props: {
   product: ProductCardData;
   borderless?: boolean;
   showFeaturedBadge?: boolean;
+  defaultWholesale?: boolean;
 }) {
   const [adding, setAdding] = createSignal(false);
   const [feedback, setFeedback] = createSignal("");
-  const [qty, setQty] = createSignal(1);
   const settings = () => storefrontStore.settings();
 
   const hasWholesale = () =>
@@ -30,39 +28,61 @@ export function ProductCard(props: {
     props.product.wholesale_condition?.min_quantity ?? 6;
   const wholesaleTiers = () => props.product.wholesale_condition?.tiers ?? [];
 
-  const currentUnitPriceCents = () => {
-    if (!hasWholesale() || wholesaleTiers().length === 0) {
-      return props.product.effective_price_cents;
+  const isWholesaleRoute = () =>
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/atacado");
+
+  const [isWholesaleSelected, setIsWholesaleSelected] = createSignal(
+    Boolean(hasWholesale() && (props.defaultWholesale || isWholesaleRoute())),
+  );
+
+  const wholesaleStartingPriceCents = () =>
+    props.product.wholesale_condition?.starting_price_cents ??
+    props.product.effective_price_cents;
+
+  const wholesaleUnitPriceCents = () => {
+    if (!hasWholesale()) return props.product.effective_price_cents;
+    const tiers = wholesaleTiers();
+    if (tiers.length === 0) {
+      return wholesaleStartingPriceCents();
     }
     const pricing = computeWholesaleUnitPrice(
       props.product.effective_price_cents,
-      qty(),
-      wholesaleTiers(),
+      minWholesaleQty(),
+      tiers,
     );
     return pricing.unitPriceCents;
   };
 
-  const isWholesaleActive = () =>
-    hasWholesale() && qty() >= minWholesaleQty();
+  const currentUnitPriceCents = () => {
+    if (isWholesaleSelected()) {
+      return wholesaleUnitPriceCents();
+    }
+    return props.product.effective_price_cents;
+  };
 
-  const totalCalculatedCents = () => currentUnitPriceCents() * qty();
+  const buyQty = () => (isWholesaleSelected() ? minWholesaleQty() : 1);
+  const totalWholesalePackCents = () =>
+    wholesaleUnitPriceCents() * minWholesaleQty();
 
-  const handleQuickBuy = async (buyQty = qty()) => {
+  const handleQuickBuy = async () => {
     if (!props.product.default_variant_id || !props.product.in_stock) return;
+    const qtyToBuy = buyQty();
+    const unitPrice = currentUnitPriceCents();
     setAdding(true);
     setFeedback("");
     try {
-      await addCartItem(props.product.default_variant_id, buyQty, true);
+      await addCartItem(props.product.default_variant_id, qtyToBuy, true);
       trackAddToCart({
         currency: "BRL",
-        value: (currentUnitPriceCents() * buyQty) / 100,
+        value: (unitPrice * qtyToBuy) / 100,
         items: [
           {
             item_id: props.product.sku,
             item_name: props.product.name,
-            price: currentUnitPriceCents() / 100,
+            price: unitPrice / 100,
             item_brand: props.product.brand?.name,
-            quantity: buyQty,
+            quantity: qtyToBuy,
           },
         ],
       });
@@ -75,10 +95,10 @@ export function ProductCard(props: {
 
   return (
     <article
-      class={`mf-card-stagger group relative flex h-full flex-col rounded-[4px] bg-white px-2.5 py-3 sm:p-4 transition-all ${
+      class={`mf-card-stagger group relative flex h-full flex-col rounded-[6px] bg-white px-2.5 py-3 sm:p-4 transition-all ${
         props.borderless
           ? "border border-transparent"
-          : "border border-zinc-200/70"
+          : "border border-zinc-200/80 hover:border-[#93509e]/40 hover:shadow-[0_4px_16px_rgba(147,80,158,0.08)]"
       }`}
     >
       <div class="relative aspect-square w-full overflow-hidden bg-white p-2">
@@ -128,6 +148,12 @@ export function ProductCard(props: {
               Destaque
             </span>
           </Show>
+          <Show when={props.product.in_stock && hasWholesale()}>
+            <span class="inline-flex items-center gap-1 rounded-md border border-[#93509e]/30 bg-white/95 px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784] shadow-2xs backdrop-blur-xs">
+              <Boxes class="size-2.5 text-[#93509e]" aria-hidden="true" />
+              <span>Atacado {minWholesaleQty()}+</span>
+            </span>
+          </Show>
         </div>
 
         {/* Top-right Discount or Out-of-Stock Badge */}
@@ -151,7 +177,8 @@ export function ProductCard(props: {
         <Link
           to="/produto/$slug"
           params={{ slug: props.product.slug }}
-          class="line-clamp-2 min-h-[2.5rem] text-[13px] font-medium leading-snug text-[#2F0572] transition-colors hover:text-[#C918BF] sm:text-[13.5px]"
+          class="line-clamp-2 h-[2.6rem] text-[13px] font-medium leading-snug text-[#2F0572] transition-colors hover:text-[#C918BF] sm:text-[13.5px]"
+          title={props.product.name}
         >
           {props.product.name}
         </Link>
@@ -159,7 +186,7 @@ export function ProductCard(props: {
         <Show
           when={props.product.in_stock}
           fallback={
-            <div class="mt-4 flex flex-1 flex-col items-center justify-end pb-1">
+            <div class="mt-auto flex flex-col items-center justify-end pt-4 pb-1">
               <div class="flex flex-col items-center text-center">
                 <span class="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold tracking-tight text-zinc-700 sm:text-[12px]">
                   <span
@@ -175,10 +202,10 @@ export function ProductCard(props: {
               <Link
                 to="/produto/$slug"
                 params={{ slug: props.product.slug }}
-                class="group/notify mt-3 inline-flex h-[32px] w-full items-center justify-center gap-1 rounded-lg border border-[#93509e] bg-white px-1 text-[9.5px] font-semibold whitespace-nowrap tracking-tight text-[#93509e] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93509e]/30 min-[360px]:text-[10px] min-[390px]:text-[10.5px] sm:h-[34px] sm:gap-1.5 sm:px-2.5 sm:text-[12px] sm:tracking-normal"
+                class="group/notify mt-3 inline-flex h-[34px] w-full items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-2 text-[11px] font-semibold whitespace-nowrap tracking-tight text-[#93509e] transition-all duration-300 ease-out hover:bg-[#93509e] hover:text-white"
               >
                 <Bell
-                  class="h-3 w-3 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110 sm:h-3.5 sm:w-3.5"
+                  class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover/notify:-rotate-12 group-hover/notify:scale-110"
                   aria-hidden="true"
                 />
                 <span class="whitespace-nowrap">Avise-me quando chegar</span>
@@ -186,9 +213,10 @@ export function ProductCard(props: {
             </div>
           }
         >
-          <div class="mt-2 flex flex-1 flex-col justify-center">
+          {/* Bloco de Preços Consistente */}
+          <div class="mt-2 flex min-h-[46px] flex-col items-center justify-center">
             <Show
-              when={isWholesaleActive()}
+              when={isWholesaleSelected()}
               fallback={
                 <>
                   <div class="flex items-baseline justify-center gap-1.5">
@@ -198,113 +226,122 @@ export function ProductCard(props: {
                         props.product.price_cents
                       }
                     >
-                      <span class="text-[12px] text-[#52436E] line-through">
+                      <span class="text-[12px] font-normal text-zinc-400 line-through">
                         {formatCents(props.product.price_cents)}
                       </span>
                     </Show>
-                    <span class="text-[16px] font-extrabold text-[#C918BF] sm:text-[17px]">
+                    <span class="text-[17px] font-black tracking-tight text-[#8E237C] sm:text-[18px]">
                       {formatCents(props.product.effective_price_cents)}
                     </span>
                   </div>
 
-                  <Show when={props.product.installments_count > 1}>
-                    <p class="mt-1 flex items-center justify-center gap-1 text-[11.5px] text-[#2F0572]">
-                      <CreditCard
-                        class="size-3.5 shrink-0 text-[#2F0572]"
-                        aria-hidden="true"
-                      />
-                      <span>
-                        ou{" "}
-                        <strong class="font-bold text-[#C918BF]">
-                          {props.product.installments_count}x
-                        </strong>{" "}
-                        de{" "}
-                        <strong class="font-bold text-[#C918BF]">
-                          {formatCents(props.product.installment_cents)}
-                        </strong>{" "}
-                        Sem juros
+                  <div class="mt-0.5 flex h-[18px] items-center justify-center text-[11px] text-zinc-500">
+                    <Show
+                      when={props.product.installments_count > 1}
+                      fallback={
+                        <span class="text-[10.5px] text-zinc-400">
+                          À vista no Pix ou Boleto
+                        </span>
+                      }
+                    >
+                      <span class="inline-flex items-center gap-1">
+                        <CreditCard
+                          class="size-3 text-zinc-400"
+                          aria-hidden="true"
+                        />
+                        <span>
+                          ou{" "}
+                          <strong class="font-semibold text-zinc-700">
+                            {props.product.installments_count}x
+                          </strong>{" "}
+                          de{" "}
+                          <strong class="font-semibold text-zinc-700">
+                            {formatCents(props.product.installment_cents)}
+                          </strong>{" "}
+                          s/ juros
+                        </span>
                       </span>
-                    </p>
-                  </Show>
+                    </Show>
+                  </div>
                 </>
               }
             >
-              <div class="flex flex-col items-center">
-                <div class="flex items-baseline justify-center gap-1.5">
-                  <span class="text-[12px] text-[#52436E] line-through">
-                    {formatCents(props.product.effective_price_cents)}
-                  </span>
-                  <span class="text-[17px] font-black text-[#93509e] sm:text-[18px]">
-                    {formatCents(currentUnitPriceCents())}
-                  </span>
-                  <span class="text-[10.5px] font-bold text-[#93509e]">cada</span>
-                </div>
-                <div class="mt-0.5 flex flex-wrap items-center justify-center gap-1">
-                  <span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[9.5px] font-extrabold text-emerald-800">
-                    Atacado Ativo
-                  </span>
-                  <span class="text-[11px] font-bold text-[#3D1260]">
-                    Total: {formatCents(totalCalculatedCents())}
-                  </span>
-                </div>
+              <div class="flex items-baseline justify-center gap-1.5">
+                <span class="text-[12px] font-normal text-zinc-400 line-through">
+                  {formatCents(props.product.effective_price_cents)}
+                </span>
+                <span class="text-[18px] font-black tracking-tight text-[#93509e] sm:text-[19px]">
+                  {formatCents(wholesaleUnitPriceCents())}
+                </span>
+                <span class="text-[11px] font-bold text-[#93509e]">/un.</span>
+              </div>
+              <div class="mt-0.5 flex h-[18px] items-center justify-center gap-1 text-[11px] font-medium text-emerald-700">
+                <span>
+                  Total pacote:{" "}
+                  <strong class="font-bold">
+                    {formatCents(totalWholesalePackCents())}
+                  </strong>{" "}
+                  ({minWholesaleQty()} un.)
+                </span>
               </div>
             </Show>
+          </div>
 
-            <Show when={hasWholesale()}>
+          {/* Exibição Elegante do Atacado (Slot de Altura Fixa 34px para Alinhamento Perfeito) */}
+          <div class="mt-2 flex h-[34px] items-center justify-center">
+            <Show
+              when={hasWholesale()}
+              fallback={<div class="h-[34px]" aria-hidden="true" />}
+            >
               <button
                 type="button"
-                onClick={() =>
-                  setQty((prev) =>
-                    prev >= minWholesaleQty() ? 1 : minWholesaleQty(),
-                  )
-                }
-                class={`mt-2 w-full rounded-lg border p-1.5 text-center transition-all ${
-                  isWholesaleActive()
-                    ? "border-[#93509e] bg-[#FAF3FC] ring-1 ring-[#93509e]"
-                    : "border-[#ECD4EF] bg-gradient-to-r from-[#FAF4FA] to-[#F5EBF7] hover:border-[#93509e]"
+                onClick={() => setIsWholesaleSelected((prev) => !prev)}
+                class={`group/wholesale inline-flex h-[30px] max-w-full items-center justify-between gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-200 ${
+                  isWholesaleSelected()
+                    ? "border-[#93509e] bg-[#FAF3FC] text-[#7C2784] ring-1 ring-[#93509e]/40 shadow-xs"
+                    : "border-[#ECD4EF] bg-[#FDF8FD] text-[#6E2E78] hover:border-[#93509e] hover:bg-[#FAF3FC]"
                 }`}
                 title={
-                  isWholesaleActive()
-                    ? "Clique para voltar ao varejo"
-                    : "Clique para ativar a quantidade mínima de atacado com cálculo automático"
+                  isWholesaleSelected()
+                    ? "Preço de atacado ativo. Clique para voltar ao varejo."
+                    : "Clique para ativar a faixa de atacado com cálculo automático"
                 }
               >
-                <div class="flex items-center justify-between gap-1">
-                  <span class="flex items-center gap-1 text-[11px] font-bold text-[#5B1F69]">
-                    <Boxes
-                      class="size-3.5 shrink-0 text-[#93509e]"
-                      aria-hidden="true"
-                    />
-                    <span>
-                      {isWholesaleActive()
-                        ? "Faixa Atacado Ativada"
-                        : "Atacado"}
-                    </span>
-                  </span>
-                  <span class="rounded bg-[#93509e]/15 px-1.5 py-0.5 text-[10px] font-extrabold text-[#7C2784] whitespace-nowrap">
-                    {minWholesaleQty()}+ un.
-                  </span>
-                </div>
-                <div class="mt-0.5 flex items-baseline justify-center gap-1">
-                  <span class="text-[10px] font-medium text-[#7C558F]">
-                    a partir de
-                  </span>
-                  <span class="text-[13.5px] font-black text-[#93509e] sm:text-[14px]">
-                    {formatCents(
-                      props.product.wholesale_condition!.starting_price_cents ??
-                        0,
-                    )}
-                  </span>
-                  <span class="text-[10px] font-semibold text-[#7C558F]">
-                    cada
-                  </span>
-                </div>
+                <Boxes
+                  class="size-3.5 shrink-0 text-[#93509e]"
+                  aria-hidden="true"
+                />
+                <span class="truncate">
+                  <Show
+                    when={isWholesaleSelected()}
+                    fallback={
+                      <>
+                        Atacado a partir de{" "}
+                        <strong class="font-extrabold text-[#93509e]">
+                          {formatCents(wholesaleStartingPriceCents())}
+                        </strong>
+                        /un.
+                        <span class="ml-1 rounded bg-[#93509e]/15 px-1.5 py-0.2 text-[9.5px] font-extrabold text-[#7C2784]">
+                          {minWholesaleQty()}+ un.
+                        </span>
+                      </>
+                    }
+                  >
+                    <>
+                      <span class="font-bold text-emerald-700">✓ Atacado Ativo:</span>{" "}
+                      <strong class="font-extrabold text-[#93509e]">
+                        {formatCents(wholesaleUnitPriceCents())}
+                      </strong>
+                      /un. ({minWholesaleQty()} un.)
+                    </>
+                  </Show>
+                </span>
               </button>
             </Show>
           </div>
 
           <Show when={(props.product.specs?.length ?? 0) > 0}>
-            <div class="mt-2 flex flex-wrap gap-1">
+            <div class="mt-1.5 flex min-h-[20px] flex-wrap items-center justify-center gap-1">
               <For each={(props.product.specs ?? []).slice(0, 2)}>
                 {(spec) => (
                   <span class="rounded bg-[#FAF6FC] px-1.5 py-0.5 text-[10px] font-semibold text-[#5B486B]">
@@ -319,64 +356,19 @@ export function ProductCard(props: {
             <p class="mt-1 text-xs font-medium text-danger">{feedback()}</p>
           </Show>
 
-          <div class="mt-3">
-            <Show when={hasWholesale() && props.product.default_variant_id}>
-              <div class="mb-2 flex items-center justify-between gap-1 rounded-lg border border-[#ECD4EF] bg-[#FCF8FD] p-1">
-                <div class="flex items-center">
-                  <button
-                    type="button"
-                    disabled={qty() <= 1}
-                    onClick={() => setQty((q) => Math.max(1, q - 1))}
-                    aria-label="Diminuir quantidade"
-                    class="flex size-7 items-center justify-center rounded-md border border-[#E5D0EC] bg-white text-[#93509e] transition hover:bg-[#F5ECF7] disabled:opacity-40"
-                  >
-                    <Minus class="size-3" aria-hidden="true" />
-                  </button>
-                  <span class="w-8 text-center text-xs font-bold text-[#3D1260]">
-                    {qty()}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setQty((q) => q + 1)}
-                    aria-label="Aumentar quantidade"
-                    class="flex size-7 items-center justify-center rounded-md border border-[#E5D0EC] bg-white text-[#93509e] transition hover:bg-[#F5ECF7]"
-                  >
-                    <Plus class="size-3" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setQty((prev) =>
-                      prev >= minWholesaleQty() ? 1 : minWholesaleQty(),
-                    )
-                  }
-                  class={`flex items-center gap-1 rounded-md px-2 py-1 text-[10.5px] font-extrabold transition-colors ${
-                    isWholesaleActive()
-                      ? "bg-[#93509e] text-white shadow-2xs"
-                      : "border border-[#93509e]/30 bg-white text-[#93509e] hover:bg-[#FAF5FB]"
-                  }`}
-                >
-                  <Boxes class="size-3 shrink-0" aria-hidden="true" />
-                  <span>
-                    {isWholesaleActive()
-                      ? "Varejo (1 un.)"
-                      : `${minWholesaleQty()} un. Atacado`}
-                  </span>
-                </button>
-              </div>
-            </Show>
-
+          {/* Botões de Ação Ancorados na Base (Alinhamento Horizontal Perfeito) */}
+          <div class="mt-auto pt-3">
             <Show
               when={props.product.default_variant_id}
               fallback={
                 <Link
                   to="/produto/$slug"
                   params={{ slug: props.product.slug }}
-                  class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-4 text-[13.5px] font-bold"
+                  class="mf-btn-buy inline-flex h-[37px] w-full items-center justify-center rounded-lg px-4 text-[13px] font-bold"
                 >
-                  Comprar
+                  {isWholesaleSelected()
+                    ? "Escolher Cores no Atacado"
+                    : "Ver Opções"}
                 </Link>
               }
             >
@@ -388,10 +380,8 @@ export function ProductCard(props: {
               >
                 {adding()
                   ? "Adicionando…"
-                  : isWholesaleActive()
-                  ? `Comprar no Atacado (${qty()} un.)`
-                  : qty() > 1
-                  ? `Comprar ${qty()} un.`
+                  : isWholesaleSelected()
+                  ? `Comprar no Atacado (${minWholesaleQty()} un. • ${formatCents(totalWholesalePackCents())})`
                   : "Comprar"}
               </button>
             </Show>
