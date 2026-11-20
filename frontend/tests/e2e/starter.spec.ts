@@ -62,10 +62,9 @@ test("consent loads GTM once and revocation stops it", async ({ page }) => {
   await expect(page.locator("#devstep-gtm")).toHaveCount(1);
   await page.getByRole("link", { name: "Esqueci minha senha" }).click();
   await expect(page.locator("#devstep-gtm")).toHaveCount(1);
-  await page
-    .getByRole("button", { name: "Preferências de privacidade" })
-    .click();
-  await page.getByRole("button", { name: "Recusar análises" }).click();
+  await expect(
+    page.getByRole("button", { name: "Preferências de privacidade" }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Recuperar senha" }),
   ).toBeVisible();
