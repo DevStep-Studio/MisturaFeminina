@@ -31,7 +31,14 @@ export function CatalogBanner(props: {
   alt: string;
   href?: string | null;
 }) {
-  const image = <BannerImage src={props.src} alt={props.alt} eager />;
+  const image = (
+    <BannerImage
+      src={props.src}
+      alt={props.alt}
+      eager
+      imageClass="block h-[150px] sm:h-[190px] md:h-[230px] lg:h-[260px] w-full object-cover object-center"
+    />
+  );
 
   return (
     <section

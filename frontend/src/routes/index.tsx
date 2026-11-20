@@ -101,6 +101,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                 mobileSrc={banner().mobile_image_path}
                 alt={banner().alt_text || banner().title}
                 eager
+                imageClass="block h-[200px] sm:h-[260px] md:h-[320px] lg:h-[360px] xl:h-[380px] w-full object-cover object-center"
               />
             );
 

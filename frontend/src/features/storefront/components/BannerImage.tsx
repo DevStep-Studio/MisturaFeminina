@@ -8,6 +8,8 @@ export function BannerImage(props: {
   mobileSrc?: string | null;
   alt: string;
   eager?: boolean;
+  class?: string;
+  imageClass?: string;
 }) {
   const [failed, setFailed] = createSignal(false);
 
@@ -21,7 +23,7 @@ export function BannerImage(props: {
   const useFallback = () => !props.src?.trim() || failed();
 
   return (
-    <picture class="block w-full">
+    <picture class={props.class ?? "block w-full"}>
       <Show when={!useFallback() && props.mobileSrc}>
         <source media="(max-width: 767px)" srcset={assetUrl(props.mobileSrc)} />
       </Show>
@@ -39,8 +41,11 @@ export function BannerImage(props: {
         fetchpriority={props.eager ? "high" : "auto"}
         decoding="async"
         width="1600"
-        height="686"
-        class="block h-auto w-full"
+        height="480"
+        class={
+          props.imageClass ??
+          "block h-[200px] sm:h-[260px] md:h-[320px] lg:h-[360px] xl:h-[380px] w-full object-cover object-center"
+        }
       />
     </picture>
   );
