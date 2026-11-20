@@ -2,6 +2,7 @@ import { ProductImage } from "./ProductImage";
 import { For, Show, createSignal } from "solid-js";
 import { Link } from "@tanstack/solid-router";
 import Bell from "lucide-solid/icons/bell";
+import Boxes from "lucide-solid/icons/boxes";
 import CreditCard from "lucide-solid/icons/credit-card";
 import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
 import { formatCents, whatsappUrl } from "../../../lib/format";
@@ -196,17 +197,26 @@ export function ProductCard(props: {
             </Show>
 
             <Show when={props.product.wholesale_condition?.has_wholesale}>
-              <div class="mt-1.5 inline-flex items-center justify-center gap-1 rounded bg-[#F8EFFC] px-2 py-0.5 text-[10.5px] font-bold text-[#7C2784]">
-                <span>
-                  Atacado a partir de{" "}
-                  {formatCents(
-                    props.product.wholesale_condition!.starting_price_cents ??
-                      0,
-                  )}
-                </span>
-                <span class="text-[9.5px] font-medium text-[#93509e]">
-                  ({props.product.wholesale_condition!.min_quantity}+ un.)
-                </span>
+              <div class="mt-2 w-full rounded-lg border border-[#ECD4EF] bg-gradient-to-r from-[#FAF4FA] to-[#F5EBF7] px-2.5 py-1.5 text-center shadow-2xs">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="flex items-center gap-1 text-[11px] font-bold text-[#5B1F69]">
+                    <Boxes class="size-3.5 shrink-0 text-[#93509e]" aria-hidden="true" />
+                    <span>Atacado</span>
+                  </span>
+                  <span class="rounded bg-[#93509e]/15 px-1.5 py-0.5 text-[10px] font-extrabold text-[#7C2784] whitespace-nowrap">
+                    {props.product.wholesale_condition!.min_quantity}+ un.
+                  </span>
+                </div>
+                <div class="mt-0.5 flex items-baseline justify-center gap-1">
+                  <span class="text-[10px] font-medium text-[#7C558F]">a partir de</span>
+                  <span class="text-[13.5px] font-black text-[#93509e] sm:text-[14px]">
+                    {formatCents(
+                      props.product.wholesale_condition!.starting_price_cents ??
+                        0,
+                    )}
+                  </span>
+                  <span class="text-[10px] font-semibold text-[#7C558F]">cada</span>
+                </div>
               </div>
             </Show>
           </div>
