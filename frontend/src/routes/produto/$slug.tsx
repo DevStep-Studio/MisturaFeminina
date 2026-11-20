@@ -1079,50 +1079,6 @@ function ProductDetailPage() {
                           </button>
                         </div>
 
-                        <Show when={hasWholesale()}>
-                          <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
-                            <span class="text-[11px] font-semibold text-[#543E69]">
-                              Atalhos Atacado:
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setQty(1)}
-                              class={`rounded-md px-2 py-0.5 text-[11px] font-bold transition-all ${
-                                qty() === 1
-                                  ? "bg-[#93509e] text-white"
-                                  : "border border-[#DFC2E3] bg-white text-[#543E69] hover:bg-[#FAF5FB]"
-                              }`}
-                            >
-                              1 un.
-                            </button>
-                            <For each={wholesaleTiers()}>
-                              {(tier) => {
-                                const minQ =
-                                  tier.min_quantity ??
-                                  (tier as any).min_qty ??
-                                  1;
-                                const isSelected = () => qty() === minQ;
-                                return (
-                                  <button
-                                    type="button"
-                                    onClick={() => setQty(minQ)}
-                                    class={`rounded-md px-2.5 py-0.5 text-[11px] font-bold transition-all ${
-                                      isSelected()
-                                        ? "bg-[#93509e] text-white shadow-2xs"
-                                        : "border border-[#DFC2E3] bg-white text-[#93509e] hover:bg-[#FAF5FB]"
-                                    }`}
-                                  >
-                                    {minQ} un. (
-                                    {tier.unit_price_formatted ??
-                                      formatCents(tier.unit_price_cents ?? 0)}
-                                    )
-                                  </button>
-                                );
-                              }}
-                            </For>
-                          </div>
-                        </Show>
-
                         <Show when={settings().whatsapp_number}>
                           <a
                             href={whatsappUrl(
