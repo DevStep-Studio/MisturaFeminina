@@ -1,5 +1,7 @@
 import { For, Show, createResource, createSignal } from "solid-js";
-import { BellRing, ClipboardList, RefreshCw } from "lucide-solid";
+import BellRing from "lucide-solid/icons/bell-ring";
+import ClipboardList from "lucide-solid/icons/clipboard-list";
+import RefreshCw from "lucide-solid/icons/refresh-cw";
 import { api } from "@/lib/api";
 
 interface RestockSummaryPayload {

@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
-import { Plus, Trash2 } from "lucide-solid";
+import Plus from "lucide-solid/icons/plus";
+import Trash2 from "lucide-solid/icons/trash";
 
 export interface AdminVariantDraft {
   id?: number;

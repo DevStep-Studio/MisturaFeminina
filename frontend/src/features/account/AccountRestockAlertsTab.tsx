@@ -1,5 +1,6 @@
 import { For, Show, createResource, createSignal } from "solid-js";
-import { BellRing, Trash2 } from "lucide-solid";
+import BellRing from "lucide-solid/icons/bell-ring";
+import Trash2 from "lucide-solid/icons/trash";
 import { api } from "@/lib/api";
 
 interface CustomerRestockAlert {

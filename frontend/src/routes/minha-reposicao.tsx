@@ -1,15 +1,13 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Link, createFileRoute } from "@tanstack/solid-router";
-import {
-  AlertTriangle,
-  BellRing,
-  CheckCircle2,
-  ClipboardList,
-  Minus,
-  Plus,
-  ShoppingCart,
-  Trash2,
-} from "lucide-solid";
+import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
+import BellRing from "lucide-solid/icons/bell-ring";
+import CheckCircle2 from "lucide-solid/icons/circle-check";
+import ClipboardList from "lucide-solid/icons/clipboard-list";
+import Minus from "lucide-solid/icons/minus";
+import Plus from "lucide-solid/icons/plus";
+import ShoppingCart from "lucide-solid/icons/shopping-cart";
+import Trash2 from "lucide-solid/icons/trash";
 import { StoreShell } from "@/features/storefront/components/StoreShell";
 import { VariantRestockModal } from "@/features/storefront/components/VariantRestockModal";
 import { LoadingState } from "@/components/feedback/loading-state";

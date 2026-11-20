@@ -1,5 +1,9 @@
 import { Show, createEffect, createSignal } from "solid-js";
-import { BellRing, CheckCircle2, Mail, MessageCircle, X } from "lucide-solid";
+import BellRing from "lucide-solid/icons/bell-ring";
+import CheckCircle2 from "lucide-solid/icons/circle-check";
+import Mail from "lucide-solid/icons/mail";
+import MessageCircle from "lucide-solid/icons/message-circle";
+import X from "lucide-solid/icons/x";
 import { ApiError, api } from "@/lib/api";
 import { session } from "@/security/session";
 import type { ProductVariantData } from "../types";

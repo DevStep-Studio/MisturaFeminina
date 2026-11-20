@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace App\Domain\Admin\Services;
 
 use App\Domain\Shared\Enums\OrderStatus;
-use App\Models\AiProductImport;
-use App\Models\AiReplenishmentAnalysis;
-use App\Models\AiReplenishmentSuggestion;
 use App\Models\GoodsReceipt;
 use App\Models\InventoryLot;
 use App\Models\InventoryMovement;
@@ -71,7 +68,7 @@ class TodayWorkService
             ->orderByDesc('id')
             ->limit(40)
             ->get()
-            ->map(fn (OperationalTask $t): array => $this->serializeTask($t))
+            ->map(fn(OperationalTask $t): array => $this->serializeTask($t))
             ->values()
             ->all();
 
@@ -79,9 +76,9 @@ class TodayWorkService
 
         $canAi = in_array('ai.view', $permissions, true);
         $aiSummary = $canAi ? [
-            'pending_catalog_imports_count' => AiProductImport::query()->where('status', 'awaiting_review')->count(),
-            'flagged_products_count' => (int) AiProductImport::query()->where('status', 'awaiting_review')->sum('incomplete_count')
-                + (int) AiProductImport::query()->where('status', 'awaiting_review')->sum('duplicate_count'),
+            'pending_catalog_imports_count' => \App\Models\AiProductImport::query()->where('status', 'awaiting_review')->count(),
+            'flagged_products_count' => (int) \App\Models\AiProductImport::query()->where('status', 'awaiting_review')->sum('incomplete_count')
+                + (int) \App\Models\AiProductImport::query()->where('status', 'awaiting_review')->sum('duplicate_count'),
             'critical_replenishment_variants_count' => $this->latestCriticalReplenishmentCount(),
             'pending_replenishment_suggestions_count' => $this->latestPendingReplenishmentCount(),
         ] : null;
@@ -102,12 +99,12 @@ class TodayWorkService
 
     private function latestCriticalReplenishmentCount(): int
     {
-        $latestId = AiReplenishmentAnalysis::query()->latest('id')->value('id');
+        $latestId = \App\Models\AiReplenishmentAnalysis::query()->latest('id')->value('id');
         if (! $latestId) {
             return 0;
         }
 
-        return AiReplenishmentSuggestion::query()
+        return \App\Models\AiReplenishmentSuggestion::query()
             ->where('analysis_id', $latestId)
             ->whereIn('priority', ['critical', 'high'])
             ->count();
@@ -115,12 +112,12 @@ class TodayWorkService
 
     private function latestPendingReplenishmentCount(): int
     {
-        $latestId = AiReplenishmentAnalysis::query()->latest('id')->value('id');
+        $latestId = \App\Models\AiReplenishmentAnalysis::query()->latest('id')->value('id');
         if (! $latestId) {
             return 0;
         }
 
-        return AiReplenishmentSuggestion::query()
+        return \App\Models\AiReplenishmentSuggestion::query()
             ->where('analysis_id', $latestId)
             ->where('plan_status', 'pending')
             ->where('suggested_quantity', '>', 0)
@@ -133,10 +130,10 @@ class TodayWorkService
         return Order::query()
             ->whereIn('status', [OrderStatus::Paid->value, OrderStatus::Preparing->value])
             ->where('has_issue', false)
-            ->whereDoesntHave('occurrences', fn ($q) => $q->whereNotIn('status', ['resolved', 'closed']))
+            ->whereDoesntHave('occurrences', fn($q) => $q->whereNotIn('status', ['resolved', 'closed']))
             ->where(function ($q): void {
                 $q->whereDoesntHave('shipment')
-                    ->orWhereHas('shipment', fn ($sq) => $sq->whereNull('shipped_at'));
+                    ->orWhereHas('shipment', fn($sq) => $sq->whereNull('shipped_at'));
             });
     }
 
@@ -148,8 +145,8 @@ class TodayWorkService
             ->where(function ($q): void {
                 $q->where('status', OrderStatus::PaymentFailed->value)
                     ->orWhere('has_issue', true)
-                    ->orWhereHas('occurrences', fn ($oq) => $oq->whereNotIn('status', ['resolved', 'closed']))
-                    ->orWhereHas('shipment', fn ($sq) => $sq->where('label_status', 'cancelled'));
+                    ->orWhereHas('occurrences', fn($oq) => $oq->whereNotIn('status', ['resolved', 'closed']))
+                    ->orWhereHas('shipment', fn($sq) => $sq->where('label_status', 'cancelled'));
             });
     }
 
@@ -167,7 +164,7 @@ class TodayWorkService
                             ->whereColumn('promo_price_cents', '>=', 'price_cents');
                     })
                     ->orWhereDoesntHave('images')
-                    ->orWhereDoesntHave('variants', fn ($vq) => $vq->where('is_active', true));
+                    ->orWhereDoesntHave('variants', fn($vq) => $vq->where('is_active', true));
             });
     }
 
@@ -176,7 +173,7 @@ class TodayWorkService
     {
         return ProductVariant::query()
             ->where('is_active', true)
-            ->whereHas('product', fn ($q) => $q->where('is_active', true))
+            ->whereHas('product', fn($q) => $q->where('is_active', true))
             ->whereRaw('(stock_qty - reserved_qty) <= 0');
     }
 
@@ -185,7 +182,7 @@ class TodayWorkService
     {
         $variants = $this->outOfStockVariantsQuery()
             ->with(['product:id,name,slug,sku', 'product.brand:id,name'])
-            ->withCount(['restockRequests as pending_restock_count' => fn ($q) => $q->where('status', 'pending')])
+            ->withCount(['restockRequests as pending_restock_count' => fn($q) => $q->where('status', 'pending')])
             ->orderByDesc('pending_restock_count')
             ->orderBy('id')
             ->limit($limit)
@@ -194,11 +191,11 @@ class TodayWorkService
         $variantIds = $variants->pluck('id')->all();
         $lastMovements = $variantIds !== []
             ? InventoryMovement::query()
-                ->whereIn('product_variant_id', $variantIds)
-                ->latest('id')
-                ->get()
-                ->unique('product_variant_id')
-                ->keyBy('product_variant_id')
+            ->whereIn('product_variant_id', $variantIds)
+            ->latest('id')
+            ->get()
+            ->unique('product_variant_id')
+            ->keyBy('product_variant_id')
             : collect();
 
         return $variants->map(function (ProductVariant $v) use ($lastMovements): array {
@@ -317,7 +314,7 @@ class TodayWorkService
                 $activeKeys[] = $key;
                 $this->upsertSyncedTask($key, [
                     'title' => "Conferir divergência no recebimento {$rec->receipt_number}",
-                    'description' => 'Fornecedor: '.($rec->supplier->name ?? 'N/I'),
+                    'description' => 'Fornecedor: ' . ($rec->supplier->name ?? 'N/I'),
                     'task_type' => 'receipt_discrepancy',
                     'priority' => 'high',
                     'entity_type' => 'goods_receipt',
@@ -358,7 +355,7 @@ class TodayWorkService
                         'priority' => $waitingCount >= 5 ? 'high' : 'normal',
                         'entity_type' => 'product_variant',
                         'entity_id' => $v->id,
-                        'action_url' => '/admin/produtos?tab=recebimentos&sku='.urlencode($v->sku),
+                        'action_url' => '/admin/produtos?tab=recebimentos&sku=' . urlencode($v->sku),
                         'required_permission' => 'inventory.manage',
                     ]);
                 }
@@ -377,8 +374,8 @@ class TodayWorkService
                 $activeKeys[] = $key;
                 $isExpired = $lot->expires_at && $lot->expires_at->isPast();
                 $this->upsertSyncedTask($key, [
-                    'title' => ($isExpired ? 'Lote vencido: ' : 'Lote próximo do vencimento: ').$lot->lot_code,
-                    'description' => ($lot->product->name ?? '').' ('.($lot->variant->sku ?? '').')',
+                    'title' => ($isExpired ? 'Lote vencido: ' : 'Lote próximo do vencimento: ') . $lot->lot_code,
+                    'description' => ($lot->product->name ?? '') . ' (' . ($lot->variant->sku ?? '') . ')',
                     'task_type' => 'lot_expiry',
                     'priority' => $isExpired ? 'urgent' : 'normal',
                     'entity_type' => 'inventory_lot',
@@ -393,7 +390,7 @@ class TodayWorkService
             $staleSynced = OperationalTask::query()
                 ->whereNotNull('task_key')
                 ->whereIn('status', ['pending', 'in_progress'])
-                ->when($activeKeys !== [], fn ($q) => $q->whereNotIn('task_key', $activeKeys))
+                ->when($activeKeys !== [], fn($q) => $q->whereNotIn('task_key', $activeKeys))
                 ->get();
 
             foreach ($staleSynced as $task) {

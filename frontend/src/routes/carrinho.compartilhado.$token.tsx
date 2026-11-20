@@ -1,12 +1,10 @@
 import { For, Show, createResource, createSignal } from "solid-js";
 import { Link, createFileRoute, useNavigate } from "@tanstack/solid-router";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Share2,
-  ShoppingCart,
-} from "lucide-solid";
+import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
+import CheckCircle2 from "lucide-solid/icons/circle-check";
+import Clock from "lucide-solid/icons/clock";
+import Share2 from "lucide-solid/icons/share-2";
+import ShoppingCart from "lucide-solid/icons/shopping-cart";
 import { StoreShell } from "@/features/storefront/components/StoreShell";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { ApiError, api } from "@/lib/api";

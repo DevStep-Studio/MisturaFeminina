@@ -1,5 +1,8 @@
 import { For, Show } from "solid-js";
-import { BellRing, ClipboardList, Layers, Share2 } from "lucide-solid";
+import BellRing from "lucide-solid/icons/bell-ring";
+import ClipboardList from "lucide-solid/icons/clipboard-list";
+import Layers from "lucide-solid/icons/layers";
+import Share2 from "lucide-solid/icons/share-2";
 
 export interface DashboardB2bProps {
   kpis: {

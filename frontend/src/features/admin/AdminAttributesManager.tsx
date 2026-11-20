@@ -1,5 +1,8 @@
 import { For, Show, createResource, createSignal } from "solid-js";
-import { Plus, Sliders, Tag, Trash2 } from "lucide-solid";
+import Plus from "lucide-solid/icons/plus";
+import Sliders from "lucide-solid/icons/sliders-horizontal";
+import Tag from "lucide-solid/icons/tag";
+import Trash2 from "lucide-solid/icons/trash";
 import { ApiError, api } from "@/lib/api";
 
 export interface AdminAttributeValue {

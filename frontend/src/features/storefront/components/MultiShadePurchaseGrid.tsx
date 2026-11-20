@@ -1,13 +1,11 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
-import {
-  BellRing,
-  Check,
-  Minus,
-  Plus,
-  Search,
-  ShoppingCart,
-  Sparkles,
-} from "lucide-solid";
+import BellRing from "lucide-solid/icons/bell-ring";
+import Check from "lucide-solid/icons/check";
+import Minus from "lucide-solid/icons/minus";
+import Plus from "lucide-solid/icons/plus";
+import Search from "lucide-solid/icons/search";
+import ShoppingCart from "lucide-solid/icons/shopping-cart";
+import Sparkles from "lucide-solid/icons/sparkles";
 import { formatCents } from "@/lib/format";
 import { computeWholesaleUnitPrice, type WholesaleTier } from "../wholesale";
 import type { ProductVariantData } from "../types";

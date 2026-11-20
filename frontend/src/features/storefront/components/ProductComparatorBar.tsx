@@ -1,6 +1,9 @@
 import { For, Show } from "solid-js";
 import { Link } from "@tanstack/solid-router";
-import { GitCompareArrows, ShoppingBag, Trash2, X } from "lucide-solid";
+import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
+import ShoppingBag from "lucide-solid/icons/shopping-bag";
+import Trash2 from "lucide-solid/icons/trash";
+import X from "lucide-solid/icons/x";
 import { formatCents } from "@/lib/format";
 import { addCartItem } from "../store";
 import {

@@ -1,12 +1,10 @@
 import { Show, createSignal } from "solid-js";
 import { useNavigate } from "@tanstack/solid-router";
-import {
-  Check,
-  ClipboardList,
-  Copy,
-  MessageCircle,
-  Share2,
-} from "lucide-solid";
+import Check from "lucide-solid/icons/check";
+import ClipboardList from "lucide-solid/icons/clipboard-list";
+import Copy from "lucide-solid/icons/copy";
+import MessageCircle from "lucide-solid/icons/message-circle";
+import Share2 from "lucide-solid/icons/share-2";
 import { session } from "@/security/session";
 import { saveCartAsReplenishmentList } from "@/features/storefront/replenishment";
 import { shareCurrentCart } from "@/features/storefront/store";

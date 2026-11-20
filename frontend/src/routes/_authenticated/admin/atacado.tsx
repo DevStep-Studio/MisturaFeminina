@@ -7,6 +7,7 @@ import FolderTree from "lucide-solid/icons/folder-tree";
 import LayoutDashboard from "lucide-solid/icons/layout-dashboard";
 import Users from "lucide-solid/icons/users";
 import { Show, createSignal } from "solid-js";
+import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminWholesaleBulkGrid } from "../../../features/admin/wholesale/AdminWholesaleBulkGrid";
 import { AdminWholesaleGroupsPanel } from "../../../features/admin/wholesale/AdminWholesaleGroupsPanel";
 import { AdminWholesaleOverview } from "../../../features/admin/wholesale/AdminWholesaleOverview";
@@ -32,20 +33,14 @@ function AdminWholesalePage() {
   const [activeTab, setActiveTab] = createSignal<WholesaleTab>("overview");
 
   return (
-    <div class="space-y-6">
-      {/* Header */}
-      <div class="border-b border-zinc-200 pb-4">
-        <div class="flex items-center gap-2">
-          <Boxes class="size-6 text-[#93509e]" />
-          <h1 class="text-xl font-black text-[#2E0C49]">Central de Atacado</h1>
-        </div>
-        <p class="mt-1 text-xs text-[#5B486B]">
-          Gestão completa de vendas em atacado e varejo: precificação por faixas
-          de quantidade, agrupamento de tonalidades, revendedores e simulador.
-        </p>
-
+    <AdminLayout
+      title="Central de Atacado"
+      subtitle="Gestão completa de vendas em atacado e varejo: precificação por faixas de quantidade, agrupamento de tonalidades, revendedores e simulador"
+      permission="wholesale.view"
+    >
+      <div class="space-y-6">
         {/* Tab Navigation */}
-        <div class="mt-4 flex flex-wrap gap-2 border-b border-zinc-200 pb-2">
+        <div class="flex flex-wrap gap-2 border-b border-zinc-200 pb-2">
           <button
             type="button"
             onClick={() => setActiveTab("overview")}
@@ -137,38 +132,38 @@ function AdminWholesalePage() {
             <span>Relatórios & CSV</span>
           </button>
         </div>
+
+        {/* Tab Panels */}
+        <Show when={activeTab() === "overview"}>
+          <AdminWholesaleOverview
+            onNavigateTab={(tab) => setActiveTab(tab as WholesaleTab)}
+          />
+        </Show>
+
+        <Show when={activeTab() === "rules"}>
+          <AdminWholesaleRulesPanel />
+        </Show>
+
+        <Show when={activeTab() === "bulk"}>
+          <AdminWholesaleBulkGrid />
+        </Show>
+
+        <Show when={activeTab() === "groups"}>
+          <AdminWholesaleGroupsPanel />
+        </Show>
+
+        <Show when={activeTab() === "resellers"}>
+          <AdminWholesaleResellersPanel />
+        </Show>
+
+        <Show when={activeTab() === "simulator"}>
+          <AdminWholesaleSimulatorPanel />
+        </Show>
+
+        <Show when={activeTab() === "reports"}>
+          <AdminWholesaleReportsPanel />
+        </Show>
       </div>
-
-      {/* Tab Panels */}
-      <Show when={activeTab() === "overview"}>
-        <AdminWholesaleOverview
-          onNavigateTab={(tab) => setActiveTab(tab as WholesaleTab)}
-        />
-      </Show>
-
-      <Show when={activeTab() === "rules"}>
-        <AdminWholesaleRulesPanel />
-      </Show>
-
-      <Show when={activeTab() === "bulk"}>
-        <AdminWholesaleBulkGrid />
-      </Show>
-
-      <Show when={activeTab() === "groups"}>
-        <AdminWholesaleGroupsPanel />
-      </Show>
-
-      <Show when={activeTab() === "resellers"}>
-        <AdminWholesaleResellersPanel />
-      </Show>
-
-      <Show when={activeTab() === "simulator"}>
-        <AdminWholesaleSimulatorPanel />
-      </Show>
-
-      <Show when={activeTab() === "reports"}>
-        <AdminWholesaleReportsPanel />
-      </Show>
-    </div>
+    </AdminLayout>
   );
 }
