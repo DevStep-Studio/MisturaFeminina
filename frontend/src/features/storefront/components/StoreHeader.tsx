@@ -625,7 +625,7 @@ export function StoreHeader() {
         class="hidden bg-[#FFF3FF] lg:block"
       >
         <div class="relative mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2 xl:px-6 2xl:gap-4">
-          <div class="flex min-w-0 flex-1 items-center justify-between gap-1.5 pr-1 text-[12px] font-bold text-[#2E1049] xl:gap-2 xl:text-[13px] 2xl:gap-4 2xl:pr-4 2xl:text-[13.5px]">
+          <div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden pr-1 text-[12px] font-bold text-[#2E1049] xl:gap-3 xl:text-[13px] 2xl:gap-4 2xl:pr-4 2xl:text-[13.5px]">
             {/* Todas Categorias Mega-Menu */}
             <div
               class="shrink-0"
@@ -683,7 +683,7 @@ export function StoreHeader() {
                 const alignRight = () => idx() >= 5;
                 return (
                   <div
-                    class="relative shrink-0"
+                    class={`relative shrink-0 ${idx() >= 6 ? "hidden 2xl:block" : idx() >= 5 ? "hidden xl:block" : ""}`}
                     onMouseEnter={() => openPopover(key())}
                     onMouseLeave={scheduleClosePopover}
                   >
@@ -787,50 +787,34 @@ export function StoreHeader() {
                 );
               }}
             </For>
-            <Show when={categories().length <= 6}>
-              <Link
-                to="/marca/$slug"
-                params={{ slug: "mistura-lab" }}
-                onClick={closeAllMenus}
-                class="hidden whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)] xl:inline-flex"
-              >
-                Mistura Lab
-              </Link>
-              <Link
-                to="/marca/$slug"
-                params={{ slug: "lumiere-nails" }}
-                onClick={closeAllMenus}
-                class="hidden whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)] xl:inline-flex"
-              >
-                Lumière
-              </Link>
-            </Show>
           </div>
 
-          {/* Atacado Link */}
-          <Link
-            to="/atacado"
-            onClick={closeAllMenus}
-            class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#93509e] bg-white px-3.5 py-1.5 text-[13px] font-bold text-[#93509e] transition-colors hover:bg-[#FCE7F6] 2xl:gap-2 2xl:px-4 2xl:text-[13.5px]"
-          >
-            <Boxes class="size-4 shrink-0 text-[#93509e]" aria-hidden="true" />
-            <span>Atacado</span>
-          </Link>
-
-          {/* Promoções Pill & Mega-Panel */}
-          <div
-            class="shrink-0"
-            onMouseEnter={() => openPopover("promo")}
-            onMouseLeave={scheduleClosePopover}
-          >
+          {/* Right Action Buttons */}
+          <div class="flex shrink-0 items-center gap-2">
+            {/* Atacado Link */}
             <Link
-              to="/promocoes"
+              to="/atacado"
               onClick={closeAllMenus}
-              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#93509e] px-4 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-[#7c3f87] 2xl:gap-2 2xl:px-5 2xl:text-[13.5px]"
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#93509e] bg-white px-3 py-1.5 text-[12.5px] font-bold text-[#93509e] transition-colors hover:bg-[#FCE7F6] xl:px-3.5 xl:text-[13px] 2xl:gap-2 2xl:px-4 2xl:text-[13.5px]"
             >
-              <BadgePercent class="size-4 shrink-0" aria-hidden="true" />
-              <span>Promoções</span>
+              <Boxes class="size-4 shrink-0 text-[#93509e]" aria-hidden="true" />
+              <span>Atacado</span>
             </Link>
+
+            {/* Promoções Pill & Mega-Panel */}
+            <div
+              class="shrink-0"
+              onMouseEnter={() => openPopover("promo")}
+              onMouseLeave={scheduleClosePopover}
+            >
+              <Link
+                to="/promocoes"
+                onClick={closeAllMenus}
+                class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#93509e] px-3.5 py-1.5 text-[12.5px] font-bold text-white transition-colors hover:bg-[#7c3f87] xl:px-4 xl:text-[13px] 2xl:gap-2 2xl:px-5 2xl:text-[13.5px]"
+              >
+                <BadgePercent class="size-4 shrink-0" aria-hidden="true" />
+                <span>Promoções</span>
+              </Link>
 
             <Show when={activePopover() === "promo"}>
               <div
@@ -892,7 +876,8 @@ export function StoreHeader() {
             </Show>
           </div>
         </div>
-      </nav>
+      </div>
+    </nav>
 
       {/* Mobile Drawer */}
       <Show when={mobileMenuOpen()}>

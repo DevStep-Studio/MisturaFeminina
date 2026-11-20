@@ -2,7 +2,7 @@ import { Link } from "@tanstack/solid-router";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
 import X from "lucide-solid/icons/x";
-import { For, Show, createEffect, createSignal, on } from "solid-js";
+import { For, Show, createEffect, createSignal, on, type JSX } from "solid-js";
 import { api } from "../../../lib/api";
 import { trackViewItemList } from "../../../monitoring/analytics";
 import type { BrandItem, FacetAttribute, ProductCardData } from "../types";
@@ -22,6 +22,7 @@ export interface CatalogListingProps {
   bannerImage?: string | null;
   bannerAlt?: string;
   bannerHref?: string | null;
+  headerAction?: JSX.Element;
 }
 
 /** Full-width promotional banner displayed above catalog and category listings. */
@@ -554,6 +555,10 @@ export function CatalogListingView(props: CatalogListingProps) {
           </div>
 
           <div class="flex flex-wrap items-center gap-3">
+            <Show when={props.headerAction}>
+              {props.headerAction}
+            </Show>
+
             <Show when={props.showFilters !== false}>
               <button
                 type="button"
