@@ -45,7 +45,7 @@ class AdminSettingsController extends Controller
 
     public function listIntegrations(): JsonResponse
     {
-        $providers = ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics'];
+        $providers = ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai'];
         $existing = IntegrationSetting::query()->get()->keyBy('provider');
 
         $settings = app(PaymentSettings::class);
@@ -70,7 +70,7 @@ class AdminSettingsController extends Controller
 
     public function updateIntegration(Request $request, string $provider): JsonResponse
     {
-        if (! in_array($provider, ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics'], true)) {
+        if (! in_array($provider, ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai'], true)) {
             return response()->json(['message' => 'Provedor inválido.'], 404);
         }
 
@@ -81,9 +81,18 @@ class AdminSettingsController extends Controller
             'is_active' => ['boolean'],
         ]);
 
-        $publicKeys = $provider === 'correios' ? ['origin_zip', 'services'] : ($provider === 'mercadopago' ? ['public_key'] : []);
+        $publicKeys = match ($provider) {
+            'correios' => ['origin_zip', 'services'],
+            'mercadopago' => ['public_key'],
+            'openai' => ['base_url', 'support_model', 'catalog_model', 'replenishment_model'],
+            default => [],
+        };
         $secretKeys = match ($provider) {
-            'mercadopago' => ['access_token', 'webhook_secret'], 'asaas' => ['api_key', 'webhook_token'], 'correios' => ['username', 'password', 'card', 'contract', 'regional'], default => ['token', 'access_token']
+            'mercadopago' => ['access_token', 'webhook_secret'],
+            'asaas' => ['api_key', 'webhook_token'],
+            'correios' => ['username', 'password', 'card', 'contract', 'regional'],
+            'openai' => ['api_key', 'organization'],
+            default => ['token', 'access_token'],
         };
         abort_if(array_diff(array_keys($validated['public_config'] ?? []), $publicKeys) !== [] || array_diff(array_keys($validated['credentials'] ?? []), $secretKeys) !== [], 422, 'Campos de integração inválidos.');
         $setting = IntegrationSetting::query()->firstOrNew(['provider' => $provider]);
@@ -152,6 +161,13 @@ class AdminSettingsController extends Controller
                     ? 'https://melhorenvio.com.br'
                     : 'https://sandbox.melhorenvio.com.br';
                 $resp = Http::timeout(6)->withToken($token)->acceptJson()->get($base.'/api/v2/me');
+                $status = $resp->successful() ? 'connected' : 'error_http_'.$resp->status();
+            }
+        } elseif ($provider === 'openai') {
+            $token = $setting?->encrypted_credentials['api_key'] ?? config('services.openai.api_key');
+            $baseUrl = rtrim((string) ($setting?->public_config['base_url'] ?? config('services.openai.base_url', 'https://api.openai.com/v1')), '/');
+            if (is_string($token) && $token !== '') {
+                $resp = Http::timeout(6)->withToken($token)->acceptJson()->get($baseUrl.'/models');
                 $status = $resp->successful() ? 'connected' : 'error_http_'.$resp->status();
             }
         } elseif ($setting && $setting->is_active) {

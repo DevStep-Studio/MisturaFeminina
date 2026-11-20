@@ -10,6 +10,7 @@ import Palette from "lucide-solid/icons/palette";
 import Settings from "lucide-solid/icons/settings";
 import ShieldCheck from "lucide-solid/icons/shield-check";
 import ShoppingCart from "lucide-solid/icons/shopping-cart";
+import Sparkles from "lucide-solid/icons/sparkles";
 import Truck from "lucide-solid/icons/truck";
 import X from "lucide-solid/icons/x";
 import {
@@ -42,7 +43,8 @@ interface AdminNavItem {
     | "shipping"
     | "reports"
     | "settings"
-    | "system";
+    | "system"
+    | "ai";
 }
 
 const NAV_ITEMS: AdminNavItem[] = [
@@ -51,6 +53,12 @@ const NAV_ITEMS: AdminNavItem[] = [
     label: "Painel",
     permission: "dashboard.view",
     icon: "dashboard",
+  },
+  {
+    to: "/admin/ia",
+    label: "Central de IA",
+    permission: "ai.view",
+    icon: "ai",
   },
   {
     to: "/admin/pedidos",
@@ -130,6 +138,8 @@ function renderNavIcon(kind: AdminNavItem["icon"]) {
       return <Settings class="h-4 w-4" />;
     case "system":
       return <ShieldCheck class="h-4 w-4" />;
+    case "ai":
+      return <Sparkles class="h-4 w-4" />;
   }
 }
 

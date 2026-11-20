@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/solid-router";
+import { Link, createFileRoute } from "@tanstack/solid-router";
 import ExternalLink from "lucide-solid/icons/external-link";
 import Percent from "lucide-solid/icons/percent";
+import Sparkles from "lucide-solid/icons/sparkles";
 import Star from "lucide-solid/icons/star";
 import Trash2 from "lucide-solid/icons/trash";
 import {
@@ -479,39 +480,108 @@ function AdminProductsPage() {
     );
   }
 
+  const [aiAssist, setAiAssist] = createSignal<{
+    action: string;
+    issues: string[];
+    possible_duplicates: Array<{ id: number; name: string; sku: string }>;
+    proposed: {
+      short_description: string;
+      description: string;
+      seo_title: string;
+      seo_description: string;
+    };
+  } | null>(null);
+  const [aiBusy, setAiBusy] = createSignal(false);
+
+  async function runProductAiAssist(
+    action: "improve_description" | "audit_catalog" | "check_duplicates",
+  ) {
+    const id = editingId();
+    if (!id) return;
+    setAiBusy(true);
+    try {
+      const res = await api<{
+        data: {
+          action: string;
+          issues: string[];
+          possible_duplicates: Array<{ id: number; name: string; sku: string }>;
+          proposed: {
+            short_description: string;
+            description: string;
+            seo_title: string;
+            seo_description: string;
+          };
+        };
+      }>(`/admin/ai/catalog/products/${id}/assist`, {
+        method: "POST",
+        body: { action },
+      });
+      setAiAssist(res.data);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   return (
     <AdminLayout
       title="Produtos, Estoque e Avaliações"
       subtitle="Cadastre itens, ajuste saldo em estoque, importe CSV e modere reviews"
       permission="catalog.view"
     >
-      <div class="mb-4 flex flex-wrap gap-2">
-        <For
-          each={
-            [
-              ["produtos", "Catálogo & Estoque"],
-              ["massa", "Edição em Massa"],
-              ["recebimentos", "Recebimento de Mercadorias"],
-              ["avaliacoes", "Avaliações"],
-              ["avisos", "Avisos de Reposição"],
-              ["csv", "Importar / Exportar CSV"],
-            ] as const
-          }
-        >
-          {([key, label]) => (
-            <button
-              type="button"
-              onClick={() => setTab(key)}
-              class={`rounded-lg px-4 py-2 text-xs font-bold ${
-                tab() === key
-                  ? "bg-[var(--mf-primary)] text-white"
-                  : "border border-zinc-300 bg-white text-zinc-800"
-              }`}
-            >
-              {label}
-            </button>
-          )}
-        </For>
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap gap-2">
+          <For
+            each={
+              [
+                ["produtos", "Catálogo & Estoque"],
+                ["massa", "Edição em Massa"],
+                ["recebimentos", "Recebimento de Mercadorias"],
+                ["avaliacoes", "Avaliações"],
+                ["avisos", "Avisos de Reposição"],
+                ["csv", "Importar / Exportar CSV"],
+              ] as const
+            }
+          >
+            {([key, label]) => (
+              <button
+                type="button"
+                onClick={() => setTab(key)}
+                class={`rounded-lg px-4 py-2 text-xs font-bold ${
+                  tab() === key
+                    ? "bg-[var(--mf-primary)] text-white"
+                    : "border border-zinc-300 bg-white text-zinc-800"
+                }`}
+              >
+                {label}
+              </button>
+            )}
+          </For>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5">
+          <Link
+            to="/admin/ia"
+            search={{ tab: "cadastro" } as Record<string, string>}
+            class="inline-flex items-center gap-1 rounded-lg border border-[#DFC2E3] bg-[#FCF8FD] px-3 py-2 text-xs font-bold text-[#93509e] hover:bg-[#F3E2F6]"
+          >
+            <Sparkles class="size-3.5" />
+            Cadastrar com IA
+          </Link>
+          <Link
+            to="/admin/ia"
+            search={{ tab: "cadastro" } as Record<string, string>}
+            class="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
+          >
+            Importar produtos com IA
+          </Link>
+          <Link
+            to="/admin/ia"
+            search={{ tab: "reposicao" } as Record<string, string>}
+            class="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
+          >
+            Analisar reposição
+          </Link>
+        </div>
       </div>
 
       <Show when={feedback()}>
@@ -539,13 +609,88 @@ function AdminProductsPage() {
               <Show when={editingId()}>
                 <button
                   type="button"
-                  onClick={resetForm}
+                  onClick={() => {
+                    setAiAssist(null);
+                    resetForm();
+                  }}
                   class="text-xs font-semibold text-zinc-600 hover:underline"
                 >
                   Cancelar edição
                 </button>
               </Show>
             </div>
+
+            <Show when={editingId()}>
+              <div class="space-y-2 rounded-lg border border-[#DFC2E3] bg-[#FCF8FD] p-2.5 text-xs">
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    disabled={aiBusy()}
+                    onClick={() =>
+                      void runProductAiAssist("improve_description")
+                    }
+                    class="rounded border border-[#DFC2E3] bg-white px-2.5 py-1 text-[11px] font-bold text-[#93509e] hover:bg-[#F3E2F6]"
+                  >
+                    Melhorar descrição com IA
+                  </button>
+                  <button
+                    type="button"
+                    disabled={aiBusy()}
+                    onClick={() => void runProductAiAssist("audit_catalog")}
+                    class="rounded border border-[#DFC2E3] bg-white px-2.5 py-1 text-[11px] font-bold text-[#93509e] hover:bg-[#F3E2F6]"
+                  >
+                    Analisar cadastro
+                  </button>
+                  <button
+                    type="button"
+                    disabled={aiBusy()}
+                    onClick={() => void runProductAiAssist("check_duplicates")}
+                    class="rounded border border-[#DFC2E3] bg-white px-2.5 py-1 text-[11px] font-bold text-[#93509e] hover:bg-[#F3E2F6]"
+                  >
+                    Identificar duplicidades
+                  </button>
+                </div>
+
+                <Show when={aiAssist()}>
+                  {(res) => (
+                    <div class="space-y-1.5 rounded border border-[#DFC2E3] bg-white p-2.5 text-[11px]">
+                      <Show when={res().issues.length > 0}>
+                        <p class="font-bold text-amber-800">
+                          Pendências: {res().issues.join(" ")}
+                        </p>
+                      </Show>
+                      <Show when={res().possible_duplicates.length > 0}>
+                        <p class="font-semibold text-zinc-700">
+                          Possíveis correspondências:{" "}
+                          {res()
+                            .possible_duplicates.map(
+                              (d) => `${d.name} (${d.sku})`,
+                            )
+                            .join(", ")}
+                        </p>
+                      </Show>
+                      <p class="text-zinc-600">
+                        <strong>Proposta de descrição:</strong>{" "}
+                        {res().proposed.description}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShortDesc(res().proposed.short_description);
+                          setFullDesc(res().proposed.description);
+                          setSeoTitle(res().proposed.seo_title);
+                          setSeoDesc(res().proposed.seo_description);
+                          setAiAssist(null);
+                        }}
+                        class="rounded bg-[#93509e] px-2.5 py-1 font-bold text-white"
+                      >
+                        Aplicar proposta no formulário
+                      </button>
+                    </div>
+                  )}
+                </Show>
+              </div>
+            </Show>
 
             <div class="grid gap-2.5 sm:grid-cols-2">
               <div class="sm:col-span-2">

@@ -17,6 +17,12 @@ interface TodayWorkPayload {
     products_review_count: number;
     out_of_stock_variants_count: number;
   };
+  ai_summary?: {
+    pending_catalog_imports_count: number;
+    flagged_products_count: number;
+    critical_replenishment_variants_count: number;
+    pending_replenishment_suggestions_count: number;
+  } | null;
   tasks: Array<{
     id: number;
     title: string;
@@ -232,6 +238,61 @@ export function AdminTodayWorkPanel(props: { onDataChanged?: () => void }) {
                 </span>
               </button>
             </div>
+
+            <Show when={d().ai_summary}>
+              {(ai) => (
+                <div class="grid gap-2.5 rounded-xl border border-[#DFC2E3] bg-white/90 p-3 text-xs sm:grid-cols-2 xl:grid-cols-4">
+                  <Link
+                    to="/admin/ia"
+                    search={{ tab: "pendencias" } as Record<string, string>}
+                    class="flex items-center justify-between rounded-lg bg-[#FCF8FD] px-3 py-2 hover:bg-[#F3E2F6]"
+                  >
+                    <span class="font-semibold text-[#5B486B]">
+                      Cadastros aguardando aprovação
+                    </span>
+                    <strong class="font-black text-[#93509e]">
+                      {ai().pending_catalog_imports_count}
+                    </strong>
+                  </Link>
+                  <Link
+                    to="/admin/ia"
+                    search={{ tab: "cadastro" } as Record<string, string>}
+                    class="flex items-center justify-between rounded-lg bg-[#FCF8FD] px-3 py-2 hover:bg-[#F3E2F6]"
+                  >
+                    <span class="font-semibold text-[#5B486B]">
+                      Itens sinalizados pela IA
+                    </span>
+                    <strong class="font-black text-amber-700">
+                      {ai().flagged_products_count}
+                    </strong>
+                  </Link>
+                  <Link
+                    to="/admin/ia"
+                    search={{ tab: "reposicao" } as Record<string, string>}
+                    class="flex items-center justify-between rounded-lg bg-[#FCF8FD] px-3 py-2 hover:bg-[#F3E2F6]"
+                  >
+                    <span class="font-semibold text-[#5B486B]">
+                      Variações em risco de ruptura
+                    </span>
+                    <strong class="font-black text-red-700">
+                      {ai().critical_replenishment_variants_count}
+                    </strong>
+                  </Link>
+                  <Link
+                    to="/admin/ia"
+                    search={{ tab: "reposicao" } as Record<string, string>}
+                    class="flex items-center justify-between rounded-lg bg-[#FCF8FD] px-3 py-2 hover:bg-[#F3E2F6]"
+                  >
+                    <span class="font-semibold text-[#5B486B]">
+                      Recomendações pendentes
+                    </span>
+                    <strong class="font-black text-[#2E0C49]">
+                      {ai().pending_replenishment_suggestions_count}
+                    </strong>
+                  </Link>
+                </div>
+              )}
+            </Show>
 
             {/* Drill-down de Variacoes sem Estoque */}
             <Show when={showOosList()}>

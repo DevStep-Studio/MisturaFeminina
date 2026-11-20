@@ -11,6 +11,7 @@ import {
 } from "solid-js";
 import { AdminAssistedOrderBuilder } from "../../../features/admin/AdminAssistedOrderBuilder";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import { AdminOrderAiAssistantPanel } from "../../../features/admin/ai/AdminOrderAiAssistantPanel";
 import {
   AdminOrderTimelineAndAfterSales,
   type OrderOccurrenceRow,
@@ -579,6 +580,17 @@ function AdminOrdersPage() {
                   >
                     Reembolsar / Estornar pedido
                   </button>
+                </div>
+
+                <div class="border-t border-zinc-200 pt-4">
+                  <AdminOrderAiAssistantPanel
+                    orderId={d().id}
+                    onNoteSaved={() =>
+                      Promise.all([refetch(), refetchDetail()]).then(
+                        () => undefined,
+                      )
+                    }
+                  />
                 </div>
 
                 <div class="border-t border-zinc-200 pt-4">

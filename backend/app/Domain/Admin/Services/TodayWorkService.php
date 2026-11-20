@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Admin\Services;
 
 use App\Domain\Shared\Enums\OrderStatus;
+use App\Models\AiProductImport;
+use App\Models\AiReplenishmentAnalysis;
+use App\Models\AiReplenishmentSuggestion;
 use App\Models\GoodsReceipt;
 use App\Models\InventoryLot;
 use App\Models\InventoryMovement;
@@ -74,6 +77,15 @@ class TodayWorkService
 
         $outOfStockItems = $canCatalog ? $this->listOutOfStockVariants(20) : [];
 
+        $canAi = in_array('ai.view', $permissions, true);
+        $aiSummary = $canAi ? [
+            'pending_catalog_imports_count' => AiProductImport::query()->where('status', 'awaiting_review')->count(),
+            'flagged_products_count' => (int) AiProductImport::query()->where('status', 'awaiting_review')->sum('incomplete_count')
+                + (int) AiProductImport::query()->where('status', 'awaiting_review')->sum('duplicate_count'),
+            'critical_replenishment_variants_count' => $this->latestCriticalReplenishmentCount(),
+            'pending_replenishment_suggestions_count' => $this->latestPendingReplenishmentCount(),
+        ] : null;
+
         return [
             'cards' => [
                 'ship_today_count' => $shipTodayCount,
@@ -81,10 +93,38 @@ class TodayWorkService
                 'products_review_count' => $productsReviewCount,
                 'out_of_stock_variants_count' => $outOfStockVariantsCount,
             ],
+            'ai_summary' => $aiSummary,
             'tasks' => $tasks,
             'out_of_stock_variants' => $outOfStockItems,
             'generated_at' => now()->toIso8601String(),
         ];
+    }
+
+    private function latestCriticalReplenishmentCount(): int
+    {
+        $latestId = AiReplenishmentAnalysis::query()->latest('id')->value('id');
+        if (! $latestId) {
+            return 0;
+        }
+
+        return AiReplenishmentSuggestion::query()
+            ->where('analysis_id', $latestId)
+            ->whereIn('priority', ['critical', 'high'])
+            ->count();
+    }
+
+    private function latestPendingReplenishmentCount(): int
+    {
+        $latestId = AiReplenishmentAnalysis::query()->latest('id')->value('id');
+        if (! $latestId) {
+            return 0;
+        }
+
+        return AiReplenishmentSuggestion::query()
+            ->where('analysis_id', $latestId)
+            ->where('plan_status', 'pending')
+            ->where('suggested_quantity', '>', 0)
+            ->count();
     }
 
     /** @return Builder<Order> */

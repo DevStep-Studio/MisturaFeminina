@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\AI\Services\InventoryReplenishmentAgent;
 use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Security\Services\RbacSeederService;
@@ -189,5 +190,13 @@ Artisan::command('devstep:health', function (): int {
     }
 });
 
+Artisan::command('mistura:ai-replenishment-analyze', function (InventoryReplenishmentAgent $agent): int {
+    $analysis = $agent->runAnalysis(null, [], 'scheduled');
+    $this->info("Análise de reposição IA #{$analysis->id} concluída.");
+
+    return 0;
+})->purpose('Executa a análise automática de reposição inteligente por SKU.');
+
 Schedule::command('mistura:release-expired-reservations')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('mistura:reconcile-payments')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('mistura:ai-replenishment-analyze')->dailyAt('06:00')->withoutOverlapping();

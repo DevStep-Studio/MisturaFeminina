@@ -41,6 +41,7 @@ import { Route as AuthenticatedAdminCategoriasMarcasRouteImport } from './routes
 import { Route as AuthenticatedAdminConfiguracoesRouteImport } from './routes/_authenticated/admin/configuracoes'
 import { Route as AuthenticatedAdminEquipeSistemaRouteImport } from './routes/_authenticated/admin/equipe-sistema'
 import { Route as AuthenticatedAdminFretePagamentosRouteImport } from './routes/_authenticated/admin/frete-pagamentos'
+import { Route as AuthenticatedAdminIaRouteImport } from './routes/_authenticated/admin/ia'
 import { Route as AuthenticatedAdminMarketingRouteImport } from './routes/_authenticated/admin/marketing'
 import { Route as AuthenticatedAdminPedidosRouteImport } from './routes/_authenticated/admin/pedidos'
 import { Route as AuthenticatedAdminProdutosRouteImport } from './routes/_authenticated/admin/produtos'
@@ -213,6 +214,11 @@ const AuthenticatedAdminFretePagamentosRoute =
     path: '/admin/frete-pagamentos',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminIaRoute = AuthenticatedAdminIaRouteImport.update({
+  id: '/admin/ia',
+  path: '/admin/ia',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAdminMarketingRoute =
   AuthenticatedAdminMarketingRouteImport.update({
     id: '/admin/marketing',
@@ -285,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/equipe-sistema': typeof AuthenticatedAdminEquipeSistemaRoute
   '/admin/frete-pagamentos': typeof AuthenticatedAdminFretePagamentosRoute
+  '/admin/ia': typeof AuthenticatedAdminIaRoute
   '/admin/marketing': typeof AuthenticatedAdminMarketingRoute
   '/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
@@ -325,6 +332,7 @@ export interface FileRoutesByTo {
   '/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/admin/equipe-sistema': typeof AuthenticatedAdminEquipeSistemaRoute
   '/admin/frete-pagamentos': typeof AuthenticatedAdminFretePagamentosRoute
+  '/admin/ia': typeof AuthenticatedAdminIaRoute
   '/admin/marketing': typeof AuthenticatedAdminMarketingRoute
   '/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
@@ -367,6 +375,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/configuracoes': typeof AuthenticatedAdminConfiguracoesRoute
   '/_authenticated/admin/equipe-sistema': typeof AuthenticatedAdminEquipeSistemaRoute
   '/_authenticated/admin/frete-pagamentos': typeof AuthenticatedAdminFretePagamentosRoute
+  '/_authenticated/admin/ia': typeof AuthenticatedAdminIaRoute
   '/_authenticated/admin/marketing': typeof AuthenticatedAdminMarketingRoute
   '/_authenticated/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/_authenticated/admin/produtos': typeof AuthenticatedAdminProdutosRoute
@@ -409,6 +418,7 @@ export interface FileRouteTypes {
     | '/admin/configuracoes'
     | '/admin/equipe-sistema'
     | '/admin/frete-pagamentos'
+    | '/admin/ia'
     | '/admin/marketing'
     | '/admin/pedidos'
     | '/admin/produtos'
@@ -449,6 +459,7 @@ export interface FileRouteTypes {
     | '/admin/configuracoes'
     | '/admin/equipe-sistema'
     | '/admin/frete-pagamentos'
+    | '/admin/ia'
     | '/admin/marketing'
     | '/admin/pedidos'
     | '/admin/produtos'
@@ -490,6 +501,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/configuracoes'
     | '/_authenticated/admin/equipe-sistema'
     | '/_authenticated/admin/frete-pagamentos'
+    | '/_authenticated/admin/ia'
     | '/_authenticated/admin/marketing'
     | '/_authenticated/admin/pedidos'
     | '/_authenticated/admin/produtos'
@@ -755,6 +767,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AuthenticatedAdminFretePagamentosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/ia': {
+      id: '/_authenticated/admin/ia'
+      path: '/admin/ia'
+      fullPath: '/admin/ia'
+      preLoaderRoute: typeof AuthenticatedAdminIaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/marketing': {
       id: '/_authenticated/admin/marketing'
       path: '/admin/marketing'
@@ -814,6 +833,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminConfiguracoesRoute: typeof AuthenticatedAdminConfiguracoesRoute
   AuthenticatedAdminEquipeSistemaRoute: typeof AuthenticatedAdminEquipeSistemaRoute
   AuthenticatedAdminFretePagamentosRoute: typeof AuthenticatedAdminFretePagamentosRoute
+  AuthenticatedAdminIaRoute: typeof AuthenticatedAdminIaRoute
   AuthenticatedAdminMarketingRoute: typeof AuthenticatedAdminMarketingRoute
   AuthenticatedAdminPedidosRoute: typeof AuthenticatedAdminPedidosRoute
   AuthenticatedAdminProdutosRoute: typeof AuthenticatedAdminProdutosRoute
@@ -830,6 +850,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminEquipeSistemaRoute: AuthenticatedAdminEquipeSistemaRoute,
   AuthenticatedAdminFretePagamentosRoute:
     AuthenticatedAdminFretePagamentosRoute,
+  AuthenticatedAdminIaRoute: AuthenticatedAdminIaRoute,
   AuthenticatedAdminMarketingRoute: AuthenticatedAdminMarketingRoute,
   AuthenticatedAdminPedidosRoute: AuthenticatedAdminPedidosRoute,
   AuthenticatedAdminProdutosRoute: AuthenticatedAdminProdutosRoute,

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AccountController;
+use App\Http\Controllers\Api\V1\Admin\AdminAiAgentController;
 use App\Http\Controllers\Api\V1\Admin\AdminCatalogController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminMarketingController;
@@ -273,5 +274,38 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('search-synonyms', [AdminOperationsController::class, 'listSearchSynonyms'])->middleware('permission:reports.view');
         Route::post('search-synonyms', [AdminOperationsController::class, 'storeSearchSynonym'])->middleware('permission:reports.view');
         Route::delete('search-synonyms/{id}', [AdminOperationsController::class, 'destroySearchSynonym'])->middleware('permission:reports.view');
+
+        // Central de Agentes de Inteligencia Artificial
+        Route::prefix('ai')->group(function (): void {
+            Route::get('overview', [AdminAiAgentController::class, 'overview'])->middleware('permission:ai.view');
+            Route::get('executions', [AdminAiAgentController::class, 'executions'])->middleware('permission:ai.view');
+            Route::get('executions/{id}', [AdminAiAgentController::class, 'showExecution'])->middleware('permission:ai.view');
+            Route::get('logs', [AdminAiAgentController::class, 'logs'])->middleware('permission:ai.logs');
+
+            Route::get('settings', [AdminAiAgentController::class, 'getSettings'])->middleware('permission:ai.settings');
+            Route::put('settings', [AdminAiAgentController::class, 'updateSettings'])->middleware('permission:ai.settings');
+            Route::post('settings/test-connection', [AdminAiAgentController::class, 'testConnection'])->middleware('permission:ai.settings');
+
+            // Agente 01: Atendimento em Pedidos
+            Route::post('support/orders/{orderId}/reply', [AdminAiAgentController::class, 'prepareOrderReply'])->middleware('permission:ai.support');
+            Route::post('support/orders/{orderId}/summarize', [AdminAiAgentController::class, 'summarizeOrderHistory'])->middleware('permission:ai.support');
+            Route::post('support/orders/{orderId}/analyze-occurrences', [AdminAiAgentController::class, 'analyzeOrderOccurrences'])->middleware('permission:ai.support');
+
+            // Agente 02: Cadastro Inteligente de Produtos
+            Route::get('catalog/imports', [AdminAiAgentController::class, 'listCatalogImports'])->middleware('permission:ai.catalog');
+            Route::post('catalog/imports', [AdminAiAgentController::class, 'createCatalogImport'])->middleware('permission:ai.catalog');
+            Route::get('catalog/imports/{id}', [AdminAiAgentController::class, 'showCatalogImport'])->middleware('permission:ai.catalog');
+            Route::patch('catalog/imports/{id}/items/{itemId}', [AdminAiAgentController::class, 'updateCatalogImportItem'])->middleware('permission:ai.catalog');
+            Route::post('catalog/imports/{id}/approve', [AdminAiAgentController::class, 'approveCatalogImport'])->middleware('permission:ai.catalog.approve');
+            Route::post('catalog/imports/{id}/discard', [AdminAiAgentController::class, 'discardCatalogImport'])->middleware('permission:ai.catalog');
+            Route::post('catalog/products/{productId}/assist', [AdminAiAgentController::class, 'assistSingleProduct'])->middleware('permission:ai.catalog');
+
+            // Agente 03: Reposicao Inteligente
+            Route::get('replenishment/latest', [AdminAiAgentController::class, 'latestReplenishment'])->middleware('permission:ai.replenishment');
+            Route::post('replenishment/analyze', [AdminAiAgentController::class, 'analyzeReplenishment'])->middleware('permission:ai.replenishment');
+            Route::get('replenishment/suggestions/{suggestionId}/explain', [AdminAiAgentController::class, 'explainReplenishmentSuggestion'])->middleware('permission:ai.replenishment');
+            Route::post('replenishment/analyses/{analysisId}/save-plan', [AdminAiAgentController::class, 'saveReplenishmentPlan'])->middleware('permission:ai.replenishment');
+            Route::get('replenishment/analyses/{analysisId}/export-csv', [AdminAiAgentController::class, 'exportReplenishmentCsv'])->middleware('permission:ai.replenishment');
+        });
     });
 });
