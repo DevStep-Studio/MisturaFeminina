@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Cart\Services\CartService;
+use App\Domain\Catalog\Services\ReplenishmentService;
+use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Security\Services\TotpService;
 use App\Http\Controllers\Controller;
 use App\Models\LgpdRequest;
 use App\Models\Order;
+use App\Models\RestockRequest;
 use App\Models\User;
 use App\Models\Wishlist;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +28,9 @@ class AccountController extends Controller
     public function __construct(
         private readonly TotpService $totp,
         private readonly AuditLogger $audit,
+        private readonly ReplenishmentService $replenishment,
+        private readonly CartService $carts,
+        private readonly RestockNotificationService $restock,
     ) {}
 
     public function overview(Request $request): JsonResponse
@@ -347,6 +354,176 @@ class AccountController extends Controller
         $this->audit->record('account.2fa_disabled', $user, 'user', $user->id, null, null, $request);
 
         return response()->json(['message' => 'Autenticação em duas etapas desativada.']);
+    }
+
+    public function listReplenishmentLists(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->replenishment->listForUser($user),
+        ]);
+    }
+
+    public function storeReplenishmentList(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'min:2', 'max:120'],
+            'is_default' => ['boolean'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->replenishment->createList($user, $validated['name'], (bool) ($validated['is_default'] ?? false)),
+        ], 201);
+    }
+
+    public function updateReplenishmentList(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'min:2', 'max:120'],
+            'is_default' => ['sometimes', 'boolean'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->replenishment->updateList($user, $id, $validated),
+        ]);
+    }
+
+    public function destroyReplenishmentList(Request $request, int $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->replenishment->deleteList($user, $id);
+
+        return response()->json(['message' => 'Lista de reposição removida.']);
+    }
+
+    public function addReplenishmentItem(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'variant_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
+            'list_id' => ['nullable', 'integer', 'exists:replenishment_lists,id'],
+            'increment' => ['nullable', 'boolean'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->replenishment->upsertItem(
+                $user,
+                (int) $validated['variant_id'],
+                (int) ($validated['quantity'] ?? 1),
+                isset($validated['list_id']) ? (int) $validated['list_id'] : null,
+                (bool) ($validated['increment'] ?? true),
+            ),
+        ], 201);
+    }
+
+    public function updateReplenishmentItem(Request $request, int $listId, int $itemId): JsonResponse
+    {
+        $validated = $request->validate([
+            'quantity' => ['required', 'integer', 'min:0', 'max:999'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->replenishment->updateItemQuantity($user, $listId, $itemId, (int) $validated['quantity']),
+        ]);
+    }
+
+    public function removeReplenishmentItem(Request $request, int $listId, int $itemId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->replenishment->removeItem($user, $listId, $itemId),
+        ]);
+    }
+
+    public function syncReplenishmentList(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'max:100'],
+            'items.*.variant_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->replenishment->syncGuestItems($user, $validated['items']),
+        ]);
+    }
+
+    public function createReplenishmentListFromCart(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['nullable', 'string', 'min:2', 'max:120'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+        $cart = $this->carts->resolveCart($request, true);
+
+        return response()->json([
+            'data' => $this->replenishment->createFromCart($user, $cart, $validated['name'] ?? null),
+        ], 201);
+    }
+
+    public function addReplenishmentListToCart(Request $request, int $listId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $cart = $this->carts->resolveCart($request, true);
+        $result = $this->replenishment->addAvailableToCart($user, $listId, $cart);
+        $token = (string) ($result['cart']['token'] ?? $cart->token);
+
+        return response()
+            ->json(['data' => $result])
+            ->header('X-Cart-Token', $token)
+            ->cookie('mf_cart_token', $token, 60 * 24 * 14, '/', null, app()->isProduction(), true, false, 'lax');
+    }
+
+    public function listRestockAlerts(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $alerts = RestockRequest::query()
+            ->where(function ($q) use ($user): void {
+                $q->where('user_id', $user->id)
+                    ->orWhere('email', strtolower($user->email));
+            })
+            ->with(['product:id,name,slug', 'variant:id,name,shade_code,sku,stock_qty,reserved_qty'])
+            ->latest('id')
+            ->limit(50)
+            ->get();
+
+        return response()->json(['data' => $alerts]);
+    }
+
+    public function cancelRestockAlert(Request $request, int $id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $alert = $this->restock->cancelForUser($user, $id);
+
+        return response()->json([
+            'message' => 'Solicitação de aviso cancelada.',
+            'data' => $alert,
+        ]);
     }
 
     /** @return array<string, mixed> */

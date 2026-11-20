@@ -44,9 +44,11 @@ Route::prefix('catalog')->group(function (): void {
     Route::get('brands/{slug}', [CatalogController::class, 'brandShow']);
     Route::get('products', [CatalogController::class, 'products']);
     Route::get('search', [CatalogController::class, 'search']);
+    Route::get('compare', [CatalogController::class, 'compare']);
     Route::get('products/{slug}', [CatalogController::class, 'show']);
     Route::post('products/{slug}/shipping-quote', [CatalogController::class, 'quoteProductShipping'])->middleware('throttle:30,1');
     Route::post('products/{slug}/restock-alert', [CatalogController::class, 'restockAlert'])->middleware('throttle:15,1');
+    Route::post('restock-alerts/{token}/cancel', [CatalogController::class, 'cancelRestockAlert'])->middleware('throttle:20,1');
     Route::post('products/{slug}/reviews', [CatalogController::class, 'storeReview'])->middleware('throttle:10,1');
 });
 
@@ -54,12 +56,16 @@ Route::prefix('catalog')->group(function (): void {
 Route::prefix('cart')->group(function (): void {
     Route::get('/', [CartController::class, 'show']);
     Route::post('items', [CartController::class, 'addItem']);
+    Route::post('items/bulk', [CartController::class, 'addBulkItems']);
     Route::patch('items/{itemId}', [CartController::class, 'updateItem']);
     Route::delete('items/{itemId}', [CartController::class, 'removeItem']);
     Route::post('coupon', [CartController::class, 'applyCoupon']);
     Route::delete('coupon', [CartController::class, 'removeCoupon']);
     Route::post('shipping/quote', [CartController::class, 'quoteShipping']);
     Route::post('shipping/select', [CartController::class, 'selectShipping']);
+    Route::post('share', [CartController::class, 'shareCart'])->middleware('throttle:15,1');
+    Route::get('shared/{token}', [CartController::class, 'showSharedCart'])->middleware('throttle:60,1');
+    Route::post('shared/{token}/import', [CartController::class, 'importSharedCart'])->middleware('throttle:20,1');
 });
 
 // Checkout & Order Tracking
@@ -93,6 +99,18 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('orders/{orderNumber}', [AccountController::class, 'showOrder']);
         Route::get('wishlist', [AccountController::class, 'listWishlist']);
         Route::post('wishlist/toggle', [AccountController::class, 'toggleWishlist']);
+        Route::get('replenishment-lists', [AccountController::class, 'listReplenishmentLists']);
+        Route::post('replenishment-lists', [AccountController::class, 'storeReplenishmentList']);
+        Route::post('replenishment-lists/from-cart', [AccountController::class, 'createReplenishmentListFromCart']);
+        Route::post('replenishment-lists/sync', [AccountController::class, 'syncReplenishmentList']);
+        Route::post('replenishment-lists/items', [AccountController::class, 'addReplenishmentItem']);
+        Route::put('replenishment-lists/{id}', [AccountController::class, 'updateReplenishmentList']);
+        Route::delete('replenishment-lists/{id}', [AccountController::class, 'destroyReplenishmentList']);
+        Route::patch('replenishment-lists/{listId}/items/{itemId}', [AccountController::class, 'updateReplenishmentItem']);
+        Route::delete('replenishment-lists/{listId}/items/{itemId}', [AccountController::class, 'removeReplenishmentItem']);
+        Route::post('replenishment-lists/{listId}/add-to-cart', [AccountController::class, 'addReplenishmentListToCart']);
+        Route::get('restock-alerts', [AccountController::class, 'listRestockAlerts']);
+        Route::delete('restock-alerts/{id}', [AccountController::class, 'cancelRestockAlert']);
         Route::get('lgpd/export', [AccountController::class, 'lgpdExport']);
         Route::post('lgpd/request', [AccountController::class, 'lgpdRequest']);
         Route::post('2fa/setup', [AccountController::class, 'setupTwoFactor']);
@@ -123,16 +141,22 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('categories', [AdminCatalogController::class, 'listCategories'])->middleware('permission:catalog.view');
         Route::post('categories', [AdminCatalogController::class, 'storeCategory'])->middleware('permission:catalog.write');
         Route::put('categories/{id}', [AdminCatalogController::class, 'updateCategory'])->middleware('permission:catalog.write');
+        Route::put('categories/{id}/attributes', [AdminCatalogController::class, 'syncCategoryAttributes'])->middleware('permission:catalog.write');
         Route::delete('categories/{id}', [AdminCatalogController::class, 'destroyCategory'])->middleware('permission:catalog.write');
         Route::get('brands', [AdminCatalogController::class, 'listBrands'])->middleware('permission:catalog.view');
         Route::post('brands', [AdminCatalogController::class, 'storeBrand'])->middleware('permission:catalog.write');
         Route::put('brands/{id}', [AdminCatalogController::class, 'updateBrand'])->middleware('permission:catalog.write');
         Route::get('attributes', [AdminCatalogController::class, 'listAttributes'])->middleware('permission:catalog.view');
+        Route::post('attributes', [AdminCatalogController::class, 'storeAttribute'])->middleware('permission:catalog.write');
+        Route::put('attributes/{id}', [AdminCatalogController::class, 'updateAttribute'])->middleware('permission:catalog.write');
+        Route::delete('attributes/{id}', [AdminCatalogController::class, 'destroyAttribute'])->middleware('permission:catalog.write');
         Route::get('catalog/export-csv', [AdminCatalogController::class, 'exportCsv'])->middleware('permission:catalog.view');
         Route::post('catalog/import-csv', [AdminCatalogController::class, 'importCsv'])->middleware('permission:catalog.write');
         Route::get('reviews', [AdminCatalogController::class, 'listReviews'])->middleware('permission:marketing.view');
         Route::patch('reviews/{id}', [AdminCatalogController::class, 'moderateReview'])->middleware('permission:reviews.moderate');
         Route::get('restock-requests', [AdminCatalogController::class, 'listRestockRequests'])->middleware('permission:catalog.view');
+        Route::get('restock-alerts/summary', [AdminCatalogController::class, 'restockSummary'])->middleware('permission:catalog.view');
+        Route::get('replenishment/insights', [AdminCatalogController::class, 'replenishmentInsights'])->middleware('permission:catalog.view');
 
         // Content, Media, Banners, Home Builder, CMS Pages
         Route::get('media', [AdminContentController::class, 'listMedia'])->middleware('permission:content.view');

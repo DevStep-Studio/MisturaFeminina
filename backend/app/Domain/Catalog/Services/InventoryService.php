@@ -4,18 +4,16 @@ declare(strict_types=1);
 
 namespace App\Domain\Catalog\Services;
 
+use App\Domain\Catalog\Events\VariantRestocked;
 use App\Domain\Shared\Enums\InventoryMovementType;
 use App\Domain\Shared\Enums\ProductType;
-use App\Mail\RestockAvailableMail;
 use App\Models\CartItem;
 use App\Models\InventoryMovement;
 use App\Models\Order;
 use App\Models\ProductVariant;
-use App\Models\RestockRequest;
 use App\Models\StockReservation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class InventoryService
@@ -232,7 +230,8 @@ class InventoryService
         return DB::transaction(function () use ($variant, $qtyDelta, $type, $actor, $reason, $reference): ProductVariant {
             /** @var ProductVariant $locked */
             $locked = ProductVariant::query()->whereKey($variant->id)->lockForUpdate()->firstOrFail();
-            $wasOutOfStock = $locked->availableStock() <= 0;
+            $prevAvailable = $locked->availableStock();
+            $wasOutOfStock = $prevAvailable <= 0;
             $newPhysical = $locked->stock_qty + $qtyDelta;
             if ($newPhysical < 0) {
                 throw ValidationException::withMessages(['stock_qty' => ['O estoque físico não pode ficar negativo.']]);
@@ -254,34 +253,15 @@ class InventoryService
                 'reference' => $reference,
             ]);
 
-            if ($wasOutOfStock && ($newPhysical - $locked->reserved_qty) > 0) {
-                $this->notifyRestockSubscribers($locked);
+            $newAvailable = max(0, $newPhysical - $locked->reserved_qty);
+            if ($wasOutOfStock && $newAvailable > 0) {
+                $event = new VariantRestocked($locked, $prevAvailable, $newAvailable, $reason);
+                event($event);
+                app(RestockNotificationService::class)->handleVariantRestocked($event);
             }
 
             return $locked->fresh();
         });
-    }
-
-    private function notifyRestockSubscribers(ProductVariant $variant): void
-    {
-        $requests = RestockRequest::query()
-            ->where('status', 'pending')
-            ->where(function ($q) use ($variant): void {
-                $q->where('product_variant_id', $variant->id)
-                    ->orWhere(function ($q2) use ($variant): void {
-                        $q2->whereNull('product_variant_id')
-                            ->where('product_id', $variant->product_id);
-                    });
-            })
-            ->with('product')
-            ->get();
-
-        foreach ($requests as $req) {
-            if ($req->product) {
-                Mail::to($req->email)->queue(new RestockAvailableMail($req->product, $variant));
-            }
-            $req->update(['status' => 'notified', 'notified_at' => now()]);
-        }
     }
 
     /**

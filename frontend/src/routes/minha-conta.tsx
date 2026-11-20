@@ -10,6 +10,7 @@ import UserIcon from "lucide-solid/icons/user";
 import { For, Show, createEffect, createSignal, onMount } from "solid-js";
 import { ProductCard } from "../features/storefront/components/ProductCard";
 import { StoreShell } from "../features/storefront/components/StoreShell";
+import { AccountRestockAlertsTab } from "../features/account/AccountRestockAlertsTab";
 import type { ProductCardData } from "../features/storefront/types";
 import { ApiError, api } from "../lib/api";
 import {
@@ -71,7 +72,7 @@ interface OverviewPayload {
 function MyAccountPage() {
   const navigate = useNavigate();
   const [tab, setTab] = createSignal<
-    "pedidos" | "enderecos" | "favoritos" | "dados" | "privacidade"
+    "pedidos" | "enderecos" | "favoritos" | "dados" | "avisos" | "privacidade"
   >("pedidos");
   const [overview, setOverview] = createSignal<OverviewPayload | null>(null);
   const [loading, setLoading] = createSignal(true);
@@ -404,6 +405,25 @@ function MyAccountPage() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setTab("avisos")}
+                    class={`flex w-full items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left text-sm font-semibold ${
+                      tab() === "avisos"
+                        ? "bg-[var(--mf-primary)] text-white"
+                        : "text-zinc-800 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <Heart class="h-4 w-4" />
+                    Meus Avisos de Estoque
+                  </button>
+                  <Link
+                    to="/minha-reposicao"
+                    class="flex w-full items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left text-sm font-semibold text-[#93509e] hover:bg-[#FCF8FD]"
+                  >
+                    <Package class="h-4 w-4" />
+                    Minha Lista de Reposição →
+                  </Link>
+                  <button
+                    type="button"
                     onClick={() => setTab("privacidade")}
                     class={`flex w-full items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left text-sm font-semibold ${
                       tab() === "privacidade"
@@ -715,6 +735,10 @@ function MyAccountPage() {
                         </Show>
                       </div>
                     </div>
+                  </Show>
+
+                  <Show when={tab() === "avisos"}>
+                    <AccountRestockAlertsTab />
                   </Show>
 
                   <Show when={tab() === "privacidade"}>

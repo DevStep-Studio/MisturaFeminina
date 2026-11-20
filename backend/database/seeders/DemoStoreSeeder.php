@@ -44,9 +44,10 @@ class DemoStoreSeeder extends Seeder
         }
 
         $this->generateSeedAssets();
+        app(StoreSettingsService::class)->setMany(['wholesale_enabled' => true], 'storefront', true);
         $brands = $this->seedBrands();
         $categories = $this->seedCategories();
-        $attrs = $this->seedAttributes();
+        $attrs = $this->seedAttributes($categories);
         $this->seedProducts($brands, $categories, $attrs);
         $this->seedReviews();
         $this->seedMarketingAndShipping();
@@ -303,19 +304,95 @@ class DemoStoreSeeder extends Seeder
         return $map;
     }
 
-    /** @return array<string, AttributeValue> */
-    private function seedAttributes(): array
+    /**
+     * @param  array<string, Category>  $cats
+     * @return array<string, AttributeValue>
+     */
+    private function seedAttributes(array $cats): array
     {
-        $color = Attribute::query()->updateOrCreate(['slug' => 'cor'], ['name' => 'Cor', 'display_type' => 'color_swatch']);
-        $vol = Attribute::query()->updateOrCreate(['slug' => 'volume'], ['name' => 'Volume / Tamanho', 'display_type' => 'pill']);
+        $color = Attribute::query()->updateOrCreate(
+            ['slug' => 'cor'],
+            ['name' => 'Cor', 'display_type' => 'color_swatch', 'is_filterable' => true, 'is_comparable' => false, 'sort_order' => 1]
+        );
+        $colorFamily = Attribute::query()->updateOrCreate(
+            ['slug' => 'familia-cor'],
+            ['name' => 'Família de Cor', 'display_type' => 'pill', 'is_filterable' => true, 'is_comparable' => true, 'sort_order' => 2]
+        );
+        $finish = Attribute::query()->updateOrCreate(
+            ['slug' => 'acabamento'],
+            ['name' => 'Acabamento', 'display_type' => 'pill', 'is_filterable' => true, 'is_comparable' => true, 'sort_order' => 3]
+        );
+        $vol = Attribute::query()->updateOrCreate(
+            ['slug' => 'volume'],
+            ['name' => 'Volume / Tamanho', 'display_type' => 'pill', 'is_filterable' => true, 'is_comparable' => true, 'sort_order' => 4]
+        );
+        $power = Attribute::query()->updateOrCreate(
+            ['slug' => 'potencia'],
+            ['name' => 'Potência', 'display_type' => 'pill', 'is_filterable' => true, 'is_comparable' => true, 'unit' => 'W', 'sort_order' => 5]
+        );
+        $voltage = Attribute::query()->updateOrCreate(
+            ['slug' => 'tensao'],
+            ['name' => 'Tensão', 'display_type' => 'pill', 'is_filterable' => true, 'is_comparable' => true, 'sort_order' => 6]
+        );
+        $lighting = Attribute::query()->updateOrCreate(
+            ['slug' => 'iluminacao'],
+            ['name' => 'Tipo de Iluminação', 'display_type' => 'pill', 'is_filterable' => true, 'is_comparable' => true, 'sort_order' => 7]
+        );
+        $timer = Attribute::query()->updateOrCreate(
+            ['slug' => 'temporizador'],
+            ['name' => 'Temporizador', 'display_type' => 'pill', 'is_filterable' => true, 'is_comparable' => true, 'sort_order' => 8]
+        );
+
+        foreach (['unhas-e-esmalteria', 'esmaltes-em-gel', 'gel', 'top-coat', 'top-coat-e-finalizadores'] as $nailCatSlug) {
+            if (isset($cats[$nailCatSlug])) {
+                $cats[$nailCatSlug]->attributes()->sync([
+                    $color->id => ['is_filterable' => true, 'is_comparable' => false, 'sort_order' => 1],
+                    $colorFamily->id => ['is_filterable' => true, 'is_comparable' => true, 'sort_order' => 2],
+                    $finish->id => ['is_filterable' => true, 'is_comparable' => true, 'sort_order' => 3],
+                    $vol->id => ['is_filterable' => true, 'is_comparable' => true, 'sort_order' => 4],
+                ]);
+            }
+        }
+
+        foreach (['acessorios-pro', 'cabines-e-estufas', 'cabines', 'aspiradores', 'luminarias', 'motores'] as $equipCatSlug) {
+            if (isset($cats[$equipCatSlug])) {
+                $cats[$equipCatSlug]->attributes()->sync([
+                    $power->id => ['is_filterable' => true, 'is_comparable' => true, 'sort_order' => 1],
+                    $voltage->id => ['is_filterable' => true, 'is_comparable' => true, 'sort_order' => 2],
+                    $lighting->id => ['is_filterable' => true, 'is_comparable' => true, 'sort_order' => 3],
+                    $timer->id => ['is_filterable' => true, 'is_comparable' => true, 'sort_order' => 4],
+                ]);
+            }
+        }
 
         $values = [
             'rose-antigo' => [$color->id, 'Rosé Antigo', '#B85D78', 1],
             'vermelho-rubi' => [$color->id, 'Vermelho Rubi', '#8F1D36', 2],
             'nude-classico' => [$color->id, 'Nude Clássico', '#D3A398', 3],
             'vinho-intenso' => [$color->id, 'Vinho Intenso', '#5E1537', 4],
-            '30ml' => [$vol->id, '30ml', null, 1],
-            '60ml' => [$vol->id, '60ml', null, 2],
+            'nude-rosado' => [$color->id, 'Nude Rosado', '#C89D94', 5],
+            'rosa-quartzo' => [$color->id, 'Rosa Quartzo', '#E39AA8', 6],
+            'fam-nude' => [$colorFamily->id, 'Nude', '#D3A398', 1],
+            'fam-vermelho' => [$colorFamily->id, 'Vermelho', '#8F1D36', 2],
+            'fam-rosa' => [$colorFamily->id, 'Rosa', '#E39AA8', 3],
+            'fam-marrom' => [$colorFamily->id, 'Marrom', '#6B4226', 4],
+            'fam-preto' => [$colorFamily->id, 'Preto', '#18181B', 5],
+            'cremoso' => [$finish->id, 'Cremoso', null, 1],
+            'cintilante' => [$finish->id, 'Cintilante', null, 2],
+            'glitter' => [$finish->id, 'Glitter', null, 3],
+            'magnetico' => [$finish->id, 'Magnético', null, 4],
+            '10ml' => [$vol->id, '10ml', null, 1],
+            '15ml' => [$vol->id, '15ml', null, 2],
+            '18ml' => [$vol->id, '18ml', null, 3],
+            '30ml' => [$vol->id, '30ml', null, 4],
+            '60ml' => [$vol->id, '60ml', null, 5],
+            '48w' => [$power->id, '48W', null, 1],
+            '268w' => [$power->id, '268W', null, 2],
+            'bivolt' => [$voltage->id, 'Bivolt', null, 1],
+            'led-uv' => [$lighting->id, 'LED/UV', null, 1],
+            'uv' => [$lighting->id, 'UV', null, 2],
+            'temporizador-digital' => [$timer->id, 'Digital 10s/30s/60s', null, 1],
+            'sensor-automatico' => [$timer->id, 'Sensor Automático 99s', null, 2],
         ];
 
         $map = [];
@@ -342,10 +419,14 @@ class DemoStoreSeeder extends Seeder
                 'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'alongamento-e-geis', 'gel', 'top-coat'], 'img' => '/storage/seed/prod-esmalte.jpg',
                 'type' => ProductType::Variable, 'price' => 2490, 'promo' => 1690, 'featured' => true, 'new' => true, 'best' => true,
                 'short' => 'Cobertura intensa desde a primeira camada com brilho espelhado até 21 dias.',
+                'wholesale' => true,
+                'product_attrs' => ['cremoso', '15ml', 'fam-rosa', 'fam-vermelho', 'fam-nude'],
                 'variants' => [
-                    ['sku' => 'MF-ESM-001-ROS', 'name' => 'Rosé Antigo', 'price' => 2490, 'promo' => 1690, 'stock' => 25, 'attr' => 'rose-antigo'],
-                    ['sku' => 'MF-ESM-001-RUB', 'name' => 'Vermelho Rubi', 'price' => 2490, 'promo' => 1690, 'stock' => 18, 'attr' => 'vermelho-rubi'],
-                    ['sku' => 'MF-ESM-001-NUD', 'name' => 'Nude Clássico', 'price' => 2490, 'promo' => 1690, 'stock' => 30, 'attr' => 'nude-classico'],
+                    ['sku' => 'MF-ESM-001-ROS', 'name' => 'Rosé Antigo 012', 'shade_code' => '012', 'color_family' => 'Rosa', 'color_hex' => '#B85D78', 'price' => 2490, 'promo' => 1690, 'stock' => 25, 'attr' => 'rose-antigo'],
+                    ['sku' => 'MF-ESM-001-RUB', 'name' => 'Vermelho Rubi 005', 'shade_code' => '005', 'color_family' => 'Vermelho', 'color_hex' => '#8F1D36', 'price' => 2490, 'promo' => 1690, 'stock' => 18, 'attr' => 'vermelho-rubi'],
+                    ['sku' => 'MF-ESM-001-NUD', 'name' => 'Nude Clássico 017', 'shade_code' => '017', 'color_family' => 'Nude', 'color_hex' => '#D3A398', 'price' => 2490, 'promo' => 1690, 'stock' => 30, 'attr' => 'nude-classico'],
+                    ['sku' => 'MF-ESM-001-N25', 'name' => 'Nude Rosado 025', 'shade_code' => '025', 'color_family' => 'Nude', 'color_hex' => '#C89D94', 'price' => 2490, 'promo' => 1690, 'stock' => 15, 'attr' => 'nude-rosado'],
+                    ['sku' => 'MF-ESM-001-R42', 'name' => 'Rosa Quartzo 042', 'shade_code' => '042', 'color_family' => 'Rosa', 'color_hex' => '#E39AA8', 'price' => 2490, 'promo' => 1690, 'stock' => 0, 'attr' => 'rosa-quartzo'],
                 ],
             ],
             [
@@ -391,6 +472,7 @@ class DemoStoreSeeder extends Seeder
                 'sku' => 'MF-CAB-007', 'slug' => 'cabine-led-uv-profissional-48w-bivolt', 'name' => 'Cabine LED/UV Profissional 48W Bivolt Sensor Automático',
                 'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'cabines-e-estufas', 'unhas-e-esmalteria', 'alongamento-e-geis', 'cabines', 'motores', 'aspiradores', 'luminarias'], 'img' => '/storage/seed/prod-cabine.jpg',
                 'type' => ProductType::Simple, 'price' => 16990, 'promo' => 13490, 'featured' => true, 'new' => false, 'best' => true, 'stock' => 9, 'weight' => 650,
+                'product_attrs' => ['48w', 'bivolt', 'led-uv', 'sensor-automatico'],
                 'short' => '36 LEDs duplos para secagem uniforme de gel, acrygel e blindagem.',
             ],
             [
@@ -427,18 +509,21 @@ class DemoStoreSeeder extends Seeder
                 'sku' => 'MF-ESM-013', 'slug' => 'esmalte-em-gel-cintilante-perola-10ml', 'name' => 'Esmalte em Gel Cintilante Pérola 10ml',
                 'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'gel'], 'img' => '/storage/seed/prod-esmalte-perola.jpg',
                 'type' => ProductType::Simple, 'price' => 1990, 'promo' => 1490, 'featured' => false, 'new' => false, 'best' => true, 'stock' => 35,
+                'product_attrs' => ['cintilante', '10ml', 'fam-nude'],
                 'short' => 'Acabamento perolado de longa duração com secagem rápida em cabine LED/UV.',
             ],
             [
                 'sku' => 'MF-ESM-014', 'slug' => 'esmalte-em-gel-reflexivo-glitter-10ml', 'name' => 'Esmalte em Gel Reflexivo Glitter 10ml',
                 'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'gel'], 'img' => '/storage/seed/prod-esmalte-glitter.jpg',
                 'type' => ProductType::Simple, 'price' => 2290, 'promo' => null, 'featured' => false, 'new' => false, 'best' => false, 'stock' => 28,
+                'product_attrs' => ['glitter', '10ml', 'fam-rosa'],
                 'short' => 'Partículas refletivas de brilho intenso para encapsulamento e esmaltação.',
             ],
             [
                 'sku' => 'MF-ESM-015', 'slug' => 'esmalte-em-gel-quadrado-noir-10ml', 'name' => 'Esmalte em Gel Quadrado Noir 10ml',
                 'brand' => 'lumiere-nails', 'cats' => ['unhas-e-esmalteria', 'esmaltes-em-gel', 'gel'], 'img' => '/storage/seed/prod-esmalte-noir.jpg',
                 'type' => ProductType::Simple, 'price' => 1890, 'promo' => null, 'featured' => false, 'new' => false, 'best' => false, 'stock' => 0,
+                'product_attrs' => ['cremoso', '10ml', 'fam-preto'],
                 'short' => 'Preto pigmentado cobertura única (disponível para aviso de reposição).',
             ],
             // Ofertas da Semana
@@ -571,12 +656,14 @@ class DemoStoreSeeder extends Seeder
                 'sku' => 'JK-DST-001', 'slug' => 'cabine-sun-5-bivolt-48w-com-temporizador', 'name' => 'Cabine Sun 5 - Bivolt - 48w com Temporizador',
                 'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'cabines', 'cabines-e-estufas'], 'img' => '/products/jack-destaque-1.png',
                 'type' => ProductType::Simple, 'price' => 3490, 'promo' => 2290, 'featured' => true, 'new' => false, 'best' => false, 'stock' => 15, 'weight' => 650,
+                'product_attrs' => ['48w', 'bivolt', 'led-uv', 'temporizador-digital'],
                 'short' => 'Cabine LED/UV Sun 5 48W bivolt com display digital e temporizador.',
             ],
             [
                 'sku' => 'JK-DST-002', 'slug' => 'cabine-sun-8-pro-bivolt-268w-uv-led', 'name' => 'Cabine Sun 8 Pro - Bivolt - 268w - Uv / Led',
                 'brand' => 'studio-pro', 'cats' => ['acessorios-pro', 'cabines', 'cabines-e-estufas'], 'img' => '/products/jack-destaque-2.png',
                 'type' => ProductType::Simple, 'price' => 8990, 'promo' => 5990, 'featured' => true, 'new' => false, 'best' => false, 'stock' => 10, 'weight' => 750,
+                'product_attrs' => ['268w', 'bivolt', 'led-uv', 'sensor-automatico'],
                 'short' => 'Cabine profissional Sun 8 Pro 268W UV/LED com sensor automático.',
             ],
             [
@@ -608,13 +695,22 @@ class DemoStoreSeeder extends Seeder
                     'is_new_arrival' => $data['new'],
                     'is_best_seller' => $data['best'],
                     'wholesale_enabled' => ! empty($data['wholesale']),
-                    'wholesale_tiers' => ! empty($data['wholesale']) ? [['min_qty' => 6, 'discount_percent' => 15], ['min_qty' => 12, 'discount_percent' => 25]] : null,
+                    'wholesale_group_variants' => true,
+                    'wholesale_tiers' => ! empty($data['wholesale']) ? [['min_qty' => 5, 'discount_percent' => 10], ['min_qty' => 10, 'discount_percent' => 20]] : null,
                     'sales_count' => $data['best'] ? 45 : 12,
                 ]
             );
 
             $catIds = array_map(fn (string $s): int => $cats[$s]->id, $data['cats']);
             $product->categories()->sync($catIds);
+
+            if (! empty($data['product_attrs'])) {
+                $attrValueIds = array_values(array_filter(array_map(
+                    fn (string $slug): ?int => isset($attrs[$slug]) ? $attrs[$slug]->id : null,
+                    $data['product_attrs']
+                )));
+                $product->attributeValues()->sync($attrValueIds);
+            }
 
             ProductImage::query()->updateOrCreate(
                 ['product_id' => $product->id, 'sort_order' => 0],
@@ -628,6 +724,9 @@ class DemoStoreSeeder extends Seeder
                         [
                             'product_id' => $product->id,
                             'name' => $v['name'],
+                            'shade_code' => $v['shade_code'] ?? null,
+                            'color_family' => $v['color_family'] ?? null,
+                            'color_hex' => $v['color_hex'] ?? null,
                             'price_cents' => $v['price'],
                             'promo_price_cents' => $v['promo'],
                             'stock_qty' => $v['stock'],
@@ -635,6 +734,7 @@ class DemoStoreSeeder extends Seeder
                             'weight_grams' => $product->weight_grams,
                             'is_default' => $idx === 0,
                             'is_active' => true,
+                            'sort_order' => $idx,
                         ]
                     );
                     if (isset($attrs[$v['attr']])) {

@@ -1,10 +1,12 @@
 import { ProductImage } from "./ProductImage";
-import { Show, createSignal } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import { Link } from "@tanstack/solid-router";
 import Bell from "lucide-solid/icons/bell";
 import CreditCard from "lucide-solid/icons/credit-card";
+import GitCompareArrows from "lucide-solid/icons/git-compare-arrows";
 import { formatCents, whatsappUrl } from "../../../lib/format";
 import { trackAddToCart, trackSelectItem } from "../../../monitoring/analytics";
+import { isProductInComparator, toggleComparatorProduct } from "../comparator";
 import { addCartItem, storefrontStore } from "../store";
 import type { ProductCardData } from "../types";
 
@@ -194,6 +196,18 @@ export function ProductCard(props: {
             </Show>
           </div>
 
+          <Show when={(props.product.specs?.length ?? 0) > 0}>
+            <div class="mt-2 flex flex-wrap gap-1">
+              <For each={(props.product.specs ?? []).slice(0, 2)}>
+                {(spec) => (
+                  <span class="rounded bg-[#FAF6FC] px-1.5 py-0.5 text-[10px] font-semibold text-[#5B486B]">
+                    {spec.value}
+                  </span>
+                )}
+              </For>
+            </div>
+          </Show>
+
           <Show when={feedback()}>
             <p class="mt-1 text-xs font-medium text-danger">{feedback()}</p>
           </Show>
@@ -239,6 +253,24 @@ export function ProductCard(props: {
               </svg>
               <span class="whitespace-nowrap">Comprar pelo Whats</span>
             </a>
+
+            <button
+              type="button"
+              onClick={() => toggleComparatorProduct(props.product)}
+              aria-pressed={isProductInComparator(props.product.id)}
+              class={`mt-1.5 flex h-[30px] w-full items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-semibold transition-colors ${
+                isProductInComparator(props.product.id)
+                  ? "border-[#93509e] bg-[#F5ECF7] text-[#93509e]"
+                  : "border-zinc-200 bg-white text-zinc-600 hover:border-[#93509e] hover:text-[#93509e]"
+              }`}
+            >
+              <GitCompareArrows class="size-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                {isProductInComparator(props.product.id)
+                  ? "Na comparação"
+                  : "Comparar"}
+              </span>
+            </button>
           </div>
         </Show>
       </div>

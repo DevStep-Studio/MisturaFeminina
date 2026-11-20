@@ -104,6 +104,9 @@ export interface ProductCardData {
   available_stock: number;
   default_variant_id: number | null;
   has_multiple_variants: boolean;
+  category_slug?: string | null;
+  comparison_group?: string;
+  specs?: ProductSpecItem[];
 }
 
 export interface ProductVariantData {
@@ -111,6 +114,11 @@ export interface ProductVariantData {
   sku: string;
   gtin: string | null;
   name: string;
+  shade_code?: string | null;
+  color_family?: string | null;
+  color_hex?: string | null;
+  swatch_image_path?: string | null;
+  sort_order?: number;
   price_cents: number;
   effective_price_cents: number;
   stock_qty: number;
@@ -118,6 +126,7 @@ export interface ProductVariantData {
   in_stock: boolean;
   is_default: boolean;
   image_path: string | null;
+  waiting_restock_count?: number;
   attributes: {
     attribute_id: number;
     attribute_name: string;
@@ -176,7 +185,125 @@ export interface ProductDetailData extends ProductCardData {
   rating_count: number;
   seo_title: string;
   seo_description: string | null;
+  wholesale_group_variants?: boolean;
+  comparison_group?: string;
+  specs?: Array<{ slug: string; name: string; value: string }>;
   related_products: ProductCardData[];
+}
+
+export interface ProductSpecItem {
+  slug: string;
+  name: string;
+  value: string;
+}
+
+export interface FacetAttributeValue {
+  id: number;
+  value: string;
+  slug: string;
+  color_hex: string | null;
+  products_count: number;
+}
+
+export interface FacetAttribute {
+  id: number;
+  name: string;
+  slug: string;
+  display_type: string;
+  unit: string | null;
+  values: FacetAttributeValue[];
+}
+
+export interface ReplenishmentItemData {
+  id: number;
+  product_id: number;
+  product_slug: string;
+  product_name: string;
+  brand_name: string | null;
+  variant_id: number;
+  variant_name: string;
+  shade_code: string | null;
+  color_hex: string | null;
+  sku: string;
+  image_url: string | null;
+  unit_price_cents: number;
+  original_price_cents: number;
+  desired_quantity: number;
+  available_stock: number;
+  in_stock: boolean;
+  stock_status: "ok" | "partial" | "out_of_stock" | "unavailable";
+  line_subtotal_cents: number;
+  last_purchased_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ReplenishmentListData {
+  id: number;
+  name: string;
+  is_default: boolean;
+  items_count: number;
+  available_items_count: number;
+  unavailable_items_count: number;
+  estimated_total_cents: number;
+  items: ReplenishmentItemData[];
+}
+
+export interface SharedCartItemData {
+  product_id: number;
+  product_name: string;
+  product_slug: string;
+  brand_name: string | null;
+  variant_id: number;
+  variant_name: string;
+  shade_code: string | null;
+  color_hex: string | null;
+  sku: string;
+  image_url: string | null;
+  unit_price_cents: number;
+  original_price_cents: number;
+  desired_quantity: number;
+  available_stock: number;
+  purchasable_quantity: number;
+  in_stock: boolean;
+  subtotal_cents: number;
+}
+
+export interface SharedCartData {
+  token: string;
+  title: string | null;
+  expires_at: string;
+  created_at: string | null;
+  items: SharedCartItemData[];
+  available_items_count: number;
+  unavailable_items_count: number;
+  estimated_total_cents: number;
+}
+
+export interface CompareAttributeRow {
+  slug: string;
+  label: string;
+  has_difference: boolean;
+  values: Record<string, string | null>;
+}
+
+export interface CompareProductColumn {
+  id: number;
+  slug: string;
+  name: string;
+  sku: string;
+  brand: string | null;
+  price_cents: number;
+  effective_price_cents: number;
+  in_stock: boolean;
+  available_stock: number;
+  default_variant_id: number | null;
+  primary_image: string | null;
+}
+
+export interface CompareResponseData {
+  comparison_group: string;
+  products: CompareProductColumn[];
+  attributes: CompareAttributeRow[];
 }
 
 export interface BannerData {
@@ -235,6 +362,7 @@ export interface CartSummary {
   items: CartItemData[];
   items_count: number;
   subtotal_cents: number;
+  wholesale_discount_cents?: number;
   promotion_discount_cents: number;
   coupon_code: string | null;
   coupon_discount_cents: number;

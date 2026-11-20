@@ -17,12 +17,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $reserved_qty
  * @property int $min_stock_alert
  * @property int|null $weight_grams
+ * @property string|null $shade_code
+ * @property string|null $color_family
+ * @property string|null $color_hex
+ * @property string|null $swatch_image_path
+ * @property int $sort_order
  * @property bool $is_default
  * @property bool $is_active
  * @property-read Product|null $product
  * @property-read ProductImage|null $image
  */
-#[Fillable(['product_id', 'sku', 'gtin', 'name', 'price_cents', 'promo_price_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'is_default', 'is_active'])]
+#[Fillable(['product_id', 'sku', 'gtin', 'name', 'shade_code', 'color_family', 'color_hex', 'swatch_image_path', 'price_cents', 'promo_price_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'is_default', 'is_active', 'sort_order'])]
 class ProductVariant extends Model
 {
     /** @return BelongsTo<Product, $this> */
@@ -47,6 +52,12 @@ class ProductVariant extends Model
     public function inventoryMovements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class);
+    }
+
+    /** @return HasMany<RestockRequest, $this> */
+    public function restockRequests(): HasMany
+    {
+        return $this->hasMany(RestockRequest::class, 'product_variant_id');
     }
 
     public function availableStock(): int
@@ -86,6 +97,7 @@ class ProductVariant extends Model
             'length_cm' => 'integer',
             'is_default' => 'boolean',
             'is_active' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 }

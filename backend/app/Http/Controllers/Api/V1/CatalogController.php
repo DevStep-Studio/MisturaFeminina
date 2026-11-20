@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Catalog\Services\ProductAttributeService;
+use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Settings\Services\StoreSettingsService;
 use App\Domain\Shipping\Services\ShippingQuoteService;
 use App\Http\Controllers\Controller;
@@ -12,7 +14,6 @@ use App\Models\Category;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\RestockRequest;
 use App\Models\Review;
 use App\Models\SlugRedirect;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +26,8 @@ class CatalogController extends Controller
     public function __construct(
         private readonly StoreSettingsService $settings,
         private readonly ShippingQuoteService $shipping,
+        private readonly ProductAttributeService $attributes,
+        private readonly RestockNotificationService $restock,
     ) {}
 
     public function categories(): JsonResponse
@@ -70,7 +73,7 @@ class CatalogController extends Controller
             ->where('is_active', true)
             ->whereHas('categories', fn (Builder $q) => $q->whereIn('categories.id', $categoryIds));
 
-        $result = $this->applyProductFiltersAndPaginate($request, $query);
+        $result = $this->applyProductFiltersAndPaginate($request, $query, $category);
 
         return response()->json([
             'data' => [
@@ -204,7 +207,10 @@ class CatalogController extends Controller
                 'brand',
                 'categories:id,name,slug,parent_id',
                 'images',
-                'variants' => fn ($q) => $q->where('is_active', true)->with(['attributeValues.attribute', 'image']),
+                'attributeValues.attribute',
+                'variants' => fn ($q) => $q->where('is_active', true)
+                    ->with(['attributeValues.attribute', 'image'])
+                    ->withCount(['restockRequests as pending_restock_count' => fn ($rq) => $rq->where('status', 'pending')]),
                 'kitItems.componentProduct:id,name,slug',
                 'kitItems.componentVariant:id,name,sku,stock_qty,reserved_qty',
                 'reviews' => fn ($q) => $q->where('status', 'approved')->latest('id')->limit(20),
@@ -257,7 +263,10 @@ class CatalogController extends Controller
                 'video_url' => $product->video_url,
                 'tags' => $product->tags ?? [],
                 'wholesale_enabled' => (bool) ($config['wholesale_enabled'] ?? false) && $product->wholesale_enabled,
+                'wholesale_group_variants' => (bool) $product->wholesale_group_variants,
                 'wholesale_tiers' => $product->wholesale_tiers ?? [],
+                'comparison_group' => $this->attributes->resolveComparisonGroup($product),
+                'specs' => $this->attributes->extractComparableSpecs($product),
                 'categories' => $product->categories,
                 'images' => $product->images,
                 'variants' => $product->variants->map(fn (ProductVariant $v): array => self::serializeVariant($v))->values(),
@@ -269,6 +278,29 @@ class CatalogController extends Controller
                 'seo_description' => $product->seo_description ?: $product->short_description,
                 'related_products' => $related,
             ],
+        ]);
+    }
+
+    public function compare(Request $request): JsonResponse
+    {
+        $rawIds = $request->query('ids', '');
+        $rawSlugs = $request->query('slugs', '');
+
+        $identifiers = [];
+        if (is_array($rawIds)) {
+            $identifiers = $rawIds;
+        } elseif (trim($rawIds) !== '') {
+            $identifiers = explode(',', $rawIds);
+        } elseif (is_array($rawSlugs)) {
+            $identifiers = $rawSlugs;
+        } elseif (trim($rawSlugs) !== '') {
+            $identifiers = explode(',', $rawSlugs);
+        }
+
+        $clean = array_values(array_unique(array_filter(array_map(fn ($v) => trim((string) $v), $identifiers))));
+
+        return response()->json([
+            'data' => $this->attributes->compareProducts($clean),
         ]);
     }
 
@@ -288,26 +320,43 @@ class CatalogController extends Controller
     public function restockAlert(Request $request, string $slug): JsonResponse
     {
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email:rfc', 'max:190'],
+            'email' => ['nullable', 'string', 'email:rfc', 'max:190'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'channel' => ['nullable', 'in:email,whatsapp'],
             'name' => ['nullable', 'string', 'max:120'],
             'variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'consent_given' => ['nullable', 'boolean'],
         ]);
 
         $product = Product::query()->where('slug', $slug)->where('is_active', true)->firstOrFail();
+        $variant = ! empty($validated['variant_id'])
+            ? ProductVariant::query()->find((int) $validated['variant_id'])
+            : null;
 
-        RestockRequest::query()->firstOrCreate(
-            [
-                'product_id' => $product->id,
-                'product_variant_id' => $validated['variant_id'] ?? null,
-                'email' => strtolower(trim($validated['email'])),
-                'status' => 'pending',
-            ],
-            [
-                'name' => $validated['name'] ?? null,
-            ]
-        );
+        $result = $this->restock->subscribe($product, $variant, $validated, $request->user());
+        if ($result['duplicate']) {
+            return response()->json([
+                'message' => 'Você já possui uma solicitação ativa para esta tonalidade.',
+                'duplicate' => true,
+                'data' => $result['request'],
+            ], 409);
+        }
 
-        return response()->json(['message' => 'Aviso cadastrado! Você receberá um e-mail assim que este item voltar ao estoque.'], 201);
+        return response()->json([
+            'message' => 'Pronto! Sua solicitação foi registrada. Avisaremos quando esta tonalidade voltar ao estoque.',
+            'duplicate' => false,
+            'data' => $result['request'],
+        ], 201);
+    }
+
+    public function cancelRestockAlert(string $token): JsonResponse
+    {
+        $req = $this->restock->cancelByToken($token);
+
+        return response()->json([
+            'message' => 'Solicitação de aviso cancelada com sucesso.',
+            'data' => $req,
+        ]);
     }
 
     public function storeReview(Request $request, string $slug): JsonResponse
@@ -348,9 +397,11 @@ class CatalogController extends Controller
      * @param  Builder<Product>  $query
      * @return array{products: list<array<string, mixed>>, meta: array<string, mixed>, facets: array<string, mixed>}
      */
-    private function applyProductFiltersAndPaginate(Request $request, Builder $query): array
+    private function applyProductFiltersAndPaginate(Request $request, Builder $query, ?Category $category = null): array
     {
-        $baseIds = (clone $query)->pluck('id');
+        $baseIds = $query->clone()->pluck('products.id')->map(fn ($id): int => (int) $id)->values()->all();
+
+        $this->attributes->applyAttributeFilters($query, $request);
 
         if ($request->filled('brand')) {
             $brands = array_filter(explode(',', (string) $request->query('brand')));
@@ -387,8 +438,13 @@ class CatalogController extends Controller
         };
 
         $perPage = max(1, min(48, (int) $request->query('per_page', 16)));
-        $paginator = $query->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute')])
-            ->paginate($perPage);
+        $paginator = $query->with([
+            'brand:id,name,slug',
+            'categories:id,name,slug',
+            'images',
+            'attributeValues.attribute',
+            'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute'),
+        ])->paginate($perPage);
 
         $availableBrands = Brand::query()
             ->select(['id', 'name', 'slug'])
@@ -407,6 +463,8 @@ class CatalogController extends Controller
             ->orderBy('name')
             ->get();
 
+        $attributeFacets = $this->attributes->getAttributesForCategory($category, $baseIds);
+
         return [
             'products' => $paginator->getCollection()->map(fn (Product $p): array => self::serializeProductCard($p))->values()->all(),
             'meta' => [
@@ -418,6 +476,7 @@ class CatalogController extends Controller
             'facets' => [
                 'brands' => $availableBrands,
                 'categories' => $availableCategories,
+                'attributes' => $attributeFacets,
             ],
         ];
     }
@@ -440,6 +499,14 @@ class CatalogController extends Controller
         $installmentsCount = $effectivePrice >= 450 ? $maxInstallments : 1;
         $installmentCents = $installmentsCount > 1 ? (int) round($effectivePrice / $installmentsCount) : $effectivePrice;
 
+        $attrService = app(ProductAttributeService::class);
+        $comparisonGroup = $product->relationLoaded('categories')
+            ? $attrService->resolveComparisonGroup($product)
+            : 'geral';
+        $specs = ($product->relationLoaded('attributeValues') || $activeVariants->every(fn (ProductVariant $v): bool => $v->relationLoaded('attributeValues')))
+            ? $attrService->extractComparableSpecs($product)
+            : [];
+
         return [
             'id' => $product->id,
             'name' => $product->name,
@@ -460,17 +527,26 @@ class CatalogController extends Controller
             'available_stock' => $totalAvailable,
             'default_variant_id' => $defaultVariant?->id,
             'has_multiple_variants' => $activeVariants->count() > 1,
+            'comparison_group' => $comparisonGroup,
+            'specs' => $specs,
         ];
     }
 
     /** @return array<string, mixed> */
     public static function serializeVariant(ProductVariant $variant): array
     {
+        $attrColorHex = $variant->attributeValues->first(fn ($av): bool => ! empty($av->color_hex))?->color_hex;
+
         return [
             'id' => $variant->id,
             'sku' => $variant->sku,
             'gtin' => $variant->gtin,
             'name' => $variant->name,
+            'shade_code' => $variant->shade_code,
+            'color_family' => $variant->color_family,
+            'color_hex' => $variant->color_hex ?: $attrColorHex,
+            'swatch_image_path' => $variant->swatch_image_path,
+            'sort_order' => $variant->sort_order,
             'price_cents' => $variant->price_cents,
             'effective_price_cents' => $variant->effectivePriceCents(),
             'stock_qty' => $variant->stock_qty,
@@ -478,6 +554,7 @@ class CatalogController extends Controller
             'in_stock' => $variant->availableStock() > 0,
             'is_default' => $variant->is_default,
             'image_path' => $variant->image?->path,
+            'waiting_restock_count' => (int) ($variant->getAttribute('pending_restock_count') ?? 0),
             'attributes' => $variant->attributeValues->map(fn ($av): array => [
                 'attribute_id' => $av->attribute_id,
                 'attribute_name' => $av->attribute->name,

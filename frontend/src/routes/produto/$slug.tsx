@@ -19,11 +19,19 @@ import {
   createSignal,
 } from "solid-js";
 import { NewsletterSection } from "../../features/storefront/components/NewsletterSection";
+import { MultiShadePurchaseGrid } from "../../features/storefront/components/MultiShadePurchaseGrid";
 import { ProductCard } from "../../features/storefront/components/ProductCard";
 import { SectionHeading } from "../../features/storefront/components/SectionHeading";
 import { ShippingQuoteWidget } from "../../features/storefront/components/ShippingQuoteWidget";
 import { StoreShell } from "../../features/storefront/components/StoreShell";
-import { addCartItem, storefrontStore } from "../../features/storefront/store";
+import { VariantRestockModal } from "../../features/storefront/components/VariantRestockModal";
+import { addToReplenishment } from "../../features/storefront/replenishment";
+import {
+  addBulkCartItems,
+  addCartItem,
+  storefrontStore,
+} from "../../features/storefront/store";
+import { session } from "../../security/session";
 import type {
   ProductDetailData,
   ProductVariantData,
@@ -210,6 +218,10 @@ function ProductDetailPage() {
   const [restockEmail, setRestockEmail] = createSignal("");
   const [restockBusy, setRestockBusy] = createSignal(false);
   const [restockMsg, setRestockMsg] = createSignal<string | null>(null);
+  const [bulkBusy, setBulkBusy] = createSignal(false);
+  const [replenishBusy, setReplenishBusy] = createSignal(false);
+  const [modalRestockVariant, setModalRestockVariant] =
+    createSignal<ProductVariantData | null>(null);
 
   // Review state
   const [revName, setRevName] = createSignal("");
@@ -342,6 +354,74 @@ function ProductDetailPage() {
     }
   }
 
+  async function handleBulkAddToCart(
+    items: Array<{ variant_id: number; quantity: number }>,
+  ) {
+    const p = product();
+    if (!p || items.length === 0) return;
+    setBulkBusy(true);
+    setFeedback(null);
+    try {
+      const res = await addBulkCartItems(items, true);
+      const totalAdded = res.added.reduce(
+        (acc, i) => acc + i.added_quantity,
+        0,
+      );
+      setFeedback({
+        type: res.rejected.length > 0 ? "err" : "ok",
+        text:
+          res.rejected.length > 0
+            ? `${totalAdded} un. adicionada(s). ${res.rejected.length} item(ns) indisponível(is).`
+            : `${totalAdded} unidade(s) adicionada(s) ao carrinho!`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "err",
+        text:
+          err instanceof ApiError
+            ? err.message
+            : "Não foi possível adicionar as cores selecionadas.",
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleAddReplenishment() {
+    const p = product();
+    const v = activeVariant();
+    if (!p || !v) return;
+    setReplenishBusy(true);
+    setFeedback(null);
+    try {
+      const res = await addToReplenishment(
+        {
+          product: p,
+          variant: v,
+          quantity: qty(),
+        },
+        session.status() === "authenticated",
+      );
+      setFeedback({
+        type: "ok",
+        text:
+          res.mode === "account"
+            ? "Adicionado à sua Lista de Reposição!"
+            : "Salvo na Lista de Reposição neste navegador (entre para sincronizar).",
+      });
+    } catch (err) {
+      setFeedback({
+        type: "err",
+        text:
+          err instanceof ApiError
+            ? err.message
+            : "Não foi possível adicionar à lista de reposição.",
+      });
+    } finally {
+      setReplenishBusy(false);
+    }
+  }
+
   async function submitRestock(e: Event) {
     e.preventDefault();
     const p = product();
@@ -417,6 +497,14 @@ function ProductDetailPage() {
 
   return (
     <StoreShell>
+      <VariantRestockModal
+        open={Boolean(modalRestockVariant())}
+        productSlug={product()?.slug ?? ""}
+        productName={product()?.name ?? ""}
+        variant={modalRestockVariant()}
+        whatsappEnabled={false}
+        onClose={() => setModalRestockVariant(null)}
+      />
       <Show when={product.loading}>
         <div class="mx-auto max-w-7xl px-4 py-8">
           <div class="grid gap-8 lg:grid-cols-12">
@@ -978,7 +1066,38 @@ function ProductDetailPage() {
                             <span>Comprar pelo Whats</span>
                           </a>
                         </Show>
+
+                        <button
+                          type="button"
+                          disabled={replenishBusy()}
+                          onClick={() => void handleAddReplenishment()}
+                          class="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-[#DFC2E3] bg-[#FCF8FD] text-xs font-bold text-[#93509e] transition-colors hover:border-[#93509e] hover:bg-[#F3E2F6] disabled:opacity-60"
+                        >
+                          {replenishBusy()
+                            ? "Salvando na reposição..."
+                            : "Adicionar à Lista de Reposição"}
+                        </button>
                       </div>
+                    </Show>
+
+                    <Show when={(p().variants?.length ?? 0) > 1}>
+                      <MultiShadePurchaseGrid
+                        variants={p().variants}
+                        fallbackImage={
+                          activeImage() ||
+                          p().primary_image ||
+                          "/placeholder-product.svg"
+                        }
+                        wholesaleEnabled={Boolean(p().wholesale_enabled)}
+                        wholesaleGroupVariants={Boolean(
+                          p().wholesale_group_variants ?? true,
+                        )}
+                        wholesaleTiers={p().wholesale_tiers || []}
+                        busy={bulkBusy()}
+                        onAddBulk={handleBulkAddToCart}
+                        onSelectRestock={(v) => setModalRestockVariant(v)}
+                        onHoverImage={(url) => setActiveImage(url)}
+                      />
                     </Show>
 
                     <Show when={feedback()}>

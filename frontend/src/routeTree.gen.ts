@@ -26,6 +26,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MarcasRouteImport } from './routes/marcas'
 import { Route as MinhaContaRouteImport } from './routes/minha-conta'
+import { Route as MinhaReposicaoRouteImport } from './routes/minha-reposicao'
 import { Route as NovidadesRouteImport } from './routes/novidades'
 import { Route as PromocoesRouteImport } from './routes/promocoes'
 import { Route as RastrearPedidoRouteImport } from './routes/rastrear-pedido'
@@ -44,6 +45,7 @@ import { Route as AuthenticatedAdminMarketingRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminPedidosRouteImport } from './routes/_authenticated/admin/pedidos'
 import { Route as AuthenticatedAdminProdutosRouteImport } from './routes/_authenticated/admin/produtos'
 import { Route as AuthenticatedAdminRelatoriosRouteImport } from './routes/_authenticated/admin/relatorios'
+import { Route as CarrinhoCompartilhadoTokenRouteImport } from './routes/carrinho.compartilhado.$token'
 import { Route as PedidoTokenConfirmacaoRouteImport } from './routes/pedido/$token/confirmacao'
 
 const IndexRoute = IndexRouteImport.update({
@@ -128,6 +130,11 @@ const MarcasRoute = MarcasRouteImport.update({
 const MinhaContaRoute = MinhaContaRouteImport.update({
   id: '/minha-conta',
   path: '/minha-conta',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MinhaReposicaoRoute = MinhaReposicaoRouteImport.update({
+  id: '/minha-reposicao',
+  path: '/minha-reposicao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NovidadesRoute = NovidadesRouteImport.update({
@@ -229,6 +236,12 @@ const AuthenticatedAdminRelatoriosRoute =
     path: '/admin/relatorios',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const CarrinhoCompartilhadoTokenRoute =
+  CarrinhoCompartilhadoTokenRouteImport.update({
+    id: '/compartilhado/$token',
+    path: '/compartilhado/$token',
+    getParentRoute: () => CarrinhoRoute,
+  } as any)
 const PedidoTokenConfirmacaoRoute = PedidoTokenConfirmacaoRouteImport.update({
   id: '/pedido/$token/confirmacao',
   path: '/pedido/$token/confirmacao',
@@ -242,7 +255,7 @@ export interface FileRoutesByFullPath {
   '/404': typeof R404Route
   '/buscar': typeof BuscarRoute
   '/cadastro': typeof CadastroRoute
-  '/carrinho': typeof CarrinhoRoute
+  '/carrinho': typeof CarrinhoRouteWithChildren
   '/categorias': typeof CategoriasRoute
   '/checkout': typeof CheckoutRoute
   '/contato': typeof ContatoRoute
@@ -252,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/marcas': typeof MarcasRoute
   '/minha-conta': typeof MinhaContaRoute
+  '/minha-reposicao': typeof MinhaReposicaoRoute
   '/novidades': typeof NovidadesRoute
   '/promocoes': typeof PromocoesRoute
   '/rastrear-pedido': typeof RastrearPedidoRoute
@@ -269,6 +283,7 @@ export interface FileRoutesByFullPath {
   '/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
+  '/carrinho/compartilhado/$token': typeof CarrinhoCompartilhadoTokenRoute
   '/pedido/$token/confirmacao': typeof PedidoTokenConfirmacaoRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -279,7 +294,7 @@ export interface FileRoutesByTo {
   '/404': typeof R404Route
   '/buscar': typeof BuscarRoute
   '/cadastro': typeof CadastroRoute
-  '/carrinho': typeof CarrinhoRoute
+  '/carrinho': typeof CarrinhoRouteWithChildren
   '/categorias': typeof CategoriasRoute
   '/checkout': typeof CheckoutRoute
   '/contato': typeof ContatoRoute
@@ -289,6 +304,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/marcas': typeof MarcasRoute
   '/minha-conta': typeof MinhaContaRoute
+  '/minha-reposicao': typeof MinhaReposicaoRoute
   '/novidades': typeof NovidadesRoute
   '/promocoes': typeof PromocoesRoute
   '/rastrear-pedido': typeof RastrearPedidoRoute
@@ -306,6 +322,7 @@ export interface FileRoutesByTo {
   '/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
+  '/carrinho/compartilhado/$token': typeof CarrinhoCompartilhadoTokenRoute
   '/pedido/$token/confirmacao': typeof PedidoTokenConfirmacaoRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
@@ -318,7 +335,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/buscar': typeof BuscarRoute
   '/cadastro': typeof CadastroRoute
-  '/carrinho': typeof CarrinhoRoute
+  '/carrinho': typeof CarrinhoRouteWithChildren
   '/categorias': typeof CategoriasRoute
   '/checkout': typeof CheckoutRoute
   '/contato': typeof ContatoRoute
@@ -328,6 +345,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/marcas': typeof MarcasRoute
   '/minha-conta': typeof MinhaContaRoute
+  '/minha-reposicao': typeof MinhaReposicaoRoute
   '/novidades': typeof NovidadesRoute
   '/promocoes': typeof PromocoesRoute
   '/rastrear-pedido': typeof RastrearPedidoRoute
@@ -345,6 +363,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pedidos': typeof AuthenticatedAdminPedidosRoute
   '/_authenticated/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/_authenticated/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
+  '/carrinho/compartilhado/$token': typeof CarrinhoCompartilhadoTokenRoute
   '/pedido/$token/confirmacao': typeof PedidoTokenConfirmacaoRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -367,6 +386,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/marcas'
     | '/minha-conta'
+    | '/minha-reposicao'
     | '/novidades'
     | '/promocoes'
     | '/rastrear-pedido'
@@ -384,6 +404,7 @@ export interface FileRouteTypes {
     | '/admin/pedidos'
     | '/admin/produtos'
     | '/admin/relatorios'
+    | '/carrinho/compartilhado/$token'
     | '/pedido/$token/confirmacao'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
@@ -404,6 +425,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/marcas'
     | '/minha-conta'
+    | '/minha-reposicao'
     | '/novidades'
     | '/promocoes'
     | '/rastrear-pedido'
@@ -421,6 +443,7 @@ export interface FileRouteTypes {
     | '/admin/pedidos'
     | '/admin/produtos'
     | '/admin/relatorios'
+    | '/carrinho/compartilhado/$token'
     | '/pedido/$token/confirmacao'
     | '/admin'
   id:
@@ -442,6 +465,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/marcas'
     | '/minha-conta'
+    | '/minha-reposicao'
     | '/novidades'
     | '/promocoes'
     | '/rastrear-pedido'
@@ -459,6 +483,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pedidos'
     | '/_authenticated/admin/produtos'
     | '/_authenticated/admin/relatorios'
+    | '/carrinho/compartilhado/$token'
     | '/pedido/$token/confirmacao'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
@@ -471,7 +496,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   BuscarRoute: typeof BuscarRoute
   CadastroRoute: typeof CadastroRoute
-  CarrinhoRoute: typeof CarrinhoRoute
+  CarrinhoRoute: typeof CarrinhoRouteWithChildren
   CategoriasRoute: typeof CategoriasRoute
   CheckoutRoute: typeof CheckoutRoute
   ContatoRoute: typeof ContatoRoute
@@ -481,6 +506,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MarcasRoute: typeof MarcasRoute
   MinhaContaRoute: typeof MinhaContaRoute
+  MinhaReposicaoRoute: typeof MinhaReposicaoRoute
   NovidadesRoute: typeof NovidadesRoute
   PromocoesRoute: typeof PromocoesRoute
   RastrearPedidoRoute: typeof RastrearPedidoRoute
@@ -612,6 +638,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof MinhaContaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/minha-reposicao': {
+      id: '/minha-reposicao'
+      path: '/minha-reposicao'
+      fullPath: '/minha-reposicao'
+      preLoaderRoute: typeof MinhaReposicaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/novidades': {
       id: '/novidades'
       path: '/novidades'
@@ -738,6 +771,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof AuthenticatedAdminRelatoriosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/carrinho/compartilhado/$token': {
+      id: '/carrinho/compartilhado/$token'
+      path: '/compartilhado/$token'
+      fullPath: '/carrinho/compartilhado/$token'
+      preLoaderRoute: typeof CarrinhoCompartilhadoTokenRouteImport
+      parentRoute: typeof CarrinhoRoute
+    }
     '/pedido/$token/confirmacao': {
       id: '/pedido/$token/confirmacao'
       path: '/pedido/$token/confirmacao'
@@ -782,6 +822,18 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface CarrinhoRouteChildren {
+  CarrinhoCompartilhadoTokenRoute: typeof CarrinhoCompartilhadoTokenRoute
+}
+
+const CarrinhoRouteChildren: CarrinhoRouteChildren = {
+  CarrinhoCompartilhadoTokenRoute: CarrinhoCompartilhadoTokenRoute,
+}
+
+const CarrinhoRouteWithChildren = CarrinhoRoute._addFileChildren(
+  CarrinhoRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
@@ -790,7 +842,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   BuscarRoute: BuscarRoute,
   CadastroRoute: CadastroRoute,
-  CarrinhoRoute: CarrinhoRoute,
+  CarrinhoRoute: CarrinhoRouteWithChildren,
   CategoriasRoute: CategoriasRoute,
   CheckoutRoute: CheckoutRoute,
   ContatoRoute: ContatoRoute,
@@ -800,6 +852,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MarcasRoute: MarcasRoute,
   MinhaContaRoute: MinhaContaRoute,
+  MinhaReposicaoRoute: MinhaReposicaoRoute,
   NovidadesRoute: NovidadesRoute,
   PromocoesRoute: PromocoesRoute,
   RastrearPedidoRoute: RastrearPedidoRoute,

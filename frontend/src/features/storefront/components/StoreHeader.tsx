@@ -504,6 +504,13 @@ export function StoreHeader() {
                         </Link>
                         <div class="mt-4 space-y-2.5 text-[14px] font-medium text-[#3D1260]">
                           <Link
+                            to="/minha-reposicao"
+                            onClick={closeAllMenus}
+                            class="block hover:text-[#C22583]"
+                          >
+                            Minha Lista de Reposição
+                          </Link>
+                          <Link
                             to="/entrar"
                             search={{ redirect: "/minha-conta" }}
                             onClick={closeAllMenus}
@@ -533,6 +540,13 @@ export function StoreHeader() {
                       Minha Conta
                     </Link>
                     <div class="mt-4 space-y-2 text-[14px] font-medium text-[#3D1260]">
+                      <Link
+                        to="/minha-reposicao"
+                        onClick={closeAllMenus}
+                        class="block hover:text-[#C22583]"
+                      >
+                        Minha Lista de Reposição
+                      </Link>
                       <Link
                         to="/minha-conta"
                         onClick={closeAllMenus}
@@ -954,6 +968,13 @@ export function StoreHeader() {
                     class="block rounded-lg border border-[#93509e] bg-white px-3 py-2.5 text-center text-sm font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
                   >
                     Novidades
+                  </Link>
+                  <Link
+                    to="/minha-reposicao"
+                    onClick={() => setMobileMenuOpen(false)}
+                    class="block rounded-lg border border-[#93509e] bg-white px-3 py-2.5 text-center text-sm font-semibold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
+                  >
+                    Minha Lista de Reposição
                   </Link>
                   <Link
                     to="/rastrear-pedido"

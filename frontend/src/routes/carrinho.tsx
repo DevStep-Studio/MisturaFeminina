@@ -8,6 +8,7 @@ import Tag from "lucide-solid/icons/tag";
 import Trash2 from "lucide-solid/icons/trash";
 import { For, Show, createSignal, onMount } from "solid-js";
 import { ShippingQuoteWidget } from "../features/storefront/components/ShippingQuoteWidget";
+import { CartShareWidget } from "../features/storefront/components/CartShareWidget";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import {
   applyCartCoupon,
@@ -323,6 +324,8 @@ function CartPage() {
                   </Show>
                 </div>
 
+                <CartShareWidget />
+
                 <ShippingQuoteWidget
                   mode="cart"
                   initialCep={c().shipping_cep}
@@ -339,6 +342,18 @@ function CartPage() {
                     }
                   }}
                 />
+
+                <Show
+                  when={
+                    c().wholesale_discount_cents &&
+                    c().wholesale_discount_cents! > 0
+                  }
+                >
+                  <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 flex items-center justify-between text-xs font-semibold text-emerald-800">
+                    <span>Economia Atacado aplicada</span>
+                    <span>-{formatCents(c().wholesale_discount_cents!)}</span>
+                  </div>
+                </Show>
 
                 <div class="space-y-3 rounded-xl border border-zinc-200 bg-white p-5">
                   <h2 class="text-base font-bold text-zinc-900">

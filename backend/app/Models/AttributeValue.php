@@ -24,6 +24,12 @@ class AttributeValue extends Model
         return $this->belongsToMany(ProductVariant::class, 'variant_attribute_values');
     }
 
+    /** @return BelongsToMany<Product, $this> */
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class, 'product_attribute_values');
+    }
+
     protected function casts(): array
     {
         return ['sort_order' => 'integer'];

@@ -5,6 +5,11 @@ import Star from "lucide-solid/icons/star";
 import Trash2 from "lucide-solid/icons/trash";
 import { For, Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import { AdminRestockAnalyticsPanel } from "../../../features/admin/AdminRestockAnalyticsPanel";
+import {
+  AdminVariantsEditor,
+  type AdminVariantDraft,
+} from "../../../features/admin/AdminVariantsEditor";
 import { ApiError, api } from "../../../lib/api";
 import { assetUrl, formatCents } from "../../../lib/format";
 import { seoHead, site } from "../../../lib/seo";
@@ -45,13 +50,22 @@ interface AdminProductRow {
     alt_text: string | null;
     is_primary?: boolean;
   }[];
+  wholesale_group_variants?: boolean;
+  attribute_values?: { id: number; value: string }[];
   variants?: {
     id: number;
     sku: string;
     name: string;
+    shade_code?: string | null;
+    color_family?: string | null;
+    color_hex?: string | null;
     price_cents: number;
+    promo_price_cents?: number | null;
     stock_qty: number;
     reserved_qty: number;
+    sort_order?: number;
+    is_default?: boolean;
+    is_active?: boolean;
   }[];
 }
 
@@ -65,14 +79,6 @@ interface ReviewRow {
   product?: { name: string } | null;
 }
 
-interface RestockRow {
-  id: number;
-  email: string;
-  name: string | null;
-  status: string;
-  product?: { name: string } | null;
-}
-
 function AdminProductsPage() {
   const [tab, setTab] = createSignal<
     "produtos" | "avaliacoes" | "avisos" | "csv"
@@ -82,6 +88,33 @@ function AdminProductsPage() {
   const [name, setName] = createSignal("");
   const [slug, setSlug] = createSignal("");
   const [sku, setSku] = createSignal("");
+  const [wholesaleGroupVariants, setWholesaleGroupVariants] =
+    createSignal(true);
+  const [selectedAttrValueIds, setSelectedAttrValueIds] = createSignal<
+    number[]
+  >([]);
+  const [variantsDraft, setVariantsDraft] = createSignal<AdminVariantDraft[]>(
+    [],
+  );
+
+  const [availableAttributes] = createResource(async () => {
+    const res = await api<{
+      data: Array<{
+        id: number;
+        name: string;
+        values: Array<{ id: number; value: string }>;
+      }>;
+    }>("/admin/attributes");
+    return res.data || [];
+  });
+
+  function toggleAttrValueId(valId: number) {
+    setSelectedAttrValueIds((prev) =>
+      prev.includes(valId)
+        ? prev.filter((id) => id !== valId)
+        : [...prev, valId],
+    );
+  }
   const [brandId, setBrandId] = createSignal("");
   const [selectedCats, setSelectedCats] = createSignal<number[]>([]);
   const [priceBrl, setPriceBrl] = createSignal("29.90");
@@ -155,11 +188,6 @@ function AdminProductsPage() {
     return res.data ?? [];
   });
 
-  const [restocks] = createResource(async () => {
-    const res = await api<{ data: RestockRow[] }>("/admin/restock-requests");
-    return res.data ?? [];
-  });
-
   function loadProductIntoForm(p: AdminProductRow) {
     setEditingId(p.id);
     setName(p.name);
@@ -184,6 +212,24 @@ function AdminProductsPage() {
     setIsActive(p.is_active);
     setIsFeatured(p.is_featured);
     setIsNew(p.is_new_arrival);
+    setWholesaleGroupVariants(p.wholesale_group_variants ?? true);
+    setSelectedAttrValueIds((p.attribute_values ?? []).map((av) => av.id));
+    setVariantsDraft(
+      (p.variants ?? []).map((v, idx) => ({
+        id: v.id,
+        name: v.name || `Tonalidade ${idx + 1}`,
+        shade_code: v.shade_code || "",
+        color_family: v.color_family || "",
+        color_hex: v.color_hex || "#93509e",
+        sku: v.sku || `${p.sku}-${idx + 1}`,
+        price_cents: v.price_cents ?? p.price_cents,
+        promo_price_cents: v.promo_price_cents ?? null,
+        stock_qty: v.stock_qty ?? 0,
+        sort_order: v.sort_order ?? idx,
+        is_default: v.is_default ?? idx === 0,
+        is_active: v.is_active ?? true,
+      })),
+    );
   }
 
   function resetForm() {
@@ -206,6 +252,9 @@ function AdminProductsPage() {
     setIsActive(true);
     setIsFeatured(false);
     setIsNew(true);
+    setWholesaleGroupVariants(true);
+    setSelectedAttrValueIds([]);
+    setVariantsDraft([]);
   }
 
   async function uploadImage(file: File) {
@@ -245,6 +294,8 @@ function AdminProductsPage() {
       is_active: isActive(),
       is_featured: isFeatured(),
       is_new_arrival: isNew(),
+      wholesale_group_variants: wholesaleGroupVariants(),
+      product_attribute_value_ids: selectedAttrValueIds(),
       images: imagePath().trim()
         ? [
             {
@@ -254,18 +305,36 @@ function AdminProductsPage() {
             },
           ]
         : [],
-      variants: [
-        {
-          id: firstVariantId,
-          sku: sku().trim().toUpperCase(),
-          name: existing?.variants?.[0]?.name || "Padrão",
-          price_cents: priceCents,
-          promo_price_cents: promoCents,
-          stock_qty: Number(stockQty()) || 0,
-          is_default: true,
-          is_active: true,
-        },
-      ],
+      variants:
+        variantsDraft().length > 0
+          ? variantsDraft().map((v, idx) => ({
+              id: v.id,
+              sku:
+                v.sku.trim().toUpperCase() ||
+                `${sku().trim().toUpperCase()}-${idx + 1}`,
+              name: v.name.trim() || `Tonalidade ${idx + 1}`,
+              shade_code: v.shade_code.trim() || null,
+              color_family: v.color_family.trim() || null,
+              color_hex: v.color_hex.trim() || null,
+              price_cents: v.price_cents || priceCents,
+              promo_price_cents: v.promo_price_cents,
+              stock_qty: v.stock_qty,
+              sort_order: idx,
+              is_default: idx === 0,
+              is_active: v.is_active,
+            }))
+          : [
+              {
+                id: firstVariantId,
+                sku: sku().trim().toUpperCase(),
+                name: existing?.variants?.[0]?.name || "Padrão",
+                price_cents: priceCents,
+                promo_price_cents: promoCents,
+                stock_qty: Number(stockQty()) || 0,
+                is_default: true,
+                is_active: true,
+              },
+            ],
     };
 
     try {
@@ -623,6 +692,65 @@ function AdminProductsPage() {
               onInput={(e) => setFullDesc(e.currentTarget.value)}
               class="w-full rounded-md border border-zinc-300 p-2.5 text-xs"
             />
+
+            {/* Atributos Técnicos, Atacado Multi-Cor & Tonalidades */}
+            <div class="space-y-3 rounded-lg border border-[#E5CFE8] bg-[#FCF8FD] p-3.5 text-xs">
+              <div class="flex items-center justify-between">
+                <p class="font-bold text-[#2E0C49]">
+                  Atacado Multi-Cor, Tonalidades &amp; Specs
+                </p>
+                <label class="inline-flex items-center gap-1.5 font-semibold text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={wholesaleGroupVariants()}
+                    onChange={(e) =>
+                      setWholesaleGroupVariants(e.currentTarget.checked)
+                    }
+                    class="accent-[#93509e]"
+                  />
+                  Somar unidades entre cores no atacado
+                </label>
+              </div>
+
+              <Show when={(availableAttributes()?.length ?? 0) > 0}>
+                <div>
+                  <p class="mb-1 text-[11px] font-semibold text-zinc-700">
+                    Especificações / Filtros (ex.: Acabamento, Potência, Tensão)
+                  </p>
+                  <div class="max-h-32 space-y-1.5 overflow-y-auto rounded border border-zinc-200 bg-white p-2">
+                    <For each={availableAttributes() ?? []}>
+                      {(attr) => (
+                        <div>
+                          <span class="text-[10px] font-bold uppercase text-zinc-400">
+                            {attr.name}:{" "}
+                          </span>
+                          <For each={attr.values}>
+                            {(val) => (
+                              <label class="mr-2 inline-flex cursor-pointer items-center gap-1 text-[11px]">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedAttrValueIds().includes(
+                                    val.id,
+                                  )}
+                                  onChange={() => toggleAttrValueId(val.id)}
+                                  class="accent-[#93509e]"
+                                />
+                                {val.value}
+                              </label>
+                            )}
+                          </For>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </div>
+              </Show>
+
+              <AdminVariantsEditor
+                variants={variantsDraft()}
+                onChange={setVariantsDraft}
+              />
+            </div>
 
             {/* Otimização de SEO (Google / Buscadores) */}
             <div class="space-y-3 rounded-lg border border-purple-200 bg-purple-50/50 p-3.5 text-xs">
@@ -988,28 +1116,7 @@ function AdminProductsPage() {
       </Show>
 
       <Show when={tab() === "avisos"}>
-        <section class="rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 class="mb-4 text-base font-bold text-zinc-900">
-            Solicitações de Avise-me quando chegar
-          </h2>
-          <ul class="divide-y divide-zinc-200 text-sm">
-            <For each={restocks() ?? []}>
-              {(r) => (
-                <li class="flex items-center justify-between py-2.5">
-                  <div>
-                    <p class="font-semibold text-zinc-900">{r.email}</p>
-                    <p class="text-xs text-zinc-500">
-                      {r.product?.name || "Produto"}
-                    </p>
-                  </div>
-                  <span class="rounded bg-zinc-100 px-2 py-0.5 text-xs">
-                    {r.status}
-                  </span>
-                </li>
-              )}
-            </For>
-          </ul>
-        </section>
+        <AdminRestockAnalyticsPanel />
       </Show>
 
       <Show when={tab() === "csv"}>

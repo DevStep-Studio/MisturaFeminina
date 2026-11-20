@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Domain\Catalog\Services\ReplenishmentService;
+use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AnalyticsEvent;
@@ -11,12 +13,18 @@ use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\RestockRequest;
 use App\Models\Review;
+use App\Models\SharedCart;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        private readonly RestockNotificationService $restock,
+        private readonly ReplenishmentService $replenishment,
+    ) {}
+
     public function summary(Request $request): JsonResponse
     {
         $paidStatuses = [
@@ -161,6 +169,9 @@ class DashboardController extends Controller
             ->groupBy('event_name')
             ->pluck('total', 'event_name');
 
+        $restockDemand = $this->restock->demandSummary();
+        $replenishmentInsights = $this->replenishment->adminInsights();
+
         return response()->json([
             'data' => [
                 'kpis' => [
@@ -175,6 +186,10 @@ class DashboardController extends Controller
                     'low_stock_count' => count($lowStockVariants),
                     'pending_reviews_count' => Review::query()->where('status', 'pending')->count(),
                     'pending_restock_count' => RestockRequest::query()->where('status', 'pending')->count(),
+                    'replenishment_lists_count' => $replenishmentInsights['lists_total'],
+                    'multi_shade_add_count' => (int) ($funnelEvents['multi_shade_bulk_add'] ?? 0),
+                    'shared_carts_created_count' => SharedCart::query()->count(),
+                    'shared_carts_imported_count' => (int) SharedCart::query()->sum('imports_count'),
                 ],
                 'daily_sales_30d' => $dailySales30d,
                 'top_products' => $topProducts,
@@ -182,6 +197,8 @@ class DashboardController extends Controller
                 'orders_by_status' => $ordersByStatus,
                 'low_stock_variants' => $lowStockVariants,
                 'recent_orders' => $recentOrders,
+                'top_demanded_variants' => array_slice($restockDemand['demand_ranking'], 0, 10),
+                'top_replenishment_variants' => array_slice($replenishmentInsights['top_variants'], 0, 10),
                 'funnel_30d' => [
                     'page_view' => (int) ($funnelEvents['page_view'] ?? 0),
                     'add_to_cart' => (int) ($funnelEvents['add_to_cart'] ?? 0),

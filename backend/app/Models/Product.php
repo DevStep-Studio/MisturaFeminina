@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property bool $is_new_arrival
  * @property bool $is_best_seller
  * @property bool $wholesale_enabled
+ * @property bool $wholesale_group_variants
  * @property-read Brand|null $brand
  */
 #[Fillable([
@@ -35,7 +36,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'promo_starts_at', 'promo_ends_at', 'unit_label', 'unit_quantity',
     'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'video_url',
     'tags', 'is_active', 'is_featured', 'is_new_arrival', 'is_best_seller',
-    'wholesale_enabled', 'wholesale_tiers', 'sales_count',
+    'wholesale_enabled', 'wholesale_group_variants', 'wholesale_tiers', 'sales_count',
     'seo_title', 'seo_description',
 ])]
 class Product extends Model
@@ -63,7 +64,13 @@ class Product extends Model
     /** @return HasMany<ProductVariant, $this> */
     public function variants(): HasMany
     {
-        return $this->hasMany(ProductVariant::class);
+        return $this->hasMany(ProductVariant::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** @return BelongsToMany<AttributeValue, $this> */
+    public function attributeValues(): BelongsToMany
+    {
+        return $this->belongsToMany(AttributeValue::class, 'product_attribute_values')->with('attribute');
     }
 
     /** @return HasMany<ProductKitItem, $this> */
@@ -112,6 +119,7 @@ class Product extends Model
             'is_new_arrival' => 'boolean',
             'is_best_seller' => 'boolean',
             'wholesale_enabled' => 'boolean',
+            'wholesale_group_variants' => 'boolean',
             'wholesale_tiers' => 'array',
             'sales_count' => 'integer',
         ];

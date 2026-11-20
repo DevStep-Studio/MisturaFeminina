@@ -31,6 +31,14 @@ class Category extends Model
         return $this->belongsToMany(Product::class, 'category_product');
     }
 
+    /** @return BelongsToMany<Attribute, $this> */
+    public function attributes(): BelongsToMany
+    {
+        return $this->belongsToMany(Attribute::class, 'category_attributes')
+            ->withPivot(['is_filterable', 'is_comparable', 'sort_order'])
+            ->orderByPivot('sort_order');
+    }
+
     protected function casts(): array
     {
         return [

@@ -227,11 +227,11 @@ class SeoController extends Controller
 
             foreach ($products as $product) {
                 $defaultVariant = $product->variants->firstWhere('is_default', true) ?? $product->variants->first();
-                $priceCents = $defaultVariant?->price_cents ?? $product->price_cents;
+                $priceCents = $defaultVariant->price_cents ?? $product->price_cents;
                 $effectiveCents = $defaultVariant ? $defaultVariant->effectivePriceCents() : $product->effectivePriceCents();
                 $inStock = $product->variants->contains(fn ($v) => $v->availableStock() > 0);
-                $primaryImage = $product->images->firstWhere('is_primary', true)?->path
-                    ?? $product->images->first()?->path
+                $primaryImage = $product->images->firstWhere('is_primary', true)->path
+                    ?? $product->images->first()->path
                     ?? '/placeholder-product.svg';
                 $imageUrl = str_starts_with($primaryImage, 'http')
                     ? $primaryImage

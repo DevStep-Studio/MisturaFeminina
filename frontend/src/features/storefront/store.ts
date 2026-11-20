@@ -294,6 +294,114 @@ export async function selectCartShipping(
   }
 }
 
+export async function addBulkCartItems(
+  items: Array<{ variant_id: number; quantity: number }>,
+  openDrawer = true,
+): Promise<{
+  cart: CartSummary;
+  added: Array<{
+    variant_id: number;
+    sku: string;
+    variant_name: string;
+    added_quantity: number;
+    cart_quantity: number;
+  }>;
+  rejected: Array<{
+    variant_id: number;
+    sku: string;
+    variant_name: string;
+    requested_quantity: number;
+    available_stock: number;
+    reason: string;
+  }>;
+}> {
+  setCartBusy(true);
+  try {
+    const res = await api<{
+      data: CartSummary;
+      added: Array<{
+        variant_id: number;
+        sku: string;
+        variant_name: string;
+        added_quantity: number;
+        cart_quantity: number;
+      }>;
+      rejected: Array<{
+        variant_id: number;
+        sku: string;
+        variant_name: string;
+        requested_quantity: number;
+        available_stock: number;
+        reason: string;
+      }>;
+    }>("/cart/items/bulk", {
+      method: "POST",
+      authenticated: false,
+      headers: cartHeaders(),
+      body: { items },
+    });
+    writeCartToken(res.data.token);
+    setCartData(res.data);
+    if (openDrawer && (res.added?.length ?? 0) > 0) {
+      setCartDrawerOpen(true);
+    }
+    return {
+      cart: res.data,
+      added: res.added || [],
+      rejected: res.rejected || [],
+    };
+  } finally {
+    setCartBusy(false);
+  }
+}
+
+export async function shareCurrentCart(title?: string): Promise<{
+  token: string;
+  url: string;
+  expires_at: string;
+}> {
+  const res = await api<{
+    data: { token: string; url: string; expires_at: string };
+  }>("/cart/share", {
+    method: "POST",
+    authenticated: false,
+    headers: cartHeaders(),
+    body: title ? { title } : {},
+  });
+  return res.data;
+}
+
+export async function importSharedCart(token: string): Promise<{
+  cart: CartSummary;
+  added_items: Array<Record<string, unknown>>;
+  partial_items: Array<Record<string, unknown>>;
+  unavailable_items: Array<Record<string, unknown>>;
+}> {
+  setCartBusy(true);
+  try {
+    const res = await api<{
+      data: CartSummary;
+      added_items: Array<Record<string, unknown>>;
+      partial_items: Array<Record<string, unknown>>;
+      unavailable_items: Array<Record<string, unknown>>;
+    }>(`/cart/shared/${encodeURIComponent(token)}/import`, {
+      method: "POST",
+      authenticated: false,
+      headers: cartHeaders(),
+    });
+    writeCartToken(res.data.token);
+    setCartData(res.data);
+    return {
+      cart: res.data,
+      added_items: res.added_items || [],
+      partial_items: res.partial_items || [],
+      unavailable_items: res.unavailable_items || [],
+    };
+  } finally {
+    setCartBusy(false);
+  }
+}
+
 export const storefrontStore = {
   bootstrap: bootstrapData,
   settings: () => bootstrapData().settings,

@@ -6,6 +6,7 @@ import AlertTriangle from "lucide-solid/icons/shield-exclamation-point";
 import TrendingUp from "lucide-solid/icons/trending-up";
 import { For, Show, createMemo, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import { AdminB2bMetricsSection } from "../../../features/admin/AdminB2bMetricsSection";
 import {
   AdminAreaChart,
   type DailySalesPoint,
@@ -51,7 +52,32 @@ interface DashboardSummary {
     low_stock_count?: number;
     pending_reviews_count: number;
     pending_restock_count: number;
+    replenishment_lists_count?: number;
+    multi_shade_add_count?: number;
+    shared_carts_created_count?: number;
+    shared_carts_imported_count?: number;
   };
+  top_demanded_variants?: Array<{
+    product_id: number;
+    product_variant_id: number | null;
+    product_name: string;
+    variant_name: string;
+    shade_code: string | null;
+    sku: string;
+    available_stock: number;
+    waiting_count: number;
+  }>;
+  top_replenishment_variants?: Array<{
+    variant_id: number;
+    product_id: number;
+    product_name: string;
+    variant_name: string;
+    shade_code: string | null;
+    sku: string;
+    available_stock: number;
+    lists_count: number;
+    total_desired_qty: number;
+  }>;
   daily_sales_30d?: DailySalesPoint[];
   top_products?: TopProductItem[];
   payment_methods?: {
@@ -520,6 +546,12 @@ function AdminDashboardPage() {
                   </For>
                 </div>
               </div>
+
+              <AdminB2bMetricsSection
+                kpis={d().kpis}
+                topDemandedVariants={d().top_demanded_variants}
+                topReplenishmentVariants={d().top_replenishment_variants}
+              />
             </div>
           );
         }}

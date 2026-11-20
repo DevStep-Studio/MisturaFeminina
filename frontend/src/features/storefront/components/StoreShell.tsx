@@ -3,6 +3,7 @@ import { loadStorefrontBootstrap, refreshCart } from "../store";
 import { BenefitsBar } from "./BenefitsBar";
 import { CartDrawer } from "./CartDrawer";
 import { MobileBottomNav } from "./MobileBottomNav";
+import { ProductComparatorBar } from "./ProductComparatorBar";
 import { PromoPopup } from "./PromoPopup";
 import { StoreFooter } from "./StoreFooter";
 import { StoreHeader } from "./StoreHeader";
@@ -57,6 +58,7 @@ export function StoreShell(props: ParentProps) {
         {props.children}
       </div>
       <StoreFooter />
+      <ProductComparatorBar />
       <CartDrawer />
       <PromoPopup />
       <MobileBottomNav />

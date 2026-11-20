@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Cart\Services\CartService;
+use App\Domain\Cart\Services\SharedCartService;
 use App\Domain\Shipping\Services\ShippingQuoteService;
 use App\Http\Controllers\Controller;
 use App\Models\ProductVariant;
@@ -17,6 +18,7 @@ class CartController extends Controller
     public function __construct(
         private readonly CartService $carts,
         private readonly ShippingQuoteService $shipping,
+        private readonly SharedCartService $sharedCarts,
     ) {}
 
     public function show(Request $request): JsonResponse
@@ -41,6 +43,71 @@ class CartController extends Controller
         $summary = $this->carts->buildSummary($cart, $request->user());
 
         return $this->respondWithCartToken($summary, $cart->token, 201);
+    }
+
+    public function addBulkItems(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1', 'max:60'],
+            'items.*.variant_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:99'],
+        ]);
+
+        $cart = $this->carts->resolveCart($request, true);
+        $result = $this->carts->addBulkItems($cart, $validated['items'], $request->user());
+        $summary = $this->carts->buildSummary($result['cart'], $request->user());
+
+        return response()
+            ->json([
+                'data' => $summary,
+                'added' => $result['added'],
+                'rejected' => $result['rejected'],
+            ], 201)
+            ->header('X-Cart-Token', $result['cart']->token)
+            ->cookie('mf_cart_token', $result['cart']->token, 60 * 24 * 14, '/', null, app()->isProduction(), true, false, 'lax');
+    }
+
+    public function shareCart(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => ['nullable', 'string', 'max:140'],
+        ]);
+
+        $cart = $this->carts->resolveCart($request, true);
+        $shared = $this->sharedCarts->createFromCart($cart, $request->user(), $validated['title'] ?? null);
+        $base = rtrim((string) config('app.frontend_url', config('app.url')), '/');
+
+        return response()->json([
+            'data' => [
+                'token' => $shared->token,
+                'url' => "{$base}/carrinho/compartilhado/{$shared->token}",
+                'expires_at' => $shared->expires_at->toIso8601String(),
+            ],
+        ], 201);
+    }
+
+    public function showSharedCart(string $token): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->sharedCarts->resolveSharedCart($token),
+        ]);
+    }
+
+    public function importSharedCart(Request $request, string $token): JsonResponse
+    {
+        $cart = $this->carts->resolveCart($request, true);
+        $result = $this->sharedCarts->importToCart($token, $cart, $request->user());
+        $cartToken = (string) ($result['cart']['token'] ?? $cart->token);
+
+        return response()
+            ->json([
+                'data' => $result['cart'],
+                'added_items' => $result['added_items'],
+                'partial_items' => $result['partial_items'],
+                'unavailable_items' => $result['unavailable_items'],
+            ])
+            ->header('X-Cart-Token', $cartToken)
+            ->cookie('mf_cart_token', $cartToken, 60 * 24 * 14, '/', null, app()->isProduction(), true, false, 'lax');
     }
 
     public function updateItem(Request $request, int $itemId): JsonResponse

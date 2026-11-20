@@ -72,6 +72,12 @@ class User extends Authenticatable
         return $this->hasMany(Wishlist::class);
     }
 
+    /** @return HasMany<ReplenishmentList, $this> */
+    public function replenishmentLists(): HasMany
+    {
+        return $this->hasMany(ReplenishmentList::class);
+    }
+
     /** @return list<string> */
     public function roleSlugs(): array
     {

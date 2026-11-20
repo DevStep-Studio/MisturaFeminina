@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { For, Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import { AdminAttributesManager } from "../../../features/admin/AdminAttributesManager";
 import { ApiError, api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
@@ -469,6 +470,13 @@ function AdminCategoriesBrandsPage() {
           </ul>
         </section>
       </div>
+
+      <AdminAttributesManager
+        categories={categories() ?? []}
+        onRefreshCategories={() => {
+          void refetchCats();
+        }}
+      />
     </AdminLayout>
   );
 }

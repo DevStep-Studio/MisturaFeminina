@@ -6,6 +6,7 @@ namespace App\Domain\Cart\Services;
 
 use App\Domain\Settings\Services\StoreSettingsService;
 use App\Domain\Shipping\Services\ShippingQuoteService;
+use App\Models\AnalyticsEvent;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Coupon;
@@ -17,6 +18,7 @@ use App\Models\Promotion;
 use App\Models\ShippingQuote;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -134,6 +136,122 @@ class CartService
         return $cart->fresh();
     }
 
+    /**
+     * Add multiple variants/shades atomically without duplicating items on partial failure.
+     *
+     * @param  list<array{variant_id: int, quantity: int}>  $entries
+     * @return array{cart: Cart, added: list<array<string, mixed>>, rejected: list<array<string, mixed>>}
+     */
+    public function addBulkItems(Cart $cart, array $entries, ?User $user = null): array
+    {
+        $aggregated = [];
+        foreach ($entries as $entry) {
+            $vid = (int) $entry['variant_id'];
+            $qty = max(1, (int) $entry['quantity']);
+            $aggregated[$vid] = ($aggregated[$vid] ?? 0) + $qty;
+        }
+
+        if ($aggregated === []) {
+            throw ValidationException::withMessages(['items' => ['Selecione ao menos uma tonalidade e quantidade.']]);
+        }
+
+        $variants = ProductVariant::query()
+            ->whereIn('id', array_keys($aggregated))
+            ->with('product')
+            ->get()
+            ->keyBy('id');
+
+        $added = [];
+        $rejected = [];
+
+        DB::transaction(function () use ($cart, $aggregated, $variants, &$added, &$rejected): void {
+            foreach ($aggregated as $variantId => $qty) {
+                /** @var ProductVariant|null $variant */
+                $variant = $variants->get($variantId);
+                if (! $variant || ! $variant->is_active || ! $variant->product || ! $variant->product->is_active) {
+                    $rejected[] = [
+                        'variant_id' => $variantId,
+                        'sku' => $variant->sku ?? '',
+                        'variant_name' => $variant->name ?? 'Tonalidade',
+                        'requested_quantity' => $qty,
+                        'available_stock' => 0,
+                        'reason' => 'Tonalidade indisponível no momento.',
+                    ];
+
+                    continue;
+                }
+
+                /** @var CartItem|null $existing */
+                $existing = $cart->items()->where('product_variant_id', $variant->id)->first();
+                $currentQty = $existing ? $existing->quantity : 0;
+                $available = $variant->availableStock();
+                $newQty = $currentQty + $qty;
+
+                if ($available <= 0 || $newQty > $available) {
+                    $rejected[] = [
+                        'variant_id' => $variant->id,
+                        'sku' => $variant->sku,
+                        'variant_name' => $variant->name,
+                        'requested_quantity' => $qty,
+                        'available_stock' => $available,
+                        'reason' => $available <= 0
+                            ? "Tonalidade {$variant->name} está esgotada."
+                            : "Estoque insuficiente para {$variant->name} (disponível: {$available} un.).",
+                    ];
+
+                    continue;
+                }
+
+                if ($existing) {
+                    $existing->update([
+                        'quantity' => $newQty,
+                        'unit_price_snapshot_cents' => $variant->effectivePriceCents(),
+                    ]);
+                } else {
+                    $cart->items()->create([
+                        'product_id' => $variant->product_id,
+                        'product_variant_id' => $variant->id,
+                        'quantity' => $newQty,
+                        'unit_price_snapshot_cents' => $variant->effectivePriceCents(),
+                    ]);
+                }
+
+                $added[] = [
+                    'variant_id' => $variant->id,
+                    'sku' => $variant->sku,
+                    'variant_name' => $variant->name,
+                    'added_quantity' => $qty,
+                    'cart_quantity' => $newQty,
+                ];
+            }
+        });
+
+        if ($added === [] && $rejected !== []) {
+            throw ValidationException::withMessages([
+                'items' => [implode(' ', array_column($rejected, 'reason'))],
+            ]);
+        }
+
+        if ($added !== []) {
+            $this->invalidateShippingQuote($cart);
+            AnalyticsEvent::query()->create([
+                'session_id' => $cart->token ?: Str::uuid()->toString(),
+                'user_id' => $user?->id,
+                'event_name' => 'multi_shade_bulk_add',
+                'payload' => [
+                    'variants_count' => count($added),
+                    'units_count' => array_sum(array_column($added, 'added_quantity')),
+                ],
+            ]);
+        }
+
+        return [
+            'cart' => $cart->fresh(),
+            'added' => $added,
+            'rejected' => $rejected,
+        ];
+    }
+
     public function updateItemQuantity(Cart $cart, CartItem $item, int $quantity): Cart
     {
         if ($quantity <= 0) {
@@ -177,7 +295,16 @@ class CartService
 
         $itemsData = [];
         $subtotalCents = 0;
+        $wholesaleDiscountCents = 0;
         $totalWeightGrams = 0;
+
+        // Precompute total quantity per product line for grouped wholesale tiers across shades.
+        $productQuantities = [];
+        foreach ($cart->items as $item) {
+            if ($item->product && $item->variant && $item->product->is_active && $item->variant->is_active) {
+                $productQuantities[$item->product_id] = ($productQuantities[$item->product_id] ?? 0) + $item->quantity;
+            }
+        }
 
         foreach ($cart->items as $item) {
             $product = $item->product;
@@ -186,7 +313,12 @@ class CartService
                 continue;
             }
 
-            $unitPrice = $this->resolveUnitPriceCents($product, $variant, $item->quantity, $wholesaleModuleEnabled);
+            $wholesaleQty = $product->wholesale_group_variants
+                ? ($productQuantities[$product->id] ?? $item->quantity)
+                : $item->quantity;
+            $baseEffective = $variant->effectivePriceCents();
+            $unitPrice = $this->resolveUnitPriceCents($product, $variant, $wholesaleQty, $wholesaleModuleEnabled);
+            $wholesaleDiscountCents += max(0, $baseEffective - $unitPrice) * $item->quantity;
             $lineSubtotal = $unitPrice * $item->quantity;
             $subtotalCents += $lineSubtotal;
 
@@ -246,6 +378,7 @@ class CartService
             'items' => $itemsData,
             'items_count' => array_sum(array_column($itemsData, 'quantity')),
             'subtotal_cents' => $subtotalCents,
+            'wholesale_discount_cents' => $wholesaleDiscountCents,
             'promotion_discount_cents' => $promoDiscountCents,
             'coupon_code' => $couponResult['valid'] ? $cart->coupon_code : null,
             'coupon_discount_cents' => $couponResult['discount_cents'],

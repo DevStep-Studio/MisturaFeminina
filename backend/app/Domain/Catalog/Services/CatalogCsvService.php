@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Catalog\Services;
 
+use App\Domain\Catalog\Events\VariantRestocked;
 use App\Domain\Shared\Enums\ProductType;
 use App\Models\Brand;
 use App\Models\Category;
@@ -130,7 +131,9 @@ class CatalogCsvService
             ];
         }
 
-        DB::transaction(function () use ($rows, &$created, &$updated): void {
+        $restockedEvents = [];
+
+        DB::transaction(function () use ($rows, &$created, &$updated, &$restockedEvents): void {
             foreach ($rows as $row) {
                 $brandId = null;
                 if (! empty($row['brand'])) {
@@ -182,21 +185,35 @@ class CatalogCsvService
                     }
                 }
 
-                ProductVariant::query()->updateOrCreate(
+                $existingVariant = ProductVariant::query()->where('sku', $row['_variant_sku'])->first();
+                $prevAvailable = $existingVariant ? $existingVariant->availableStock() : 0;
+                $newStockQty = max(0, (int) ($row['stock_qty'] ?? 0));
+
+                $savedVariant = ProductVariant::query()->updateOrCreate(
                     ['sku' => $row['_variant_sku']],
                     [
                         'product_id' => $product->id,
                         'name' => ($row['variant_name'] ?? '') ?: 'Padrão',
                         'price_cents' => $priceCents,
                         'promo_price_cents' => $promoCents,
-                        'stock_qty' => max(0, (int) ($row['stock_qty'] ?? 0)),
+                        'stock_qty' => $newStockQty,
                         'weight_grams' => $weightGrams,
                         'is_default' => $row['_variant_sku'] === $row['sku'],
                         'is_active' => $isActive,
                     ]
                 );
+
+                $newAvailable = $savedVariant->availableStock();
+                if ($existingVariant && $prevAvailable <= 0 && $newAvailable > 0) {
+                    $restockedEvents[] = new VariantRestocked($savedVariant, $prevAvailable, $newAvailable, 'Importação CSV de catálogo');
+                }
             }
         });
+
+        foreach ($restockedEvents as $event) {
+            event($event);
+            app(RestockNotificationService::class)->handleVariantRestocked($event);
+        }
 
         return [
             'dry_run' => false,

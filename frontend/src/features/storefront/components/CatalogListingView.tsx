@@ -5,7 +5,7 @@ import X from "lucide-solid/icons/x";
 import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { api } from "../../../lib/api";
 import { trackViewItemList } from "../../../monitoring/analytics";
-import type { BrandItem, ProductCardData } from "../types";
+import type { BrandItem, FacetAttribute, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
 import { BannerImage } from "./BannerImage";
 import { StoreShell } from "./StoreShell";
@@ -74,6 +74,7 @@ interface CatalogPaginatedResponse {
     facets?: {
       brands?: FacetItem[];
       categories?: FacetItem[];
+      attributes?: FacetAttribute[];
     };
     current_page?: number;
     last_page?: number;
@@ -152,6 +153,43 @@ export function CatalogListingView(props: CatalogListingProps) {
   const [error, setError] = createSignal<string | null>(null);
   const [items, setItems] = createSignal<ProductCardData[]>([]);
   const [facetBrands, setFacetBrands] = createSignal<FacetItem[]>([]);
+  const [facetAttributes, setFacetAttributes] = createSignal<FacetAttribute[]>(
+    [],
+  );
+  const [selectedAttributes, setSelectedAttributes] = createSignal<
+    Record<string, string[]>
+  >(
+    (() => {
+      if (typeof window === "undefined") return {};
+      const initial: Record<string, string[]> = {};
+      const params = new URLSearchParams(window.location.search);
+      params.forEach((val, key) => {
+        if (key.startsWith("attr_") && val.trim() !== "") {
+          const attrSlug = key.slice(5);
+          const list = val
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (list.length > 0) initial[attrSlug] = list;
+        }
+      });
+      return initial;
+    })(),
+  );
+
+  function toggleAttributeValue(attrSlug: string, valueSlug: string) {
+    setSelectedAttributes((prev) => {
+      const existing = prev[attrSlug] ?? [];
+      const next = existing.includes(valueSlug)
+        ? existing.filter((s) => s !== valueSlug)
+        : [...existing, valueSlug];
+      if (next.length === 0) {
+        const { [attrSlug]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [attrSlug]: next };
+    });
+  }
   const [facetCategories, setFacetCategories] = createSignal<FacetItem[]>([]);
   const [total, setTotal] = createSignal(0);
   const [lastPage, setLastPage] = createSignal(1);
@@ -162,6 +200,7 @@ export function CatalogListingView(props: CatalogListingProps) {
   const hasActiveFilters = () =>
     selectedBrands().length > 0 ||
     selectedCategories().length > 0 ||
+    Object.keys(selectedAttributes()).length > 0 ||
     inStockOnly() ||
     appliedPriceRange()[0] !== "" ||
     appliedPriceRange()[1] !== "" ||
@@ -180,6 +219,11 @@ export function CatalogListingView(props: CatalogListingProps) {
       if (sort() !== "relevance") qs.set("sort", sort());
       if (selectedBrands().length > 0)
         qs.set("brand", selectedBrands().join(","));
+      for (const [attrSlug, valSlugs] of Object.entries(selectedAttributes())) {
+        if (valSlugs.length > 0) {
+          qs.set(`attr_${attrSlug}`, valSlugs.join(","));
+        }
+      }
       if (selectedCategories().length > 0)
         qs.set("category", selectedCategories().join(","));
       if (inStockOnly()) qs.set("in_stock", "1");
@@ -198,6 +242,7 @@ export function CatalogListingView(props: CatalogListingProps) {
       const d = res?.data ?? {};
       if (d.facets?.brands) setFacetBrands(d.facets.brands);
       if (d.facets?.categories) setFacetCategories(d.facets.categories);
+      if (d.facets?.attributes) setFacetAttributes(d.facets.attributes);
 
       let loadedItems: ProductCardData[] = [];
       if (Array.isArray(d.products)) {
@@ -245,6 +290,7 @@ export function CatalogListingView(props: CatalogListingProps) {
       () => {
         setSelectedBrands([]);
         setSelectedCategories([]);
+        setSelectedAttributes({});
         setPage(1);
       },
       { defer: true },
@@ -257,9 +303,26 @@ export function CatalogListingView(props: CatalogListingProps) {
     void sort();
     void selectedBrands();
     void selectedCategories();
+    void selectedAttributes();
     void inStockOnly();
     void appliedPriceRange();
     void page();
+    if (typeof window !== "undefined") {
+      const nextUrl = new URL(window.location.href);
+      for (const key of Array.from(nextUrl.searchParams.keys())) {
+        if (key.startsWith("attr_")) nextUrl.searchParams.delete(key);
+      }
+      for (const [slug, vals] of Object.entries(selectedAttributes())) {
+        if (vals.length > 0) {
+          nextUrl.searchParams.set(`attr_${slug}`, vals.join(","));
+        }
+      }
+      window.history.replaceState(
+        window.history.state,
+        "",
+        nextUrl.pathname + nextUrl.search,
+      );
+    }
     void fetchProducts();
   });
 
@@ -272,6 +335,7 @@ export function CatalogListingView(props: CatalogListingProps) {
   function resetFilters() {
     setSelectedBrands([]);
     setSelectedCategories([]);
+    setSelectedAttributes({});
     setInStockOnly(false);
     setMinPrice("");
     setMaxPrice("");
@@ -355,6 +419,45 @@ export function CatalogListingView(props: CatalogListingProps) {
           />
         </div>
       </div>
+
+      {/* Atributos Técnicos Contextuais da Categoria */}
+      <For each={facetAttributes()}>
+        {(attr) => (
+          <fieldset class="space-y-3 border-b border-zinc-200 pb-6">
+            <legend class="text-base font-bold text-zinc-900">
+              {attr.name}
+            </legend>
+            <div class="max-h-56 space-y-2 overflow-y-auto pr-1 pt-1">
+              <For each={attr.values}>
+                {(val) => (
+                  <div class="flex items-center gap-2">
+                    <Show when={val.color_hex}>
+                      <span
+                        class="h-3.5 w-3.5 shrink-0 rounded-full border border-black/20"
+                        style={{ "background-color": val.color_hex! }}
+                        aria-hidden="true"
+                      />
+                    </Show>
+                    <div class="min-w-0 flex-1">
+                      <FilterOptionCheckbox
+                        label={val.value}
+                        count={val.products_count}
+                        checked={(
+                          selectedAttributes()[attr.slug] ?? []
+                        ).includes(val.slug)}
+                        onChange={() => {
+                          toggleAttributeValue(attr.slug, val.slug);
+                          setPage(1);
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </fieldset>
+        )}
+      </For>
 
       {/* Faixa de preço */}
       <form onSubmit={applyPriceFilter} class="space-y-3">
