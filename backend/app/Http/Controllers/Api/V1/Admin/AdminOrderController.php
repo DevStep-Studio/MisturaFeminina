@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Domain\Admin\Services\TodayWorkService;
 use App\Domain\Catalog\Services\InventoryService;
+use App\Domain\Orders\Services\OrderAfterSalesService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Shared\Enums\OrderStatus;
@@ -28,11 +30,24 @@ class AdminOrderController extends Controller
         private readonly InventoryService $inventory,
         private readonly PaymentService $payments,
         private readonly AuditLogger $audit,
+        private readonly TodayWorkService $todayWork,
+        private readonly OrderAfterSalesService $afterSales,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $query = Order::query()->with(['latestPayment', 'shipment'])->latest('id');
+        $filter = (string) $request->query('filter', '');
+        if ($filter === 'ship_today') {
+            $query = $this->todayWork->shipTodayOrdersQuery();
+        } elseif ($filter === 'issues') {
+            $query = $this->todayWork->issueOrdersQuery();
+        } else {
+            $query = Order::query();
+        }
+
+        $query->with(['latestPayment', 'shipment'])
+            ->withCount(['occurrences as open_occurrences_count' => fn ($oq) => $oq->whereNotIn('status', ['resolved', 'closed'])])
+            ->latest('id');
 
         if ($request->filled('status')) {
             $query->where('status', (string) $request->query('status'));
@@ -49,11 +64,25 @@ class AdminOrderController extends Controller
         return response()->json($query->paginate(20));
     }
 
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
         $order = Order::query()
-            ->with(['items', 'payments.events', 'refunds', 'statusHistories.user:id,name', 'shipment.trackingEvents'])
+            ->with([
+                'items',
+                'payments.events',
+                'refunds',
+                'statusHistories.user:id,name',
+                'shipment.trackingEvents',
+                'assistedOrder:id,order_code,created_by_user_id',
+                'occurrences' => fn ($q) => $q->with(['assignedTo:id,name', 'createdBy:id,name', 'orderItem', 'notes.user:id,name']),
+                'occurrenceNotes.user:id,name',
+            ])
             ->findOrFail($id);
+
+        $order->setAttribute('timeline', $this->afterSales->buildUnifiedTimeline(
+            $order,
+            $request->query('timeline_category') ? (string) $request->query('timeline_category') : null
+        ));
 
         return response()->json(['data' => $order]);
     }

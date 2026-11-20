@@ -7,6 +7,7 @@ import TrendingUp from "lucide-solid/icons/trending-up";
 import { For, Show, createMemo, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminB2bMetricsSection } from "../../../features/admin/AdminB2bMetricsSection";
+import { AdminTodayWorkPanel } from "../../../features/admin/AdminTodayWorkPanel";
 import {
   AdminAreaChart,
   type DailySalesPoint,
@@ -233,6 +234,8 @@ function AdminDashboardPage() {
 
           return (
             <div class="space-y-6">
+              <AdminTodayWorkPanel onDataChanged={() => void refetch()} />
+
               {/* Top KPI Cards with Sparklines & Deltas */}
               <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {/* KPI 1: Vendas Hoje */}

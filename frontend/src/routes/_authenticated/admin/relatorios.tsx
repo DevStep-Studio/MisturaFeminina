@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { Show, createResource, createSignal } from "solid-js";
+import { For, Show, createResource, createSignal } from "solid-js";
+import {
+  AdminIntelligentReportsTabs,
+  type IntelligentReportTab,
+} from "../../../features/admin/AdminIntelligentReportsTabs";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminBarChart } from "../../../features/admin/components/charts/AdminBarChart";
 import { AdminDonutChart } from "../../../features/admin/components/charts/AdminDonutChart";
@@ -52,6 +56,9 @@ function AdminReportsPage() {
     .slice(0, 10);
   const [from, setFrom] = createSignal(thirtyAgo);
   const [to, setTo] = createSignal(today);
+  const [activeTab, setActiveTab] = createSignal<
+    "financeiro" | IntelligentReportTab
+  >("financeiro");
 
   const [report] = createResource(
     () => ({ from: from(), to: to() }),
@@ -69,6 +76,33 @@ function AdminReportsPage() {
       subtitle="Faturamento bruto, taxas de pagamento, produtos mais vendidos e cupons"
       permission="reports.view"
     >
+      <div class="mb-4 flex flex-wrap gap-2">
+        <For
+          each={
+            [
+              ["financeiro", "Financeiro & Vendas"],
+              ["zero_results", "Buscas sem Resultado"],
+              ["demanded_shades", "Cores Mais Solicitadas"],
+              ["bought_together", "Produtos Comprados Juntos"],
+            ] as const
+          }
+        >
+          {([key, label]) => (
+            <button
+              type="button"
+              onClick={() => setActiveTab(key)}
+              class={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
+                activeTab() === key
+                  ? "bg-[var(--mf-primary)] text-white"
+                  : "border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+              }`}
+            >
+              {label}
+            </button>
+          )}
+        </For>
+      </div>
+
       <div class="mb-6 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4">
         <div class="flex flex-wrap gap-3 text-sm">
           <div>
@@ -100,80 +134,92 @@ function AdminReportsPage() {
         </a>
       </div>
 
-      <Show when={report()}>
-        {(r) => (
-          <div class="space-y-6">
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-xs font-semibold uppercase text-zinc-500">
-                  Receita Bruta Paga
-                </p>
-                <p class="mt-1 text-2xl font-extrabold text-[var(--mf-primary)]">
-                  {formatCents(r().summary.gross_revenue_cents)}
-                </p>
+      <Show when={activeTab() === "financeiro"}>
+        <Show when={report()}>
+          {(r) => (
+            <div class="space-y-6">
+              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="rounded-xl border border-zinc-200 bg-white p-4">
+                  <p class="text-xs font-semibold uppercase text-zinc-500">
+                    Receita Bruta Paga
+                  </p>
+                  <p class="mt-1 text-2xl font-extrabold text-[var(--mf-primary)]">
+                    {formatCents(r().summary.gross_revenue_cents)}
+                  </p>
+                </div>
+                <div class="rounded-xl border border-zinc-200 bg-white p-4">
+                  <p class="text-xs font-semibold uppercase text-zinc-500">
+                    Pedidos Pagos / Total
+                  </p>
+                  <p class="mt-1 text-2xl font-extrabold text-zinc-900">
+                    {r().summary.paid_orders} / {r().summary.total_orders}
+                  </p>
+                  <p class="text-xs text-zinc-500">
+                    Taxa: {r().summary.conversion_paid_rate}%
+                  </p>
+                </div>
+                <div class="rounded-xl border border-zinc-200 bg-white p-4">
+                  <p class="text-xs font-semibold uppercase text-zinc-500">
+                    Ticket Médio
+                  </p>
+                  <p class="mt-1 text-2xl font-extrabold text-zinc-900">
+                    {formatCents(r().summary.avg_ticket_cents)}
+                  </p>
+                </div>
+                <div class="rounded-xl border border-zinc-200 bg-white p-4">
+                  <p class="text-xs font-semibold uppercase text-zinc-500">
+                    Descontos Concedidos
+                  </p>
+                  <p class="mt-1 text-2xl font-extrabold text-zinc-900">
+                    {formatCents(r().summary.discount_total_cents)}
+                  </p>
+                </div>
               </div>
-              <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-xs font-semibold uppercase text-zinc-500">
-                  Pedidos Pagos / Total
-                </p>
-                <p class="mt-1 text-2xl font-extrabold text-zinc-900">
-                  {r().summary.paid_orders} / {r().summary.total_orders}
-                </p>
-                <p class="text-xs text-zinc-500">
-                  Taxa: {r().summary.conversion_paid_rate}%
-                </p>
-              </div>
-              <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-xs font-semibold uppercase text-zinc-500">
-                  Ticket Médio
-                </p>
-                <p class="mt-1 text-2xl font-extrabold text-zinc-900">
-                  {formatCents(r().summary.avg_ticket_cents)}
-                </p>
-              </div>
-              <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-xs font-semibold uppercase text-zinc-500">
-                  Descontos Concedidos
-                </p>
-                <p class="mt-1 text-2xl font-extrabold text-zinc-900">
-                  {formatCents(r().summary.discount_total_cents)}
-                </p>
+
+              <div class="grid gap-6 lg:grid-cols-2">
+                <AdminDonutChart
+                  title="Distribuição por Meio de Pagamento"
+                  subtitle="Faturamento bruto e número de transações no período"
+                  segments={r().by_payment_method.map((m, idx) => ({
+                    id: m.method,
+                    label:
+                      m.method === "pix"
+                        ? "PIX"
+                        : m.method === "credit_card"
+                          ? "Cartão de Crédito"
+                          : m.method === "boleto"
+                            ? "Boleto"
+                            : m.method.toUpperCase(),
+                    value: m.count,
+                    cents: m.gross_cents,
+                    color: ["#10b981", "#93509e", "#3b82f6", "#f59e0b"][
+                      idx % 4
+                    ],
+                  }))}
+                  centerLabel="Pagamentos"
+                />
+
+                <AdminBarChart
+                  title="Top Produtos por Receita"
+                  subtitle="Produtos com maior volume financeiro no período filtrado"
+                  items={r().top_products.map((p) => ({
+                    name: p.product_name_snapshot,
+                    total_qty: p.qty_sold,
+                    total_cents: p.revenue_cents,
+                  }))}
+                />
               </div>
             </div>
+          )}
+        </Show>
+      </Show>
 
-            <div class="grid gap-6 lg:grid-cols-2">
-              <AdminDonutChart
-                title="Distribuição por Meio de Pagamento"
-                subtitle="Faturamento bruto e número de transações no período"
-                segments={r().by_payment_method.map((m, idx) => ({
-                  id: m.method,
-                  label:
-                    m.method === "pix"
-                      ? "PIX"
-                      : m.method === "credit_card"
-                        ? "Cartão de Crédito"
-                        : m.method === "boleto"
-                          ? "Boleto"
-                          : m.method.toUpperCase(),
-                  value: m.count,
-                  cents: m.gross_cents,
-                  color: ["#10b981", "#93509e", "#3b82f6", "#f59e0b"][idx % 4],
-                }))}
-                centerLabel="Pagamentos"
-              />
-
-              <AdminBarChart
-                title="Top Produtos por Receita"
-                subtitle="Produtos com maior volume financeiro no período filtrado"
-                items={r().top_products.map((p) => ({
-                  name: p.product_name_snapshot,
-                  total_qty: p.qty_sold,
-                  total_cents: p.revenue_cents,
-                }))}
-              />
-            </div>
-          </div>
-        )}
+      <Show when={activeTab() !== "financeiro"}>
+        <AdminIntelligentReportsTabs
+          activeTab={activeTab() as IntelligentReportTab}
+          from={from()}
+          to={to()}
+        />
       </Show>
     </AdminLayout>
   );

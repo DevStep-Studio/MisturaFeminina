@@ -3,7 +3,15 @@ import ExternalLink from "lucide-solid/icons/external-link";
 import Percent from "lucide-solid/icons/percent";
 import Star from "lucide-solid/icons/star";
 import Trash2 from "lucide-solid/icons/trash";
-import { For, Show, createResource, createSignal } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createResource,
+  createSignal,
+} from "solid-js";
+import { AdminBulkVariantsGrid } from "../../../features/admin/AdminBulkVariantsGrid";
+import { AdminGoodsReceiptsPanel } from "../../../features/admin/AdminGoodsReceiptsPanel";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminRestockAnalyticsPanel } from "../../../features/admin/AdminRestockAnalyticsPanel";
 import {
@@ -15,6 +23,14 @@ import { assetUrl, formatCents } from "../../../lib/format";
 import { seoHead, site } from "../../../lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
+  validateSearch: (raw: Record<string, unknown>): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof v === "string" && v !== "") out[k] = v;
+      else if (typeof v === "number") out[k] = String(v);
+    }
+    return out;
+  },
   head: () =>
     seoHead({
       title: "Produtos e Estoque — Admin Mistura Feminina",
@@ -80,10 +96,14 @@ interface ReviewRow {
 }
 
 function AdminProductsPage() {
+  const routeSearch = Route.useSearch();
   const [tab, setTab] = createSignal<
-    "produtos" | "avaliacoes" | "avisos" | "csv"
+    "produtos" | "massa" | "recebimentos" | "avaliacoes" | "avisos" | "csv"
   >("produtos");
   const [search, setSearch] = createSignal("");
+  const [catalogFilter, setCatalogFilter] = createSignal("");
+  const [bulkProductId, setBulkProductId] = createSignal<number | null>(null);
+  const [receiptInitialSku, setReceiptInitialSku] = createSignal("");
   const [editingId, setEditingId] = createSignal<number | null>(null);
   const [name, setName] = createSignal("");
   const [slug, setSlug] = createSignal("");
@@ -137,12 +157,42 @@ function AdminProductsPage() {
     "all" | "active" | "low" | "out"
   >("all");
 
+  createEffect(() => {
+    const s = routeSearch();
+    if (
+      s.tab === "produtos" ||
+      s.tab === "massa" ||
+      s.tab === "recebimentos" ||
+      s.tab === "avaliacoes" ||
+      s.tab === "avisos" ||
+      s.tab === "csv"
+    ) {
+      setTab(s.tab);
+    }
+    if (s.filter === "needs_review" || s.filter === "out_of_stock_variants") {
+      setCatalogFilter(s.filter);
+      setTab("produtos");
+    }
+    if (s.sku) {
+      setReceiptInitialSku(s.sku);
+    }
+    if (s.search) {
+      setSearch(s.search);
+    }
+    if (s.product_id && Number.isFinite(Number(s.product_id))) {
+      setBulkProductId(Number(s.product_id));
+    }
+  });
+
   const [products, { refetch: refetchProducts }] = createResource(
-    search,
-    async (s) => {
-      const qs = s ? `?search=${encodeURIComponent(s)}` : "";
+    () => ({ search: search(), filter: catalogFilter() }),
+    async (f) => {
+      const qs = new URLSearchParams();
+      if (f.search) qs.set("search", f.search);
+      if (f.filter) qs.set("filter", f.filter);
+      const qStr = qs.toString();
       const res = await api<{ data: AdminProductRow[] }>(
-        `/admin/products${qs}`,
+        `/admin/products${qStr ? `?${qStr}` : ""}`,
       );
       return res.data ?? [];
     },
@@ -440,6 +490,8 @@ function AdminProductsPage() {
           each={
             [
               ["produtos", "Catálogo & Estoque"],
+              ["massa", "Edição em Massa"],
+              ["recebimentos", "Recebimento de Mercadorias"],
               ["avaliacoes", "Avaliações"],
               ["avisos", "Avisos de Reposição"],
               ["csv", "Importar / Exportar CSV"],
@@ -894,6 +946,26 @@ function AdminProductsPage() {
 
           {/* Table */}
           <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-7">
+            <Show when={catalogFilter()}>
+              <div class="mb-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span>
+                  Filtro operacional ativo:{" "}
+                  <strong>
+                    {catalogFilter() === "needs_review"
+                      ? "Produtos aguardando revisão (sem foto, peso ou estoque)"
+                      : "Produtos com variações sem estoque"}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCatalogFilter("")}
+                  class="font-bold text-[#93509e] hover:underline"
+                >
+                  Limpar filtro
+                </button>
+              </div>
+            </Show>
+
             {/* Quick stock status tabs */}
             <div class="mb-3 flex flex-wrap gap-1.5 border-b border-zinc-100 pb-3">
               <button
@@ -1043,6 +1115,16 @@ function AdminProductsPage() {
                       </a>
                       <button
                         type="button"
+                        onClick={() => {
+                          setBulkProductId(p.id);
+                          setTab("massa");
+                        }}
+                        class="rounded border border-[#DFC2E3] bg-[#FCF8FD] px-2.5 py-1 font-semibold text-[#93509e] hover:bg-[#F3E2F6]"
+                      >
+                        Em massa
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => loadProductIntoForm(p)}
                         class="rounded border border-zinc-300 px-2.5 py-1 font-semibold hover:bg-zinc-50"
                       >
@@ -1163,6 +1245,29 @@ function AdminProductsPage() {
             </pre>
           </Show>
         </section>
+      </Show>
+
+      <Show when={tab() === "massa"}>
+        <AdminBulkVariantsGrid
+          products={(products() ?? []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+          }))}
+          initialProductId={bulkProductId()}
+          onCommitted={() => {
+            void refetchProducts();
+          }}
+        />
+      </Show>
+
+      <Show when={tab() === "recebimentos"}>
+        <AdminGoodsReceiptsPanel
+          initialSku={receiptInitialSku()}
+          onConfirmed={() => {
+            void refetchProducts();
+          }}
+        />
       </Show>
     </AdminLayout>
   );

@@ -1,7 +1,21 @@
 import { createFileRoute } from "@tanstack/solid-router";
+import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
+import Plus from "lucide-solid/icons/plus";
 import Printer from "lucide-solid/icons/printer";
-import { For, Show, createResource, createSignal } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createResource,
+  createSignal,
+} from "solid-js";
+import { AdminAssistedOrderBuilder } from "../../../features/admin/AdminAssistedOrderBuilder";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import {
+  AdminOrderTimelineAndAfterSales,
+  type OrderOccurrenceRow,
+  type TimelineEventItem,
+} from "../../../features/admin/AdminOrderTimelineAndAfterSales";
 import { ApiError, api } from "../../../lib/api";
 import {
   formatCents,
@@ -11,6 +25,14 @@ import {
 import { seoHead } from "../../../lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/pedidos")({
+  validateSearch: (raw: Record<string, unknown>): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof v === "string" && v !== "") out[k] = v;
+      else if (typeof v === "number") out[k] = String(v);
+    }
+    return out;
+  },
   head: () =>
     seoHead({
       title: "Pedidos — Admin Mistura Feminina",
@@ -28,6 +50,9 @@ interface AdminOrderRow {
   customer_email: string;
   total_cents: number;
   status: string;
+  has_issue?: boolean;
+  open_occurrences_count?: number;
+  assisted_order_id?: number | null;
   created_at: string;
   latest_payment?: { method: string; status: string } | null;
   shipment?: { carrier: string | null; tracking_code: string | null } | null;
@@ -40,6 +65,9 @@ interface OrderDetailPayload {
   customer_email: string;
   customer_phone: string;
   status: string;
+  has_issue?: boolean;
+  issue_reason?: string | null;
+  assisted_order?: { id: number; order_code: string } | null;
   subtotal_cents: number;
   discount_cents: number;
   shipping_cents: number;
@@ -65,10 +93,15 @@ interface OrderDetailPayload {
     status: string;
     gross_amount_cents: number;
   }[];
+  timeline?: TimelineEventItem[];
+  occurrences?: OrderOccurrenceRow[];
 }
 
 function AdminOrdersPage() {
+  const routeSearch = Route.useSearch();
   const [statusFilter, setStatusFilter] = createSignal("");
+  const [opFilter, setOpFilter] = createSignal("");
+  const [assistedOpen, setAssistedOpen] = createSignal(false);
   const [searchTerm, setSearchTerm] = createSignal("");
   const [selectedId, setSelectedId] = createSignal<number | null>(null);
   const [newStatus, setNewStatus] = createSignal("preparing");
@@ -78,11 +111,29 @@ function AdminOrdersPage() {
   const [trackingUrl, setTrackingUrl] = createSignal("");
   const [feedback, setFeedback] = createSignal<string | null>(null);
 
+  createEffect(() => {
+    const s = routeSearch();
+    if (s.filter === "ship_today" || s.filter === "issues") {
+      setOpFilter(s.filter);
+    }
+    if (s.order && Number.isFinite(Number(s.order))) {
+      setSelectedId(Number(s.order));
+    }
+    if (s.mode === "assisted") {
+      setAssistedOpen(true);
+    }
+  });
+
   const [orders, { refetch }] = createResource(
-    () => ({ status: statusFilter(), search: searchTerm() }),
+    () => ({
+      status: statusFilter(),
+      filter: opFilter(),
+      search: searchTerm(),
+    }),
     async (f) => {
       const qs = new URLSearchParams();
       if (f.status) qs.set("status", f.status);
+      if (f.filter) qs.set("filter", f.filter);
       if (f.search) qs.set("search", f.search);
       const res = await api<{ data: AdminOrderRow[] }>(
         `/admin/orders?${qs.toString()}`,
@@ -196,35 +247,90 @@ function AdminOrdersPage() {
       subtitle="Acompanhe pagamentos, imprima romaneios e informe códigos de rastreio"
       permission="orders.view"
     >
-      {/* Filter Tabs & Search */}
-      <div class="space-y-3 mb-5">
-        <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200/80 bg-white p-1.5 shadow-2xs">
-          <For
-            each={[
-              { id: "", label: "Todos os Pedidos" },
-              { id: "paid", label: "Para Separar (Pago)" },
-              { id: "preparing", label: "Em Separação" },
-              { id: "shipped", label: "Enviados" },
-              { id: "delivered", label: "Entregues" },
-              { id: "pending_payment", label: "Aguardando Pagamento" },
-              { id: "cancelled", label: "Cancelados" },
-            ]}
+      {/* Filter Tabs, Operational Queues, Assisted Orders & Search */}
+      <div class="mb-5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200/80 bg-white p-1.5 shadow-2xs">
+            <For
+              each={[
+                { id: "", label: "Todos os Pedidos" },
+                { id: "paid", label: "Para Separar (Pago)" },
+                { id: "preparing", label: "Em Separação" },
+                { id: "shipped", label: "Enviados" },
+                { id: "delivered", label: "Entregues" },
+                { id: "pending_payment", label: "Aguardando Pagamento" },
+                { id: "cancelled", label: "Cancelados" },
+              ]}
+            >
+              {(tab) => (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpFilter("");
+                    setStatusFilter(tab.id);
+                  }}
+                  class={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                    !opFilter() && statusFilter() === tab.id
+                      ? "bg-[#93509e] text-white shadow-xs"
+                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )}
+            </For>
+
+            <span class="mx-1 h-4 w-px bg-zinc-200" aria-hidden="true" />
+
+            <button
+              type="button"
+              onClick={() =>
+                setOpFilter((prev) =>
+                  prev === "ship_today" ? "" : "ship_today",
+                )
+              }
+              class={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                opFilter() === "ship_today"
+                  ? "bg-emerald-700 text-white shadow-xs"
+                  : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+              }`}
+            >
+              Para postar hoje
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setOpFilter((prev) => (prev === "issues" ? "" : "issues"))
+              }
+              class={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                opFilter() === "issues"
+                  ? "bg-red-700 text-white shadow-xs"
+                  : "bg-red-50 text-red-700 hover:bg-red-100"
+              }`}
+            >
+              <AlertTriangle class="size-3.5" />
+              Com problemas
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAssistedOpen((v) => !v)}
+            class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-[#93509e] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#7c3f87]"
           >
-            {(tab) => (
-              <button
-                type="button"
-                onClick={() => setStatusFilter(tab.id)}
-                class={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                  statusFilter() === tab.id
-                    ? "bg-[#93509e] text-white shadow-xs"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                }`}
-              >
-                {tab.label}
-              </button>
-            )}
-          </For>
+            <Plus class="size-4" />
+            {assistedOpen()
+              ? "Fechar Pedido Assistido"
+              : "Criar pedido assistido (WhatsApp)"}
+          </button>
         </div>
+
+        <Show when={assistedOpen()}>
+          <AdminAssistedOrderBuilder
+            onClose={() => setAssistedOpen(false)}
+            onConverted={() => void refetch()}
+          />
+        </Show>
 
         <div class="relative">
           <input
@@ -268,7 +374,24 @@ function AdminOrdersPage() {
                       }`}
                     >
                       <td class="p-3 font-bold text-zinc-900">
-                        {ord.order_number}
+                        <div>{ord.order_number}</div>
+                        <div class="mt-0.5 flex flex-wrap gap-1">
+                          <Show
+                            when={
+                              ord.has_issue ||
+                              (ord.open_occurrences_count ?? 0) > 0
+                            }
+                          >
+                            <span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                              Problema ({ord.open_occurrences_count ?? 1})
+                            </span>
+                          </Show>
+                          <Show when={ord.assisted_order_id}>
+                            <span class="rounded bg-[#F3E2F6] px-1.5 py-0.5 text-[10px] font-bold text-[#93509e]">
+                              Assistido
+                            </span>
+                          </Show>
+                        </div>
                       </td>
                       <td class="p-3">
                         <p class="font-medium text-zinc-900">
@@ -456,6 +579,29 @@ function AdminOrdersPage() {
                   >
                     Reembolsar / Estornar pedido
                   </button>
+                </div>
+
+                <div class="border-t border-zinc-200 pt-4">
+                  <Show when={d().assisted_order}>
+                    {(ao) => (
+                      <p class="mb-3 rounded-lg border border-[#DFC2E3] bg-[#FCF8FD] px-3 py-2 text-xs font-semibold text-[#93509e]">
+                        Originado do pedido assistido{" "}
+                        <span class="font-mono">{ao().order_code}</span>
+                      </p>
+                    )}
+                  </Show>
+                  <AdminOrderTimelineAndAfterSales
+                    orderId={d().id}
+                    hasIssue={d().has_issue}
+                    items={d().items}
+                    timeline={d().timeline ?? []}
+                    occurrences={d().occurrences ?? []}
+                    onRefresh={() =>
+                      Promise.all([refetch(), refetchDetail()]).then(
+                        () => undefined,
+                      )
+                    }
+                  />
                 </div>
               </div>
             )}

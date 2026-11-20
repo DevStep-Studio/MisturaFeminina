@@ -46,6 +46,7 @@ import { Route as AuthenticatedAdminPedidosRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminProdutosRouteImport } from './routes/_authenticated/admin/produtos'
 import { Route as AuthenticatedAdminRelatoriosRouteImport } from './routes/_authenticated/admin/relatorios'
 import { Route as CarrinhoCompartilhadoTokenRouteImport } from './routes/carrinho.compartilhado.$token'
+import { Route as CheckoutAssistidoTokenRouteImport } from './routes/checkout.assistido.$token'
 import { Route as PedidoTokenConfirmacaoRouteImport } from './routes/pedido/$token/confirmacao'
 
 const IndexRoute = IndexRouteImport.update({
@@ -242,6 +243,11 @@ const CarrinhoCompartilhadoTokenRoute =
     path: '/compartilhado/$token',
     getParentRoute: () => CarrinhoRoute,
   } as any)
+const CheckoutAssistidoTokenRoute = CheckoutAssistidoTokenRouteImport.update({
+  id: '/assistido/$token',
+  path: '/assistido/$token',
+  getParentRoute: () => CheckoutRoute,
+} as any)
 const PedidoTokenConfirmacaoRoute = PedidoTokenConfirmacaoRouteImport.update({
   id: '/pedido/$token/confirmacao',
   path: '/pedido/$token/confirmacao',
@@ -257,7 +263,7 @@ export interface FileRoutesByFullPath {
   '/cadastro': typeof CadastroRoute
   '/carrinho': typeof CarrinhoRouteWithChildren
   '/categorias': typeof CategoriasRoute
-  '/checkout': typeof CheckoutRoute
+  '/checkout': typeof CheckoutRouteWithChildren
   '/contato': typeof ContatoRoute
   '/entrar': typeof EntrarRoute
   '/favoritos': typeof FavoritosRoute
@@ -284,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
   '/carrinho/compartilhado/$token': typeof CarrinhoCompartilhadoTokenRoute
+  '/checkout/assistido/$token': typeof CheckoutAssistidoTokenRoute
   '/pedido/$token/confirmacao': typeof PedidoTokenConfirmacaoRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -296,7 +303,7 @@ export interface FileRoutesByTo {
   '/cadastro': typeof CadastroRoute
   '/carrinho': typeof CarrinhoRouteWithChildren
   '/categorias': typeof CategoriasRoute
-  '/checkout': typeof CheckoutRoute
+  '/checkout': typeof CheckoutRouteWithChildren
   '/contato': typeof ContatoRoute
   '/entrar': typeof EntrarRoute
   '/favoritos': typeof FavoritosRoute
@@ -323,6 +330,7 @@ export interface FileRoutesByTo {
   '/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
   '/carrinho/compartilhado/$token': typeof CarrinhoCompartilhadoTokenRoute
+  '/checkout/assistido/$token': typeof CheckoutAssistidoTokenRoute
   '/pedido/$token/confirmacao': typeof PedidoTokenConfirmacaoRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
@@ -337,7 +345,7 @@ export interface FileRoutesById {
   '/cadastro': typeof CadastroRoute
   '/carrinho': typeof CarrinhoRouteWithChildren
   '/categorias': typeof CategoriasRoute
-  '/checkout': typeof CheckoutRoute
+  '/checkout': typeof CheckoutRouteWithChildren
   '/contato': typeof ContatoRoute
   '/entrar': typeof EntrarRoute
   '/favoritos': typeof FavoritosRoute
@@ -364,6 +372,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/produtos': typeof AuthenticatedAdminProdutosRoute
   '/_authenticated/admin/relatorios': typeof AuthenticatedAdminRelatoriosRoute
   '/carrinho/compartilhado/$token': typeof CarrinhoCompartilhadoTokenRoute
+  '/checkout/assistido/$token': typeof CheckoutAssistidoTokenRoute
   '/pedido/$token/confirmacao': typeof PedidoTokenConfirmacaoRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
@@ -405,6 +414,7 @@ export interface FileRouteTypes {
     | '/admin/produtos'
     | '/admin/relatorios'
     | '/carrinho/compartilhado/$token'
+    | '/checkout/assistido/$token'
     | '/pedido/$token/confirmacao'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
@@ -444,6 +454,7 @@ export interface FileRouteTypes {
     | '/admin/produtos'
     | '/admin/relatorios'
     | '/carrinho/compartilhado/$token'
+    | '/checkout/assistido/$token'
     | '/pedido/$token/confirmacao'
     | '/admin'
   id:
@@ -484,6 +495,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/produtos'
     | '/_authenticated/admin/relatorios'
     | '/carrinho/compartilhado/$token'
+    | '/checkout/assistido/$token'
     | '/pedido/$token/confirmacao'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
@@ -498,7 +510,7 @@ export interface RootRouteChildren {
   CadastroRoute: typeof CadastroRoute
   CarrinhoRoute: typeof CarrinhoRouteWithChildren
   CategoriasRoute: typeof CategoriasRoute
-  CheckoutRoute: typeof CheckoutRoute
+  CheckoutRoute: typeof CheckoutRouteWithChildren
   ContatoRoute: typeof ContatoRoute
   EntrarRoute: typeof EntrarRoute
   FavoritosRoute: typeof FavoritosRoute
@@ -778,6 +790,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof CarrinhoCompartilhadoTokenRouteImport
       parentRoute: typeof CarrinhoRoute
     }
+    '/checkout/assistido/$token': {
+      id: '/checkout/assistido/$token'
+      path: '/assistido/$token'
+      fullPath: '/checkout/assistido/$token'
+      preLoaderRoute: typeof CheckoutAssistidoTokenRouteImport
+      parentRoute: typeof CheckoutRoute
+    }
     '/pedido/$token/confirmacao': {
       id: '/pedido/$token/confirmacao'
       path: '/pedido/$token/confirmacao'
@@ -834,6 +853,18 @@ const CarrinhoRouteWithChildren = CarrinhoRoute._addFileChildren(
   CarrinhoRouteChildren,
 )
 
+interface CheckoutRouteChildren {
+  CheckoutAssistidoTokenRoute: typeof CheckoutAssistidoTokenRoute
+}
+
+const CheckoutRouteChildren: CheckoutRouteChildren = {
+  CheckoutAssistidoTokenRoute: CheckoutAssistidoTokenRoute,
+}
+
+const CheckoutRouteWithChildren = CheckoutRoute._addFileChildren(
+  CheckoutRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
@@ -844,7 +875,7 @@ const rootRouteChildren: RootRouteChildren = {
   CadastroRoute: CadastroRoute,
   CarrinhoRoute: CarrinhoRouteWithChildren,
   CategoriasRoute: CategoriasRoute,
-  CheckoutRoute: CheckoutRoute,
+  CheckoutRoute: CheckoutRouteWithChildren,
   ContatoRoute: ContatoRoute,
   EntrarRoute: EntrarRoute,
   FavoritosRoute: FavoritosRoute,

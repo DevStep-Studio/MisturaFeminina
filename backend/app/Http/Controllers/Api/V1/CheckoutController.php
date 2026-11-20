@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Cart\Services\CartService;
 use App\Domain\Checkout\Services\CheckoutService;
+use App\Domain\Orders\Services\AssistedOrderService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Shared\Enums\PaymentMethod;
@@ -23,6 +24,7 @@ class CheckoutController extends Controller
     public function __construct(
         private readonly CartService $carts,
         private readonly CheckoutService $checkout,
+        private readonly AssistedOrderService $assistedOrders,
     ) {}
 
     public function config(): JsonResponse
@@ -70,6 +72,7 @@ class CheckoutController extends Controller
             'payment_data.card_last_four' => ['nullable', 'string', 'max:4'],
             'payment_data.issuer_id' => ['nullable', 'string', 'max:40'],
             'notes_customer' => ['nullable', 'string', 'max:500'],
+            'assisted_order_token' => ['nullable', 'string', 'max:80'],
         ]);
 
         $idempotencyKey = trim((string) ($request->header('X-Idempotency-Key') ?: $request->input('idempotency_key') ?: Str::uuid()->toString()));
@@ -86,6 +89,10 @@ class CheckoutController extends Controller
         $result = $this->checkout->submitCheckout($cart, $request->user(), $validated, $idempotencyKey);
         $order = $result['order'];
         $payment = $result['payment'];
+
+        if (! empty($validated['assisted_order_token'])) {
+            $this->assistedOrders->markConvertedByToken((string) $validated['assisted_order_token'], $order);
+        }
 
         AnalyticsEvent::query()->create([
             'session_id' => $request->header('X-Cart-Token') ?? ($request->hasSession() ? $request->session()->getId() : $order->public_token),

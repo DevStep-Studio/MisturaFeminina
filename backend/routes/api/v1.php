@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\Admin\AdminCatalogController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminMarketingController;
+use App\Http\Controllers\Api\V1\Admin\AdminOperationsController;
 use App\Http\Controllers\Api\V1\Admin\AdminOrderController;
 use App\Http\Controllers\Api\V1\Admin\AdminPaymentsController;
 use App\Http\Controllers\Api\V1\Admin\AdminReportsController;
@@ -70,6 +71,8 @@ Route::prefix('cart')->group(function (): void {
 
 // Checkout & Order Tracking
 Route::post('checkout', [CheckoutController::class, 'store'])->middleware('throttle:10,1');
+Route::get('checkout/assisted/{token}', [AdminOperationsController::class, 'resolvePublicAssistedOrder'])->middleware('throttle:60,1');
+Route::post('checkout/assisted/{token}/load-cart', [AdminOperationsController::class, 'loadAssistedOrderIntoCart'])->middleware('throttle:30,1');
 Route::get('orders/track/{publicToken}', [CheckoutController::class, 'trackByToken']);
 Route::post('orders/track-lookup', [CheckoutController::class, 'trackLookup'])->middleware('throttle:20,1');
 Route::post('orders/{publicToken}/retry-payment', [CheckoutController::class, 'retryPayment'])->middleware('throttle:10,1');
@@ -222,5 +225,53 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('audit-logs', [AdminUsersController::class, 'listAuditLogs'])->middleware('permission:audit.view');
         Route::get('system/health', [AdminUsersController::class, 'systemHealth'])->middleware('permission:monitoring.view');
         Route::post('system/backup', [AdminUsersController::class, 'triggerBackup'])->middleware('permission:monitoring.view');
+
+        // Modulo 01: Trabalho de Hoje & Tarefas Operacionais
+        Route::get('today-work', [AdminOperationsController::class, 'todayWork'])->middleware('permission:dashboard.view');
+        Route::post('operational-tasks', [AdminOperationsController::class, 'storeTask'])->middleware('permission:dashboard.view');
+        Route::patch('operational-tasks/{id}', [AdminOperationsController::class, 'updateTask'])->middleware('permission:dashboard.view');
+        Route::get('team-members', [AdminOperationsController::class, 'teamMembers'])->middleware('permission:dashboard.view');
+
+        // Modulo 02: Pedidos Assistidos
+        Route::get('assisted-orders', [AdminOperationsController::class, 'listAssistedOrders'])->middleware('permission:orders.view');
+        Route::get('assisted-orders/catalog-search', [AdminOperationsController::class, 'catalogSearchAssisted'])->middleware('permission:orders.view');
+        Route::get('assisted-orders/customer-search', [AdminOperationsController::class, 'customerSearchAssisted'])->middleware('permission:customers.view');
+        Route::post('assisted-orders', [AdminOperationsController::class, 'storeAssistedOrder'])->middleware('permission:orders.assisted');
+        Route::get('assisted-orders/{id}', [AdminOperationsController::class, 'showAssistedOrder'])->middleware('permission:orders.view');
+        Route::put('assisted-orders/{id}', [AdminOperationsController::class, 'updateAssistedOrder'])->middleware('permission:orders.assisted');
+        Route::post('assisted-orders/{id}/generate-link', [AdminOperationsController::class, 'generateAssistedOrderLink'])->middleware('permission:orders.assisted');
+        Route::post('assisted-orders/{id}/cancel', [AdminOperationsController::class, 'cancelAssistedOrder'])->middleware('permission:orders.assisted');
+
+        // Modulo 03: Edicao em Massa de Produtos & Variacoes
+        Route::get('variants/bulk', [AdminOperationsController::class, 'listBulkVariants'])->middleware('permission:catalog.view');
+        Route::post('variants/bulk-parse', [AdminOperationsController::class, 'parseBulkVariants'])->middleware('permission:catalog.view');
+        Route::post('variants/bulk-preview', [AdminOperationsController::class, 'previewBulkVariants'])->middleware('permission:catalog.view');
+        Route::post('variants/bulk-commit', [AdminOperationsController::class, 'commitBulkVariants'])->middleware('permission:catalog.bulk_edit');
+        Route::get('variants/bulk-batches', [AdminOperationsController::class, 'bulkEditBatches'])->middleware('permission:catalog.view');
+
+        // Modulo 04: Fornecedores, Recebimentos & Lotes
+        Route::get('suppliers', [AdminOperationsController::class, 'listSuppliers'])->middleware('permission:catalog.view');
+        Route::post('suppliers', [AdminOperationsController::class, 'storeSupplier'])->middleware('permission:inventory.receive');
+        Route::get('goods-receipts', [AdminOperationsController::class, 'listGoodsReceipts'])->middleware('permission:catalog.view');
+        Route::post('goods-receipts', [AdminOperationsController::class, 'storeGoodsReceipt'])->middleware('permission:inventory.receive');
+        Route::get('goods-receipts/{id}', [AdminOperationsController::class, 'showGoodsReceipt'])->middleware('permission:catalog.view');
+        Route::put('goods-receipts/{id}', [AdminOperationsController::class, 'updateGoodsReceipt'])->middleware('permission:inventory.receive');
+        Route::post('goods-receipts/{id}/confirm', [AdminOperationsController::class, 'confirmGoodsReceipt'])->middleware('permission:inventory.manage');
+        Route::get('inventory/lots', [AdminOperationsController::class, 'lotExpirySummary'])->middleware('permission:catalog.view');
+
+        // Modulo 05: Ocorrencias & Pos-Venda em Pedidos
+        Route::post('orders/{id}/flag-issue', [AdminOperationsController::class, 'flagOrderIssue'])->middleware('permission:orders.occurrences');
+        Route::post('orders/{id}/occurrences', [AdminOperationsController::class, 'createOccurrence'])->middleware('permission:orders.occurrences');
+        Route::patch('occurrences/{occurrenceId}', [AdminOperationsController::class, 'updateOccurrence'])->middleware('permission:orders.occurrences');
+        Route::post('orders/{id}/notes', [AdminOperationsController::class, 'addOrderNote'])->middleware('permission:orders.view');
+
+        // Modulo 06: Relatorios Inteligentes & Sinonimos
+        Route::get('reports/zero-result-searches', [AdminOperationsController::class, 'zeroResultSearches'])->middleware('permission:reports.view');
+        Route::get('reports/demanded-shades', [AdminOperationsController::class, 'demandedShadesReport'])->middleware('permission:reports.view');
+        Route::get('reports/bought-together', [AdminOperationsController::class, 'boughtTogetherReport'])->middleware('permission:reports.view');
+        Route::get('reports/export-intelligent-csv', [AdminOperationsController::class, 'exportIntelligentReportCsv'])->middleware('permission:reports.export');
+        Route::get('search-synonyms', [AdminOperationsController::class, 'listSearchSynonyms'])->middleware('permission:reports.view');
+        Route::post('search-synonyms', [AdminOperationsController::class, 'storeSearchSynonym'])->middleware('permission:reports.view');
+        Route::delete('search-synonyms/{id}', [AdminOperationsController::class, 'destroySearchSynonym'])->middleware('permission:reports.view');
     });
 });

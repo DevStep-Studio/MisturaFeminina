@@ -14,6 +14,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property OrderStatus $status
+ * @property bool $has_issue
+ * @property string|null $issue_reason
+ * @property CarbonInterface|null $shipping_deadline_at
+ * @property int|null $assisted_order_id
  * @property bool $is_guest
  * @property array<string, mixed> $shipping_address_snapshot
  * @property array<string, mixed> $shipping_service_snapshot
@@ -36,8 +40,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'customer_name', 'customer_email', 'customer_phone', 'customer_cpf_cnpj',
     'shipping_address_snapshot', 'shipping_service_snapshot',
     'subtotal_cents', 'discount_cents', 'coupon_code', 'shipping_cents',
-    'tax_cents', 'total_cents', 'status', 'notes_customer', 'notes_internal',
-    'stock_reserved_until', 'paid_at', 'cancelled_at', 'checkout_cart_id', 'checkout_fingerprint', 'payment_provider', 'payment_environment', 'payment_method',
+    'tax_cents', 'total_cents', 'status', 'has_issue', 'issue_reason',
+    'notes_customer', 'notes_internal', 'shipping_deadline_at',
+    'stock_reserved_until', 'paid_at', 'cancelled_at', 'checkout_cart_id',
+    'checkout_fingerprint', 'payment_provider', 'payment_environment',
+    'payment_method', 'assisted_order_id',
 ])]
 class Order extends Model
 {
@@ -83,10 +90,37 @@ class Order extends Model
         return $this->hasOne(Shipment::class)->latestOfMany();
     }
 
+    /** @return BelongsTo<AssistedOrder, $this> */
+    public function assistedOrder(): BelongsTo
+    {
+        return $this->belongsTo(AssistedOrder::class, 'assisted_order_id');
+    }
+
+    /** @return HasMany<OrderTimelineEvent, $this> */
+    public function timelineEvents(): HasMany
+    {
+        return $this->hasMany(OrderTimelineEvent::class)->orderByDesc('occurred_at');
+    }
+
+    /** @return HasMany<OrderOccurrence, $this> */
+    public function occurrences(): HasMany
+    {
+        return $this->hasMany(OrderOccurrence::class)->orderByDesc('id');
+    }
+
+    /** @return HasMany<OrderOccurrenceNote, $this> */
+    public function occurrenceNotes(): HasMany
+    {
+        return $this->hasMany(OrderOccurrenceNote::class)->orderByDesc('id');
+    }
+
     protected function casts(): array
     {
         return [
-            'status' => OrderStatus::class, 'checkout_cart_id' => 'integer',
+            'status' => OrderStatus::class,
+            'has_issue' => 'boolean',
+            'assisted_order_id' => 'integer',
+            'checkout_cart_id' => 'integer',
             'is_guest' => 'boolean',
             'shipping_address_snapshot' => 'array',
             'shipping_service_snapshot' => 'array',
@@ -95,6 +129,7 @@ class Order extends Model
             'shipping_cents' => 'integer',
             'tax_cents' => 'integer',
             'total_cents' => 'integer',
+            'shipping_deadline_at' => 'datetime',
             'stock_reserved_until' => 'datetime',
             'paid_at' => 'datetime',
             'cancelled_at' => 'datetime',

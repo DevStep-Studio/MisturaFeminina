@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Domain\Admin\Services\TodayWorkService;
 use App\Domain\Catalog\Events\VariantRestocked;
 use App\Domain\Catalog\Services\CatalogCsvService;
 use App\Domain\Catalog\Services\InventoryService;
@@ -41,12 +42,22 @@ class AdminCatalogController extends Controller
         private readonly AuditLogger $audit,
         private readonly RestockNotificationService $restock,
         private readonly ReplenishmentService $replenishment,
+        private readonly TodayWorkService $todayWork,
     ) {}
 
     public function indexProducts(Request $request): JsonResponse
     {
-        $query = Product::query()
-            ->with(['brand:id,name', 'categories:id,name', 'images', 'variants'])
+        $filter = (string) $request->query('filter', '');
+        if ($filter === 'needs_review') {
+            $query = $this->todayWork->reviewProductsQuery();
+        } else {
+            $query = Product::query();
+            if ($filter === 'out_of_stock_variants') {
+                $query->where('is_active', true)->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) <= 0'));
+            }
+        }
+
+        $query->with(['brand:id,name', 'categories:id,name', 'images', 'variants', 'attributeValues:id,value'])
             ->latest('id');
 
         if ($request->filled('search')) {

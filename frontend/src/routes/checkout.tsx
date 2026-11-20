@@ -81,6 +81,7 @@ function CheckoutPage() {
   const [cepLoading, setCepLoading] = createSignal(false);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [assistedToken, setAssistedToken] = createSignal<string | null>(null);
   const [idempotencyKey] = createSignal(
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -88,6 +89,35 @@ function CheckoutPage() {
   );
 
   onMount(() => {
+    try {
+      const raw =
+        typeof sessionStorage !== "undefined"
+          ? sessionStorage.getItem("mf_assisted_checkout")
+          : null;
+      if (raw) {
+        const parsed = JSON.parse(raw) as {
+          token?: string;
+          customer_name?: string | null;
+          customer_email?: string | null;
+          customer_phone?: string | null;
+        };
+        if (parsed.token) {
+          setAssistedToken(parsed.token);
+          if (parsed.customer_name && !name().trim()) {
+            setName(parsed.customer_name);
+          }
+          if (parsed.customer_email && !email().trim()) {
+            setEmail(parsed.customer_email);
+          }
+          if (parsed.customer_phone && !phone().trim()) {
+            setPhone(formatPhone(parsed.customer_phone));
+          }
+        }
+      }
+    } catch {
+      // ignore invalid sessionStorage payload
+    }
+
     void refreshCart().then((c) => {
       if (c?.shipping_cep) setCep(formatCep(c.shipping_cep));
       if (c && c.items.length > 0) {
@@ -217,8 +247,17 @@ function CheckoutPage() {
           payment_method: method(),
           defer_payment: payments()?.provider === "mercadopago",
           notes_customer: notes().trim() || undefined,
+          assisted_order_token: assistedToken() || undefined,
         },
       });
+
+      try {
+        if (typeof sessionStorage !== "undefined") {
+          sessionStorage.removeItem("mf_assisted_checkout");
+        }
+      } catch {
+        // ignore storage error
+      }
 
       await refreshCart().catch(() => null);
       const handoff = invoiceUrl(res.data.payment?.checkout_url);

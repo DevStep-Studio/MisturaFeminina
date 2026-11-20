@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Admin\Services\IntelligentReportsService;
 use App\Domain\Catalog\Services\ProductAttributeService;
 use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Settings\Services\StoreSettingsService;
@@ -28,6 +29,7 @@ class CatalogController extends Controller
         private readonly ShippingQuoteService $shipping,
         private readonly ProductAttributeService $attributes,
         private readonly RestockNotificationService $restock,
+        private readonly IntelligentReportsService $reports,
     ) {}
 
     public function categories(): JsonResponse
@@ -152,14 +154,17 @@ class CatalogController extends Controller
         $query = Product::query()->where('is_active', true);
 
         if ($rawQ !== '') {
+            $expandedTerms = $this->reports->expandQueryWithSynonyms($rawQ);
             $normalized = Str::ascii(mb_strtolower($rawQ));
             $terms = array_values(array_filter(preg_split('/\s+/', $normalized) ?: []));
 
-            $query->where(function (Builder $outer) use ($rawQ, $terms): void {
-                $outer->where('sku', 'like', "%{$rawQ}%")
-                    ->orWhere('name', 'like', "%{$rawQ}%")
-                    ->orWhereHas('variants', fn ($vq) => $vq->where('sku', 'like', "%{$rawQ}%"))
-                    ->orWhereHas('brand', fn ($bq) => $bq->where('name', 'like', "%{$rawQ}%"));
+            $query->where(function (Builder $outer) use ($expandedTerms, $terms): void {
+                foreach ($expandedTerms as $searchCandidate) {
+                    $outer->orWhere('sku', 'like', "%{$searchCandidate}%")
+                        ->orWhere('name', 'like', "%{$searchCandidate}%")
+                        ->orWhereHas('variants', fn ($vq) => $vq->where('sku', 'like', "%{$searchCandidate}%")->orWhere('name', 'like', "%{$searchCandidate}%")->orWhere('shade_code', 'like', "%{$searchCandidate}%"))
+                        ->orWhereHas('brand', fn ($bq) => $bq->where('name', 'like', "%{$searchCandidate}%"));
+                }
 
                 if (count($terms) > 0) {
                     $outer->orWhere(function (Builder $termQ) use ($terms): void {
@@ -187,6 +192,17 @@ class CatalogController extends Controller
         }
 
         $result = $this->applyProductFiltersAndPaginate($request, $query);
+
+        if ($rawQ !== '') {
+            $totalFound = (int) ($result['meta']['total'] ?? count($result['products']));
+            $this->reports->logSearchQuery(
+                $rawQ,
+                $totalFound,
+                $request->filled('category') ? (string) $request->query('category') : null,
+                $request->header('X-Cart-Token'),
+                $request->user()?->id,
+            );
+        }
 
         return response()->json([
             'data' => [
