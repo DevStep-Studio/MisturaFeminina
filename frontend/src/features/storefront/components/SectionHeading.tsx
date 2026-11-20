@@ -73,15 +73,6 @@ export function SectionHeading(props: SectionHeadingProps) {
             </Dynamic>
           </div>
 
-          <div
-            class="mt-2 flex items-center justify-center gap-1.5 sm:justify-start"
-            aria-hidden="true"
-          >
-            <span class="h-1 w-9 rounded-xs bg-[#93509e]" />
-            <span class="h-0.5 w-3 rounded-xs bg-[#D8B4DE]" />
-            <span class="h-px w-12 bg-[#E5CCE8] sm:w-16" />
-          </div>
-
           <Show when={props.subtitle}>
             <p class="mt-2 max-w-2xl text-[13px] font-medium leading-relaxed text-[#5B486B] sm:text-[13.5px]">
               {props.subtitle}
