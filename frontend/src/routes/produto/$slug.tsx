@@ -2,12 +2,14 @@ import { ProductImage } from "../../features/storefront/components/ProductImage"
 import { createFileRoute, Link, redirect } from "@tanstack/solid-router";
 import BadgePercent from "lucide-solid/icons/badge-percent";
 import Bell from "lucide-solid/icons/bell";
+import Boxes from "lucide-solid/icons/boxes";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import ChevronUp from "lucide-solid/icons/chevron-up";
 import CreditCard from "lucide-solid/icons/credit-card";
 import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
+import Sparkles from "lucide-solid/icons/sparkles";
 import Star from "lucide-solid/icons/star";
 import Truck from "lucide-solid/icons/truck";
 import {
@@ -38,6 +40,10 @@ import type {
 } from "../../features/storefront/types";
 import { ApiError, api } from "../../lib/api";
 import { formatCents, whatsappUrl } from "../../lib/format";
+import {
+  computeWholesaleUnitPrice,
+  type WholesaleTier,
+} from "../../features/storefront/wholesale";
 import {
   trackAddToCart,
   trackContactClick,
@@ -285,10 +291,45 @@ function ProductDetailPage() {
     );
   });
 
-  const currentPriceCents = () =>
+  const wholesaleCondition = () => product()?.wholesale_condition;
+  const wholesaleTiers = (): WholesaleTier[] => {
+    const p = product();
+    if (p?.wholesale_condition?.tiers && p.wholesale_condition.tiers.length > 0) {
+      return p.wholesale_condition.tiers as WholesaleTier[];
+    }
+    return (p?.wholesale_tiers ?? []).map((t) => ({
+      min_quantity: t.min_qty,
+      min_qty: t.min_qty,
+      discount_type: "percent",
+      discount_value: t.discount_percent,
+      discount_percent: t.discount_percent,
+    })) as WholesaleTier[];
+  };
+  const hasWholesale = () =>
+    Boolean(wholesaleCondition()?.has_wholesale || wholesaleTiers().length > 0);
+  const minWholesaleQty = () =>
+    wholesaleCondition()?.min_quantity ??
+    (wholesaleTiers()[0] as any)?.min_quantity ??
+    (wholesaleTiers()[0] as any)?.min_qty ??
+    6;
+
+  const basePriceCents = () =>
     activeVariant()?.effective_price_cents ??
     product()?.effective_price_cents ??
     0;
+
+  const currentPriceCents = () => {
+    const base = basePriceCents();
+    const tiers = wholesaleTiers();
+    if (tiers.length === 0) return base;
+    const pricing = computeWholesaleUnitPrice(base, qty(), tiers);
+    return pricing.unitPriceCents;
+  };
+
+  const isWholesaleActive = () => currentPriceCents() < basePriceCents();
+  const wholesaleSavingsCents = () =>
+    Math.max(0, (basePriceCents() - currentPriceCents()) * qty());
+  const totalPriceCents = () => currentPriceCents() * qty();
 
   const originalPriceCents = () =>
     activeVariant()?.price_cents ?? product()?.price_cents ?? 0;
@@ -550,7 +591,7 @@ function ProductDetailPage() {
         {(p) => {
           const installments = () => 3;
           const installmentValue = () =>
-            Math.ceil(currentPriceCents() / installments());
+            Math.ceil(totalPriceCents() / installments());
           const galleryImages = () => {
             if (p().images.length > 0) return p().images;
             if (p().primary_image) {
@@ -826,18 +867,39 @@ function ProductDetailPage() {
                             {formatCents(
                               originalPriceCents() - currentPriceCents(),
                             )}
+                            /un.
                           </span>
                         </div>
                       </Show>
 
-                      <div class="flex items-baseline gap-2">
+                      <div class="flex flex-wrap items-baseline gap-2">
                         <span class="text-3xl font-extrabold tracking-tight text-[#2E0C49] sm:text-[32px]">
                           {formatCents(currentPriceCents())}
                         </span>
                         <span class="text-xs font-semibold text-[#6B587E]">
-                          à vista
+                          {isWholesaleActive() ? "cada (Preço de Atacado)" : "à vista"}
                         </span>
                       </div>
+
+                      <Show when={qty() > 1}>
+                        <div class="mt-2 flex flex-wrap items-center justify-between rounded-lg border border-[#ECD4EF] bg-[#FAF5FB] px-3 py-2 text-xs">
+                          <span class="font-bold text-[#3D1260]">
+                            Subtotal ({qty()} {qty() === 1 ? "unidade" : "unidades"}):
+                          </span>
+                          <span class="text-sm font-extrabold text-[#93509e]">
+                            {formatCents(totalPriceCents())}
+                          </span>
+                        </div>
+                      </Show>
+
+                      <Show when={isWholesaleActive()}>
+                        <div class="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">
+                          <Sparkles class="size-3.5 text-emerald-600 shrink-0" />
+                          <span>
+                            Desconto de Atacado automático! Economia de {formatCents(wholesaleSavingsCents())}.
+                          </span>
+                        </div>
+                      </Show>
 
                       <p class="mt-2.5 flex items-center gap-2 border-t border-[#F6EBF8] pt-2.5 text-[13px] text-[#2E0C49]">
                         <span class="flex size-7 shrink-0 items-center justify-center rounded-lg border border-[#EFE0F3] bg-[#FAF5FB] text-[#93509e]">
@@ -856,7 +918,7 @@ function ProductDetailPage() {
                       </p>
                     </div>
 
-                    {/* Progressive discount / shipping benefits notice */}
+                    {/* Progressive wholesale pricing table / benefits notice */}
                     <div class="rounded-xl border border-[#EBDCF0] bg-[#FAF5FB] p-4 text-[#2E0C49]">
                       <div class="flex items-start gap-3">
                         <span class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#E5D0EC] bg-white text-[#93509e]">
@@ -865,30 +927,45 @@ function ProductDetailPage() {
                         <div class="min-w-0 flex-1">
                           <div class="flex flex-wrap items-center gap-2">
                             <p class="text-[13px] font-extrabold text-[#2E0C49]">
-                              Produto com desconto progressivo
+                              Tabela de Atacado (Cálculo Automático)
                             </p>
                             <span class="rounded-md bg-[#93509e] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
                               Vantagem
                             </span>
                           </div>
                           <p class="mt-0.5 text-xs text-[#543E69]">
-                            Compre mais unidades e garanta condições especiais
-                            no carrinho.
+                            Selecione a quantidade desejada abaixo para que o preço unitário e o total sejam calculados automaticamente.
                           </p>
-                          <Show
-                            when={
-                              p().wholesale_enabled &&
-                              p().wholesale_tiers.length > 0
-                            }
-                          >
-                            <div class="mt-2 flex flex-wrap gap-1.5">
-                              <For each={p().wholesale_tiers}>
-                                {(tier) => (
-                                  <span class="rounded-md border border-[#E5D0EC] bg-white px-2.5 py-0.5 text-[11px] font-bold text-[#93509e]">
-                                    {tier.min_qty}+ un.: -
-                                    {tier.discount_percent}%
-                                  </span>
-                                )}
+                          <Show when={wholesaleTiers().length > 0}>
+                            <div class="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                              <For each={wholesaleTiers()}>
+                                {(tier) => {
+                                  const minQ = tier.min_quantity ?? (tier as any).min_qty ?? 1;
+                                  const maxQ = tier.max_quantity ?? null;
+                                  const isTierActive = () => qty() >= minQ && (maxQ === null || qty() <= maxQ);
+                                  const tierPriceCents = tier.unit_price_cents ?? (tier.discount_type === 'fixed_price' ? Math.round(Number(tier.discount_value) * 100) : Math.round(basePriceCents() * (1 - Number(tier.discount_value) / 100)));
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => setQty(minQ)}
+                                      class={`flex flex-col items-center justify-center rounded-lg border p-2 text-center transition-all ${
+                                        isTierActive()
+                                          ? "border-[#93509e] bg-white ring-2 ring-[#93509e]/30 shadow-xs"
+                                          : "border-[#E5D0EC] bg-white/70 hover:border-[#93509e]/60"
+                                      }`}
+                                    >
+                                      <span class="text-[11px] font-bold text-[#543E69]">
+                                        {minQ}{maxQ ? ` a ${maxQ}` : "+"} un.
+                                      </span>
+                                      <span class="text-xs font-black text-[#93509e]">
+                                        {tier.unit_price_formatted ?? formatCents(tierPriceCents)}
+                                      </span>
+                                      <span class="text-[9.5px] font-semibold text-emerald-700">
+                                        {tier.discount_cents ? `Economize ${formatCents(tier.discount_cents)}` : `-${tier.discount_value}%`}
+                                      </span>
+                                    </button>
+                                  );
+                                }}
                               </For>
                             </div>
                           </Show>
@@ -1039,11 +1116,61 @@ function ProductDetailPage() {
                             type="button"
                             disabled={adding()}
                             onClick={() => void handleAddToCart()}
-                            class="mf-btn-buy flex h-11 flex-1 items-center justify-center rounded-lg px-6 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
+                            class="mf-btn-buy flex h-11 flex-1 items-center justify-center rounded-lg px-4 text-xs font-bold uppercase tracking-wider disabled:opacity-60"
                           >
-                            {adding() ? "ADICIONANDO..." : "COMPRAR"}
+                            {adding()
+                              ? "ADICIONANDO..."
+                              : isWholesaleActive()
+                              ? `COMPRAR NO ATACADO (${qty()} UN.) • ${formatCents(totalPriceCents())}`
+                              : qty() > 1
+                              ? `COMPRAR ${qty()} UN. • ${formatCents(totalPriceCents())}`
+                              : "COMPRAR"}
                           </button>
                         </div>
+
+                        <Show when={hasWholesale()}>
+                          <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span class="text-[11px] font-semibold text-[#543E69]">
+                              Atalhos Atacado:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setQty(1)}
+                              class={`rounded-md px-2 py-0.5 text-[11px] font-bold transition-all ${
+                                qty() === 1
+                                  ? "bg-[#93509e] text-white"
+                                  : "border border-[#DFC2E3] bg-white text-[#543E69] hover:bg-[#FAF5FB]"
+                              }`}
+                            >
+                              1 un.
+                            </button>
+                            <For each={wholesaleTiers()}>
+                              {(tier) => {
+                                const minQ =
+                                  tier.min_quantity ??
+                                  (tier as any).min_qty ??
+                                  1;
+                                const isSelected = () => qty() === minQ;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => setQty(minQ)}
+                                    class={`rounded-md px-2.5 py-0.5 text-[11px] font-bold transition-all ${
+                                      isSelected()
+                                        ? "bg-[#93509e] text-white shadow-2xs"
+                                        : "border border-[#DFC2E3] bg-white text-[#93509e] hover:bg-[#FAF5FB]"
+                                    }`}
+                                  >
+                                    {minQ} un. (
+                                    {tier.unit_price_formatted ??
+                                      formatCents(tier.unit_price_cents ?? 0)}
+                                    )
+                                  </button>
+                                );
+                              }}
+                            </For>
+                          </div>
+                        </Show>
 
                         <Show when={settings().whatsapp_number}>
                           <a
@@ -1088,11 +1215,13 @@ function ProductDetailPage() {
                           p().primary_image ||
                           "/placeholder-product.svg"
                         }
-                        wholesaleEnabled={Boolean(p().wholesale_enabled)}
+                        wholesaleEnabled={hasWholesale()}
                         wholesaleGroupVariants={Boolean(
-                          p().wholesale_group_variants ?? true,
+                          wholesaleCondition()?.allows_shade_mixing ??
+                            p().wholesale_group_variants ??
+                            true,
                         )}
-                        wholesaleTiers={p().wholesale_tiers || []}
+                        wholesaleTiers={wholesaleTiers()}
                         busy={bulkBusy()}
                         onAddBulk={handleBulkAddToCart}
                         onSelectRestock={(v) => setModalRestockVariant(v)}

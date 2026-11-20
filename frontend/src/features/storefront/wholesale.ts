@@ -4,8 +4,12 @@ export interface WholesaleTier {
   min_qty?: number;
   discount_percent?: number;
   min_quantity?: number;
-  discount_type?: "percent" | "fixed_price" | "fixed_discount";
+  max_quantity?: number | null;
+  discount_type?: "percent" | "fixed_price" | "fixed_discount" | string;
   discount_value?: number;
+  unit_price_cents?: number;
+  unit_price_formatted?: string;
+  discount_cents?: number;
 }
 
 export function computeWholesaleUnitPrice(
@@ -32,7 +36,10 @@ export function computeWholesaleUnitPrice(
       );
 
       let candidate = baseCents;
-      if (type === "percent") {
+      const explicitUnitPrice = (tier as { unit_price_cents?: number }).unit_price_cents;
+      if (typeof explicitUnitPrice === "number" && explicitUnitPrice > 0 && explicitUnitPrice < baseCents) {
+        candidate = explicitUnitPrice;
+      } else if (type === "percent") {
         if (val > 0 && val <= 80) {
           candidate = Math.max(100, Math.round(baseCents * (1 - val / 100)));
         }

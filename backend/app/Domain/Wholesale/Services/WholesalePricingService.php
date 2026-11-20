@@ -485,14 +485,20 @@ class WholesalePricingService
 
         // Phase 4: Stacking policy evaluation
         $couponAllowed = true;
+        $promotionsAllowed = true;
         $stackingNotes = [];
 
         if (! empty($appliedRules)) {
             foreach ($appliedRules as $appliedRule) {
                 if ($appliedRule->stacking_policy === 'no_stacking') {
                     $couponAllowed = false;
-                    $stackingNotes[] = 'Itens com preço de atacado não acumulam com cupom de desconto.';
+                    $promotionsAllowed = false;
+                    $stackingNotes[] = 'Itens com preço de atacado não acumulam com cupom de desconto ou promoções adicionais.';
                     break;
+                } elseif ($appliedRule->stacking_policy === 'allow_coupons') {
+                    $promotionsAllowed = false;
+                } elseif ($appliedRule->stacking_policy === 'allow_promotions') {
+                    $couponAllowed = false;
                 }
             }
         }
@@ -505,6 +511,7 @@ class WholesalePricingService
             'items' => $processedItems,
             'scope_summaries' => $scopeSummaries,
             'coupon_allowed' => $couponAllowed,
+            'promotions_allowed' => $promotionsAllowed,
             'stacking_notes' => array_unique($stackingNotes),
         ];
     }

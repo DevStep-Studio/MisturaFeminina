@@ -4,6 +4,7 @@ import { Link } from "@tanstack/solid-router";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import Plus from "lucide-solid/icons/plus";
 import Minus from "lucide-solid/icons/minus";
+import Sparkles from "lucide-solid/icons/sparkles";
 import Trash2 from "lucide-solid/icons/trash";
 import { formatCents } from "../../../lib/format";
 import {
@@ -345,18 +346,21 @@ export function CartDrawer() {
           >
             <div class="border-t border-zinc-200 bg-[#FAF7F8] p-5">
               <div class="space-y-1.5 text-sm">
-                <div class="flex justify-between text-[#5B486B]">
-                  <span>Subtotal</span>
-                  <span>{formatCents(cart()?.subtotal_cents)}</span>
-                </div>
                 <Show when={(cart()?.wholesale_discount_cents ?? 0) > 0}>
-                  <div class="flex justify-between font-bold text-[#93509e]">
-                    <span>Economia Atacado</span>
-                    <span>
+                  <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 flex items-center justify-between text-xs font-semibold text-emerald-800">
+                    <span class="flex items-center gap-1.5">
+                      <Sparkles class="size-3.5 text-emerald-600 shrink-0" />
+                      <span>Economia Atacado</span>
+                    </span>
+                    <span class="font-bold text-emerald-700">
                       -{formatCents(cart()?.wholesale_discount_cents)}
                     </span>
                   </div>
                 </Show>
+                <div class="flex justify-between text-[#5B486B]">
+                  <span>Subtotal</span>
+                  <span>{formatCents(cart()?.subtotal_cents)}</span>
+                </div>
                 <Show when={(cart()?.discount_cents ?? 0) > 0}>
                   <div class="flex justify-between font-medium text-emerald-700">
                     <span>Descontos</span>

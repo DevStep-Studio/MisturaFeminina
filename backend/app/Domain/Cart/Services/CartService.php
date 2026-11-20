@@ -346,7 +346,9 @@ class CartService
             ];
         }
 
-        $promoDiscountCents = $this->calculateAutomaticPromotions($cart, $subtotalCents);
+        $promoDiscountCents = ($wholesaleResult['promotions_allowed'] ?? true)
+            ? $this->calculateAutomaticPromotions($cart, $subtotalCents)
+            : 0;
         $couponResult = $this->evaluateCoupon($cart, $subtotalCents - $promoDiscountCents, $user, $customerEmail, $uf);
 
         if (! $wholesaleResult['coupon_allowed'] && $couponResult['valid']) {

@@ -91,7 +91,14 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
         return {
           remaining: minQ - units,
           min_qty: minQ,
-          discount_percent: t.discount_percent ?? t.discount_value ?? 0,
+          discount_percent:
+            t.discount_percent ??
+            (t.discount_type === "percent" ? t.discount_value : 0),
+          target_price_formatted:
+            (t as any).unit_price_formatted ??
+            (t.discount_type === "fixed_price" && t.discount_value
+              ? `R$ ${Number(t.discount_value).toFixed(2).replace(".", ",")}`
+              : null),
         };
       }
     }
@@ -214,9 +221,11 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
                   {hint().remaining}{" "}
                   {hint().remaining === 1 ? "unidade" : "unidades"}
                 </strong>{" "}
-                entre cores variadas para ganhar{" "}
+                entre cores variadas para liberar{" "}
                 <strong class="text-[#93509e]">
-                  {hint().discount_percent}% OFF
+                  {hint().target_price_formatted
+                    ? `${hint().target_price_formatted} cada`
+                    : `${hint().discount_percent}% OFF`}
                 </strong>{" "}
                 no atacado.
               </span>
