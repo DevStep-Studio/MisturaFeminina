@@ -32,7 +32,7 @@ export const Route = createRootRoute({
       <ConsentBanner />
     </>
   ),
-  pendingComponent: LoadingState,
+  pendingComponent: () => <LoadingState fullScreen />,
   notFoundComponent: () => <StatusPage status={404} />,
   errorComponent: (props) => {
     const router = useRouter();

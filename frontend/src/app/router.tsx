@@ -9,9 +9,9 @@ export const router = createRouter({
   routeTree,
   defaultPreload: false,
   scrollRestoration: true,
-  defaultPendingMs: 0,
+  defaultPendingMs: 300,
   defaultPendingMinMs: 150,
-  defaultPendingComponent: LoadingState,
+  defaultPendingComponent: () => <LoadingState fullScreen />,
 });
 declare module "@tanstack/solid-router" {
   interface Register {

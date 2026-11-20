@@ -1,9 +1,13 @@
-export function LoadingState(props: { message?: string }) {
+export function LoadingState(props: { message?: string; fullScreen?: boolean }) {
   return (
     <div
       role="status"
       aria-label={props.message || "Carregando..."}
-      class="fixed inset-0 z-[9999] flex min-h-dvh w-full items-center justify-center bg-white p-6"
+      class={
+        props.fullScreen
+          ? "fixed inset-0 z-[9999] flex min-h-dvh w-full items-center justify-center bg-white/95 p-6"
+          : "flex min-h-[50vh] w-full flex-1 items-center justify-center p-6"
+      }
     >
       <div class="flex items-center justify-center">
         <img

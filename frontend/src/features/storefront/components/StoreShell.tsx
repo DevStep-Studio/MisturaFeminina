@@ -36,9 +36,18 @@ export function StoreShell(props: ParentProps) {
       };
 
       observeElements();
-      const interval = setInterval(observeElements, 600);
+
+      const mutationObserver = typeof MutationObserver !== "undefined"
+        ? new MutationObserver(() => observeElements())
+        : null;
+
+      const mainContent = document.getElementById("main-content");
+      if (mainContent && mutationObserver) {
+        mutationObserver.observe(mainContent, { childList: true, subtree: true });
+      }
+
       onCleanup(() => {
-        clearInterval(interval);
+        mutationObserver?.disconnect();
         observer.disconnect();
       });
     }

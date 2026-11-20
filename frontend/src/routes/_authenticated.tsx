@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_authenticated")({
     }),
     links: [],
   }),
-  pendingComponent: () => <LoadingState message="Validando sua sessão…" />,
+  pendingComponent: () => <LoadingState fullScreen message="Validando sua sessão…" />,
   errorComponent: (props) => {
     const router = useRouter();
     createEffect(() => reportError(props.error, "session"));
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_authenticated")({
       fallback={
         <Show
           when={session.status() === "locked"}
-          fallback={<LoadingState message="Validando sua sessão…" />}
+          fallback={<LoadingState fullScreen message="Validando sua sessão…" />}
         >
           <AuthFrame
             title="Sessão bloqueada"

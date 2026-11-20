@@ -317,11 +317,14 @@ export function CatalogListingView(props: CatalogListingProps) {
           nextUrl.searchParams.set(`attr_${slug}`, vals.join(","));
         }
       }
-      window.history.replaceState(
-        window.history.state,
-        "",
-        nextUrl.pathname + nextUrl.search,
-      );
+      const targetSearch = nextUrl.search;
+      if (window.location.search !== targetSearch) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          nextUrl.pathname + targetSearch,
+        );
+      }
     }
     void fetchProducts();
   });

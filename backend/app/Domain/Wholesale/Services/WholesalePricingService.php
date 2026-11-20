@@ -15,6 +15,13 @@ use Illuminate\Support\Collection;
 
 class WholesalePricingService
 {
+    /** @var Collection<int, WholesaleRule>|null */
+    private ?Collection $rawRulesCache = null;
+
+    public function flushCache(): void
+    {
+        $this->rawRulesCache = null;
+    }
     /**
      * Calculate wholesale pricing for an active cart.
      *
@@ -509,21 +516,24 @@ class WholesalePricingService
      */
     public function resolveActiveRules(?User $user = null, ?int $customerGroupId = null): Collection
     {
-        $now = now();
+        if ($this->rawRulesCache === null) {
+            $now = now();
 
-        /** @var Collection<int, WholesaleRule> $rules */
-        $rules = WholesaleRule::query()
-            ->where('status', 'active')
-            ->where(function ($q) use ($now): void {
-                $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
-            })
-            ->where(function ($q) use ($now): void {
-                $q->whereNull('ends_at')->orWhere('ends_at', '>=', $now);
-            })
-            ->with(['tiers' => fn ($q) => $q->orderBy('min_quantity'), 'ruleProducts', 'customerGroups'])
-            ->orderByDesc('priority')
-            ->orderBy('id')
-            ->get();
+            $this->rawRulesCache = WholesaleRule::query()
+                ->where('status', 'active')
+                ->where(function ($q) use ($now): void {
+                    $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now);
+                })
+                ->where(function ($q) use ($now): void {
+                    $q->whereNull('ends_at')->orWhere('ends_at', '>=', $now);
+                })
+                ->with(['tiers' => fn ($q) => $q->orderBy('min_quantity'), 'ruleProducts', 'customerGroups'])
+                ->orderByDesc('priority')
+                ->orderBy('id')
+                ->get();
+        }
+
+        $rules = $this->rawRulesCache;
 
         if ($rules->isEmpty()) {
             return collect();
@@ -541,7 +551,7 @@ class WholesalePricingService
                 ->all();
         }
 
-        return $rules->filter(function (WholesaleRule $rule) use ($approvedGroupIds) {
+        $filtered = $rules->filter(function (WholesaleRule $rule) use ($approvedGroupIds) {
             if ($rule->access_mode === 'open') {
                 return true;
             }
@@ -560,6 +570,8 @@ class WholesalePricingService
             // mixed mode: applies if in group or if rule has open fallback
             return $matchesGroup;
         })->values();
+
+        return $filtered;
     }
 
     /**

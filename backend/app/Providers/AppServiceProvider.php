@@ -14,6 +14,11 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        $this->app->scoped(\App\Domain\Wholesale\Services\WholesalePricingService::class);
+    }
+
     public function boot(): void
     {
         RateLimiter::for('api', fn ($r) => Limit::perMinute(180)->by($r->user()?->id ?: $r->ip()));
