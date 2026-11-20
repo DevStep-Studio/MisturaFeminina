@@ -536,8 +536,9 @@ export function CatalogListingView(props: CatalogListingProps) {
           </nav>
         </Show>
 
-        <header class="mb-6 flex flex-col gap-4 pb-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        {/* Page Title & Action Header */}
+        <header class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="max-w-3xl">
             <div class="inline-flex items-center gap-2.5">
               <span
                 class="h-6 w-1 shrink-0 rounded-xs bg-[#93509e] sm:h-7"
@@ -548,23 +549,28 @@ export function CatalogListingView(props: CatalogListingProps) {
               </h1>
             </div>
             <Show when={props.subtitle}>
-              <p class="mt-2 max-w-2xl text-sm font-medium text-[#5B486B]">
+              <p class="mt-2 text-sm font-medium leading-relaxed text-[#5B486B]">
                 {props.subtitle}
               </p>
             </Show>
           </div>
 
-          <div class="flex flex-wrap items-center gap-3">
-            <Show when={props.headerAction}>
+          <Show when={props.headerAction}>
+            <div class="shrink-0 sm:pt-0.5">
               {props.headerAction}
-            </Show>
+            </div>
+          </Show>
+        </header>
 
+        {/* Toolbar: Counter, Mobile Filter Trigger & Sort Dropdown */}
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-3 border-y border-[#F3EAF5] py-3">
+          <div class="flex items-center gap-3">
             <Show when={props.showFilters !== false}>
               <button
                 type="button"
                 aria-expanded={mobileFiltersOpen()}
                 onClick={() => setMobileFiltersOpen(!mobileFiltersOpen())}
-                class="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-4 text-xs font-bold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white lg:hidden"
+                class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-3.5 text-xs font-bold text-[#93509e] shadow-2xs transition-colors hover:bg-[#93509e] hover:text-white lg:hidden"
               >
                 <SlidersHorizontal class="size-3.5" />
                 <span>Filtros</span>
@@ -572,35 +578,36 @@ export function CatalogListingView(props: CatalogListingProps) {
             </Show>
 
             <span class="text-xs font-semibold text-[#5B486B]">
-              {total()} {total() === 1 ? "produto" : "produtos"}
+              <span class="font-bold text-[#2E0C49]">{total()}</span>{" "}
+              {total() === 1 ? "produto encontrado" : "produtos encontrados"}
             </span>
-
-            <div class="flex items-center gap-2">
-              <label
-                for="catalog-sort"
-                class="text-xs font-bold text-[#3D1260]"
-              >
-                Ordenar por:
-              </label>
-              <select
-                id="catalog-sort"
-                value={sort()}
-                onChange={(e) => {
-                  setSort(e.currentTarget.value);
-                  setPage(1);
-                }}
-                class="h-10 rounded-lg border border-[#E5DAE9] bg-[#F5F2F7] px-4 text-sm font-bold text-[#3D1260] focus:border-[#93509e] focus:outline-none"
-              >
-                <option value="relevance">Relevância</option>
-                <option value="newest">Lançamentos</option>
-                <option value="best_sellers">Mais vendidos</option>
-                <option value="price_asc">Menor preço</option>
-                <option value="price_desc">Maior preço</option>
-                <option value="discount">Maiores descontos</option>
-              </select>
-            </div>
           </div>
-        </header>
+
+          <div class="flex items-center gap-2">
+            <label
+              for="catalog-sort"
+              class="text-xs font-bold text-[#3D1260]"
+            >
+              Ordenar por:
+            </label>
+            <select
+              id="catalog-sort"
+              value={sort()}
+              onChange={(e) => {
+                setSort(e.currentTarget.value);
+                setPage(1);
+              }}
+              class="h-9 rounded-lg border border-[#E5DAE9] bg-white px-3 text-xs font-bold text-[#3D1260] shadow-2xs transition focus:border-[#93509e] focus:outline-hidden"
+            >
+              <option value="relevance">Relevância</option>
+              <option value="newest">Lançamentos</option>
+              <option value="best_sellers">Mais vendidos</option>
+              <option value="price_asc">Menor preço</option>
+              <option value="price_desc">Maior preço</option>
+              <option value="discount">Maiores descontos</option>
+            </select>
+          </div>
+        </div>
 
         {/* Mobile Filter Slide-over Drawer */}
         <Show when={props.showFilters !== false && mobileFiltersOpen()}>
