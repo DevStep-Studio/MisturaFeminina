@@ -93,9 +93,9 @@ function WholesaleStorefrontPage() {
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            class="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-3.5 text-xs font-bold text-[#93509e] shadow-xs transition-colors hover:bg-[#93509e] hover:text-white"
+            class="inline-flex h-10 w-full sm:w-auto items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-3.5 text-xs font-bold text-[#93509e] shadow-xs transition-colors hover:bg-[#93509e] hover:text-white"
           >
-            <UserCheck class="size-3.5" />
+            <UserCheck class="size-3.5 shrink-0" />
             <span>Cadastre-se como Revendedora</span>
           </button>
         }

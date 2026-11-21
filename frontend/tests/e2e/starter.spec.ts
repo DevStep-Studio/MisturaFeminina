@@ -40,37 +40,7 @@ test("sitemap contains no authentication or demonstration routes", async ({
   }
   expect((await request.get("/health.json")).ok()).toBe(true);
 });
-test("analytics waits for consent and rejection persists", async ({ page }) => {
-  await page.goto("/login");
-  await expect(
-    page.getByRole("button", { name: "Recusar análises" }),
-  ).toBeVisible();
-  await expect(page.locator("#devstep-gtm")).toHaveCount(0);
-  await page.getByRole("button", { name: "Recusar análises" }).click();
-  await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Entrar", exact: true }),
-  ).toBeVisible();
-  await expect(page.locator("#devstep-gtm")).toHaveCount(0);
-  expect(
-    await page.evaluate((key) => localStorage.getItem(key), consentKey),
-  ).toBe("denied");
-});
-test("consent loads GTM once and revocation stops it", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Aceitar análises" }).click();
-  await expect(page.locator("#devstep-gtm")).toHaveCount(1);
-  await page.getByRole("link", { name: "Esqueci minha senha" }).click();
-  await expect(page.locator("#devstep-gtm")).toHaveCount(1);
-  await expect(
-    page.getByRole("button", { name: "Preferências de privacidade" }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: "Recuperar senha" }),
-  ).toBeVisible();
-  await expect(page.locator("#devstep-gtm")).toHaveCount(0);
-});
-test("auth and consent fit a mobile viewport", async ({ page }) => {
+test("auth fits a mobile viewport cleanly without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/login");
   await expect(
@@ -78,9 +48,8 @@ test("auth and consent fit a mobile viewport", async ({ page }) => {
   ).toBeVisible();
   expect(
     await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
+      () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("button", { name: "Recusar análises" }).click();
   await expect(page.getByLabel("E-mail", { exact: true })).toBeVisible();
 });

@@ -465,7 +465,7 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
           type="button"
           disabled={totalUnits() === 0 || props.busy}
           onClick={() => void handleBulkAdd()}
-          class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#93509e] px-5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-[#7c3f87] disabled:cursor-not-allowed disabled:opacity-50"
+          class="inline-flex h-11 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-[#93509e] px-5 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition-colors hover:bg-[#7c3f87] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ShoppingCart class="h-4 w-4" />
           <span>
