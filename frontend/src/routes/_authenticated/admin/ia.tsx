@@ -6,6 +6,7 @@ import MessageCircle from "lucide-solid/icons/message-circle";
 import PackagePlus from "lucide-solid/icons/package-plus";
 import RefreshCw from "lucide-solid/icons/refresh-cw";
 import Sparkles from "lucide-solid/icons/sparkles";
+import TrendingUp from "lucide-solid/icons/trending-up";
 import {
   For,
   Show,
@@ -15,6 +16,7 @@ import {
 } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminAiCatalogAgentPanel } from "../../../features/admin/ai/AdminAiCatalogAgentPanel";
+import { AdminAiMarketingAgentPanel } from "../../../features/admin/ai/AdminAiMarketingAgentPanel";
 import { AdminAiReplenishmentAgentPanel } from "../../../features/admin/ai/AdminAiReplenishmentAgentPanel";
 import { AdminAiSettingsAndLogsPanel } from "../../../features/admin/ai/AdminAiSettingsAndLogsPanel";
 import {
@@ -50,6 +52,7 @@ export const Route = createFileRoute("/_authenticated/admin/ia")({
 
 type AiHubTab =
   | "overview"
+  | "marketing"
   | "cadastro"
   | "reposicao"
   | "execucoes"
@@ -94,6 +97,7 @@ function AdminAiCentralPage() {
     const s = routeSearch();
     if (
       s.tab === "overview" ||
+      s.tab === "marketing" ||
       s.tab === "cadastro" ||
       s.tab === "reposicao" ||
       s.tab === "execucoes" ||
@@ -126,6 +130,7 @@ function AdminAiCentralPage() {
   const visibleTabs = () => {
     const base: Array<readonly [AiHubTab, string]> = [
       ["overview", "Visão geral"],
+      ["marketing", "Marketing & Growth"],
       ["cadastro", "Agente de Cadastro"],
       ["reposicao", "Reposição Inteligente"],
       ["execucoes", "Execuções"],
@@ -198,8 +203,8 @@ function AdminAiCentralPage() {
       <Show when={tab() === "overview" && overview()}>
         {(ov) => (
           <div class="space-y-6">
-            {/* 3 Cards Principais */}
-            <section class="grid gap-4 lg:grid-cols-3">
+            {/* 4 Cards Principais */}
+            <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Card 1: Agente de Atendimento */}
               <div class="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
                 <div>
@@ -342,6 +347,46 @@ function AdminAiCentralPage() {
                   Analisar estoque
                 </button>
               </div>
+
+              {/* Card 4: Marketing & Growth */}
+              <div class="flex flex-col justify-between rounded-xl border border-[#DFC2E3] bg-white p-5 shadow-2xs">
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="inline-flex items-center gap-2 text-sm font-extrabold text-zinc-900">
+                      <TrendingUp class="size-4 text-[#93509e]" />
+                      Marketing & Growth
+                    </span>
+                    <span class="rounded-full bg-[#F3E2F6] px-2.5 py-0.5 text-[10px] font-bold text-[#93509e]">
+                      {ov().agents.find((a) => a.slug === "marketing_growth")
+                        ?.integration_label ?? ov().provider.label}
+                    </span>
+                  </div>
+                  <p class="mt-2 text-xs text-zinc-600">
+                    Analise o desempenho da loja, melhore seu SEO e otimize campanhas do Google e das redes sociais.
+                  </p>
+                  <div class="mt-3 space-y-1 text-[11px] text-zinc-500">
+                    <p>
+                      Canais:{" "}
+                      <strong class="text-zinc-800">
+                        Google Ads, Meta Ads, GA4 & SEO
+                      </strong>
+                    </p>
+                    <p>
+                      Status:{" "}
+                      <strong class="text-emerald-700">
+                        Ativo e integrado
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTab("marketing")}
+                  class="mt-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#93509e] px-4 text-xs font-bold text-white hover:bg-[#7c3f87]"
+                >
+                  Abrir agente
+                </button>
+              </div>
             </section>
 
             {/* Indicadores Reais */}
@@ -389,6 +434,10 @@ function AdminAiCentralPage() {
             </section>
           </div>
         )}
+      </Show>
+
+      <Show when={tab() === "marketing"}>
+        <AdminAiMarketingAgentPanel />
       </Show>
 
       <Show when={tab() === "cadastro"}>

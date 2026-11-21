@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AccountController;
 use App\Http\Controllers\Api\V1\Admin\AdminAiAgentController;
+use App\Http\Controllers\Api\V1\Admin\AdminAiMarketingAgentController;
 use App\Http\Controllers\Api\V1\Admin\AdminCatalogController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminMarketingController;
@@ -313,6 +314,39 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             Route::get('replenishment/suggestions/{suggestionId}/explain', [AdminAiAgentController::class, 'explainReplenishmentSuggestion'])->middleware('permission:ai.replenishment');
             Route::post('replenishment/analyses/{analysisId}/save-plan', [AdminAiAgentController::class, 'saveReplenishmentPlan'])->middleware('permission:ai.replenishment');
             Route::get('replenishment/analyses/{analysisId}/export-csv', [AdminAiAgentController::class, 'exportReplenishmentCsv'])->middleware('permission:ai.replenishment');
+
+            // Agente 04: Marketing & Growth
+            Route::prefix('marketing')->group(function (): void {
+                Route::get('overview', [AdminAiMarketingAgentController::class, 'overview'])->middleware('permission:ai.view');
+                Route::get('chat', [AdminAiMarketingAgentController::class, 'getChatHistory'])->middleware('permission:ai.view');
+                Route::post('chat', [AdminAiMarketingAgentController::class, 'chat'])->middleware('permission:ai.view');
+                Route::get('seo/audit', [AdminAiMarketingAgentController::class, 'seoAudit'])->middleware('permission:ai.view');
+                Route::post('seo/audit/run', [AdminAiMarketingAgentController::class, 'runSeoAudit'])->middleware('permission:ai.view');
+                Route::post('seo/optimize-metadata', [AdminAiMarketingAgentController::class, 'optimizeMetadata'])->middleware('permission:ai.view');
+                Route::post('seo/apply-metadata', [AdminAiMarketingAgentController::class, 'applyMetadata'])->middleware('permission:ai.view');
+                Route::post('seo/batch-apply-metadata', [AdminAiMarketingAgentController::class, 'batchApplyMetadata'])->middleware('permission:ai.view');
+                Route::get('google-ads/campaigns', [AdminAiMarketingAgentController::class, 'googleAdsCampaigns'])->middleware('permission:ai.view');
+                Route::post('google-ads/negative-keyword', [AdminAiMarketingAgentController::class, 'addNegativeKeyword'])->middleware('permission:ai.view');
+                Route::post('google-ads/draft-campaign', [AdminAiMarketingAgentController::class, 'draftGoogleAdsCampaign'])->middleware('permission:ai.view');
+                Route::get('ga4/insights', [AdminAiMarketingAgentController::class, 'ga4Insights'])->middleware('permission:ai.view');
+                Route::get('meta-ads/campaigns', [AdminAiMarketingAgentController::class, 'metaAdsCampaigns'])->middleware('permission:ai.view');
+                Route::get('opportunities', [AdminAiMarketingAgentController::class, 'opportunities'])->middleware('permission:ai.view');
+                Route::patch('opportunities/{id}/status', [AdminAiMarketingAgentController::class, 'updateOpportunityStatus'])->middleware('permission:ai.view');
+                Route::post('opportunities/scan', [AdminAiMarketingAgentController::class, 'scanOpportunities'])->middleware('permission:ai.view');
+                Route::get('recommendations', [AdminAiMarketingAgentController::class, 'recommendations'])->middleware('permission:ai.view');
+                Route::post('recommendations/{id}/apply', [AdminAiMarketingAgentController::class, 'applyRecommendation'])->middleware('permission:ai.view');
+                Route::post('recommendations/{id}/discard', [AdminAiMarketingAgentController::class, 'discardRecommendation'])->middleware('permission:ai.view');
+                Route::get('automations', [AdminAiMarketingAgentController::class, 'automations'])->middleware('permission:ai.view');
+                Route::post('automations', [AdminAiMarketingAgentController::class, 'saveAutomation'])->middleware('permission:ai.view');
+                Route::patch('automations/{id}/toggle', [AdminAiMarketingAgentController::class, 'toggleAutomation'])->middleware('permission:ai.view');
+                Route::post('automations/{id}/run', [AdminAiMarketingAgentController::class, 'runAutomationNow'])->middleware('permission:ai.view');
+                Route::get('reports', [AdminAiMarketingAgentController::class, 'reports'])->middleware('permission:ai.view');
+                Route::post('reports/generate', [AdminAiMarketingAgentController::class, 'generateReport'])->middleware('permission:ai.view');
+                Route::get('reports/{id}/export', [AdminAiMarketingAgentController::class, 'exportReport'])->middleware('permission:ai.view');
+                Route::get('integrations', [AdminAiMarketingAgentController::class, 'integrations'])->middleware('permission:ai.view');
+                Route::post('integrations/connect', [AdminAiMarketingAgentController::class, 'saveIntegration'])->middleware('permission:ai.view');
+                Route::post('integrations/test', [AdminAiMarketingAgentController::class, 'testIntegration'])->middleware('permission:ai.view');
+            });
         });
 
         // Central de Atacado (Wholesale System)

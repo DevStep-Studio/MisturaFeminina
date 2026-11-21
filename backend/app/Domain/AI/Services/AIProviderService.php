@@ -27,6 +27,7 @@ class AIProviderService
             'support_model' => 'gpt-4o-mini',
             'catalog_model' => 'gpt-4o-mini',
             'replenishment_model' => 'gpt-4o-mini',
+            'marketing_model' => 'gpt-4o-mini',
             'max_tokens_per_operation' => 2500,
             'timeout_seconds' => 25,
             'max_retries' => 2,
@@ -114,6 +115,7 @@ class AIProviderService
                 'support' => (string) $cfg['support_model'],
                 'catalog' => (string) $cfg['catalog_model'],
                 'replenishment' => (string) $cfg['replenishment_model'],
+                'marketing' => (string) ($cfg['marketing_model'] ?? 'gpt-4o-mini'),
             ],
             'last_healthcheck_at' => $setting?->last_healthcheck_at?->toIso8601String(),
             'last_healthcheck_status' => $setting?->last_healthcheck_status,
@@ -192,6 +194,7 @@ class AIProviderService
         $modelKey = match ($agentType) {
             'catalog' => 'catalog_model',
             'replenishment' => 'replenishment_model',
+            'marketing' => 'marketing_model',
             default => 'support_model',
         };
         $model = (string) ($cfg[$modelKey] ?? 'gpt-4o-mini');

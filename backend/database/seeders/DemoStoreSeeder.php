@@ -259,6 +259,8 @@ class DemoStoreSeeder extends Seeder
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'preparadores-e-primers', 'name' => 'Preparadores e Primers', 'order' => 3],
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'top-coat-e-finalizadores', 'name' => 'Top Coat e Finalizadores', 'order' => 4],
             ['parent' => 'unhas-e-esmalteria', 'slug' => 'kits', 'name' => 'Kits de Unhas', 'image_path' => '/categories/kits.png', 'order' => 5],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'gel', 'name' => 'Géis e Alongamento', 'order' => 6],
+            ['parent' => 'unhas-e-esmalteria', 'slug' => 'top-coat', 'name' => 'Top Coat', 'order' => 7],
 
             // Silo 2: Cílios e Lash Designer
             ['parent' => 'cilios', 'slug' => 'extensao-de-cilios', 'name' => 'Extensão de Cílios', 'order' => 1],
@@ -292,7 +294,9 @@ class DemoStoreSeeder extends Seeder
             ['parent' => 'acessorios-pro', 'slug' => 'motores', 'name' => 'Motores', 'image_path' => '/categories/motores.png', 'order' => 4],
             ['parent' => 'acessorios-pro', 'slug' => 'aspiradores', 'name' => 'Aspiradores', 'image_path' => '/categories/aspiradores.png', 'order' => 5],
             ['parent' => 'acessorios-pro', 'slug' => 'luminarias', 'name' => 'Luminárias', 'image_path' => '/categories/luminarias.png', 'order' => 6],
-        ];
+            ['parent' => 'acessorios-pro', 'slug' => 'cabines', 'name' => 'Cabines', 'order' => 7],
+            ['parent' => 'acessorios-pro', 'slug' => 'brocas', 'name' => 'Brocas', 'order' => 8],
+
             // Nível 3 sob Brocas e Lixas
             ['parent' => 'brocas-e-lixas', 'slug' => 'brocas-ceramica', 'name' => 'Brocas de Cerâmica', 'order' => 1],
             ['parent' => 'brocas-e-lixas', 'slug' => 'lixas-profissionais', 'name' => 'Lixas e Polidoras', 'order' => 2],

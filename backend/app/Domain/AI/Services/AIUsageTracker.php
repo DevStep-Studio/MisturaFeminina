@@ -43,6 +43,13 @@ class AIUsageTracker
                 'description' => 'Analise vendas e estoques para descobrir o que precisa ser reposto.',
                 'model_name' => 'gpt-4o-mini',
             ],
+            [
+                'slug' => 'marketing_growth',
+                'name' => 'Agente de Marketing & Growth',
+                'type' => 'marketing',
+                'description' => 'Analise o desempenho da loja, melhore seu SEO e otimize campanhas do Google e das redes sociais.',
+                'model_name' => 'gpt-4o-mini',
+            ],
         ];
 
         foreach ($defs as $def) {
