@@ -180,9 +180,8 @@ export function CartDrawer() {
                           {item.variant_name} • SKU {item.sku}
                         </p>
                         <Show when={item.wholesale_applied}>
-                          <span class="mt-1 inline-flex items-center gap-1 rounded bg-[#F8EFFC] px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784]">
-                            Preço de Atacado ({item.wholesale_tier_min_qty}+
-                            un.)
+                          <span class="mt-1 inline-flex items-center gap-1 rounded bg-[#F8EFFC] px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784] whitespace-nowrap">
+                            Preço de Atacado ({item.wholesale_tier_min_qty}+ un.)
                           </span>
                         </Show>
                         <div class="mt-2 flex items-center justify-between">

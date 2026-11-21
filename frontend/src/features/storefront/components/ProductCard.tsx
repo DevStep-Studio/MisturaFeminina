@@ -290,7 +290,7 @@ export function ProductCard(props: {
               <button
                 type="button"
                 onClick={() => setIsWholesaleSelected((prev) => !prev)}
-                class={`group/wholesale inline-flex h-[30px] max-w-full items-center justify-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-all duration-200 whitespace-nowrap ${
+                class={`group/wholesale inline-flex h-[30px] max-w-full min-w-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-200 ${
                   isWholesaleSelected()
                     ? "border-[#93509e] bg-[#FAF3FC] text-[#7C2784] ring-1 ring-[#93509e]/40 shadow-xs"
                     : "border-[#ECD4EF] bg-[#FDF8FD] text-[#6E2E78] hover:border-[#93509e] hover:bg-[#FAF3FC]"
@@ -298,7 +298,7 @@ export function ProductCard(props: {
                 title={
                   isWholesaleSelected()
                     ? "Preço de atacado ativo. Clique para voltar ao varejo."
-                    : "Clique para ativar a faixa de atacado"
+                    : `Clique para ativar atacado: a partir de ${minWholesaleQty()} unidades`
                 }
               >
                 <Boxes
@@ -308,17 +308,18 @@ export function ProductCard(props: {
                 <Show
                   when={isWholesaleSelected()}
                   fallback={
-                    <span class="whitespace-nowrap">
-                      Atacado: a partir de{" "}
+                    <span class="min-w-0 truncate">
+                      Atacado:{" "}
                       <strong class="font-bold text-[#93509e]">
                         {formatCents(wholesaleStartingPriceCents())}
                       </strong>
-                      {" "}({minWholesaleQty()}+ un.)
+                      <span class="hidden sm:inline"> ({minWholesaleQty()}+ un.)</span>
                     </span>
                   }
                 >
-                  <span class="font-bold text-emerald-700 whitespace-nowrap">
-                    ✓ Atacado Ativo ({minWholesaleQty()} un.)
+                  <span class="min-w-0 truncate font-bold text-emerald-700">
+                    ✓ Atacado Ativo
+                    <span class="hidden sm:inline"> ({minWholesaleQty()} un.)</span>
                   </span>
                 </Show>
               </button>
@@ -378,7 +379,7 @@ export function ProductCard(props: {
               )}
               target="_blank"
               rel="noopener noreferrer"
-              class="mf-btn-whats mt-2 flex h-[32px] w-full items-center justify-center gap-1.5 rounded-lg px-3 text-[11.5px] font-medium"
+              class="mf-btn-whats mt-2 flex h-[32px] w-full items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] sm:px-3 sm:text-[11.5px] font-medium"
             >
               <svg
                 viewBox="0 0 24 24"

@@ -65,6 +65,12 @@ export const publicPages: Record<
     description:
       "Descubra os lançamentos mais recentes em produtos de beleza, maquiagem e cuidados pessoais na Mistura Feminina.",
   },
+  atacado: {
+    path: "/atacado",
+    title: "Atacado e Preços por Quantidade | Mistura Feminina Cosméticos",
+    description:
+      "Compre no atacado na Mistura Feminina: descontos progressivos por quantidade e condições especiais para revendedoras e profissionais.",
+  },
   contato: {
     path: "/contato",
     title: "Fale Conosco e Atendimento | Mistura Feminina",

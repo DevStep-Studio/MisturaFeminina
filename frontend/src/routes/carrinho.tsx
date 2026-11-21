@@ -203,9 +203,8 @@ function CartPage() {
                             {formatCents(item.unit_price_cents)} cada
                           </p>
                           <Show when={item.wholesale_applied}>
-                            <span class="mt-1 inline-flex items-center gap-1 rounded bg-[#F8EFFC] px-2 py-0.5 text-[11px] font-bold text-[#7C2784]">
-                              Preço de Atacado ({item.wholesale_tier_min_qty}+
-                              un.)
+                            <span class="mt-1 inline-flex items-center gap-1 rounded bg-[#F8EFFC] px-2 py-0.5 text-[11px] font-bold text-[#7C2784] whitespace-nowrap">
+                              Preço de Atacado ({item.wholesale_tier_min_qty}+ un.)
                             </span>
                           </Show>
                           <Show when={!item.in_stock}>
