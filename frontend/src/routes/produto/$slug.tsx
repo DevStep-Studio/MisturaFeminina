@@ -724,21 +724,43 @@ function ProductDetailPage() {
                   <Link to="/" class="hover:underline">
                     Home
                   </Link>
-                  <Show when={p().categories[0]}>
-                    {(cat) => (
-                      <>
-                        <span aria-hidden="true" class="text-[#2E0C49]/50">
-                          /
-                        </span>
-                        <Link
-                          to="/categoria/$slug"
-                          params={{ slug: cat().slug }}
-                          class="hover:underline"
-                        >
-                          {cat().name}
-                        </Link>
-                      </>
-                    )}
+                  <Show
+                    when={(p().category_ancestors?.length ?? 0) > 0}
+                    fallback={
+                      <Show when={p().categories[0]}>
+                        {(cat) => (
+                          <>
+                            <span aria-hidden="true" class="text-[#2E0C49]/50">
+                              /
+                            </span>
+                            <Link
+                              to="/categoria/$slug"
+                              params={{ slug: cat().slug }}
+                              class="hover:underline"
+                            >
+                              {cat().name}
+                            </Link>
+                          </>
+                        )}
+                      </Show>
+                    }
+                  >
+                    <For each={p().category_ancestors ?? []}>
+                      {(anc) => (
+                        <>
+                          <span aria-hidden="true" class="text-[#2E0C49]/50">
+                            /
+                          </span>
+                          <Link
+                            to="/categoria/$slug"
+                            params={{ slug: anc.slug }}
+                            class="hover:underline"
+                          >
+                            {anc.name}
+                          </Link>
+                        </>
+                      )}
+                    </For>
                   </Show>
                   <span aria-hidden="true" class="text-[#2E0C49]/50">
                     /

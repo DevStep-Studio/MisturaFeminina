@@ -4,6 +4,7 @@ import Loader2 from "lucide-solid/icons/loader-circle";
 import { For, Show, createSignal, onCleanup } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
 import { AdminButton, AdminCombobox, AdminModal, AdminMultiCombobox } from "../ui";
+import { buildCategoryHierarchyOptions } from "../categories/category-helpers";
 import {
   type BrandOption,
   type BulkRulePreviewPayload,
@@ -549,10 +550,16 @@ export function BulkRuleModal(props: {
                         <AdminMultiCombobox
                           label="Selecionar categorias"
                           selectedValues={selectedCategoryIds().map(String)}
-                          options={props.categories.map((c) => ({
-                            value: String(c.id),
-                            label: c.name,
-                          }))}
+                          options={buildCategoryHierarchyOptions(
+                            props.categories.map((c) => ({
+                              id: c.id,
+                              name: c.name,
+                              slug: c.slug ?? "",
+                              parent_id: c.parent_id ?? null,
+                              sort_order: c.sort_order,
+                              full_path: c.full_path,
+                            })),
+                          )}
                           onToggleValue={(val) => toggleCategoryId(Number(val))}
                           onClearAll={() => setSelectedCategoryIds([])}
                         />

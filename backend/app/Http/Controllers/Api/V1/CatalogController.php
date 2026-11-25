@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Admin\Services\IntelligentReportsService;
+use App\Domain\Catalog\Services\CategoryHierarchyService;
 use App\Domain\Catalog\Services\ProductAttributeService;
 use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Settings\Services\StoreSettingsService;
@@ -33,18 +34,14 @@ class CatalogController extends Controller
         private readonly ProductAttributeService $attributes,
         private readonly RestockNotificationService $restock,
         private readonly IntelligentReportsService $reports,
+        private readonly CategoryHierarchyService $categoryHierarchy,
     ) {}
 
     public function categories(): JsonResponse
     {
-        $categories = Category::query()
-            ->where('is_active', true)
-            ->whereNull('parent_id')
-            ->with(['children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->with('children')])
-            ->orderBy('sort_order')
-            ->get();
-
-        return response()->json(['data' => $categories]);
+        return response()->json([
+            'data' => $this->categoryHierarchy->getPublicDirectoryTree(menuOnly: false),
+        ]);
     }
 
     public function categoryShow(Request $request, string $slug): JsonResponse
@@ -54,8 +51,8 @@ class CatalogController extends Controller
             ->where('is_active', true)
             ->with([
                 'parent:id,name,slug',
-                'children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->with([
-                    'children' => fn ($q2) => $q2->where('is_active', true)->orderBy('sort_order'),
+                'children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->orderBy('name')->with([
+                    'children' => fn ($q2) => $q2->where('is_active', true)->orderBy('sort_order')->orderBy('name'),
                 ]),
             ])
             ->first();
@@ -67,22 +64,21 @@ class CatalogController extends Controller
             abort(404, 'Categoria não encontrada.');
         }
 
-        $categoryIds = [$category->id];
-        foreach ($category->children as $child) {
-            $categoryIds[] = $child->id;
-            foreach ($child->children as $grandChild) {
-                $categoryIds[] = $grandChild->id;
-            }
-        }
+        $categoryIds = $this->categoryHierarchy->getDescendantIds($category->id, activeOnly: true);
+        $ancestors = $this->categoryHierarchy->getAncestors($category->id);
+
         $query = Product::query()
             ->where('is_active', true)
             ->whereHas('categories', fn (Builder $q) => $q->whereIn('categories.id', $categoryIds));
 
         $result = $this->applyProductFiltersAndPaginate($request, $query, $category);
 
+        $categoryPayload = $category->toArray();
+        $categoryPayload['ancestors'] = $ancestors;
+
         return response()->json([
             'data' => [
-                'category' => $category,
+                'category' => $categoryPayload,
                 'products' => $result['products'],
                 'meta' => $result['meta'],
                 'facets' => $result['facets'],
@@ -301,6 +297,9 @@ class CatalogController extends Controller
                 'rating_count' => $approvedReviews->count(),
                 'seo_title' => $product->seo_title ?: $product->name,
                 'seo_description' => $product->seo_description ?: $product->short_description,
+                'category_ancestors' => $product->categories->isNotEmpty()
+                    ? $this->categoryHierarchy->getAncestors((int) $product->categories->first()->id)
+                    : [],
                 'related_products' => $related,
             ],
         ]);
@@ -435,7 +434,17 @@ class CatalogController extends Controller
 
         if ($request->filled('category')) {
             $catSlugs = array_filter(explode(',', (string) $request->query('category')));
-            $query->whereHas('categories', fn (Builder $cq) => $cq->whereIn('slug', $catSlugs));
+            $matchedCatIds = Category::query()->where('is_active', true)->whereIn('slug', $catSlugs)->pluck('id')->all();
+            $expandedCatIds = [];
+            foreach ($matchedCatIds as $cid) {
+                array_push($expandedCatIds, ...$this->categoryHierarchy->getDescendantIds((int) $cid, activeOnly: true));
+            }
+            $expandedCatIds = array_values(array_unique($expandedCatIds));
+            if ($expandedCatIds !== []) {
+                $query->whereHas('categories', fn (Builder $cq) => $cq->whereIn('categories.id', $expandedCatIds));
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         if ($request->boolean('in_stock')) {

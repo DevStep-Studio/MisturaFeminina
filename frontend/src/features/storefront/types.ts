@@ -55,6 +55,7 @@ export interface CategoryNode {
   description?: string | null;
   seo_title?: string | null;
   seo_description?: string | null;
+  ancestors?: Array<{ id: number; name: string; slug: string }>;
   children?: CategoryNode[];
   featured_product?: ProductCardData | null;
 }
@@ -202,6 +203,7 @@ export interface ProductDetailData extends ProductCardData {
   wholesale_enabled: boolean;
   wholesale_tiers: { min_qty: number; discount_percent: number }[];
   categories: CategoryNode[];
+  category_ancestors?: Array<{ id: number; name: string; slug: string }>;
   images: {
     id: number;
     path: string;

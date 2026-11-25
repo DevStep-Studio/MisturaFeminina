@@ -200,3 +200,11 @@ Artisan::command('mistura:ai-replenishment-analyze', function (InventoryReplenis
 Schedule::command('mistura:release-expired-reservations')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('mistura:reconcile-payments')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('mistura:ai-replenishment-analyze')->dailyAt('06:00')->withoutOverlapping();
+
+Artisan::command('catalog:seed-categories', function (): int {
+    $seeder = new \Database\Seeders\OfficialCategoriesSeeder;
+    $stats = $seeder->seedOfficialCategories();
+    $this->info("Categorias oficiais processadas: {$stats['created']} criada(s), {$stats['reused']} reaproveitada(s) (total oficial: {$stats['total_official']}).");
+
+    return 0;
+})->purpose('Cadastra de forma idempotente as categorias e subcategorias oficiais da Mistura Feminina.');

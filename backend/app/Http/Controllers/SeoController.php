@@ -47,7 +47,25 @@ class SeoController extends Controller
                 ['loc' => $base.'/contato'],
             ];
 
-            Category::query()->where('is_active', true)->get(['slug', 'updated_at'])->each(function (Category $c) use (&$urls, $base): void {
+            $activeCats = Category::query()
+                ->where('is_active', true)
+                ->get(['id', 'parent_id', 'slug', 'updated_at'])
+                ->keyBy('id');
+
+            $activeCats->each(function (Category $c) use (&$urls, $base, $activeCats): void {
+                $cursor = $c;
+                $visited = [];
+                while ($cursor->parent_id !== null) {
+                    if (isset($visited[$cursor->id])) {
+                        return;
+                    }
+                    $visited[$cursor->id] = true;
+                    $parent = $activeCats->get((int) $cursor->parent_id);
+                    if (! $parent) {
+                        return;
+                    }
+                    $cursor = $parent;
+                }
                 $urls[] = [
                     'loc' => $base.'/categoria/'.$c->slug,
                     'lastmod' => $c->updated_at?->toAtomString(),

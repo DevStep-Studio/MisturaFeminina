@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\AI\Services;
 
+use App\Domain\Catalog\Services\CategoryPathResolver;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
@@ -15,6 +16,7 @@ class ProductImportValidator
 {
     public function __construct(
         private readonly AIProviderService $provider,
+        private readonly CategoryPathResolver $categoryResolver,
     ) {}
 
     /**
@@ -62,7 +64,12 @@ class ProductImportValidator
 
             $baseLineName = $this->extractProductLineName($rawName, $variantNameRaw);
             $matchedBrand = $this->matchBrand($brandNameRaw, $brands);
-            $matchedCategory = $this->matchCategory(! empty($row['category']) ? (string) $row['category'] : null, "{$rawName} {$baseLineName}", $categories);
+            $catResolution = ! empty($row['category'])
+                ? $this->categoryResolver->resolve((string) $row['category'], $categories)
+                : ['status' => 'empty', 'matched_category' => null, 'suggestions' => []];
+            $matchedCategory = ($catResolution['matched_category']['id'] ?? null)
+                ? $categories->firstWhere('id', (int) $catResolution['matched_category']['id'])
+                : $this->matchCategory(null, "{$rawName} {$baseLineName}", $categories);
 
             $standardizedProductName = $this->standardizeProductName($baseLineName, $matchedBrand->name ?? $brandNameRaw, $volume);
             $isEquipment = ! empty($row['is_equipment'])
@@ -219,6 +226,11 @@ class ProductImportValidator
 
             $groupCounters[$groupKey] = ($groupCounters[$groupKey] ?? 0) + 1;
 
+            if (! empty($row['category']) && ! $matchedCategory) {
+                $suggNames = array_map(fn (array $s): string => $s['full_path'], array_slice($catResolution['suggestions'], 0, 3));
+                $suggHint = $suggNames !== [] ? ' Sugestões: '.implode(', ', $suggNames).'.' : '';
+                $warnings[] = "Categoria \"{$row['category']}\" não encontrada com segurança — vincule manualmente ou crie antes de aprovar.{$suggHint}";
+            }
             if ($errors !== []) {
                 $errorCount++;
                 if ($actionType === 'new_product' && ($rawName === '' || str_contains($rawName, 'Informação não identificada') || ($isEquipment && $powerWatts === null))) {
@@ -261,7 +273,8 @@ class ProductImportValidator
                     'brand_id' => $matchedBrand?->id,
                     'brand_name' => $matchedBrand->name ?? $brandNameRaw,
                     'category_id' => $matchedCategory?->id,
-                    'category_name' => $matchedCategory->name ?? (! empty($row['category']) ? (string) $row['category'] : null),
+                    'category_name' => $catResolution['matched_category']['full_path'] ?? $matchedCategory->name ?? (! empty($row['category']) ? (string) $row['category'] : null),
+                    'category_suggestions' => $catResolution['suggestions'],
                     'variant_name' => $variantNameRaw,
                     'shade_code' => $shadeCode,
                     'color_family' => ! empty($row['color_family']) ? (string) $row['color_family'] : $this->inferColorFamily($variantNameRaw),

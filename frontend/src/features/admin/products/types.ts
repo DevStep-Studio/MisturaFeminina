@@ -143,7 +143,12 @@ export interface AdminProductRow {
     }>;
   } | null;
   brand?: { id: number; name: string } | null;
-  categories?: { id: number; name: string }[];
+  categories?: {
+    id: number;
+    name: string;
+    slug?: string;
+    pivot?: { is_primary?: boolean | number };
+  }[];
   images?: {
     id: number;
     path: string;
@@ -178,6 +183,8 @@ export interface CategoryOption {
   name: string;
   slug?: string;
   parent_id?: number | null;
+  sort_order?: number;
+  full_path?: string;
 }
 
 export interface CatalogFilters {

@@ -22,6 +22,7 @@ export interface CatalogListingProps {
   bannerImage?: string | null;
   bannerAlt?: string;
   bannerHref?: string | null;
+  subCategories?: Array<{ id: number; name: string; slug: string }>;
   headerAction?: JSX.Element;
 }
 
@@ -568,6 +569,26 @@ export function CatalogListingView(props: CatalogListingProps) {
             </div>
           </Show>
         </header>
+
+        <Show when={(props.subCategories?.length ?? 0) > 0}>
+          <nav
+            aria-label="Subcategorias"
+            class="mb-5 flex flex-wrap items-center gap-2"
+          >
+            <For each={props.subCategories ?? []}>
+              {(sub) => (
+                <Link
+                  to="/categoria/$slug"
+                  params={{ slug: sub.slug }}
+                  class="inline-flex items-center gap-1.5 rounded-full border border-[#E5D4EC] bg-[#FAF6FC] px-3.5 py-1.5 text-xs font-semibold text-[#3D1260] transition hover:border-[#93509e] hover:bg-[#93509e] hover:text-white"
+                >
+                  <span>{sub.name}</span>
+                  <ChevronRight class="size-3.5 opacity-75" aria-hidden="true" />
+                </Link>
+              )}
+            </For>
+          </nav>
+        </Show>
 
         {/* Toolbar: Counter, Mobile Filter Trigger & Sort Dropdown */}
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3 border-y border-[#F3EAF5] py-3">

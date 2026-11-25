@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Catalog\Services\CategoryHierarchyService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Settings\Services\StoreSettingsService;
 use App\Http\Controllers\Controller;
@@ -26,6 +27,7 @@ class StorefrontController extends Controller
     public function __construct(
         private readonly StoreSettingsService $settings,
         private readonly AuditLogger $audit,
+        private readonly CategoryHierarchyService $categoryHierarchy,
     ) {}
 
     public function bootstrap(): JsonResponse
@@ -34,16 +36,10 @@ class StorefrontController extends Controller
 
         $maxInstallments = 3;
 
-        $categories = Category::query()
-            ->where('is_active', true)
-            ->where('show_in_menu', true)
-            ->whereNull('parent_id')
-            ->with(['children' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->with(['children' => fn ($q2) => $q2->where('is_active', true)->orderBy('sort_order')])])
-            ->orderBy('sort_order')
-            ->get()
-            ->map(function (Category $cat) use ($maxInstallments): array {
-                $node = $this->formatCategoryNode($cat);
-                $catIds = $this->collectCategoryIds($cat);
+        $menuTree = $this->categoryHierarchy->getPublicDirectoryTree(menuOnly: true);
+        $categories = collect($menuTree)
+            ->map(function (array $node) use ($maxInstallments): array {
+                $catIds = $this->categoryHierarchy->getDescendantIds((int) $node['id'], activeOnly: true);
                 $featured = Product::query()
                     ->where('is_active', true)
                     ->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $catIds))
@@ -350,29 +346,5 @@ class StorefrontController extends Controller
         ]);
 
         return response()->json(['recorded' => true], 201);
-    }
-
-    /** @return array<string, mixed> */
-    private function formatCategoryNode(Category $category): array
-    {
-        return [
-            'id' => $category->id,
-            'name' => $category->name,
-            'slug' => $category->slug,
-            'image_path' => $category->image_path,
-            'icon' => $category->icon,
-            'children' => $category->children->map(fn (Category $c): array => $this->formatCategoryNode($c))->values()->all(),
-        ];
-    }
-
-    /** @return list<int> */
-    private function collectCategoryIds(Category $category): array
-    {
-        $ids = [$category->id];
-        foreach ($category->children as $child) {
-            $ids = array_merge($ids, $this->collectCategoryIds($child));
-        }
-
-        return $ids;
     }
 }

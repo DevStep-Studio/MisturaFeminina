@@ -57,7 +57,9 @@ class Product extends Model
     /** @return BelongsToMany<Category, $this> */
     public function categories(): BelongsToMany
     {
-        return $this->belongsToMany(Category::class, 'category_product');
+        return $this->belongsToMany(Category::class, 'category_product')
+            ->withPivot('is_primary')
+            ->orderByDesc('category_product.is_primary');
     }
 
     /** @return HasMany<ProductImage, $this> */

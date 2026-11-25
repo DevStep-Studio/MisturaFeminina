@@ -69,6 +69,15 @@ export interface AiProductImportItemRow {
     brand_name?: string | null;
     category_id?: number | null;
     category_name?: string | null;
+    category_raw?: string | null;
+    category_status?: string | null;
+    category_suggestions?: Array<{
+      id: number;
+      name: string;
+      slug: string;
+      full_path: string;
+      score?: number;
+    }>;
     variant_name: string;
     shade_code?: string | null;
     color_family?: string | null;

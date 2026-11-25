@@ -63,6 +63,12 @@ export function StoreHeader() {
 
   const settings = () => storefrontStore.settings();
   const categories = () => storefrontStore.bootstrap().menu_categories;
+  const [mobileExpandedCats, setMobileExpandedCats] = createSignal<
+    Record<number, boolean>
+  >({});
+  const toggleMobileCategory = (id: number) => {
+    setMobileExpandedCats((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
   const promoProducts = () => storefrontStore.bootstrap().promo_products ?? [];
   const cartCount = () => storefrontStore.cart()?.items_count ?? 0;
   const isStaff = () => {
@@ -916,38 +922,85 @@ export function StoreHeader() {
             <div class="flex-1 overflow-y-auto p-4">
               <div class="space-y-3">
                 <For each={categories()}>
-                  {(cat) => (
-                    <div class="border-b border-zinc-100 pb-3">
-                      <Link
-                        to="/categoria/$slug"
-                        params={{ slug: cat.slug }}
-                        onClick={() => setMobileMenuOpen(false)}
-                        class="block py-1 text-[15px] font-semibold text-ink"
-                      >
-                        {cat.name}
-                      </Link>
-                      <Show when={(cat.children?.length ?? 0) > 0}>
-                        <div class="mt-1 space-y-1 pl-3">
-                          <For each={cat.children}>
-                            {(child) => (
-                              <Link
-                                to="/categoria/$slug"
-                                params={{ slug: child.slug }}
-                                onClick={() => setMobileMenuOpen(false)}
-                                class="flex items-center gap-2 py-1 text-[13.5px] text-muted hover:text-[#93509e]"
-                              >
-                                <span
-                                  class="size-1.5 shrink-0 rounded-full bg-[#93509e]"
-                                  aria-hidden="true"
-                                />
-                                <span>{child.name}</span>
-                              </Link>
-                            )}
-                          </For>
+                  {(cat) => {
+                    const hasChildren = () => (cat.children?.length ?? 0) > 0;
+                    const isExpanded = () => Boolean(mobileExpandedCats()[cat.id]);
+                    return (
+                      <div class="border-b border-zinc-100 pb-3">
+                        <div class="flex items-center justify-between gap-2">
+                          <Link
+                            to="/categoria/$slug"
+                            params={{ slug: cat.slug }}
+                            onClick={() => setMobileMenuOpen(false)}
+                            class="min-w-0 flex-1 py-1 text-[15px] font-semibold text-ink hover:text-[#93509e]"
+                          >
+                            {cat.name}
+                          </Link>
+                          <Show when={hasChildren()}>
+                            <button
+                              type="button"
+                              aria-expanded={isExpanded()}
+                              aria-label={`Expandir subcategorias de ${cat.name}`}
+                              onClick={() => toggleMobileCategory(cat.id)}
+                              class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-zinc-600 hover:bg-zinc-100"
+                            >
+                              <ChevronDown
+                                class={`size-4 transition-transform ${isExpanded() ? "rotate-180 text-[#93509e]" : ""}`}
+                                aria-hidden="true"
+                              />
+                            </button>
+                          </Show>
                         </div>
-                      </Show>
-                    </div>
-                  )}
+                        <Show when={hasChildren() && isExpanded()}>
+                          <div class="mt-1.5 space-y-1 pl-3">
+                            <For each={cat.children}>
+                              {(child) => (
+                                <div>
+                                  <Link
+                                    to="/categoria/$slug"
+                                    params={{ slug: child.slug }}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    class="flex items-center gap-2 py-1 text-[13.5px] font-medium text-muted hover:text-[#93509e]"
+                                  >
+                                    <span
+                                      class="size-1.5 shrink-0 rounded-full bg-[#93509e]"
+                                      aria-hidden="true"
+                                    />
+                                    <span>{child.name}</span>
+                                  </Link>
+                                  <Show when={(child.children?.length ?? 0) > 0}>
+                                    <div class="ml-2 mt-0.5 space-y-0.5 border-l border-zinc-200 pl-3">
+                                      <For each={child.children}>
+                                        {(grandChild) => (
+                                          <Link
+                                            to="/categoria/$slug"
+                                            params={{ slug: grandChild.slug }}
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            class="block py-1 text-[12.5px] text-zinc-600 hover:text-[#93509e]"
+                                          >
+                                            {grandChild.name}
+                                          </Link>
+                                        )}
+                                      </For>
+                                    </div>
+                                  </Show>
+                                </div>
+                              )}
+                            </For>
+                            <Link
+                              to="/categoria/$slug"
+                              params={{ slug: cat.slug }}
+                              onClick={() => setMobileMenuOpen(false)}
+                              class="inline-flex items-center gap-1 pt-1 text-xs font-bold text-[#93509e] hover:underline"
+                            >
+                              <span>Ver tudo em {cat.name}</span>
+                              <ChevronRight class="size-3.5" aria-hidden="true" />
+                            </Link>
+                          </div>
+                        </Show>
+                      </div>
+                    );
+                  }}
                 </For>
 
                 <div class="space-y-2 pt-2">

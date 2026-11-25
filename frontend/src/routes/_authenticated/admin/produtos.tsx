@@ -27,7 +27,9 @@ import { AdminAiCatalogAgentPanel } from "../../../features/admin/ai/AdminAiCata
 import { AdminButton, AdminCombobox, AdminSelect } from "../../../features/admin/ui";
 import { BulkLifecycleModal } from "../../../features/admin/products/BulkLifecycleModal";
 import { BulkRuleModal } from "../../../features/admin/products/BulkRuleModal";
+import { CatalogSpreadsheetImportPanel } from "../../../features/admin/products/CatalogSpreadsheetImportPanel";
 import { ProductCatalogTable } from "../../../features/admin/products/ProductCatalogTable";
+import { buildCategoryHierarchyOptions } from "../../../features/admin/categories/category-helpers";
 import {
   type AttributeOption,
   ProductFormScreen,
@@ -41,7 +43,7 @@ import {
   type CategoryOption,
   countActiveCatalogFilters,
 } from "../../../features/admin/products/types";
-import { ApiError, api } from "../../../lib/api";
+import { api } from "../../../lib/api";
 import { seoHead } from "../../../lib/seo";
 import { hasPermission } from "../../../security/permissions";
 import { session } from "../../../security/session";
@@ -162,9 +164,6 @@ function AdminProductsPage() {
     productIds?: number[];
   }>({ open: false, action: "archive" });
 
-  const [csvContent, setCsvContent] = createSignal("");
-  const [csvPreview, setCsvPreview] = createSignal<string | null>(null);
-
   createEffect(() => {
     setSearchInput(filters().search);
   });
@@ -253,10 +252,24 @@ function AdminProductsPage() {
     return res.data ?? [];
   });
 
-  const [categories] = createResource(async () => {
-    const res = await api<{ data: CategoryOption[] }>("/admin/categories");
-    return res.data ?? [];
-  });
+  const [categories, { refetch: refetchCategories }] = createResource(
+    async () => {
+      const res = await api<{ data: CategoryOption[] }>("/admin/categories");
+      return res.data ?? [];
+    },
+  );
+  const categoryHierarchyOptions = createMemo(() =>
+    buildCategoryHierarchyOptions(
+      (categories() ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug ?? "",
+        parent_id: c.parent_id ?? null,
+        sort_order: c.sort_order,
+        full_path: c.full_path,
+      })),
+    ),
+  );
 
   const [attributes] = createResource(async () => {
     const res = await api<{ data: AttributeOption[] }>("/admin/attributes");
@@ -410,25 +423,6 @@ function AdminProductsPage() {
     await refetchReviews();
   }
 
-  async function runCsvImport(dryRun: boolean) {
-    setCsvPreview(null);
-    try {
-      const res = await api<{ data: Record<string, unknown> }>(
-        "/admin/catalog/import-csv",
-        {
-          method: "POST",
-          body: { csv_content: csvContent(), dry_run: dryRun },
-        },
-      );
-      setCsvPreview(JSON.stringify(res.data, null, 2));
-      if (!dryRun) await refetchProducts();
-    } catch (err) {
-      setCsvPreview(
-        err instanceof ApiError ? err.message : "Falha na importação CSV.",
-      );
-    }
-  }
-
   function triggerReloadCatalog() {
     void refetchProducts();
   }
@@ -473,7 +467,9 @@ function AdminProductsPage() {
   const brandNameById = (id: string) =>
     brands()?.find((b) => String(b.id) === id)?.name ?? id;
   const catNameById = (id: string) =>
-    categories()?.find((c) => String(c.id) === id)?.name ?? id;
+    categoryHierarchyOptions().find((c) => c.value === id)?.label ??
+    categories()?.find((c) => String(c.id) === id)?.name ??
+    id;
 
   const headerActions = (
     <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
@@ -689,10 +685,7 @@ function AdminProductsPage() {
                 placeholder="Todas categorias"
                 searchPlaceholder="Buscar categoria..."
                 value={filters().category_id}
-                options={(categories() ?? []).map((c) => ({
-                  value: String(c.id),
-                  label: c.name,
-                }))}
+                options={categoryHierarchyOptions()}
                 onChange={(val) =>
                   updateQuery(
                     { category_id: val || undefined, page: "1" },
@@ -1175,6 +1168,9 @@ function AdminProductsPage() {
           canWrite={canWrite()}
           canCostView={canCostView()}
           canCostWrite={canCostWrite()}
+          onCategoryCreated={() => {
+            void refetchCategories();
+          }}
           onCancel={returnToCatalog}
           onDuplicateRequest={(prod) => openNewProduct(prod.id)}
           onArchiveOrDelete={(prodId, action) =>
@@ -1282,51 +1278,17 @@ function AdminProductsPage() {
         </section>
       </Show>
 
-      {/* VIEW: CSV IMPORT/EXPORT */}
+      {/* VIEW: SPREADSHEET (XLSX / CSV) IMPORT/EXPORT */}
       <Show when={currentView() === "csv"}>
-        <section class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <h2 class="text-base font-bold text-zinc-900">
-              Importação e Exportação CSV
-            </h2>
-            <a
-              href={`${import.meta.env.VITE_API_URL}/admin/catalog/export-csv`}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="rounded-md bg-zinc-900 px-4 py-2 text-xs font-semibold text-white"
-            >
-              Baixar CSV atual
-            </a>
-          </div>
-          <textarea
-            rows={6}
-            placeholder="Cole aqui o conteúdo CSV (sku;name;price_cents;stock_qty;...) para pré-validar ou importar"
-            value={csvContent()}
-            onInput={(e) => setCsvContent(e.currentTarget.value)}
-            class="w-full rounded-md border border-zinc-300 p-3 font-mono text-xs"
-          />
-          <div class="flex gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => void runCsvImport(true)}
-              class="rounded-md border border-zinc-300 bg-white px-4 py-2 font-semibold"
-            >
-              Pré-validar (Dry-Run)
-            </button>
-            <button
-              type="button"
-              onClick={() => void runCsvImport(false)}
-              class="rounded-md bg-[#93509e] px-4 py-2 font-semibold text-white"
-            >
-              Executar importação
-            </button>
-          </div>
-          <Show when={csvPreview()}>
-            <pre class="max-h-60 overflow-auto rounded-lg bg-zinc-900 p-4 text-xs text-zinc-100">
-              {csvPreview()}
-            </pre>
-          </Show>
-        </section>
+        <CatalogSpreadsheetImportPanel
+          categories={categories() ?? []}
+          onRefreshCategories={() => {
+            void refetchCategories();
+          }}
+          onImported={() => {
+            void refetchProducts();
+          }}
+        />
       </Show>
 
       {/* Modals: Mode A Bulk Rule & Lifecycle Archive/Restore/Delete */}

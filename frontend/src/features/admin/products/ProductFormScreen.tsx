@@ -18,8 +18,10 @@ import {
   AdminField,
   AdminImageUpload,
   AdminInput,
+  AdminModal,
   AdminMultiCombobox,
 } from "../ui";
+import { buildCategoryHierarchyOptions } from "../categories/category-helpers";
 import {
   VariationMatrixBuilder,
   type CatalogAttrItem,
@@ -74,6 +76,7 @@ export function ProductFormScreen(props: {
     productId: number,
     action: "archive" | "restore" | "delete",
   ) => void;
+  onCategoryCreated?: () => Promise<unknown> | void;
 }) {
   const [name, setName] = createSignal("");
   const [slug, setSlug] = createSignal("");
@@ -82,7 +85,34 @@ export function ProductFormScreen(props: {
   const [supplierCode, setSupplierCode] = createSignal("");
   const [powerWatts, setPowerWatts] = createSignal("");
   const [brandId, setBrandId] = createSignal("");
+  const [primaryCategoryId, setPrimaryCategoryId] = createSignal("");
   const [selectedCats, setSelectedCats] = createSignal<number[]>([]);
+  const [localAddedCategories, setLocalAddedCategories] = createSignal<CategoryOption[]>([]);
+  const [quickCatOpen, setQuickCatOpen] = createSignal(false);
+  const [quickCatName, setQuickCatName] = createSignal("");
+  const [quickCatParentId, setQuickCatParentId] = createSignal("");
+  const [quickCatBusy, setQuickCatBusy] = createSignal(false);
+  const [quickCatErr, setQuickCatErr] = createSignal<string | null>(null);
+
+  const mergedCategories = createMemo<CategoryOption[]>(() => {
+    const map = new Map<number, CategoryOption>();
+    for (const c of props.categories ?? []) map.set(c.id, c);
+    for (const c of localAddedCategories()) map.set(c.id, c);
+    return Array.from(map.values());
+  });
+
+  const categoryHierarchyOptions = createMemo(() =>
+    buildCategoryHierarchyOptions(
+      mergedCategories().map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug ?? "",
+        parent_id: c.parent_id ?? null,
+        sort_order: c.sort_order,
+        full_path: c.full_path,
+      })),
+    ),
+  );
   const [priceBrl, setPriceBrl] = createSignal("29,90");
   const [promoBrl, setPromoBrl] = createSignal("");
   const [costBrl, setCostBrl] = createSignal("");
@@ -180,7 +210,11 @@ export function ProductFormScreen(props: {
     setPowerWatts(src.power_watts ? String(src.power_watts) : "");
     setUnitLabel(src.unit_label ?? "");
     setBrandId(src.brand_id ? String(src.brand_id) : "");
-    setSelectedCats((src.categories ?? []).map((c) => c.id));
+    const catsArr = src.categories ?? [];
+    const primaryCat =
+      catsArr.find((c) => Boolean(c.pivot?.is_primary)) ?? catsArr[0];
+    setPrimaryCategoryId(primaryCat ? String(primaryCat.id) : "");
+    setSelectedCats(catsArr.map((c) => c.id));
     setPriceBrl(
       typeof src.price_cents === "number"
         ? (src.price_cents / 100).toFixed(2).replace(".", ",")
@@ -238,6 +272,7 @@ export function ProductFormScreen(props: {
     setPowerWatts("");
     setUnitLabel("");
     setBrandId("");
+    setPrimaryCategoryId("");
     setSelectedCats([]);
     setPriceBrl("29,90");
     setPromoBrl("");
@@ -318,6 +353,56 @@ export function ProductFormScreen(props: {
     setSelectedCats((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  }
+
+  const primaryCategoryPath = createMemo(() => {
+    const val = primaryCategoryId();
+    if (!val) return "";
+    return (
+      categoryHierarchyOptions().find((opt) => opt.value === val)?.label ?? ""
+    );
+  });
+
+  async function handleQuickCreateCategory(e: Event) {
+    e.preventDefault();
+    const trimmed = quickCatName().trim();
+    if (!trimmed) {
+      setQuickCatErr("Informe o nome da nova categoria.");
+      return;
+    }
+    setQuickCatBusy(true);
+    setQuickCatErr(null);
+    try {
+      const res = await api<{ data: CategoryOption }>("/admin/categories", {
+        method: "POST",
+        body: {
+          name: trimmed,
+          parent_id: quickCatParentId() ? Number(quickCatParentId()) : null,
+          is_active: true,
+          show_in_menu: true,
+        },
+      });
+      const created = res.data;
+      setLocalAddedCategories((prev) => [...prev, created]);
+      if (!primaryCategoryId()) {
+        setPrimaryCategoryId(String(created.id));
+      }
+      setSelectedCats((prev) =>
+        prev.includes(created.id) ? prev : [...prev, created.id],
+      );
+      setQuickCatName("");
+      setQuickCatParentId("");
+      setQuickCatOpen(false);
+      await props.onCategoryCreated?.();
+    } catch (err) {
+      setQuickCatErr(
+        err instanceof ApiError
+          ? err.message
+          : "Não foi possível criar a categoria.",
+      );
+    } finally {
+      setQuickCatBusy(false);
+    }
   }
 
   function toggleAttr(id: number) {
@@ -428,7 +513,17 @@ export function ProductFormScreen(props: {
       power_watts: powerWatts().trim() ? Number.parseInt(powerWatts().trim(), 10) || null : null,
       unit_label: unitLabel().trim() || null,
       brand_id: brandId() ? Number(brandId()) : null,
-      category_ids: selectedCats(),
+      primary_category_id: primaryCategoryId()
+        ? Number(primaryCategoryId())
+        : null,
+      category_ids: (() => {
+        const primary = primaryCategoryId()
+          ? Number(primaryCategoryId())
+          : null;
+        const base = selectedCats();
+        if (primary && !base.includes(primary)) return [primary, ...base];
+        return base;
+      })(),
       price_cents: priceCents,
       promo_price_cents: promoCents,
       ...(canWriteCost() ? { cost_cents: costParsed.cents } : {}),
@@ -553,6 +648,7 @@ export function ProductFormScreen(props: {
   }
 
   return (
+    <>
     <form
       onSubmit={(e) => {
         e.preventDefault();
@@ -720,18 +816,83 @@ export function ProductFormScreen(props: {
           </div>
         </div>
 
-        {/* Keyboard-searchable Multi-Category Combobox */}
-        <AdminMultiCombobox
-          label="Categorias"
-          placeholder="Pesquisar e selecionar categorias por teclado..."
-          selectedValues={selectedCats().map(String)}
-          options={props.categories.map((c) => ({
-            value: String(c.id),
-            label: c.name,
-          }))}
-          onToggleValue={(val) => toggleCategory(Number(val))}
-          onClearAll={() => setSelectedCats([])}
-        />
+        {/* Hierarchical Categories Selection */}
+        <div class="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50/70 p-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="block text-xs font-bold text-zinc-900">
+                Categorias (até 3+ níveis)
+              </span>
+              <Show
+                when={primaryCategoryPath()}
+                fallback={
+                  <span class="text-[11px] text-zinc-500">
+                    Selecione a categoria principal e, se precisar, categorias complementares.
+                  </span>
+                }
+              >
+                {(path) => (
+                  <span class="text-[11px] font-medium text-[#62298d]">
+                    Caminho principal: {path()}
+                  </span>
+                )}
+              </Show>
+            </div>
+            <Show when={props.canWrite}>
+              <AdminButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setQuickCatErr(null);
+                  setQuickCatParentId(primaryCategoryId());
+                  setQuickCatOpen(true);
+                }}
+              >
+                <Plus class="h-3.5 w-3.5" />
+                Nova categoria
+              </AdminButton>
+            </Show>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <AdminCombobox
+              label="Categoria principal"
+              placeholder="Selecionar categoria principal..."
+              searchPlaceholder="Buscar categoria (Ex.: Brocas Diamantadas)..."
+              value={primaryCategoryId()}
+              options={categoryHierarchyOptions()}
+              onChange={(val) => {
+                setPrimaryCategoryId(val);
+                const idNum = Number(val);
+                if (idNum && !selectedCats().includes(idNum)) {
+                  setSelectedCats((prev) => [idNum, ...prev]);
+                }
+              }}
+            />
+
+            <AdminMultiCombobox
+              label="Categorias (principal + complementares)"
+              placeholder="Pesquisar e selecionar categorias por teclado..."
+              selectedValues={selectedCats().map(String)}
+              options={categoryHierarchyOptions()}
+              onToggleValue={(val) => {
+                const idNum = Number(val);
+                toggleCategory(idNum);
+                if (Number(primaryCategoryId()) === idNum && selectedCats().includes(idNum)) {
+                  const next = selectedCats().filter((x) => x !== idNum);
+                  setPrimaryCategoryId(next[0] ? String(next[0]) : "");
+                } else if (!primaryCategoryId() && !selectedCats().includes(idNum)) {
+                  setPrimaryCategoryId(String(idNum));
+                }
+              }}
+              onClearAll={() => {
+                setSelectedCats([]);
+                setPrimaryCategoryId("");
+              }}
+            />
+          </div>
+        </div>
       </section>
 
       {/* Section 2: Preços e custos */}
@@ -1318,5 +1479,67 @@ export function ProductFormScreen(props: {
         </div>
       </div>
     </form>
+
+    <AdminModal
+      open={quickCatOpen()}
+      onClose={() => setQuickCatOpen(false)}
+      title="Nova categoria rápida"
+      subtitle="Crie uma categoria ou subcategoria sem sair do cadastro do produto."
+    >
+      <form
+        onSubmit={(e) => void handleQuickCreateCategory(e)}
+        class="space-y-4 p-5"
+      >
+        <Show when={quickCatErr()}>
+          {(err) => (
+            <p class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+              {err()}
+            </p>
+          )}
+        </Show>
+
+        <AdminField label="Nome da categoria *" forId="pf-quick-cat-name">
+          <AdminInput
+            id="pf-quick-cat-name"
+            type="text"
+            placeholder="Ex.: Broca de Tungstênio"
+            value={quickCatName()}
+            onInput={(e) => setQuickCatName(e.currentTarget.value)}
+            required
+          />
+        </AdminField>
+
+        <AdminCombobox
+          label="Categoria pai (opcional)"
+          placeholder="Raiz (categoria principal)"
+          searchPlaceholder="Buscar categoria pai..."
+          value={quickCatParentId()}
+          options={[
+            { value: "", label: "Raiz (nível principal)" },
+            ...categoryHierarchyOptions(),
+          ]}
+          onChange={(val) => setQuickCatParentId(val)}
+        />
+
+        <div class="flex justify-end gap-2 pt-2">
+          <AdminButton
+            type="button"
+            variant="secondary"
+            onClick={() => setQuickCatOpen(false)}
+          >
+            Cancelar
+          </AdminButton>
+          <AdminButton
+            type="submit"
+            variant="primary"
+            loading={quickCatBusy()}
+            loadingLabel="Criando…"
+          >
+            Criar e vincular
+          </AdminButton>
+        </div>
+      </form>
+    </AdminModal>
+    </>
   );
 }

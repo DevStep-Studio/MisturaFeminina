@@ -8,6 +8,7 @@ use App\Domain\Admin\Services\TodayWorkService;
 use App\Domain\Catalog\Services\CatalogBulkRuleService;
 use App\Domain\Catalog\Services\CatalogCsvService;
 use App\Domain\Catalog\Services\CatalogLifecycleService;
+use App\Domain\Catalog\Services\CategoryHierarchyService;
 use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Catalog\Services\ProductVariationsSyncService;
 use App\Domain\Catalog\Services\ReplenishmentService;
@@ -37,6 +38,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AdminCatalogController extends Controller
 {
@@ -50,6 +52,7 @@ class AdminCatalogController extends Controller
         private readonly CatalogBulkRuleService $bulkRules,
         private readonly CatalogLifecycleService $lifecycle,
         private readonly ProductVariationsSyncService $variationsSync,
+        private readonly CategoryHierarchyService $categoryHierarchy,
     ) {}
 
     public function indexProducts(Request $request): JsonResponse
@@ -80,7 +83,8 @@ class AdminCatalogController extends Controller
             }
             if ($request->filled('category_id')) {
                 $catId = (int) $request->query('category_id');
-                $query->whereHas('categories', fn ($cq) => $cq->where('categories.id', $catId));
+                $catIds = $this->categoryHierarchy->getDescendantIds($catId);
+                $query->whereHas('categories', fn ($cq) => $cq->whereIn('categories.id', $catIds));
             }
         } else {
             $query = $this->bulkRules->buildFilteredProductsQuery($filters);
@@ -309,8 +313,12 @@ class AdminCatalogController extends Controller
                 'seo_description' => $validated['seo_description'] ?? $validated['short_description'] ?? null,
             ]);
 
-            if (! empty($validated['category_ids'])) {
-                $product->categories()->sync($validated['category_ids']);
+            if (! empty($validated['category_ids']) || ! empty($validated['primary_category_id'])) {
+                $this->categoryHierarchy->syncProductCategories(
+                    $product,
+                    array_map('intval', $validated['category_ids'] ?? []),
+                    ! empty($validated['primary_category_id']) ? (int) $validated['primary_category_id'] : null
+                );
             }
             if (array_key_exists('product_attribute_value_ids', $validated)) {
                 $product->attributeValues()->sync($validated['product_attribute_value_ids'] ?? []);
@@ -410,8 +418,12 @@ class AdminCatalogController extends Controller
                 'seo_description' => $validated['seo_description'] ?? null,
             ]);
 
-            if (array_key_exists('category_ids', $validated)) {
-                $product->categories()->sync($validated['category_ids'] ?? []);
+            if (array_key_exists('category_ids', $validated) || array_key_exists('primary_category_id', $validated)) {
+                $this->categoryHierarchy->syncProductCategories(
+                    $product,
+                    array_map('intval', $validated['category_ids'] ?? $product->categories()->pluck('categories.id')->all()),
+                    ! empty($validated['primary_category_id']) ? (int) $validated['primary_category_id'] : null
+                );
             }
             if (array_key_exists('product_attribute_value_ids', $validated)) {
                 $product->attributeValues()->sync($validated['product_attribute_value_ids'] ?? []);
@@ -821,13 +833,7 @@ class AdminCatalogController extends Controller
 
     public function listCategories(): JsonResponse
     {
-        $categories = Category::query()
-            ->with(['parent:id,name', 'attributes:id,name,slug'])
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get();
-
-        return response()->json(['data' => $categories]);
+        return response()->json(['data' => $this->categoryHierarchy->listAdminCategories()]);
     }
 
     public function storeCategory(Request $request): JsonResponse
@@ -848,13 +854,45 @@ class AdminCatalogController extends Controller
             'seo_description' => ['nullable', 'string', 'max:320'],
         ]);
 
-        $slug = Str::slug((string) ($validated['slug'] ?? $validated['name']));
-        if (Category::query()->where('slug', $slug)->exists()) {
-            $slug .= '-'.strtolower(Str::random(4));
+        $parentId = isset($validated['parent_id']) ? (int) $validated['parent_id'] : null;
+        $this->categoryHierarchy->assertSafeCreate((string) $validated['name'], $parentId);
+
+        $manualSlug = ! empty($validated['slug']) ? Str::slug((string) $validated['slug']) : null;
+        if ($manualSlug !== null) {
+            if ($manualSlug === '') {
+                throw ValidationException::withMessages(['slug' => ['Informe um slug válido.']]);
+            }
+            if (Category::query()->where('slug', $manualSlug)->exists()) {
+                throw ValidationException::withMessages(['slug' => ['Este slug já está em uso por outra categoria.']]);
+            }
+            $slug = $manualSlug;
+        } else {
+            $slug = Str::slug((string) $validated['name']) ?: 'categoria';
+            if (Category::query()->where('slug', $slug)->exists()) {
+                $parentSlug = $parentId ? Category::query()->where('id', $parentId)->value('slug') : null;
+                $base = $parentSlug ? Str::slug("{$parentSlug}-{$slug}") : $slug;
+                $slug = $base;
+                $suffix = 2;
+                while (Category::query()->where('slug', $slug)->exists()) {
+                    $slug = "{$base}-{$suffix}";
+                    $suffix++;
+                }
+            }
         }
 
-        $category = Category::query()->create(array_merge($validated, ['slug' => $slug]));
-        SeoController::clearCaches();
+        if (! array_key_exists('sort_order', $validated)) {
+            $maxOrder = (int) Category::query()
+                ->when($parentId === null, fn ($q) => $q->whereNull('parent_id'), fn ($q) => $q->where('parent_id', $parentId))
+                ->max('sort_order');
+            $validated['sort_order'] = $maxOrder + 1;
+        }
+
+        $category = DB::transaction(fn () => Category::query()->create(array_merge($validated, [
+            'parent_id' => $parentId,
+            'slug' => $slug,
+        ])));
+
+        $this->categoryHierarchy->clearCaches();
 
         return response()->json(['data' => $category], 201);
     }
@@ -878,31 +916,165 @@ class AdminCatalogController extends Controller
             'seo_description' => ['nullable', 'string', 'max:320'],
         ]);
 
+        $newParentId = array_key_exists('parent_id', $validated)
+            ? ($validated['parent_id'] !== null ? (int) $validated['parent_id'] : null)
+            : $category->parent_id;
+
+        $this->categoryHierarchy->assertSafeUpdate($id, (string) $validated['name'], $newParentId);
+
         $oldSlug = $category->slug;
         $newSlug = ! empty($validated['slug']) ? Str::slug((string) $validated['slug']) : $oldSlug;
-        if ($newSlug !== $oldSlug && ! Category::query()->where('slug', $newSlug)->where('id', '!=', $id)->exists()) {
-            SlugRedirect::query()->updateOrCreate(
-                ['entity_type' => 'category', 'old_slug' => $oldSlug],
-                ['new_slug' => $newSlug]
-            );
+        if ($newSlug !== $oldSlug) {
+            if (Category::query()->where('slug', $newSlug)->where('id', '!=', $id)->exists()) {
+                throw ValidationException::withMessages(['slug' => ['Este slug já está em uso por outra categoria.']]);
+            }
             $validated['slug'] = $newSlug;
         } else {
             unset($validated['slug']);
         }
 
-        $category->update($validated);
-        SeoController::clearCaches();
+        DB::transaction(function () use ($category, $validated, $oldSlug, $newSlug): void {
+            if ($newSlug !== $oldSlug) {
+                SlugRedirect::query()->updateOrCreate(
+                    ['entity_type' => 'category', 'old_slug' => $oldSlug],
+                    ['new_slug' => $newSlug]
+                );
+            }
+            $category->update($validated);
+        });
+
+        $this->categoryHierarchy->clearCaches();
 
         return response()->json(['data' => $category->fresh()]);
     }
 
-    public function destroyCategory(int $id): JsonResponse
+    public function reorderCategories(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1', 'max:500'],
+            'items.*.id' => ['required', 'integer', 'exists:categories,id'],
+            'items.*.parent_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'items.*.sort_order' => ['required', 'integer', 'min:0'],
+        ]);
+
+        /** @var list<array{id: int, parent_id: int|null, sort_order: int}> $items */
+        $items = array_map(fn (array $item): array => [
+            'id' => (int) $item['id'],
+            'parent_id' => isset($item['parent_id']) ? (int) $item['parent_id'] : null,
+            'sort_order' => (int) $item['sort_order'],
+        ], $validated['items']);
+
+        $this->categoryHierarchy->reorder($items);
+
+        return response()->json([
+            'message' => 'Hierarquia e ordem das categorias atualizadas.',
+            'data' => $this->categoryHierarchy->listAdminCategories(),
+        ]);
+    }
+
+    public function bulkCategories(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'category_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'category_ids.*' => ['integer', 'exists:categories,id'],
+            'action' => ['required', Rule::in(['activate', 'deactivate', 'show_in_menu', 'hide_from_menu', 'move_parent', 'delete'])],
+            'parent_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'transfer_category_id' => ['nullable', 'integer', 'exists:categories,id'],
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $validated['category_ids'])));
+        $action = (string) $validated['action'];
+
+        if ($action === 'move_parent') {
+            $targetParent = isset($validated['parent_id']) ? (int) $validated['parent_id'] : null;
+            DB::transaction(function () use ($ids, $targetParent): void {
+                foreach ($ids as $id) {
+                    $cat = Category::query()->findOrFail($id);
+                    $this->categoryHierarchy->assertSafeUpdate($id, $cat->name, $targetParent);
+                    $cat->update(['parent_id' => $targetParent]);
+                }
+            });
+            $this->categoryHierarchy->clearCaches();
+
+            return response()->json(['message' => count($ids).' categoria(s) movida(s) na hierarquia.']);
+        }
+
+        if ($action === 'delete') {
+            $deleted = 0;
+            $skipped = [];
+            $transferId = isset($validated['transfer_category_id']) ? (int) $validated['transfer_category_id'] : null;
+
+            foreach ($ids as $id) {
+                $cat = Category::query()->find($id);
+                if (! $cat) {
+                    continue;
+                }
+                $deps = $this->categoryHierarchy->inspectDependencies($cat);
+                if (! $deps['can_delete_directly'] && $transferId === null) {
+                    $skipped[] = $cat->name;
+
+                    continue;
+                }
+                $this->categoryHierarchy->deleteWithStrategy(
+                    $cat,
+                    $deps['can_delete_directly'] ? 'block' : 'transfer',
+                    $transferId,
+                    'promote_to_parent'
+                );
+                $deleted++;
+            }
+
+            return response()->json([
+                'message' => $skipped === []
+                    ? "{$deleted} categoria(s) excluída(s)."
+                    : "{$deleted} excluída(s); ".count($skipped).' mantida(s) por possuir produtos/subcategorias vinculados ('.implode(', ', $skipped).').',
+                'deleted' => $deleted,
+                'skipped' => $skipped,
+            ]);
+        }
+
+        DB::transaction(function () use ($ids, $action): void {
+            $patch = match ($action) {
+                'activate' => ['is_active' => true],
+                'deactivate' => ['is_active' => false],
+                'show_in_menu' => ['show_in_menu' => true],
+                'hide_from_menu' => ['show_in_menu' => false],
+                default => [],
+            };
+            if ($patch !== []) {
+                Category::query()->whereIn('id', $ids)->update($patch);
+            }
+        });
+
+        $this->categoryHierarchy->clearCaches();
+
+        return response()->json(['message' => count($ids).' categoria(s) atualizada(s).']);
+    }
+
+    public function categoryDependencies(int $id): JsonResponse
     {
         $category = Category::query()->findOrFail($id);
-        $category->delete();
-        SeoController::clearCaches();
 
-        return response()->json(['message' => 'Categoria removida.']);
+        return response()->json(['data' => $this->categoryHierarchy->inspectDependencies($category)]);
+    }
+
+    public function destroyCategory(Request $request, int $id): JsonResponse
+    {
+        $category = Category::query()->findOrFail($id);
+        $validated = $request->validate([
+            'strategy' => ['nullable', Rule::in(['block', 'deactivate', 'transfer'])],
+            'transfer_category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'subcategory_strategy' => ['nullable', Rule::in(['promote_to_parent', 'move_to_target'])],
+        ]);
+
+        $result = $this->categoryHierarchy->deleteWithStrategy(
+            $category,
+            (string) ($validated['strategy'] ?? 'block'),
+            isset($validated['transfer_category_id']) ? (int) $validated['transfer_category_id'] : null,
+            (string) ($validated['subcategory_strategy'] ?? 'promote_to_parent')
+        );
+
+        return response()->json($result);
     }
 
     public function listBrands(): JsonResponse
@@ -1166,21 +1338,43 @@ class AdminCatalogController extends Controller
     {
         $validated = $request->validate([
             'csv_content' => ['nullable', 'string'],
-            'file' => ['nullable', 'file', 'mimes:csv,txt', 'max:5120'],
+            'file' => ['nullable', 'file', 'mimes:csv,txt,tsv,xlsx', 'max:5120'],
             'dry_run' => ['boolean'],
+            'category_overrides' => ['nullable'],
         ]);
 
-        $content = $validated['csv_content'] ?? null;
-        if ($request->hasFile('file')) {
-            $content = (string) file_get_contents((string) $request->file('file')->getRealPath());
-        }
-
-        if (! $content) {
-            return response()->json(['message' => 'Envie um arquivo CSV ou conteúdo CSV válido.'], 422);
+        $overrides = [];
+        if (is_array($validated['category_overrides'] ?? null)) {
+            $overrides = $validated['category_overrides'];
+        } elseif (is_string($validated['category_overrides'] ?? null) && trim($validated['category_overrides']) !== '') {
+            $decoded = json_decode($validated['category_overrides'], true);
+            if (is_array($decoded)) {
+                $overrides = $decoded;
+            }
         }
 
         $dryRun = $request->boolean('dry_run', true);
-        $report = $this->csv->importCsv($content, $dryRun, $request->user());
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $ext = strtolower((string) ($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'csv'));
+            if ($ext === 'xlsx') {
+                $report = $this->csv->importXlsxFile(
+                    (string) $file->getRealPath(),
+                    $dryRun,
+                    $request->user(),
+                    $overrides
+                );
+            } else {
+                $content = (string) file_get_contents((string) $file->getRealPath());
+                $report = $this->csv->importCsv($content, $dryRun, $request->user(), $overrides);
+            }
+        } else {
+            $content = $validated['csv_content'] ?? null;
+            if (! $content) {
+                return response()->json(['message' => 'Envie uma planilha (.xlsx/.csv) ou conteúdo CSV válido.'], 422);
+            }
+            $report = $this->csv->importCsv($content, $dryRun, $request->user(), $overrides);
+        }
 
         $this->audit->record('catalog.csv_import', $request->user(), 'catalog', null, null, [
             'dry_run' => $dryRun,
@@ -1295,6 +1489,7 @@ class AdminCatalogController extends Controller
             'wholesale_tiers' => ['nullable', 'array'],
             'seo_title' => ['nullable', 'string', 'max:180'],
             'seo_description' => ['nullable', 'string', 'max:320'],
+            'primary_category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'category_ids' => ['nullable', 'array'],
             'category_ids.*' => ['integer', 'exists:categories,id'],
             'product_attribute_value_ids' => ['nullable', 'array'],

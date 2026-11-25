@@ -90,7 +90,8 @@ class CatalogBulkRuleService
 
         if (! empty($filters['category_id'])) {
             $catId = (int) $filters['category_id'];
-            $query->whereHas('categories', fn (Builder $cq) => $cq->where('categories.id', $catId));
+            $catIds = app(CategoryHierarchyService::class)->getDescendantIds($catId);
+            $query->whereHas('categories', fn (Builder $cq) => $cq->whereIn('categories.id', $catIds));
         }
 
         $availability = (string) ($filters['availability'] ?? 'all');
@@ -989,7 +990,7 @@ class CatalogBulkRuleService
 
     public function flushStorefrontCaches(): void
     {
-        SeoController::clearCaches();
+        app(CategoryHierarchyService::class)->clearCaches();
         Cache::forget('storefront.bootstrap.v1');
         Cache::forget('storefront.catalog.filters.v1');
         app(WholesalePricingService::class)->flushCache();

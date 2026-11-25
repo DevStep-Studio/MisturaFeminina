@@ -18,6 +18,7 @@ import {
   parseBrazilianPriceToCents,
 } from "../admin-helpers";
 import { type BrandOption, type CategoryOption, makeIdempotencyKey } from "../products/types";
+import { buildCategoryHierarchyOptions } from "../categories/category-helpers";
 import {
   VariationMatrixBuilder,
   type CatalogAttrItem,
@@ -1324,10 +1325,16 @@ export function AdminAiSingleProductLookup(props: {
                     label="Categorias"
                     placeholder="Selecionar categorias..."
                     selectedValues={selectedCatIds().map(String)}
-                    options={registeredCategories().map((c) => ({
-                      value: String(c.id),
-                      label: c.name,
-                    }))}
+                    options={buildCategoryHierarchyOptions(
+                      registeredCategories().map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        slug: c.slug ?? "",
+                        parent_id: c.parent_id ?? null,
+                        sort_order: c.sort_order,
+                        full_path: c.full_path,
+                      })),
+                    )}
                     onToggleValue={(val) => {
                       const cid = Number(val);
                       setSelectedCatIds((prev) =>

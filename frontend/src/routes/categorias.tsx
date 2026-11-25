@@ -64,8 +64,10 @@ function CategoriesDirectoryPage() {
     return all.filter((cat) => {
       const matchName = cat.name.toLowerCase().includes(q);
       const matchDesc = cat.description?.toLowerCase().includes(q);
-      const matchChild = cat.children?.some((c) =>
-        c.name.toLowerCase().includes(q),
+      const matchChild = cat.children?.some(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.children?.some((gc) => gc.name.toLowerCase().includes(q)),
       );
       return matchName || matchDesc || matchChild;
     });
@@ -234,7 +236,7 @@ function CategoriesDirectoryPage() {
                             <ul class="flex flex-wrap gap-1.5">
                               <For each={childList()}>
                                 {(child) => (
-                                  <li>
+                                  <li class="flex flex-wrap items-center gap-1">
                                     <Link
                                       to="/categoria/$slug"
                                       params={{ slug: child.slug }}
@@ -242,6 +244,17 @@ function CategoriesDirectoryPage() {
                                     >
                                       <span>{child.name}</span>
                                     </Link>
+                                    <For each={child.children ?? []}>
+                                      {(grandChild) => (
+                                        <Link
+                                          to="/categoria/$slug"
+                                          params={{ slug: grandChild.slug }}
+                                          class="inline-flex items-center rounded-md border border-dashed border-[#DFCBE6] bg-white px-2 py-0.5 text-[11px] font-medium text-[#6B4A7D] transition-colors hover:border-[#93509e] hover:text-[#93509e]"
+                                        >
+                                          ↳ {grandChild.name}
+                                        </Link>
+                                      )}
+                                    </For>
                                   </li>
                                 )}
                               </For>

@@ -94,13 +94,19 @@ export function AdminCombobox(props: {
     () => props.options.find((o) => o.value === props.value) ?? null,
   );
 
+  const normalizeSearch = (val: string) =>
+    val
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
   const filteredOptions = createMemo(() => {
-    const q = query().trim().toLowerCase();
+    const q = normalizeSearch(query().trim());
     if (!q) return props.options;
     return props.options.filter(
       (o) =>
-        o.label.toLowerCase().includes(q) ||
-        (o.hint?.toLowerCase().includes(q) ?? false),
+        normalizeSearch(o.label).includes(q) ||
+        (o.hint ? normalizeSearch(o.hint).includes(q) : false),
     );
   });
 
@@ -335,10 +341,20 @@ export function AdminMultiCombobox(props: {
     props.options.filter((o) => props.selectedValues.includes(o.value)),
   );
 
+  const normalizeSearch = (val: string) =>
+    val
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
   const filteredOptions = createMemo(() => {
-    const q = query().trim().toLowerCase();
+    const q = normalizeSearch(query().trim());
     if (!q) return props.options;
-    return props.options.filter((o) => o.label.toLowerCase().includes(q));
+    return props.options.filter(
+      (o) =>
+        normalizeSearch(o.label).includes(q) ||
+        (o.hint ? normalizeSearch(o.hint).includes(q) : false),
+    );
   });
 
   function toggleMenu() {

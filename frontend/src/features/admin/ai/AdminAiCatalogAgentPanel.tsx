@@ -23,6 +23,7 @@ import {
   type CategoryOption,
   makeIdempotencyKey,
 } from "../products/types";
+import { buildCategoryHierarchyOptions } from "../categories/category-helpers";
 import { AdminAiSingleProductLookup } from "./AdminAiSingleProductLookup";
 import {
   type AiProductImportDetail,
@@ -89,6 +90,18 @@ export function AdminAiCatalogAgentPanel(props: {
 
   const brands = () => props.brands ?? fetchedBrands() ?? [];
   const categories = () => props.categories ?? fetchedCategories() ?? [];
+  const categoryHierarchyOptions = createMemo(() =>
+    buildCategoryHierarchyOptions(
+      categories().map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug ?? "",
+        parent_id: c.parent_id ?? null,
+        sort_order: c.sort_order,
+        full_path: c.full_path,
+      })),
+    ),
+  );
 
   const [importsList, { refetch: refetchList }] = createResource(async () => {
     const res = await api<{ data: AiProductImportDetail[] }>(
@@ -667,21 +680,21 @@ export function AdminAiCatalogAgentPanel(props: {
                   class="h-8 rounded border border-zinc-300 bg-white px-2"
                 >
                   <option value="">Definir categoria...</option>
-                  <For each={categories() ?? []}>
-                    {(c) => <option value={c.id}>{c.name}</option>}
+                  <For each={categoryHierarchyOptions()}>
+                    {(c) => <option value={c.value}>{c.label}</option>}
                   </For>
                 </select>
                 <button
                   type="button"
                   disabled={!bulkCategoryId()}
                   onClick={() => {
-                    const c = (categories() ?? []).find(
-                      (x) => String(x.id) === bulkCategoryId(),
+                    const c = categoryHierarchyOptions().find(
+                      (x) => x.value === bulkCategoryId(),
                     );
                     if (c) {
                       void applyBulkDraftAssignment({
-                        category_id: c.id,
-                        category_name: c.name,
+                        category_id: Number(c.value),
+                        category_name: c.label,
                       });
                     }
                   }}
@@ -1013,6 +1026,63 @@ export function AdminAiCatalogAgentPanel(props: {
                             }}
                             class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2"
                           />
+                        </div>
+                        <div class="sm:col-span-2">
+                          <label class="block text-[11px] font-semibold text-zinc-700">
+                            Categoria (hierárquica)
+                          </label>
+                          <select
+                            value={
+                              item().proposed_data.category_id
+                                ? String(item().proposed_data.category_id)
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const val = e.currentTarget.value;
+                              const cid = Number(val);
+                              const chosen = categoryHierarchyOptions().find(
+                                (c) => c.value === val,
+                              );
+                              void updateItem(detail().id, item().id, {
+                                category_id: cid || null,
+                                category_name: chosen?.label ?? null,
+                              });
+                            }}
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 bg-white px-2"
+                          >
+                            <option value="">Selecionar categoria...</option>
+                            <For each={categoryHierarchyOptions()}>
+                              {(c) => <option value={c.value}>{c.label}</option>}
+                            </For>
+                          </select>
+                          <Show
+                            when={
+                              !item().proposed_data.category_id &&
+                              (item().proposed_data.category_suggestions?.length ?? 0) > 0
+                            }
+                          >
+                            <div class="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                              <span class="font-semibold text-amber-800">
+                                Sugestões para "{item().proposed_data.category_raw ?? item().proposed_data.category_name}":
+                              </span>
+                              <For each={item().proposed_data.category_suggestions ?? []}>
+                                {(sug) => (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void updateItem(detail().id, item().id, {
+                                        category_id: sug.id,
+                                        category_name: sug.full_path,
+                                      })
+                                    }
+                                    class="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 font-medium text-amber-900 hover:bg-amber-100"
+                                  >
+                                    {sug.full_path}
+                                  </button>
+                                )}
+                              </For>
+                            </div>
+                          </Show>
                         </div>
                         <div>
                           <label class="block text-[11px] font-semibold text-zinc-700">SKU</label>
