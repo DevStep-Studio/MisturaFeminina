@@ -5,16 +5,21 @@ declare(strict_types=1);
 namespace App\Domain\Catalog\Services;
 
 use App\Domain\Catalog\Events\VariantRestocked;
+use App\Domain\Shared\Enums\InventoryMovementType;
 use App\Domain\Shared\Enums\ProductType;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class CatalogCsvService
 {
+    public function __construct(
+        private readonly InventoryService $inventory,
+    ) {}
     public function exportCsv(): string
     {
         $handle = fopen('php://temp', 'r+');
@@ -61,7 +66,7 @@ class CatalogCsvService
     }
 
     /** @return array{dry_run: bool, total_rows: int, created: int, updated: int, errors: list<array{row: int, message: string}>, preview: list<array<string, mixed>>} */
-    public function importCsv(string $csvContent, bool $dryRun = true): array
+    public function importCsv(string $csvContent, bool $dryRun = true, ?User $actor = null): array
     {
         $lines = preg_split('/\r\n|\r|\n/', trim($csvContent)) ?: [];
         if (count($lines) < 2) {
@@ -131,9 +136,7 @@ class CatalogCsvService
             ];
         }
 
-        $restockedEvents = [];
-
-        DB::transaction(function () use ($rows, &$created, &$updated, &$restockedEvents): void {
+        DB::transaction(function () use ($rows, &$created, &$updated, $actor): void {
             foreach ($rows as $row) {
                 $brandId = null;
                 if (! empty($row['brand'])) {
@@ -186,34 +189,53 @@ class CatalogCsvService
                 }
 
                 $existingVariant = ProductVariant::query()->where('sku', $row['_variant_sku'])->first();
-                $prevAvailable = $existingVariant ? $existingVariant->availableStock() : 0;
                 $newStockQty = max(0, (int) ($row['stock_qty'] ?? 0));
 
-                $savedVariant = ProductVariant::query()->updateOrCreate(
-                    ['sku' => $row['_variant_sku']],
-                    [
+                if ($existingVariant) {
+                    $prevStockQty = $existingVariant->stock_qty;
+                    $existingVariant->update([
                         'product_id' => $product->id,
                         'name' => ($row['variant_name'] ?? '') ?: 'Padrão',
                         'price_cents' => $priceCents,
                         'promo_price_cents' => $promoCents,
-                        'stock_qty' => $newStockQty,
                         'weight_grams' => $weightGrams,
                         'is_default' => $row['_variant_sku'] === $row['sku'],
                         'is_active' => $isActive,
-                    ]
-                );
-
-                $newAvailable = $savedVariant->availableStock();
-                if ($existingVariant && $prevAvailable <= 0 && $newAvailable > 0) {
-                    $restockedEvents[] = new VariantRestocked($savedVariant, $prevAvailable, $newAvailable, 'Importação CSV de catálogo');
+                    ]);
+                    if ($newStockQty !== $prevStockQty) {
+                        $this->inventory->adjustStock(
+                            $existingVariant,
+                            $newStockQty - $prevStockQty,
+                            InventoryMovementType::Adjustment,
+                            $actor,
+                            'Importação CSV de catálogo'
+                        );
+                    }
+                } else {
+                    $savedVariant = ProductVariant::query()->create([
+                        'product_id' => $product->id,
+                        'sku' => $row['_variant_sku'],
+                        'name' => ($row['variant_name'] ?? '') ?: 'Padrão',
+                        'price_cents' => $priceCents,
+                        'promo_price_cents' => $promoCents,
+                        'stock_qty' => 0,
+                        'reserved_qty' => 0,
+                        'weight_grams' => $weightGrams,
+                        'is_default' => $row['_variant_sku'] === $row['sku'],
+                        'is_active' => $isActive,
+                    ]);
+                    if ($newStockQty > 0) {
+                        $this->inventory->adjustStock(
+                            $savedVariant,
+                            $newStockQty,
+                            InventoryMovementType::In,
+                            $actor,
+                            'Importação CSV (saldo inicial)'
+                        );
+                    }
                 }
             }
         });
-
-        foreach ($restockedEvents as $event) {
-            event($event);
-            app(RestockNotificationService::class)->handleVariantRestocked($event);
-        }
 
         return [
             'dry_run' => false,

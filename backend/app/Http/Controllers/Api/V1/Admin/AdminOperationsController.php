@@ -303,11 +303,13 @@ class AdminOperationsController extends Controller
         $validated = $request->validate([
             'raw_text' => ['required', 'string', 'max:200000'],
             'default_product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'existing_rows' => ['nullable', 'array', 'max:500'],
         ]);
 
         $rows = $this->bulkEdit->parseTabularText(
             $validated['raw_text'],
-            isset($validated['default_product_id']) ? (int) $validated['default_product_id'] : null
+            isset($validated['default_product_id']) ? (int) $validated['default_product_id'] : null,
+            $validated['existing_rows'] ?? []
         );
         $preview = $this->bulkEdit->preview(
             $rows,
@@ -339,6 +341,8 @@ class AdminOperationsController extends Controller
             'idempotency_key' => ['nullable', 'string', 'max:100'],
             'source' => ['nullable', Rule::in(['grid', 'paste', 'csv'])],
             'default_product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'apply_valid_only' => ['boolean'],
+            'check_concurrency' => ['boolean'],
         ]);
 
         /** @var User $actor */
@@ -349,8 +353,17 @@ class AdminOperationsController extends Controller
             $actor,
             $idempotencyKey,
             (string) ($validated['source'] ?? 'grid'),
-            isset($validated['default_product_id']) ? (int) $validated['default_product_id'] : null
+            isset($validated['default_product_id']) ? (int) $validated['default_product_id'] : null,
+            (bool) ($validated['apply_valid_only'] ?? false),
+            (bool) ($validated['check_concurrency'] ?? false),
         );
+
+        if (($result['status'] ?? '') === 'conflict') {
+            return response()->json([
+                'message' => 'Conflito de concorrência detectado. Revise os saldos atualizados antes de gravar.',
+                'data' => $result,
+            ], 409);
+        }
 
         return response()->json(['data' => $result], 201);
     }

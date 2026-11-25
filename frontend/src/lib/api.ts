@@ -157,22 +157,33 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
           redirectTo = payload.redirect_to;
         }
       }
-      if (response.status === 422) {
-        const payload: unknown = await response.json().catch(() => undefined);
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "errors" in payload &&
-          payload.errors &&
-          typeof payload.errors === "object"
-        ) {
-          validation = Object.fromEntries(
-            Object.entries(payload.errors).filter(
-              (entry): entry is [string, string[]] =>
-                Array.isArray(entry[1]) &&
-                entry[1].every((value) => typeof value === "string"),
-            ),
-          );
+      let parsedPayload: Record<string, unknown> | undefined;
+      let serverMessage: string | undefined;
+      if ([409, 422].includes(response.status)) {
+        const raw: unknown = await response.json().catch(() => undefined);
+        if (raw && typeof raw === "object") {
+          parsedPayload = raw as Record<string, unknown>;
+          if (
+            response.status === 409 &&
+            "message" in raw &&
+            typeof raw.message === "string"
+          ) {
+            serverMessage = raw.message;
+          }
+          if (
+            response.status === 422 &&
+            "errors" in raw &&
+            raw.errors &&
+            typeof raw.errors === "object"
+          ) {
+            validation = Object.fromEntries(
+              Object.entries(raw.errors).filter(
+                (entry): entry is [string, string[]] =>
+                  Array.isArray(entry[1]) &&
+                  entry[1].every((value) => typeof value === "string"),
+              ),
+            );
+          }
         }
       }
       const error = new ApiError(
@@ -181,6 +192,8 @@ async function performRequest<T>(url: string, options: ApiOptions): Promise<T> {
         response.headers.get("X-Request-ID") || requestId,
         validation,
         redirectTo,
+        parsedPayload,
+        serverMessage,
       );
       if (
         options.authenticated !== false &&

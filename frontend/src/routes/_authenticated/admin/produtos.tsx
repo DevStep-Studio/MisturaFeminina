@@ -1,27 +1,51 @@
-import { Link, createFileRoute } from "@tanstack/solid-router";
-import ExternalLink from "lucide-solid/icons/external-link";
-import Percent from "lucide-solid/icons/percent";
+import { createFileRoute } from "@tanstack/solid-router";
+import Archive from "lucide-solid/icons/archive";
+import ChevronDown from "lucide-solid/icons/chevron-down";
+import Download from "lucide-solid/icons/download";
+import FileSpreadsheet from "lucide-solid/icons/file-spreadsheet";
+import Grid from "lucide-solid/icons/grid-2x2";
+import Plus from "lucide-solid/icons/plus";
+import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
 import Sparkles from "lucide-solid/icons/sparkles";
 import Star from "lucide-solid/icons/star";
 import Trash2 from "lucide-solid/icons/trash";
+import X from "lucide-solid/icons/x";
 import {
   For,
   Show,
   createEffect,
+  createMemo,
   createResource,
   createSignal,
+  onCleanup,
 } from "solid-js";
 import { AdminBulkVariantsGrid } from "../../../features/admin/AdminBulkVariantsGrid";
 import { AdminGoodsReceiptsPanel } from "../../../features/admin/AdminGoodsReceiptsPanel";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminRestockAnalyticsPanel } from "../../../features/admin/AdminRestockAnalyticsPanel";
+import { AdminAiCatalogAgentPanel } from "../../../features/admin/ai/AdminAiCatalogAgentPanel";
+import { BulkLifecycleModal } from "../../../features/admin/products/BulkLifecycleModal";
+import { BulkRuleModal } from "../../../features/admin/products/BulkRuleModal";
+import { ProductCatalogTable } from "../../../features/admin/products/ProductCatalogTable";
 import {
-  AdminVariantsEditor,
-  type AdminVariantDraft,
-} from "../../../features/admin/AdminVariantsEditor";
+  type AttributeOption,
+  ProductFormScreen,
+} from "../../../features/admin/products/ProductFormScreen";
+import {
+  type AdminProductRow,
+  type AdminProductsPagePayload,
+  type BrandOption,
+  type BulkSelectionPayload,
+  type CatalogFilters,
+  type CategoryOption,
+  countActiveCatalogFilters,
+} from "../../../features/admin/products/types";
 import { ApiError, api } from "../../../lib/api";
-import { assetUrl, formatCents } from "../../../lib/format";
-import { seoHead, site } from "../../../lib/seo";
+import { seoHead } from "../../../lib/seo";
+import { hasPermission } from "../../../security/permissions";
+import { session } from "../../../security/session";
+
+const SCROLL_STORAGE_KEY = "mf:admin-products:scrollY";
 
 export const Route = createFileRoute("/_authenticated/admin/produtos")({
   validateSearch: (raw: Record<string, unknown>): Record<string, string> => {
@@ -34,57 +58,25 @@ export const Route = createFileRoute("/_authenticated/admin/produtos")({
   },
   head: () =>
     seoHead({
-      title: "Produtos e Estoque — Admin Mistura Feminina",
+      title: "Produtos — Admin Mistura Feminina",
       description:
-        "Cadastro completo de produtos, variantes, estoque, CSV e avaliações.",
+        "Gerenciamento de catálogo, edição em massa, recebimentos e cadastro assistido com IA.",
       path: "/admin/produtos",
       noindex: true,
     }),
   component: AdminProductsPage,
 });
 
-interface AdminProductRow {
-  id: number;
-  name: string;
-  slug: string;
-  sku: string;
-  price_cents: number;
-  promo_price_cents: number | null;
-  weight_grams: number;
-  short_description: string | null;
-  description: string | null;
-  seo_title?: string | null;
-  seo_description?: string | null;
-  brand_id: number | null;
-  is_active: boolean;
-  is_featured: boolean;
-  is_new_arrival: boolean;
-  brand?: { id: number; name: string } | null;
-  categories?: { id: number; name: string }[];
-  images?: {
-    id: number;
-    path: string;
-    alt_text: string | null;
-    is_primary?: boolean;
-  }[];
-  wholesale_group_variants?: boolean;
-  attribute_values?: { id: number; value: string }[];
-  variants?: {
-    id: number;
-    sku: string;
-    name: string;
-    shade_code?: string | null;
-    color_family?: string | null;
-    color_hex?: string | null;
-    price_cents: number;
-    promo_price_cents?: number | null;
-    stock_qty: number;
-    reserved_qty: number;
-    sort_order?: number;
-    is_default?: boolean;
-    is_active?: boolean;
-  }[];
-}
+type ModuleView =
+  | "catalogo"
+  | "novo"
+  | "editar"
+  | "massa"
+  | "ia"
+  | "recebimentos"
+  | "avaliacoes"
+  | "avisos"
+  | "csv";
 
 interface ReviewRow {
   id: number;
@@ -98,356 +90,297 @@ interface ReviewRow {
 
 function AdminProductsPage() {
   const routeSearch = Route.useSearch();
-  const [tab, setTab] = createSignal<
-    "produtos" | "massa" | "recebimentos" | "avaliacoes" | "avisos" | "csv"
-  >("produtos");
-  const [search, setSearch] = createSignal("");
-  const [catalogFilter, setCatalogFilter] = createSignal("");
-  const [bulkProductId, setBulkProductId] = createSignal<number | null>(null);
-  const [receiptInitialSku, setReceiptInitialSku] = createSignal("");
-  const [editingId, setEditingId] = createSignal<number | null>(null);
-  const [name, setName] = createSignal("");
-  const [slug, setSlug] = createSignal("");
-  const [sku, setSku] = createSignal("");
-  const [wholesaleGroupVariants, setWholesaleGroupVariants] =
-    createSignal(true);
-  const [selectedAttrValueIds, setSelectedAttrValueIds] = createSignal<
-    number[]
-  >([]);
-  const [variantsDraft, setVariantsDraft] = createSignal<AdminVariantDraft[]>(
-    [],
-  );
+  const navigate = Route.useNavigate();
 
-  const [availableAttributes] = createResource(async () => {
-    const res = await api<{
-      data: Array<{
-        id: number;
-        name: string;
-        values: Array<{ id: number; value: string }>;
-      }>;
-    }>("/admin/attributes");
-    return res.data || [];
+  const permissions = () => session.user()?.permissions ?? [];
+  const canWrite = () => hasPermission(permissions(), "catalog.write");
+  const canPrice = () =>
+    hasPermission(permissions(), "catalog.pricing") || canWrite();
+  const canStock = () =>
+    hasPermission(permissions(), "inventory.manage") || canWrite();
+  const canBulkEdit = () =>
+    hasPermission(permissions(), "catalog.bulk_edit") || canWrite();
+  const canAiCatalog = () =>
+    hasPermission(permissions(), "ai.catalog") || canWrite();
+
+  const currentView = createMemo<ModuleView>(() => {
+    const s = routeSearch();
+    const raw = s.view || s.tab || "catalogo";
+    if (raw === "produtos") return "catalogo";
+    const allowed: ModuleView[] = [
+      "catalogo",
+      "novo",
+      "editar",
+      "massa",
+      "ia",
+      "recebimentos",
+      "avaliacoes",
+      "avisos",
+      "csv",
+    ];
+    return allowed.includes(raw as ModuleView)
+      ? (raw as ModuleView)
+      : "catalogo";
   });
 
-  function toggleAttrValueId(valId: number) {
-    setSelectedAttrValueIds((prev) =>
-      prev.includes(valId)
-        ? prev.filter((id) => id !== valId)
-        : [...prev, valId],
-    );
-  }
-  const [brandId, setBrandId] = createSignal("");
-  const [selectedCats, setSelectedCats] = createSignal<number[]>([]);
-  const [priceBrl, setPriceBrl] = createSignal("29.90");
-  const [promoBrl, setPromoBrl] = createSignal("");
-  const [stockQty, setStockQty] = createSignal(20);
-  const [weightGrams, setWeightGrams] = createSignal(200);
-  const [imagePath, setImagePath] = createSignal("");
-  const [imageAlt, setImageAlt] = createSignal("");
-  const [shortDesc, setShortDesc] = createSignal("");
-  const [fullDesc, setFullDesc] = createSignal("");
-  const [seoTitle, setSeoTitle] = createSignal("");
-  const [seoDesc, setSeoDesc] = createSignal("");
-  const [isActive, setIsActive] = createSignal(true);
-  const [isFeatured, setIsFeatured] = createSignal(false);
-  const [isNew, setIsNew] = createSignal(true);
+  const filters = createMemo<CatalogFilters>(() => {
+    const s = routeSearch();
+    return {
+      search: s.search || "",
+      brand_id: s.brand_id || "",
+      category_id: s.category_id || "",
+      status: s.status || "all",
+      availability: s.availability || "all",
+      sort: s.sort || "newest",
+      filter: s.filter || "",
+      page: Math.max(1, Number.parseInt(s.page || "1", 10) || 1),
+    };
+  });
+
+  const [searchInput, setSearchInput] = createSignal(filters().search);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = createSignal(false);
+  const [secondaryMenuOpen, setSecondaryMenuOpen] = createSignal(false);
+  const [pageSelectedIds, setPageSelectedIds] = createSignal<number[]>([]);
+  const [selectAllMatching, setSelectAllMatching] = createSignal(false);
+  const [excludedIds, setExcludedIds] = createSignal<number[]>([]);
+  const [selectionNotice, setSelectionNotice] = createSignal<string | null>(
+    null,
+  );
+  const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [pendingScrollRestore, setPendingScrollRestore] = createSignal(false);
+
+  const [ruleModalOpen, setRuleModalOpen] = createSignal(false);
+  const [lifecycleModal, setLifecycleModal] = createSignal<{
+    open: boolean;
+    action: "archive" | "restore" | "delete";
+    productIds?: number[];
+  }>({ open: false, action: "archive" });
+
   const [csvContent, setCsvContent] = createSignal("");
   const [csvPreview, setCsvPreview] = createSignal<string | null>(null);
-  const [feedback, setFeedback] = createSignal<string | null>(null);
-  const [stockFilter, setStockFilter] = createSignal<
-    "all" | "active" | "low" | "out"
-  >("all");
 
   createEffect(() => {
-    const s = routeSearch();
-    if (
-      s.tab === "produtos" ||
-      s.tab === "massa" ||
-      s.tab === "recebimentos" ||
-      s.tab === "avaliacoes" ||
-      s.tab === "avisos" ||
-      s.tab === "csv"
-    ) {
-      setTab(s.tab);
-    }
-    if (s.filter === "needs_review" || s.filter === "out_of_stock_variants") {
-      setCatalogFilter(s.filter);
-      setTab("produtos");
-    }
-    if (s.sku) {
-      setReceiptInitialSku(s.sku);
-    }
-    if (s.search) {
-      setSearch(s.search);
-    }
-    if (s.product_id && Number.isFinite(Number(s.product_id))) {
-      setBulkProductId(Number(s.product_id));
-    }
+    setSearchInput(filters().search);
   });
 
-  const [products, { refetch: refetchProducts }] = createResource(
-    () => ({ search: search(), filter: catalogFilter() }),
+  let searchDebounceTimer: number | undefined;
+  onCleanup(() => {
+    if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
+  });
+
+  function updateQuery(
+    patch: Record<string, string | undefined>,
+    resetSelectionIfFilterChanged = false,
+  ) {
+    const prevSelectedCount =
+      selectAllMatching() ? 1 : pageSelectedIds().length;
+    if (resetSelectionIfFilterChanged && prevSelectedCount > 0) {
+      setPageSelectedIds([]);
+      setSelectAllMatching(false);
+      setExcludedIds([]);
+      setSelectionNotice(
+        "Os filtros ou a busca foram alterados — a seleção anterior foi limpa.",
+      );
+    }
+
+    const next: Record<string, string> = { ...routeSearch() };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined || v === "" || v === "all" && (k === "status" || k === "availability")) {
+        delete next[k];
+      } else {
+        next[k] = v;
+      }
+    }
+    delete next.tab;
+
+    void navigate({ search: next, replace: true });
+  }
+
+  function handleSearchInput(val: string) {
+    setSearchInput(val);
+    if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = window.setTimeout(() => {
+      updateQuery({ search: val.trim() || undefined, page: "1" }, true);
+    }, 260);
+  }
+
+  const [productsPage, { refetch: refetchProducts }] = createResource(
+    filters,
     async (f) => {
       const qs = new URLSearchParams();
       if (f.search) qs.set("search", f.search);
+      if (f.brand_id) qs.set("brand_id", f.brand_id);
+      if (f.category_id) qs.set("category_id", f.category_id);
+      if (f.status && f.status !== "all") qs.set("status", f.status);
+      if (f.availability && f.availability !== "all")
+        qs.set("availability", f.availability);
+      if (f.sort && f.sort !== "newest") qs.set("sort", f.sort);
       if (f.filter) qs.set("filter", f.filter);
-      const qStr = qs.toString();
-      const res = await api<{ data: AdminProductRow[] }>(
-        `/admin/products${qStr ? `?${qStr}` : ""}`,
+      qs.set("page", String(f.page));
+      qs.set("per_page", "25");
+
+      return await api<AdminProductsPagePayload>(
+        `/admin/products?${qs.toString()}`,
       );
-      return res.data ?? [];
     },
   );
 
-  const filteredProducts = () => {
-    const list = products() ?? [];
-    const f = stockFilter();
-    if (f === "active") return list.filter((p) => p.is_active);
-    if (f === "low") {
-      return list.filter((p) => {
-        const v = p.variants?.[0];
-        const avail = (v?.stock_qty ?? 0) - (v?.reserved_qty ?? 0);
-        return avail > 0 && avail <= 5;
-      });
+  // Restore scroll position after returning from product form
+  createEffect(() => {
+    if (
+      currentView() === "catalogo" &&
+      pendingScrollRestore() &&
+      !productsPage.loading
+    ) {
+      const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY);
+      if (saved) {
+        const y = Number.parseInt(saved, 10) || 0;
+        sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+        requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "auto" }));
+      }
+      setPendingScrollRestore(false);
     }
-    if (f === "out") {
-      return list.filter((p) => {
-        const v = p.variants?.[0];
-        const avail = (v?.stock_qty ?? 0) - (v?.reserved_qty ?? 0);
-        return avail <= 0;
-      });
-    }
-    return list;
-  };
+  });
 
   const [brands] = createResource(async () => {
-    const res = await api<{ data: { id: number; name: string }[] }>(
-      "/admin/brands",
-    );
+    const res = await api<{ data: BrandOption[] }>("/admin/brands");
     return res.data ?? [];
   });
 
   const [categories] = createResource(async () => {
-    const res = await api<{ data: { id: number; name: string }[] }>(
-      "/admin/categories",
-    );
+    const res = await api<{ data: CategoryOption[] }>("/admin/categories");
     return res.data ?? [];
   });
 
-  const [reviews, { refetch: refetchReviews }] = createResource(async () => {
-    const res = await api<{ data: ReviewRow[] }>("/admin/reviews");
+  const [attributes] = createResource(async () => {
+    const res = await api<{ data: AttributeOption[] }>("/admin/attributes");
     return res.data ?? [];
   });
 
-  function loadProductIntoForm(p: AdminProductRow) {
-    setEditingId(p.id);
-    setName(p.name);
-    setSlug(p.slug);
-    setSku(p.sku);
-    setBrandId(p.brand_id ? String(p.brand_id) : "");
-    setSelectedCats((p.categories ?? []).map((c) => c.id));
-    setPriceBrl((p.price_cents / 100).toFixed(2));
-    setPromoBrl(
-      p.promo_price_cents ? (p.promo_price_cents / 100).toFixed(2) : "",
-    );
-    setStockQty(p.variants?.[0]?.stock_qty ?? 0);
-    setWeightGrams(p.weight_grams || 200);
-    const primaryImage =
-      p.images?.find((image) => image.is_primary) ?? p.images?.[0];
-    setImagePath(primaryImage?.path || "");
-    setImageAlt(primaryImage?.alt_text || "");
-    setShortDesc(p.short_description || "");
-    setFullDesc(p.description || "");
-    setSeoTitle(p.seo_title || "");
-    setSeoDesc(p.seo_description || "");
-    setIsActive(p.is_active);
-    setIsFeatured(p.is_featured);
-    setIsNew(p.is_new_arrival);
-    setWholesaleGroupVariants(p.wholesale_group_variants ?? true);
-    setSelectedAttrValueIds((p.attribute_values ?? []).map((av) => av.id));
-    setVariantsDraft(
-      (p.variants ?? []).map((v, idx) => ({
-        id: v.id,
-        name: v.name || `Tonalidade ${idx + 1}`,
-        shade_code: v.shade_code || "",
-        color_family: v.color_family || "",
-        color_hex: v.color_hex || "#93509e",
-        sku: v.sku || `${p.sku}-${idx + 1}`,
-        price_cents: v.price_cents ?? p.price_cents,
-        promo_price_cents: v.promo_price_cents ?? null,
-        stock_qty: v.stock_qty ?? 0,
-        sort_order: v.sort_order ?? idx,
-        is_default: v.is_default ?? idx === 0,
-        is_active: v.is_active ?? true,
-      })),
-    );
-  }
+  const editTargetId = createMemo(() => {
+    const s = routeSearch();
+    const id = Number(s.editId || 0);
+    return currentView() === "editar" && id > 0 ? id : null;
+  });
 
-  function resetForm() {
-    setEditingId(null);
-    setName("");
-    setSlug("");
-    setSku("");
-    setBrandId("");
-    setSelectedCats([]);
-    setPriceBrl("29.90");
-    setPromoBrl("");
-    setStockQty(20);
-    setWeightGrams(200);
-    setImagePath("");
-    setImageAlt("");
-    setShortDesc("");
-    setFullDesc("");
-    setSeoTitle("");
-    setSeoDesc("");
-    setIsActive(true);
-    setIsFeatured(false);
-    setIsNew(true);
-    setWholesaleGroupVariants(true);
-    setSelectedAttrValueIds([]);
-    setVariantsDraft([]);
-  }
+  const dupTargetId = createMemo(() => {
+    const s = routeSearch();
+    const id = Number(s.dupId || 0);
+    return currentView() === "novo" && id > 0 ? id : null;
+  });
 
-  async function uploadImage(file: File) {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("folder", "products");
-    const res = await api<{ data: { path: string } }>("/admin/media/upload", {
-      method: "POST",
-      body: fd,
-    });
-    setImagePath(res.data.path);
-  }
+  const [editingProduct] = createResource(editTargetId, async (id) => {
+    const res = await api<{ data: AdminProductRow }>(`/admin/products/${id}`);
+    return res.data;
+  });
 
-  async function saveProduct(e: Event) {
-    e.preventDefault();
-    setFeedback(null);
-    const priceCents = Math.round(Number(priceBrl()) * 100);
-    const promoCents = promoBrl().trim()
-      ? Math.round(Number(promoBrl()) * 100)
-      : null;
-    const existing = products()?.find((x) => x.id === editingId());
-    const firstVariantId = existing?.variants?.[0]?.id;
+  const [duplicatingProduct] = createResource(dupTargetId, async (id) => {
+    const res = await api<{ data: AdminProductRow }>(`/admin/products/${id}`);
+    return res.data;
+  });
 
-    const payload = {
-      name: name().trim(),
-      slug: slug().trim() || undefined,
-      sku: sku().trim().toUpperCase(),
-      brand_id: brandId() ? Number(brandId()) : null,
-      category_ids: selectedCats(),
-      price_cents: priceCents,
-      promo_price_cents: promoCents,
-      weight_grams: Number(weightGrams()) || 200,
-      short_description: shortDesc().trim() || undefined,
-      description: fullDesc().trim() || undefined,
-      seo_title: seoTitle().trim() || undefined,
-      seo_description: seoDesc().trim() || undefined,
-      is_active: isActive(),
-      is_featured: isFeatured(),
-      is_new_arrival: isNew(),
-      wholesale_group_variants: wholesaleGroupVariants(),
-      product_attribute_value_ids: selectedAttrValueIds(),
-      images: imagePath().trim()
-        ? [
-            {
-              path: imagePath().trim(),
-              alt_text: imageAlt().trim() || name().trim(),
-              is_primary: true,
-            },
-          ]
-        : [],
-      variants:
-        variantsDraft().length > 0
-          ? variantsDraft().map((v, idx) => ({
-              id: v.id,
-              sku:
-                v.sku.trim().toUpperCase() ||
-                `${sku().trim().toUpperCase()}-${idx + 1}`,
-              name: v.name.trim() || `Tonalidade ${idx + 1}`,
-              shade_code: v.shade_code.trim() || null,
-              color_family: v.color_family.trim() || null,
-              color_hex: v.color_hex.trim() || null,
-              price_cents: v.price_cents || priceCents,
-              promo_price_cents: v.promo_price_cents,
-              stock_qty: v.stock_qty,
-              sort_order: idx,
-              is_default: idx === 0,
-              is_active: v.is_active,
-            }))
-          : [
-              {
-                id: firstVariantId,
-                sku: sku().trim().toUpperCase(),
-                name: existing?.variants?.[0]?.name || "Padrão",
-                price_cents: priceCents,
-                promo_price_cents: promoCents,
-                stock_qty: Number(stockQty()) || 0,
-                is_default: true,
-                is_active: true,
-              },
-            ],
-    };
+  const [reviews, { refetch: refetchReviews }] = createResource(
+    () => currentView() === "avaliacoes",
+    async (load) => {
+      if (!load) return [];
+      const res = await api<{ data: ReviewRow[] }>("/admin/reviews");
+      return res.data ?? [];
+    },
+  );
 
-    try {
-      if (editingId()) {
-        await api(`/admin/products/${editingId()}`, {
-          method: "PUT",
-          body: payload,
-        });
-        setFeedback("Produto atualizado com sucesso.");
-      } else {
-        await api("/admin/products", { method: "POST", body: payload });
-        setFeedback("Produto criado no catálogo.");
-      }
-      resetForm();
-      await refetchProducts();
-    } catch (err) {
-      setFeedback(
-        err instanceof ApiError ? err.message : "Erro ao salvar produto.",
-      );
+  const productList = () => productsPage()?.data ?? [];
+  const totalResults = () => productsPage()?.total ?? 0;
+  const activeFilterCount = () => countActiveCatalogFilters(filters());
+
+  const selectedCount = createMemo(() => {
+    if (selectAllMatching()) {
+      return Math.max(0, totalResults() - excludedIds().length);
     }
+    return pageSelectedIds().length;
+  });
+
+  function currentSelectionPayload(overrideIds?: number[]): BulkSelectionPayload {
+    if (overrideIds && overrideIds.length > 0) {
+      return { product_ids: overrideIds };
+    }
+    if (selectAllMatching()) {
+      const f = filters();
+      return {
+        select_all_matching: true,
+        excluded_ids: excludedIds(),
+        filters: {
+          ...(f.search ? { search: f.search } : {}),
+          ...(f.brand_id ? { brand_id: f.brand_id } : {}),
+          ...(f.category_id ? { category_id: f.category_id } : {}),
+          ...(f.status !== "all" ? { status: f.status } : {}),
+          ...(f.availability !== "all" ? { availability: f.availability } : {}),
+          ...(f.filter ? { filter: f.filter } : {}),
+        },
+      };
+    }
+    return { product_ids: pageSelectedIds() };
   }
 
-  async function adjustVariantStock(variantId: number, delta: number) {
-    await api(`/admin/variants/${variantId}/stock`, {
-      method: "POST",
-      body: {
-        qty_delta: delta,
-        type: delta >= 0 ? "in" : "adjustment",
-        reason: "Ajuste rápido via catálogo administrativo",
-      },
-    });
-    await refetchProducts();
-    setFeedback("Estoque ajustado com movimentação registrada.");
-  }
-
-  const discountInfo = () => {
-    const regular = Number(priceBrl());
-    const promo = Number(promoBrl());
-    if (!regular || !promo || promo >= regular) return null;
-    const pct = Math.round(((regular - promo) / regular) * 100);
-    const diff = (regular - promo).toFixed(2);
-    return { pct, diff };
-  };
-
-  async function deleteProduct(id: number, prodName: string) {
-    if (
-      !confirm(
-        `Tem certeza que deseja remover o produto "${prodName}" do catálogo?`,
-      )
-    )
+  function toggleOne(id: number) {
+    setSelectionNotice(null);
+    if (selectAllMatching()) {
+      setExcludedIds((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+      );
       return;
-    setFeedback(null);
-    try {
-      await api(`/admin/products/${id}`, { method: "DELETE" });
-      setFeedback(`Produto "${prodName}" arquivado com sucesso.`);
-      if (editingId() === id) resetForm();
-      await refetchProducts();
-    } catch (err) {
-      setFeedback(
-        err instanceof ApiError ? err.message : "Erro ao remover produto.",
-      );
     }
+    setPageSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function togglePage() {
+    setSelectionNotice(null);
+    const ids = productList().map((p) => p.id);
+    if (ids.length === 0) return;
+
+    if (selectAllMatching()) {
+      setSelectAllMatching(false);
+      setExcludedIds([]);
+      setPageSelectedIds([]);
+      return;
+    }
+
+    const allChecked = ids.every((id) => pageSelectedIds().includes(id));
+    if (allChecked) {
+      setPageSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
+    } else {
+      setPageSelectedIds((prev) => Array.from(new Set([...prev, ...ids])));
+    }
+  }
+
+  function clearSelection() {
+    setPageSelectedIds([]);
+    setSelectAllMatching(false);
+    setExcludedIds([]);
+  }
+
+  function openEditProduct(id: number) {
+    if (currentView() === "catalogo") {
+      sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
+    }
+    updateQuery({ view: "editar", editId: String(id), dupId: undefined });
+  }
+
+  function openNewProduct(duplicateFromId?: number) {
+    if (currentView() === "catalogo") {
+      sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
+    }
+    updateQuery({
+      view: "novo",
+      editId: undefined,
+      dupId: duplicateFromId ? String(duplicateFromId) : undefined,
+    });
+  }
+
+  function returnToCatalog() {
+    setPendingScrollRestore(true);
+    updateQuery({ view: "catalogo", editId: undefined, dupId: undefined });
   }
 
   async function moderateReview(id: number, status: "approved" | "rejected") {
@@ -474,82 +407,193 @@ function AdminProductsPage() {
     }
   }
 
-  function toggleCat(id: number) {
-    setSelectedCats((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+  function triggerReloadCatalog() {
+    void refetchProducts();
   }
 
-  const [aiAssist, setAiAssist] = createSignal<{
-    action: string;
-    issues: string[];
-    possible_duplicates: Array<{ id: number; name: string; sku: string }>;
-    proposed: {
-      short_description: string;
-      description: string;
-      seo_title: string;
-      seo_description: string;
-    };
-  } | null>(null);
-  const [aiBusy, setAiBusy] = createSignal(false);
-
-  async function runProductAiAssist(
-    action: "improve_description" | "audit_catalog" | "check_duplicates",
-  ) {
-    const id = editingId();
-    if (!id) return;
-    setAiBusy(true);
-    try {
-      const res = await api<{
-        data: {
-          action: string;
-          issues: string[];
-          possible_duplicates: Array<{ id: number; name: string; sku: string }>;
-          proposed: {
-            short_description: string;
-            description: string;
-            seo_title: string;
-            seo_description: string;
-          };
-        };
-      }>(`/admin/ai/catalog/products/${id}/assist`, {
-        method: "POST",
-        body: { action },
-      });
-      setAiAssist(res.data);
-    } finally {
-      setAiBusy(false);
+  function handleFormSaved(msg: string, stayAndNext?: boolean) {
+    setFeedback(msg);
+    void refetchProducts();
+    if (!stayAndNext) {
+      returnToCatalog();
     }
   }
 
+  function handleBulkRuleCommitted(msg: string) {
+    setFeedback(msg);
+    setRuleModalOpen(false);
+    clearSelection();
+    void refetchProducts();
+  }
+
+  function handleLifecycleCommitted(msg: string) {
+    setFeedback(msg);
+    clearSelection();
+    void refetchProducts();
+    if (currentView() === "editar") {
+      returnToCatalog();
+    }
+  }
+
+  const brandNameById = (id: string) =>
+    brands()?.find((b) => String(b.id) === id)?.name ?? id;
+  const catNameById = (id: string) =>
+    categories()?.find((c) => String(c.id) === id)?.name ?? id;
+
   return (
     <AdminLayout
-      title="Produtos, Estoque e Avaliações"
-      subtitle="Cadastre itens, ajuste saldo em estoque, importe CSV e modere reviews"
+      title="Produtos"
+      subtitle="Catálogo administrativo, regras em massa, grade individual e cadastro com IA"
       permission="catalog.view"
     >
-      <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-wrap gap-2">
+      {/* Top Module Navigation */}
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 pb-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <Show when={currentView() === "catalogo"}>
+            <span class="rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700">
+              {totalResults()} resultados
+            </span>
+          </Show>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <Show when={canAiCatalog()}>
+            <button
+              type="button"
+              onClick={() =>
+                updateQuery({
+                  view: "ia",
+                  editId: undefined,
+                  dupId: undefined,
+                })
+              }
+              class="inline-flex items-center gap-1.5 rounded-md border border-[#93509e] bg-white px-3 py-2 text-xs font-bold text-[#93509e] hover:bg-purple-50"
+            >
+              <Sparkles class="h-3.5 w-3.5" />
+              Cadastrar com IA
+            </button>
+          </Show>
+
+          <Show when={canWrite()}>
+            <button
+              type="button"
+              onClick={() => openNewProduct()}
+              class="inline-flex items-center gap-1.5 rounded-md bg-[#93509e] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#7c3f87]"
+            >
+              <Plus class="h-3.5 w-3.5" />
+              Novo produto
+            </button>
+          </Show>
+
+          <div class="relative">
+            <button
+              type="button"
+              onClick={() => setSecondaryMenuOpen(!secondaryMenuOpen())}
+              class="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+            >
+              Mais ferramentas
+              <ChevronDown class="h-3.5 w-3.5" />
+            </button>
+            <Show when={secondaryMenuOpen()}>
+              <div class="absolute right-0 top-10 z-30 w-56 rounded-lg border border-zinc-200 bg-white py-1 text-xs shadow-md">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSecondaryMenuOpen(false);
+                    updateQuery({ view: "massa" });
+                  }}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
+                >
+                  <Grid class="h-3.5 w-3.5 text-zinc-500" />
+                  Edição individual em grade
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSecondaryMenuOpen(false);
+                    updateQuery({ view: "recebimentos" });
+                  }}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
+                >
+                  Recebimento de mercadorias
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSecondaryMenuOpen(false);
+                    updateQuery({ view: "avisos" });
+                  }}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
+                >
+                  Avisos de reposição
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSecondaryMenuOpen(false);
+                    updateQuery({ view: "avaliacoes" });
+                  }}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
+                >
+                  Avaliações de clientes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSecondaryMenuOpen(false);
+                    updateQuery({ view: "csv" });
+                  }}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
+                >
+                  <FileSpreadsheet class="h-3.5 w-3.5 text-zinc-500" />
+                  Importar / Exportar CSV
+                </button>
+                <a
+                  href={`${import.meta.env.VITE_API_URL}/admin/catalog/export-csv`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setSecondaryMenuOpen(false)}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-zinc-700 hover:bg-zinc-50"
+                >
+                  <Download class="h-3.5 w-3.5 text-zinc-500" />
+                  Exportar CSV completo
+                </a>
+              </div>
+            </Show>
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-navigation pills for primary workflow views */}
+      <Show when={currentView() !== "catalogo"}>
+        <div class="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
           <For
             each={
               [
-                ["produtos", "Catálogo & Estoque"],
-                ["massa", "Edição em Massa"],
-                ["recebimentos", "Recebimento de Mercadorias"],
+                ["catalogo", "Catálogo"],
+                ["massa", "Grade em massa"],
+                ["ia", "Cadastrar com IA"],
+                ["recebimentos", "Recebimentos"],
                 ["avaliacoes", "Avaliações"],
-                ["avisos", "Avisos de Reposição"],
-                ["csv", "Importar / Exportar CSV"],
+                ["avisos", "Reposição"],
+                ["csv", "CSV"],
               ] as const
             }
           >
-            {([key, label]) => (
+            {([v, label]) => (
               <button
                 type="button"
-                onClick={() => setTab(key)}
-                class={`rounded-lg px-4 py-2 text-xs font-bold ${
-                  tab() === key
-                    ? "bg-[var(--mf-primary)] text-white"
-                    : "border border-zinc-300 bg-white text-zinc-800"
+                onClick={() =>
+                  updateQuery({
+                    view: v,
+                    editId: undefined,
+                    dupId: undefined,
+                  })
+                }
+                class={`rounded-md px-3 py-1.5 font-semibold ${
+                  currentView() === v
+                    ? "bg-[#93509e] text-white"
+                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
                 }`}
               >
                 {label}
@@ -557,745 +601,567 @@ function AdminProductsPage() {
             )}
           </For>
         </div>
-
-        <div class="flex flex-wrap gap-1.5">
-          <Link
-            to="/admin/ia"
-            search={{ tab: "cadastro" } as Record<string, string>}
-            class="inline-flex items-center gap-1 rounded-lg border border-[#DFC2E3] bg-[#FCF8FD] px-3 py-2 text-xs font-bold text-[#93509e] hover:bg-[#F3E2F6]"
-          >
-            <Sparkles class="size-3.5" />
-            Cadastrar com IA
-          </Link>
-          <Link
-            to="/admin/ia"
-            search={{ tab: "cadastro" } as Record<string, string>}
-            class="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
-          >
-            Importar produtos com IA
-          </Link>
-          <Link
-            to="/admin/ia"
-            search={{ tab: "reposicao" } as Record<string, string>}
-            class="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
-          >
-            Analisar reposição
-          </Link>
-        </div>
-      </div>
-
-      <Show when={feedback()}>
-        <p
-          role="status"
-          class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800"
-        >
-          {feedback()}
-        </p>
       </Show>
 
-      <Show when={tab() === "produtos"}>
-        <div class="grid gap-6 lg:grid-cols-12">
-          {/* Form */}
-          <form
-            onSubmit={saveProduct}
-            class="space-y-3 rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-5"
+      <Show when={feedback()}>
+        <div
+          role="status"
+          class="mb-4 flex items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 px-4 py-2.5 text-xs font-medium text-zinc-900"
+        >
+          <span>{feedback()}</span>
+          <button
+            type="button"
+            aria-label="Dispensar mensagem"
+            onClick={() => setFeedback(null)}
+            class="text-zinc-500 hover:text-zinc-900"
           >
-            <div class="flex items-center justify-between">
-              <h2 class="text-base font-bold text-zinc-900">
-                {editingId()
-                  ? `Editando produto #${editingId()}`
-                  : "Novo Produto"}
-              </h2>
-              <Show when={editingId()}>
+            <X class="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </Show>
+
+      <Show when={selectionNotice()}>
+        <div class="mb-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+          <span>{selectionNotice()}</span>
+          <button
+            type="button"
+            onClick={() => setSelectionNotice(null)}
+            class="font-semibold underline"
+          >
+            Ok
+          </button>
+        </div>
+      </Show>
+
+      {/* VIEW: CATALOG */}
+      <Show when={currentView() === "catalogo"}>
+        <div class="space-y-3 pb-20">
+          {/* Filter Strip */}
+          <div class="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-xs">
+            <input
+              type="search"
+              placeholder="Buscar por nome, SKU ou código de barras..."
+              value={searchInput()}
+              onInput={(e) => handleSearchInput(e.currentTarget.value)}
+              class="h-9 min-w-[200px] flex-1 rounded-md border border-zinc-300 px-3 focus:border-[#93509e] focus:outline-none"
+            />
+
+            {/* Mobile filter drawer trigger */}
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(true)}
+              class="inline-flex h-9 items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 font-semibold text-zinc-800 md:hidden"
+            >
+              <SlidersHorizontal class="h-3.5 w-3.5" />
+              Filtros
+              <Show when={activeFilterCount() > 0}>
+                <span class="rounded-full bg-[#93509e] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {activeFilterCount()}
+                </span>
+              </Show>
+            </button>
+
+            {/* Desktop inline filters */}
+            <div class="hidden flex-wrap items-center gap-2 md:flex">
+              <select
+                aria-label="Filtrar por marca"
+                value={filters().brand_id}
+                onChange={(e) =>
+                  updateQuery(
+                    { brand_id: e.currentTarget.value || undefined, page: "1" },
+                    true,
+                  )
+                }
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
+              >
+                <option value="">Todas as marcas</option>
+                <For each={brands() ?? []}>
+                  {(b) => <option value={b.id}>{b.name}</option>}
+                </For>
+              </select>
+
+              <select
+                aria-label="Filtrar por categoria"
+                value={filters().category_id}
+                onChange={(e) =>
+                  updateQuery(
+                    {
+                      category_id: e.currentTarget.value || undefined,
+                      page: "1",
+                    },
+                    true,
+                  )
+                }
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
+              >
+                <option value="">Todas as categorias</option>
+                <For each={categories() ?? []}>
+                  {(c) => <option value={c.id}>{c.name}</option>}
+                </For>
+              </select>
+
+              <select
+                aria-label="Filtrar por situação"
+                value={filters().status}
+                onChange={(e) =>
+                  updateQuery(
+                    { status: e.currentTarget.value, page: "1" },
+                    true,
+                  )
+                }
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
+              >
+                <option value="all">Todas as situações</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+                <option value="archived">Arquivados</option>
+              </select>
+
+              <select
+                aria-label="Filtrar por disponibilidade"
+                value={filters().availability}
+                onChange={(e) =>
+                  updateQuery(
+                    { availability: e.currentTarget.value, page: "1" },
+                    true,
+                  )
+                }
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
+              >
+                <option value="all">Qualquer estoque</option>
+                <option value="in_stock">Disponível (&gt; 0)</option>
+                <option value="low_stock">Estoque baixo (1–5)</option>
+                <option value="out_of_stock">Esgotado</option>
+              </select>
+
+              <select
+                aria-label="Ordenação"
+                value={filters().sort}
+                onChange={(e) =>
+                  updateQuery({ sort: e.currentTarget.value, page: "1" }, false)
+                }
+                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
+              >
+                <option value="newest">Mais recentes</option>
+                <option value="name_asc">Nome (A–Z)</option>
+                <option value="name_desc">Nome (Z–A)</option>
+                <option value="price_asc">Menor preço</option>
+                <option value="price_desc">Maior preço</option>
+                <option value="stock_asc">Menor estoque</option>
+                <option value="stock_desc">Maior estoque</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Individual removable active filter chips */}
+          <Show when={activeFilterCount() > 0 || filters().search}>
+            <div class="flex flex-wrap items-center gap-1.5 text-xs">
+              <Show when={filters().search}>
                 <button
                   type="button"
                   onClick={() => {
-                    setAiAssist(null);
-                    resetForm();
+                    setSearchInput("");
+                    updateQuery({ search: undefined, page: "1" }, true);
                   }}
-                  class="text-xs font-semibold text-zinc-600 hover:underline"
+                  class="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-zinc-700 hover:bg-zinc-50"
                 >
-                  Cancelar edição
+                  Busca: "{filters().search}"
+                  <X class="h-3 w-3" />
                 </button>
               </Show>
+              <Show when={filters().brand_id}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateQuery({ brand_id: undefined, page: "1" }, true)
+                  }
+                  class="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-zinc-700 hover:bg-zinc-50"
+                >
+                  Marca: {brandNameById(filters().brand_id)}
+                  <X class="h-3 w-3" />
+                </button>
+              </Show>
+              <Show when={filters().category_id}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateQuery({ category_id: undefined, page: "1" }, true)
+                  }
+                  class="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-zinc-700 hover:bg-zinc-50"
+                >
+                  Categoria: {catNameById(filters().category_id)}
+                  <X class="h-3 w-3" />
+                </button>
+              </Show>
+              <Show when={filters().status !== "all"}>
+                <button
+                  type="button"
+                  onClick={() => updateQuery({ status: "all", page: "1" }, true)}
+                  class="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-zinc-700 hover:bg-zinc-50"
+                >
+                  Situação: {filters().status}
+                  <X class="h-3 w-3" />
+                </button>
+              </Show>
+              <Show when={filters().availability !== "all"}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateQuery({ availability: "all", page: "1" }, true)
+                  }
+                  class="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-zinc-700 hover:bg-zinc-50"
+                >
+                  Estoque: {filters().availability}
+                  <X class="h-3 w-3" />
+                </button>
+              </Show>
+              <Show when={filters().filter}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateQuery({ filter: undefined, page: "1" }, true)
+                  }
+                  class="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-zinc-700 hover:bg-zinc-50"
+                >
+                  Painel: {filters().filter}
+                  <X class="h-3 w-3" />
+                </button>
+              </Show>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput("");
+                  updateQuery(
+                    {
+                      search: undefined,
+                      brand_id: undefined,
+                      category_id: undefined,
+                      status: undefined,
+                      availability: undefined,
+                      filter: undefined,
+                      page: "1",
+                    },
+                    true,
+                  );
+                }}
+                class="ml-1 font-semibold text-[#93509e] hover:underline"
+              >
+                Limpar filtros
+              </button>
             </div>
+          </Show>
 
-            <Show when={editingId()}>
-              <div class="space-y-2 rounded-lg border border-[#DFC2E3] bg-[#FCF8FD] p-2.5 text-xs">
-                <div class="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    disabled={aiBusy()}
-                    onClick={() =>
-                      void runProductAiAssist("improve_description")
-                    }
-                    class="rounded border border-[#DFC2E3] bg-white px-2.5 py-1 text-[11px] font-bold text-[#93509e] hover:bg-[#F3E2F6]"
-                  >
-                    Melhorar descrição com IA
-                  </button>
-                  <button
-                    type="button"
-                    disabled={aiBusy()}
-                    onClick={() => void runProductAiAssist("audit_catalog")}
-                    class="rounded border border-[#DFC2E3] bg-white px-2.5 py-1 text-[11px] font-bold text-[#93509e] hover:bg-[#F3E2F6]"
-                  >
-                    Analisar cadastro
-                  </button>
-                  <button
-                    type="button"
-                    disabled={aiBusy()}
-                    onClick={() => void runProductAiAssist("check_duplicates")}
-                    class="rounded border border-[#DFC2E3] bg-white px-2.5 py-1 text-[11px] font-bold text-[#93509e] hover:bg-[#F3E2F6]"
-                  >
-                    Identificar duplicidades
-                  </button>
-                </div>
+          <ProductCatalogTable
+            products={productList()}
+            totalResults={totalResults()}
+            pageSelectedIds={pageSelectedIds()}
+            selectAllMatching={selectAllMatching()}
+            excludedIds={excludedIds()}
+            onToggleOne={toggleOne}
+            onTogglePage={togglePage}
+            onSelectAllMatching={() => {
+              setSelectAllMatching(true);
+              setExcludedIds([]);
+            }}
+            onClearSelection={clearSelection}
+            onEditProduct={openEditProduct}
+            onDuplicateProduct={(id) => openNewProduct(id)}
+            onOpenBulkGridForProduct={(id) =>
+              updateQuery({ view: "massa", product_id: String(id) })
+            }
+            onOpenReceipts={() => updateQuery({ view: "recebimentos" })}
+            onLifecycleAction={(ids, action) =>
+              setLifecycleModal({ open: true, action, productIds: ids })
+            }
+            onReload={() => triggerReloadCatalog()}
+            canWrite={canWrite()}
+            canPrice={canPrice()}
+            canStock={canStock()}
+          />
 
-                <Show when={aiAssist()}>
-                  {(res) => (
-                    <div class="space-y-1.5 rounded border border-[#DFC2E3] bg-white p-2.5 text-[11px]">
-                      <Show when={res().issues.length > 0}>
-                        <p class="font-bold text-amber-800">
-                          Pendências: {res().issues.join(" ")}
-                        </p>
-                      </Show>
-                      <Show when={res().possible_duplicates.length > 0}>
-                        <p class="font-semibold text-zinc-700">
-                          Possíveis correspondências:{" "}
-                          {res()
-                            .possible_duplicates.map(
-                              (d) => `${d.name} (${d.sku})`,
-                            )
-                            .join(", ")}
-                        </p>
-                      </Show>
-                      <p class="text-zinc-600">
-                        <strong>Proposta de descrição:</strong>{" "}
-                        {res().proposed.description}
-                      </p>
+          {/* Pagination */}
+          <Show when={(productsPage()?.last_page ?? 1) > 1}>
+            <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2.5 text-xs">
+              <span class="text-zinc-600">
+                Página <strong>{productsPage()?.current_page}</strong> de{" "}
+                <strong>{productsPage()?.last_page}</strong> ({totalResults()}{" "}
+                itens)
+              </span>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  disabled={filters().page <= 1}
+                  onClick={() =>
+                    updateQuery({ page: String(filters().page - 1) }, false)
+                  }
+                  class="rounded border border-zinc-300 px-3 py-1 font-semibold disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={filters().page >= (productsPage()?.last_page ?? 1)}
+                  onClick={() =>
+                    updateQuery({ page: String(filters().page + 1) }, false)
+                  }
+                  class="rounded border border-zinc-300 px-3 py-1 font-semibold disabled:opacity-40"
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          </Show>
+        </div>
+
+        {/* Sticky Contextual Bulk Bar */}
+        <Show when={selectedCount() > 0}>
+          <div class="fixed inset-x-0 bottom-0 z-40 border-t border-[#93509e] bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-lg">
+            <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs">
+              <div class="flex items-center gap-2">
+                <span class="rounded bg-[#93509e] px-2.5 py-1 font-bold text-white">
+                  {selectedCount()} selecionado(s)
+                </span>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  class="font-semibold text-zinc-600 underline"
+                >
+                  Limpar
+                </button>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <Show when={canBulkEdit()}>
+                  <button
+                    type="button"
+                    onClick={() => setRuleModalOpen(true)}
+                    class="rounded-md bg-[#93509e] px-3.5 py-1.5 font-bold text-white hover:bg-[#7c3f87]"
+                  >
+                    Aplicar regra em massa
+                  </button>
+                </Show>
+
+                <Show when={!selectAllMatching() && pageSelectedIds().length > 0}>
+                  <button
+                    type="button"
+                    onClick={() => updateQuery({ view: "massa" })}
+                    class="rounded-md border border-zinc-300 bg-white px-3 py-1.5 font-semibold text-zinc-800 hover:bg-zinc-50"
+                  >
+                    Editar na grade
+                  </button>
+                </Show>
+
+                <Show when={canWrite()}>
+                  <Show
+                    when={filters().status === "archived"}
+                    fallback={
                       <button
                         type="button"
-                        onClick={() => {
-                          setShortDesc(res().proposed.short_description);
-                          setFullDesc(res().proposed.description);
-                          setSeoTitle(res().proposed.seo_title);
-                          setSeoDesc(res().proposed.seo_description);
-                          setAiAssist(null);
-                        }}
-                        class="rounded bg-[#93509e] px-2.5 py-1 font-bold text-white"
+                        onClick={() =>
+                          setLifecycleModal({ open: true, action: "archive" })
+                        }
+                        class="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-1.5 font-semibold text-zinc-800 hover:bg-zinc-50"
                       >
-                        Aplicar proposta no formulário
+                        <Archive class="h-3.5 w-3.5" />
+                        Arquivar
                       </button>
-                    </div>
-                  )}
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLifecycleModal({ open: true, action: "restore" })
+                      }
+                      class="rounded-md border border-[#93509e] bg-white px-3 py-1.5 font-semibold text-[#93509e]"
+                    >
+                      Restaurar
+                    </button>
+                  </Show>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setLifecycleModal({ open: true, action: "delete" })
+                    }
+                    class="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                    Excluir
+                  </button>
                 </Show>
               </div>
-            </Show>
+            </div>
+          </div>
+        </Show>
 
-            <div class="grid gap-2.5 sm:grid-cols-2">
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-semibold text-zinc-700">
-                  Nome *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name()}
-                  onInput={(e) => setName(e.currentTarget.value)}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-zinc-700">
-                  SKU *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={sku()}
-                  onInput={(e) => setSku(e.currentTarget.value.toUpperCase())}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm uppercase"
-                />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-zinc-700">
-                  Marca
-                </label>
-                <select
-                  value={brandId()}
-                  onChange={(e) => setBrandId(e.currentTarget.value)}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-sm"
+        {/* Mobile Filters Slide-over Sheet */}
+        <Show when={mobileFiltersOpen()}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtrar catálogo"
+            class="fixed inset-0 z-50 flex items-end bg-black/45 md:hidden"
+          >
+            <div class="w-full space-y-3 rounded-t-xl border-t border-zinc-200 bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+              <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
+                <h3 class="text-sm font-bold text-zinc-900">Filtrar catálogo</h3>
+                <button
+                  type="button"
+                  aria-label="Fechar filtros"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  class="rounded p-1 text-zinc-500"
                 >
-                  <option value="">Sem marca</option>
+                  <X class="h-4 w-4" />
+                </button>
+              </div>
+
+              <div class="grid gap-2.5 text-xs">
+                <select
+                  value={filters().brand_id}
+                  onChange={(e) =>
+                    updateQuery(
+                      { brand_id: e.currentTarget.value || undefined, page: "1" },
+                      true,
+                    )
+                  }
+                  class="h-10 rounded-md border border-zinc-300 bg-white px-2.5"
+                >
+                  <option value="">Todas as marcas</option>
                   <For each={brands() ?? []}>
                     {(b) => <option value={b.id}>{b.name}</option>}
                   </For>
                 </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-zinc-700">
-                  Preço (R$) *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={priceBrl()}
-                  onInput={(e) => setPriceBrl(e.currentTarget.value)}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-zinc-700">
-                  Preço promocional (R$)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={promoBrl()}
-                  onInput={(e) => setPromoBrl(e.currentTarget.value)}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm"
-                />
-              </div>
-              <Show when={discountInfo()}>
-                {(info) => (
-                  <div class="flex items-center gap-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2 text-xs text-fuchsia-900 sm:col-span-2">
-                    <Percent
-                      class="size-4 shrink-0 text-fuchsia-700"
-                      aria-hidden="true"
-                    />
-                    <span>
-                      Desconto ativo: <strong>-{info().pct}% OFF</strong>{" "}
-                      (Economia de R$ {info().diff})
-                    </span>
-                  </div>
-                )}
-              </Show>
-              <div>
-                <label class="block text-xs font-semibold text-zinc-700">
-                  Estoque inicial / atual
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={stockQty()}
-                  onInput={(e) => setStockQty(Number(e.currentTarget.value))}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm"
-                />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-zinc-700">
-                  Peso (gramas)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={weightGrams()}
-                  onInput={(e) => setWeightGrams(Number(e.currentTarget.value))}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm"
-                />
-              </div>
-            </div>
-
-            <div>
-              <p class="text-xs font-semibold text-zinc-700">Categorias</p>
-              <div class="mt-1 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-zinc-200 p-2">
-                <For each={categories() ?? []}>
-                  {(cat) => (
-                    <label class="inline-flex cursor-pointer items-center gap-1 rounded bg-zinc-100 px-2 py-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={selectedCats().includes(cat.id)}
-                        onChange={() => toggleCat(cat.id)}
-                      />
-                      {cat.name}
-                    </label>
-                  )}
-                </For>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-semibold text-zinc-700">
-                Imagem do produto (Upload ou URL)
-              </label>
-              <div class="mt-1 flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="/storage/products/... ou /products/..."
-                  value={imagePath()}
-                  onInput={(e) => setImagePath(e.currentTarget.value)}
-                  class="h-9 flex-1 rounded-md border border-zinc-300 px-2.5 text-xs"
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.currentTarget.files?.[0];
-                    if (file) void uploadImage(file);
-                  }}
-                  class="max-w-[170px] text-xs"
-                />
-              </div>
-              <Show when={imagePath().trim()}>
-                <div class="mt-2 flex items-center gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
-                  <img
-                    src={assetUrl(imagePath())}
-                    alt={imageAlt() || name() || "Preview"}
-                    class="size-10 rounded border border-zinc-200 bg-white object-contain"
-                  />
-                  <div class="min-w-0 flex-1 text-xs">
-                    <p class="truncate font-medium text-zinc-800">
-                      {imagePath()}
-                    </p>
-                    <p class="text-[11px] font-semibold text-emerald-700">
-                      Imagem vinculada
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImagePath("");
-                      setImageAlt("");
-                    }}
-                    class="text-xs text-red-600 hover:underline"
-                  >
-                    Remover
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Texto alternativo (alt) da imagem para SEO e acessibilidade"
-                  value={imageAlt()}
-                  onInput={(e) => setImageAlt(e.currentTarget.value)}
-                  class="mt-2 h-8 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-xs"
-                />
-              </Show>
-            </div>
-
-            <input
-              type="text"
-              placeholder="Resumo curto"
-              value={shortDesc()}
-              onInput={(e) => setShortDesc(e.currentTarget.value)}
-              class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
-            />
-            <textarea
-              rows={3}
-              placeholder="Descrição completa"
-              value={fullDesc()}
-              onInput={(e) => setFullDesc(e.currentTarget.value)}
-              class="w-full rounded-md border border-zinc-300 p-2.5 text-xs"
-            />
-
-            {/* Atributos Técnicos, Atacado Multi-Cor & Tonalidades */}
-            <div class="space-y-3 rounded-lg border border-[#E5CFE8] bg-[#FCF8FD] p-3.5 text-xs">
-              <div class="flex items-center justify-between">
-                <p class="font-bold text-[#2E0C49]">
-                  Atacado Multi-Cor, Tonalidades &amp; Specs
-                </p>
-                <label class="inline-flex items-center gap-1.5 font-semibold text-zinc-700">
-                  <input
-                    type="checkbox"
-                    checked={wholesaleGroupVariants()}
-                    onChange={(e) =>
-                      setWholesaleGroupVariants(e.currentTarget.checked)
-                    }
-                    class="accent-[#93509e]"
-                  />
-                  Somar unidades entre cores no atacado
-                </label>
-              </div>
-
-              <Show when={(availableAttributes()?.length ?? 0) > 0}>
-                <div>
-                  <p class="mb-1 text-[11px] font-semibold text-zinc-700">
-                    Especificações / Filtros (ex.: Acabamento, Potência, Tensão)
-                  </p>
-                  <div class="max-h-32 space-y-1.5 overflow-y-auto rounded border border-zinc-200 bg-white p-2">
-                    <For each={availableAttributes() ?? []}>
-                      {(attr) => (
-                        <div>
-                          <span class="text-[10px] font-bold uppercase text-zinc-400">
-                            {attr.name}:{" "}
-                          </span>
-                          <For each={attr.values}>
-                            {(val) => (
-                              <label class="mr-2 inline-flex cursor-pointer items-center gap-1 text-[11px]">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedAttrValueIds().includes(
-                                    val.id,
-                                  )}
-                                  onChange={() => toggleAttrValueId(val.id)}
-                                  class="accent-[#93509e]"
-                                />
-                                {val.value}
-                              </label>
-                            )}
-                          </For>
-                        </div>
-                      )}
-                    </For>
-                  </div>
-                </div>
-              </Show>
-
-              <AdminVariantsEditor
-                variants={variantsDraft()}
-                onChange={setVariantsDraft}
-              />
-            </div>
-
-            {/* Otimização de SEO (Google / Buscadores) */}
-            <div class="space-y-3 rounded-lg border border-purple-200 bg-purple-50/50 p-3.5 text-xs">
-              <div class="flex items-center justify-between">
-                <p class="font-bold text-[#3D1260]">
-                  Otimização de SEO (Google & Buscadores)
-                </p>
-                <span class="text-[10px] text-zinc-500">
-                  Opcional — fallback automático ativo
-                </span>
-              </div>
-
-              <div>
-                <div class="flex justify-between">
-                  <label class="font-semibold text-zinc-700">
-                    Slug da URL (opcional)
-                  </label>
-                  <span class="text-[10px] text-zinc-500">
-                    Ao alterar em produto existente, cria redirect 301
-                    automático
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  placeholder={
-                    name()
-                      ? name().toLowerCase().replace(/\s+/g, "-")
-                      : "gerado-automaticamente"
+                <select
+                  value={filters().category_id}
+                  onChange={(e) =>
+                    updateQuery(
+                      {
+                        category_id: e.currentTarget.value || undefined,
+                        page: "1",
+                      },
+                      true,
+                    )
                   }
-                  value={slug()}
-                  onInput={(e) => setSlug(e.currentTarget.value)}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-xs"
-                />
-              </div>
-
-              <div>
-                <div class="flex justify-between">
-                  <label class="font-semibold text-zinc-700">Título SEO</label>
-                  <span class="text-[10px] text-zinc-500">
-                    {seoTitle().length || (name() ? name().length + 19 : 0)} /
-                    60 caracteres
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  placeholder={
-                    name()
-                      ? `${name()} | Mistura Feminina`
-                      : "Título personalizado para o Google"
-                  }
-                  value={seoTitle()}
-                  onInput={(e) => setSeoTitle(e.currentTarget.value)}
-                  class="mt-1 h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-xs"
-                />
-              </div>
-
-              <div>
-                <div class="flex justify-between">
-                  <label class="font-semibold text-zinc-700">
-                    Meta Description
-                  </label>
-                  <span class="text-[10px] text-zinc-500">
-                    {seoDesc().length || (shortDesc() ? shortDesc().length : 0)}{" "}
-                    / 160 caracteres
-                  </span>
-                </div>
-                <textarea
-                  rows={2}
-                  placeholder={
-                    shortDesc() ||
-                    `Conheça ${name() || "o produto"} na Mistura Feminina. Confira suas características, informações e disponibilidade para comprar online.`
-                  }
-                  value={seoDesc()}
-                  onInput={(e) => setSeoDesc(e.currentTarget.value)}
-                  class="mt-1 w-full rounded-md border border-zinc-300 bg-white p-2.5 text-xs"
-                />
-              </div>
-
-              {/* Pré-visualização do Google */}
-              <div class="rounded border border-zinc-200 bg-white p-2.5 shadow-2xs">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                  Pré-visualização no Google
-                </p>
-                <p class="mt-1 text-sm font-semibold text-[#1a0dab] line-clamp-1">
-                  {seoTitle().trim() ||
-                    (name()
-                      ? `${name()} | Mistura Feminina`
-                      : "Nome do Produto | Mistura Feminina")}
-                </p>
-                <p class="text-[11px] text-[#006621] truncate">
-                  {site.url}/produto/
-                  {slug().trim() ||
-                    (name()
-                      ? name().toLowerCase().replace(/\s+/g, "-")
-                      : "slug-do-produto")}
-                </p>
-                <p class="mt-0.5 text-xs text-[#545454] line-clamp-2">
-                  {seoDesc().trim() ||
-                    shortDesc().trim() ||
-                    `Conheça ${name() || "o produto"} na Mistura Feminina. Confira suas características, informações e disponibilidade para comprar online.`}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap gap-4 text-xs">
-              <label class="inline-flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={isActive()}
-                  onChange={(e) => setIsActive(e.currentTarget.checked)}
-                />
-                Ativo
-              </label>
-              <label class="inline-flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={isFeatured()}
-                  onChange={(e) => setIsFeatured(e.currentTarget.checked)}
-                />
-                Destaque
-              </label>
-              <label class="inline-flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={isNew()}
-                  onChange={(e) => setIsNew(e.currentTarget.checked)}
-                />
-                Lançamento
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              class="h-10 w-full rounded-lg bg-[var(--mf-primary)] text-xs font-bold text-white hover:bg-[var(--mf-primary-hover)]"
-            >
-              {editingId()
-                ? "Salvar alterações do produto"
-                : "Cadastrar produto"}
-            </button>
-          </form>
-
-          {/* Table */}
-          <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-7">
-            <Show when={catalogFilter()}>
-              <div class="mb-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                <span>
-                  Filtro operacional ativo:{" "}
-                  <strong>
-                    {catalogFilter() === "needs_review"
-                      ? "Produtos aguardando revisão (sem foto, peso ou estoque)"
-                      : "Produtos com variações sem estoque"}
-                  </strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setCatalogFilter("")}
-                  class="font-bold text-[#93509e] hover:underline"
+                  class="h-10 rounded-md border border-zinc-300 bg-white px-2.5"
                 >
-                  Limpar filtro
-                </button>
+                  <option value="">Todas as categorias</option>
+                  <For each={categories() ?? []}>
+                    {(c) => <option value={c.id}>{c.name}</option>}
+                  </For>
+                </select>
+                <select
+                  value={filters().status}
+                  onChange={(e) =>
+                    updateQuery({ status: e.currentTarget.value, page: "1" }, true)
+                  }
+                  class="h-10 rounded-md border border-zinc-300 bg-white px-2.5"
+                >
+                  <option value="all">Todas as situações</option>
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                  <option value="archived">Arquivados</option>
+                </select>
+                <select
+                  value={filters().availability}
+                  onChange={(e) =>
+                    updateQuery(
+                      { availability: e.currentTarget.value, page: "1" },
+                      true,
+                    )
+                  }
+                  class="h-10 rounded-md border border-zinc-300 bg-white px-2.5"
+                >
+                  <option value="all">Qualquer estoque</option>
+                  <option value="in_stock">Disponível (&gt; 0)</option>
+                  <option value="low_stock">Baixo estoque (1–5)</option>
+                  <option value="out_of_stock">Esgotado</option>
+                </select>
+                <select
+                  value={filters().sort}
+                  onChange={(e) =>
+                    updateQuery({ sort: e.currentTarget.value, page: "1" }, false)
+                  }
+                  class="h-10 rounded-md border border-zinc-300 bg-white px-2.5"
+                >
+                  <option value="newest">Mais recentes</option>
+                  <option value="name_asc">Nome (A–Z)</option>
+                  <option value="price_asc">Menor preço</option>
+                  <option value="price_desc">Maior preço</option>
+                  <option value="stock_asc">Menor estoque</option>
+                </select>
               </div>
-            </Show>
 
-            {/* Quick stock status tabs */}
-            <div class="mb-3 flex flex-wrap gap-1.5 border-b border-zinc-100 pb-3">
               <button
                 type="button"
-                onClick={() => setStockFilter("all")}
-                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                  stockFilter() === "all"
-                    ? "bg-[#93509e] text-white"
-                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                }`}
+                onClick={() => setMobileFiltersOpen(false)}
+                class="w-full rounded-md bg-[#93509e] py-2.5 text-xs font-bold text-white"
               >
-                Todos ({products()?.length ?? 0})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockFilter("active")}
-                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                  stockFilter() === "active"
-                    ? "bg-[#93509e] text-white"
-                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                }`}
-              >
-                Ativos
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockFilter("low")}
-                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                  stockFilter() === "low"
-                    ? "bg-amber-600 text-white"
-                    : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                }`}
-              >
-                Baixo Estoque (≤ 5)
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockFilter("out")}
-                class={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                  stockFilter() === "out"
-                    ? "bg-red-600 text-white"
-                    : "bg-red-50 text-red-700 hover:bg-red-100"
-                }`}
-              >
-                Esgotados
+                Ver {totalResults()} produtos
               </button>
             </div>
-
-            <div class="mb-4 flex items-center justify-between gap-3">
-              <input
-                type="search"
-                placeholder="Buscar produto ou SKU..."
-                value={search()}
-                onInput={(e) => setSearch(e.currentTarget.value)}
-                class="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-sm focus:border-[#93509e] focus:outline-none"
-              />
-            </div>
-
-            <div class="space-y-2.5">
-              <For each={filteredProducts()}>
-                {(p) => (
-                  <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 text-sm transition-all hover:border-zinc-300 hover:shadow-2xs">
-                    <div class="flex items-center gap-3 min-w-0">
-                      <img
-                        src={assetUrl(p.images?.[0]?.path)}
-                        alt={p.name}
-                        class="h-12 w-12 shrink-0 rounded border border-zinc-200 bg-zinc-50 object-contain"
-                      />
-                      <div class="min-w-0">
-                        <p class="truncate font-bold text-zinc-900">{p.name}</p>
-                        <p class="text-xs text-zinc-500">
-                          SKU {p.sku} ·{" "}
-                          {formatCents(p.promo_price_cents ?? p.price_cents)}
-                          <Show when={!p.is_active}>
-                            <span class="ml-1 rounded bg-zinc-100 px-1 text-[10px] text-zinc-600">
-                              Inativo
-                            </span>
-                          </Show>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center gap-2 text-xs">
-                      <Show when={p.variants?.[0]}>
-                        {(v) => {
-                          const avail = () => v().stock_qty - v().reserved_qty;
-                          return (
-                            <div class="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1">
-                              <span
-                                class={`text-[11px] font-bold ${
-                                  avail() <= 0
-                                    ? "text-red-600"
-                                    : avail() <= 5
-                                      ? "text-amber-600"
-                                      : "text-zinc-800"
-                                }`}
-                              >
-                                {avail() <= 0
-                                  ? "Esgotado"
-                                  : `Est.: ${avail()} un`}
-                              </span>
-                              <div class="flex items-center gap-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void adjustVariantStock(v().id, -1)
-                                  }
-                                  disabled={avail() <= 0}
-                                  class="rounded bg-zinc-200 px-1.5 py-0.5 font-bold text-zinc-700 hover:bg-zinc-300 disabled:opacity-40"
-                                  title="Diminuir 1"
-                                >
-                                  -1
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void adjustVariantStock(v().id, 1)
-                                  }
-                                  class="rounded bg-[#93509e] px-1.5 py-0.5 font-bold text-white hover:bg-[#7d3f86]"
-                                  title="Adicionar 1"
-                                >
-                                  +1
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void adjustVariantStock(v().id, 5)
-                                  }
-                                  class="rounded bg-emerald-700 px-1.5 py-0.5 font-bold text-white hover:bg-emerald-800"
-                                  title="Adicionar 5"
-                                >
-                                  +5
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        }}
-                      </Show>
-                      <a
-                        href={`/produto/${p.slug}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        class="rounded border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-100 hover:text-[var(--mf-primary)]"
-                        title="Ver produto na loja"
-                      >
-                        <ExternalLink class="size-3.5" aria-hidden="true" />
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setBulkProductId(p.id);
-                          setTab("massa");
-                        }}
-                        class="rounded border border-[#DFC2E3] bg-[#FCF8FD] px-2.5 py-1 font-semibold text-[#93509e] hover:bg-[#F3E2F6]"
-                      >
-                        Em massa
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => loadProductIntoForm(p)}
-                        class="rounded border border-zinc-300 px-2.5 py-1 font-semibold hover:bg-zinc-50"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteProduct(p.id, p.name)}
-                        class="rounded border border-red-200 p-1.5 text-red-700 hover:bg-red-50"
-                        title="Remover produto do catálogo"
-                      >
-                        <Trash2 class="size-3.5" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </For>
-            </div>
-          </section>
-        </div>
+          </div>
+        </Show>
       </Show>
 
-      <Show when={tab() === "avaliacoes"}>
-        <section class="rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 class="mb-4 text-base font-bold text-zinc-900">
-            Moderação de Avaliações
+      {/* VIEW: DEDICATED FORM (NEW / EDIT) */}
+      <Show when={currentView() === "novo" || currentView() === "editar"}>
+        <ProductFormScreen
+          mode={currentView() === "editar" ? "edit" : "create"}
+          product={currentView() === "editar" ? (editingProduct() ?? null) : null}
+          duplicateFrom={
+            currentView() === "novo" ? (duplicatingProduct() ?? null) : null
+          }
+          brands={brands() ?? []}
+          categories={categories() ?? []}
+          attributes={attributes() ?? []}
+          canWrite={canWrite()}
+          onCancel={returnToCatalog}
+          onDuplicateRequest={(prod) => openNewProduct(prod.id)}
+          onArchiveOrDelete={(prodId, action) =>
+            setLifecycleModal({ open: true, action, productIds: [prodId] })
+          }
+          onSaved={(msg, stayAndNext) => handleFormSaved(msg, stayAndNext)}
+        />
+      </Show>
+
+      {/* VIEW: MODE B GRID */}
+      <Show when={currentView() === "massa"}>
+        <AdminBulkVariantsGrid
+          products={productList().map((p) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+          }))}
+          initialProductId={
+            routeSearch().product_id ? Number(routeSearch().product_id) : null
+          }
+          initialProductIds={!selectAllMatching() ? pageSelectedIds() : []}
+          onCommitted={() => triggerReloadCatalog()}
+        />
+      </Show>
+
+      {/* VIEW: UNIFIED AI REGISTRATION */}
+      <Show when={currentView() === "ia"}>
+        <AdminAiCatalogAgentPanel onCommitted={() => triggerReloadCatalog()} />
+      </Show>
+
+      {/* VIEW: GOODS RECEIPTS */}
+      <Show when={currentView() === "recebimentos"}>
+        <AdminGoodsReceiptsPanel
+          initialSku={routeSearch().sku || ""}
+          onConfirmed={() => triggerReloadCatalog()}
+        />
+      </Show>
+
+      {/* VIEW: RESTOCK NOTIFICATIONS */}
+      <Show when={currentView() === "avisos"}>
+        <AdminRestockAnalyticsPanel />
+      </Show>
+
+      {/* VIEW: REVIEWS */}
+      <Show when={currentView() === "avaliacoes"}>
+        <section class="rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 class="mb-3 text-base font-bold text-zinc-900">
+            Moderação de avaliações
           </h2>
           <ul class="divide-y divide-zinc-200 text-sm">
             <For each={reviews() ?? []}>
@@ -1304,13 +1170,8 @@ function AdminProductsPage() {
                   <div>
                     <p class="font-bold text-zinc-900">
                       {rev.author_name}{" "}
-                      <span class="inline-flex items-center gap-0.5">
-                        ({rev.rating}/5{" "}
-                        <Star
-                          class="size-3.5 fill-amber-500 text-amber-500"
-                          aria-hidden="true"
-                        />
-                        )
+                      <span class="inline-flex items-center gap-0.5 text-xs">
+                        ({rev.rating}/5 <Star class="h-3.5 w-3.5 fill-amber-500 text-amber-500" />)
                       </span>{" "}
                       — {rev.product?.name}
                     </p>
@@ -1323,14 +1184,14 @@ function AdminProductsPage() {
                     <button
                       type="button"
                       onClick={() => void moderateReview(rev.id, "approved")}
-                      class="rounded bg-emerald-700 px-3 py-1 font-semibold text-white"
+                      class="rounded bg-[#93509e] px-3 py-1 font-semibold text-white"
                     >
                       Aprovar
                     </button>
                     <button
                       type="button"
                       onClick={() => void moderateReview(rev.id, "rejected")}
-                      class="rounded bg-red-700 px-3 py-1 font-semibold text-white"
+                      class="rounded border border-red-200 px-3 py-1 font-semibold text-red-700"
                     >
                       Rejeitar
                     </button>
@@ -1342,12 +1203,9 @@ function AdminProductsPage() {
         </section>
       </Show>
 
-      <Show when={tab() === "avisos"}>
-        <AdminRestockAnalyticsPanel />
-      </Show>
-
-      <Show when={tab() === "csv"}>
-        <section class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5">
+      {/* VIEW: CSV IMPORT/EXPORT */}
+      <Show when={currentView() === "csv"}>
+        <section class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-base font-bold text-zinc-900">
               Importação e Exportação CSV
@@ -1368,18 +1226,18 @@ function AdminProductsPage() {
             onInput={(e) => setCsvContent(e.currentTarget.value)}
             class="w-full rounded-md border border-zinc-300 p-3 font-mono text-xs"
           />
-          <div class="flex gap-2">
+          <div class="flex gap-2 text-xs">
             <button
               type="button"
               onClick={() => void runCsvImport(true)}
-              class="rounded-md border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold"
+              class="rounded-md border border-zinc-300 bg-white px-4 py-2 font-semibold"
             >
               Pré-validar (Dry-Run)
             </button>
             <button
               type="button"
               onClick={() => void runCsvImport(false)}
-              class="rounded-md bg-[var(--mf-primary)] px-4 py-2 text-xs font-semibold text-white"
+              class="rounded-md bg-[#93509e] px-4 py-2 font-semibold text-white"
             >
               Executar importação
             </button>
@@ -1392,28 +1250,31 @@ function AdminProductsPage() {
         </section>
       </Show>
 
-      <Show when={tab() === "massa"}>
-        <AdminBulkVariantsGrid
-          products={(products() ?? []).map((p) => ({
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-          }))}
-          initialProductId={bulkProductId()}
-          onCommitted={() => {
-            void refetchProducts();
-          }}
-        />
-      </Show>
+      {/* Modals: Mode A Bulk Rule & Lifecycle Archive/Restore/Delete */}
+      <BulkRuleModal
+        open={ruleModalOpen()}
+        selectionLabel={
+          selectAllMatching()
+            ? `Todos os ${selectedCount()} resultados filtrados`
+            : `${selectedCount()} produto(s) selecionado(s)`
+        }
+        selection={currentSelectionPayload()}
+        brands={brands() ?? []}
+        categories={categories() ?? []}
+        canPrice={canPrice()}
+        canStock={canStock()}
+        canWrite={canWrite()}
+        onClose={() => setRuleModalOpen(false)}
+        onCommitted={(msg) => handleBulkRuleCommitted(msg)}
+      />
 
-      <Show when={tab() === "recebimentos"}>
-        <AdminGoodsReceiptsPanel
-          initialSku={receiptInitialSku()}
-          onConfirmed={() => {
-            void refetchProducts();
-          }}
-        />
-      </Show>
+      <BulkLifecycleModal
+        open={lifecycleModal().open}
+        action={lifecycleModal().action}
+        selection={currentSelectionPayload(lifecycleModal().productIds)}
+        onClose={() => setLifecycleModal((prev) => ({ ...prev, open: false }))}
+        onCommitted={(msg) => handleLifecycleCommitted(msg)}
+      />
     </AdminLayout>
   );
 }

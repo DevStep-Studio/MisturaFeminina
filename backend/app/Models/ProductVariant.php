@@ -27,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Product|null $product
  * @property-read ProductImage|null $image
  */
-#[Fillable(['product_id', 'sku', 'gtin', 'name', 'shade_code', 'color_family', 'color_hex', 'swatch_image_path', 'price_cents', 'promo_price_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'is_default', 'is_active', 'sort_order'])]
+#[Fillable(['product_id', 'sku', 'gtin', 'supplier_code', 'name', 'shade_code', 'color_family', 'color_hex', 'swatch_image_path', 'price_cents', 'promo_price_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'is_default', 'is_active', 'sort_order'])]
 class ProductVariant extends Model
 {
     /** @return BelongsTo<Product, $this> */

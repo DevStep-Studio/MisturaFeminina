@@ -6,7 +6,9 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Admin\Services\TodayWorkService;
 use App\Domain\Catalog\Events\VariantRestocked;
+use App\Domain\Catalog\Services\CatalogBulkRuleService;
 use App\Domain\Catalog\Services\CatalogCsvService;
+use App\Domain\Catalog\Services\CatalogLifecycleService;
 use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Catalog\Services\ReplenishmentService;
 use App\Domain\Catalog\Services\RestockNotificationService;
@@ -18,6 +20,7 @@ use App\Http\Controllers\SeoController;
 use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\Brand;
+use App\Models\BulkEditBatch;
 use App\Models\Category;
 use App\Models\InventoryMovement;
 use App\Models\Product;
@@ -26,6 +29,7 @@ use App\Models\ProductVariant;
 use App\Models\RestockRequest;
 use App\Models\Review;
 use App\Models\SlugRedirect;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -43,38 +47,110 @@ class AdminCatalogController extends Controller
         private readonly RestockNotificationService $restock,
         private readonly ReplenishmentService $replenishment,
         private readonly TodayWorkService $todayWork,
+        private readonly CatalogBulkRuleService $bulkRules,
+        private readonly CatalogLifecycleService $lifecycle,
     ) {}
 
     public function indexProducts(Request $request): JsonResponse
     {
         $filter = (string) $request->query('filter', '');
+        $filters = [
+            'filter' => $filter,
+            'search' => $request->query('search'),
+            'brand_id' => $request->query('brand_id'),
+            'category_id' => $request->query('category_id'),
+            'status' => $request->query('status', 'all'),
+            'availability' => $request->query('availability', 'all'),
+            'is_active' => $request->query('is_active'),
+        ];
+
         if ($filter === 'needs_review') {
             $query = $this->todayWork->reviewProductsQuery();
-        } else {
-            $query = Product::query();
-            if ($filter === 'out_of_stock_variants') {
-                $query->where('is_active', true)->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) <= 0'));
+            if ($request->filled('search')) {
+                $term = '%'.trim((string) $request->query('search')).'%';
+                $query->where(fn ($q) => $q->where('name', 'like', $term)
+                    ->orWhere('sku', 'like', $term)
+                    ->orWhere('gtin', 'like', $term)
+                    ->orWhereHas('variants', fn ($vq) => $vq->where('sku', 'like', $term)->orWhere('gtin', 'like', $term)));
             }
+            if ($request->filled('brand_id')) {
+                $query->where('brand_id', (int) $request->query('brand_id'));
+            }
+            if ($request->filled('category_id')) {
+                $catId = (int) $request->query('category_id');
+                $query->whereHas('categories', fn ($cq) => $cq->where('categories.id', $catId));
+            }
+        } else {
+            $query = $this->bulkRules->buildFilteredProductsQuery($filters);
         }
 
-        $query->with(['brand:id,name', 'categories:id,name', 'images', 'variants', 'attributeValues:id,value'])
-            ->latest('id');
+        $query->with([
+            'brand:id,name',
+            'categories:id,name',
+            'images',
+            'variants' => fn ($vq) => $vq->orderBy('sort_order')->orderBy('id'),
+            'attributeValues:id,value',
+        ]);
 
-        if ($request->filled('search')) {
-            $term = '%'.trim((string) $request->query('search')).'%';
-            $query->where(fn ($q) => $q->where('name', 'like', $term)->orWhere('sku', 'like', $term));
-        }
+        $sort = (string) $request->query('sort', 'newest');
+        match ($sort) {
+            'oldest' => $query->orderBy('id'),
+            'name_asc' => $query->orderBy('name')->orderBy('id'),
+            'name_desc' => $query->orderByDesc('name')->orderByDesc('id'),
+            'price_asc' => $query->orderBy('price_cents')->orderBy('id'),
+            'price_desc' => $query->orderByDesc('price_cents')->orderByDesc('id'),
+            'stock_asc' => $query->withSum('variants as total_stock_sum', 'stock_qty')->orderBy('total_stock_sum')->orderBy('id'),
+            'stock_desc' => $query->withSum('variants as total_stock_sum', 'stock_qty')->orderByDesc('total_stock_sum')->orderByDesc('id'),
+            default => $query->latest('id'),
+        };
 
-        if ($request->filled('is_active')) {
-            $query->where('is_active', $request->boolean('is_active'));
-        }
+        $perPage = min(100, max(10, (int) $request->query('per_page', 25)));
+        $paginator = $query->paginate($perPage);
 
-        return response()->json($query->paginate(20));
+        $paginator->through(function (Product $product): array {
+            $variants = $product->variants;
+            $prices = $variants->isNotEmpty()
+                ? $variants->pluck('price_cents')->all()
+                : [$product->price_cents];
+            $effectivePrices = $variants->isNotEmpty()
+                ? $variants->map(function (ProductVariant $v): int {
+                    $promo = $v->promo_price_cents;
+
+                    return ($promo !== null && $promo > 0 && $promo < $v->price_cents) ? $promo : $v->price_cents;
+                })->all()
+                : [(($product->promo_price_cents && $product->promo_price_cents < $product->price_cents) ? $product->promo_price_cents : $product->price_cents)];
+
+            $totalStock = (int) $variants->sum('stock_qty');
+            $totalReserved = (int) $variants->sum('reserved_qty');
+            $totalAvailable = (int) $variants->sum(fn (ProductVariant $v): int => max(0, $v->stock_qty - $v->reserved_qty));
+            $outOfStockCount = (int) $variants->filter(fn (ProductVariant $v): bool => ($v->stock_qty - $v->reserved_qty) <= 0)->count();
+
+            $payload = $product->toArray();
+            $payload['is_archived'] = $product->trashed();
+            $payload['variants_summary'] = [
+                'count' => $variants->count(),
+                'is_multi_variant' => $variants->count() > 1,
+                'price_min_cents' => $prices !== [] ? min($prices) : $product->price_cents,
+                'price_max_cents' => $prices !== [] ? max($prices) : $product->price_cents,
+                'effective_min_cents' => $effectivePrices !== [] ? min($effectivePrices) : $product->price_cents,
+                'effective_max_cents' => $effectivePrices !== [] ? max($effectivePrices) : $product->price_cents,
+                'total_stock' => $totalStock,
+                'total_reserved' => $totalReserved,
+                'total_available' => $totalAvailable,
+                'out_of_stock_count' => $outOfStockCount,
+                'has_promo' => $variants->contains(fn (ProductVariant $v): bool => $v->promo_price_cents !== null && $v->promo_price_cents > 0 && $v->promo_price_cents < $v->price_cents)
+                    || ($product->promo_price_cents !== null && $product->promo_price_cents > 0 && $product->promo_price_cents < $product->price_cents),
+            ];
+
+            return $payload;
+        });
+
+        return response()->json($paginator);
     }
 
     public function showProduct(int $id): JsonResponse
     {
-        $product = Product::query()
+        $product = Product::withTrashed()
             ->with([
                 'brand',
                 'categories',
@@ -86,14 +162,18 @@ class AdminCatalogController extends Controller
             ])
             ->findOrFail($id);
 
-        return response()->json(['data' => $product]);
+        $payload = $product->toArray();
+        $payload['is_archived'] = $product->trashed();
+        $payload['links'] = $this->lifecycle->inspectLinks($product);
+
+        return response()->json(['data' => $payload]);
     }
 
     public function storeProduct(Request $request): JsonResponse
     {
         $validated = $this->validateProduct($request);
-        $restockedEvents = [];
-        $product = DB::transaction(function () use ($validated, &$restockedEvents): Product {
+        $actor = $request->user();
+        $product = DB::transaction(function () use ($validated, $actor): Product {
             $slug = Str::slug((string) ($validated['slug'] ?? $validated['name']));
             if (Product::withTrashed()->where('slug', $slug)->exists()) {
                 $slug .= '-'.strtolower(Str::random(4));
@@ -105,6 +185,8 @@ class AdminCatalogController extends Controller
                 'slug' => $slug,
                 'sku' => $validated['sku'],
                 'gtin' => $validated['gtin'] ?? null,
+                'supplier_code' => $validated['supplier_code'] ?? null,
+                'power_watts' => $validated['power_watts'] ?? null,
                 'manufacturer' => $validated['manufacturer'] ?? null,
                 'short_description' => $validated['short_description'] ?? null,
                 'description' => $validated['description'] ?? null,
@@ -142,32 +224,27 @@ class AdminCatalogController extends Controller
                 $product->attributeValues()->sync($validated['product_attribute_value_ids'] ?? []);
             }
 
-            $restockedEvents = $this->syncImagesAndVariants($product, $validated);
+            $this->syncImagesAndVariants($product, $validated, false, $actor);
 
             return $product;
         });
 
-        foreach ($restockedEvents as $event) {
-            event($event);
-            $this->restock->handleVariantRestocked($event);
-        }
-
         $this->audit->record('catalog.product_created', $request->user(), 'product', $product->id, null, ['sku' => $product->sku, 'name' => $product->name], $request);
-        SeoController::clearCaches();
+        $this->bulkRules->flushStorefrontCaches();
 
         return response()->json(['data' => $product->fresh(['brand', 'categories', 'images', 'attributeValues.attribute', 'variants'])], 201);
     }
 
     public function updateProduct(Request $request, int $id): JsonResponse
     {
-        $product = Product::query()->findOrFail($id);
+        $product = Product::withTrashed()->findOrFail($id);
         $validated = $this->validateProduct($request, $product->id);
 
         $oldSlug = $product->slug;
         $newSlug = ! empty($validated['slug']) ? Str::slug((string) $validated['slug']) : $oldSlug;
-        $restockedEvents = [];
+        $actor = $request->user();
 
-        DB::transaction(function () use ($product, $validated, $oldSlug, $newSlug, &$restockedEvents): void {
+        DB::transaction(function () use ($product, $validated, $oldSlug, $newSlug, $actor): void {
             if ($newSlug !== $oldSlug && ! Product::query()->where('slug', $newSlug)->where('id', '!=', $product->id)->exists()) {
                 SlugRedirect::query()->updateOrCreate(
                     ['entity_type' => 'product', 'old_slug' => $oldSlug],
@@ -178,11 +255,13 @@ class AdminCatalogController extends Controller
             }
 
             $product->update([
-                'brand_id' => $validated['brand_id'] ?? $product->brand_id,
+                'brand_id' => array_key_exists('brand_id', $validated) ? $validated['brand_id'] : $product->brand_id,
                 'name' => $validated['name'],
                 'slug' => $newSlug,
                 'sku' => $validated['sku'],
                 'gtin' => $validated['gtin'] ?? null,
+                'supplier_code' => array_key_exists('supplier_code', $validated) ? $validated['supplier_code'] : $product->supplier_code,
+                'power_watts' => array_key_exists('power_watts', $validated) ? $validated['power_watts'] : $product->power_watts,
                 'manufacturer' => $validated['manufacturer'] ?? null,
                 'short_description' => $validated['short_description'] ?? null,
                 'description' => $validated['description'] ?? null,
@@ -222,16 +301,11 @@ class AdminCatalogController extends Controller
                 $product->attributeValues()->sync($validated['product_attribute_value_ids'] ?? []);
             }
 
-            $restockedEvents = $this->syncImagesAndVariants($product, $validated, true);
+            $this->syncImagesAndVariants($product, $validated, true, $actor);
         });
 
-        foreach ($restockedEvents as $event) {
-            event($event);
-            $this->restock->handleVariantRestocked($event);
-        }
-
         $this->audit->record('catalog.product_updated', $request->user(), 'product', $product->id, null, ['name' => $product->name], $request);
-        SeoController::clearCaches();
+        $this->bulkRules->flushStorefrontCaches();
 
         return response()->json(['data' => $product->fresh(['brand', 'categories', 'images', 'attributeValues.attribute', 'variants'])]);
     }
@@ -239,29 +313,272 @@ class AdminCatalogController extends Controller
     public function destroyProduct(Request $request, int $id): JsonResponse
     {
         $product = Product::query()->findOrFail($id);
+        $product->update(['is_active' => false]);
         $product->delete();
-        $this->audit->record('catalog.product_deleted', $request->user(), 'product', $product->id, null, ['sku' => $product->sku], $request);
-        SeoController::clearCaches();
+        $this->audit->record('catalog.product_archived', $request->user(), 'product', $product->id, null, ['sku' => $product->sku], $request);
+        $this->bulkRules->flushStorefrontCaches();
 
         return response()->json(['message' => 'Produto arquivado com sucesso.']);
+    }
+
+    public function productLinks(int $id): JsonResponse
+    {
+        $product = Product::withTrashed()->with('variants')->findOrFail($id);
+        $links = $this->lifecycle->inspectLinks($product);
+
+        return response()->json([
+            'data' => array_merge($links, [
+                'product_id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'variants_count' => $product->variants->count(),
+            ]),
+        ]);
+    }
+
+    public function archiveProduct(Request $request, int $id): JsonResponse
+    {
+        $product = Product::withTrashed()->findOrFail($id);
+        if (! $product->trashed()) {
+            $product->update(['is_active' => false]);
+            $product->delete();
+        }
+        $this->audit->record('catalog.product_archived', $request->user(), 'product', $product->id, null, ['sku' => $product->sku], $request);
+        $this->bulkRules->flushStorefrontCaches();
+
+        return response()->json(['message' => 'Produto arquivado com segurança.', 'data' => $product->fresh()]);
+    }
+
+    public function restoreProduct(Request $request, int $id): JsonResponse
+    {
+        $product = Product::onlyTrashed()->findOrFail($id);
+        $activate = $request->boolean('activate', true);
+        $product->restore();
+        if ($activate) {
+            $product->update(['is_active' => true]);
+        }
+        $this->audit->record('catalog.product_restored', $request->user(), 'product', $product->id, null, ['sku' => $product->sku, 'is_active' => $product->is_active], $request);
+        $this->bulkRules->flushStorefrontCaches();
+
+        return response()->json(['message' => 'Produto restaurado com sucesso.', 'data' => $product->fresh()]);
+    }
+
+    public function forceDestroyProduct(Request $request, int $id): JsonResponse
+    {
+        $product = Product::withTrashed()->with('variants')->findOrFail($id);
+        $links = $this->lifecycle->inspectLinks($product);
+        if (! $links['can_delete']) {
+            return response()->json([
+                'message' => $links['impediment_reason'],
+                'links' => $links,
+                'can_archive' => true,
+            ], 409);
+        }
+
+        $skuSnap = $product->sku;
+        $nameSnap = $product->name;
+        DB::transaction(function () use ($product): void {
+            $product->categories()->detach();
+            $product->attributeValues()->detach();
+            $product->wholesaleGroupItems()->delete();
+            $product->wholesaleRuleProducts()->delete();
+            $product->variants()->delete();
+            $product->images()->delete();
+            $product->forceDelete();
+        });
+
+        $this->audit->record('catalog.product_deleted_permanently', $request->user(), 'product', $id, ['name' => $nameSnap, 'sku' => $skuSnap], null, $request);
+        $this->bulkRules->flushStorefrontCaches();
+
+        return response()->json(['message' => 'Produto excluído permanentemente.']);
+    }
+
+    public function quickUpdatePrice(Request $request, int $id): JsonResponse
+    {
+        /** @var User $actor */
+        $actor = $request->user();
+        if (! $actor->hasPermission('catalog.pricing') && ! $actor->hasPermission('catalog.write')) {
+            return response()->json(['message' => 'Você não possui permissão para alterar preços comerciais.'], 403);
+        }
+
+        $validated = $request->validate([
+            'price_cents' => ['required', 'integer', 'min:1'],
+            'promo_price_cents' => ['nullable', 'integer', 'min:1'],
+            'clear_promo' => ['boolean'],
+            'apply_to_variants' => ['boolean'],
+            'expected_updated_at' => ['nullable', 'string', 'max:60'],
+        ]);
+
+        $promoCents = ! empty($validated['clear_promo']) ? null : ($validated['promo_price_cents'] ?? null);
+        if ($promoCents !== null && $promoCents >= (int) $validated['price_cents']) {
+            return response()->json(['message' => 'O preço promocional deve ser menor que o preço de venda.'], 422);
+        }
+
+        $product = Product::query()->with('variants')->findOrFail($id);
+
+        if (! empty($validated['expected_updated_at']) && $product->updated_at && $product->updated_at->toIso8601String() !== $validated['expected_updated_at']) {
+            return response()->json([
+                'message' => 'Este produto foi atualizado por outro operador após a abertura.',
+                'conflict' => [
+                    'current_price_cents' => $product->price_cents,
+                    'current_promo_price_cents' => $product->promo_price_cents,
+                    'updated_at' => $product->updated_at->toIso8601String(),
+                ],
+            ], 409);
+        }
+
+        if ($product->variants->count() > 1 && empty($validated['apply_to_variants'])) {
+            return response()->json(['message' => 'Produto possui múltiplas variações: edite o preço diretamente na variação ou confirme aplicar em todas.'], 422);
+        }
+
+        $oldPrice = $product->price_cents;
+        $oldPromo = $product->promo_price_cents;
+
+        DB::transaction(function () use ($product, $validated, $promoCents): void {
+            $product->update([
+                'price_cents' => (int) $validated['price_cents'],
+                'promo_price_cents' => $promoCents,
+            ]);
+            foreach ($product->variants as $v) {
+                $v->update([
+                    'price_cents' => (int) $validated['price_cents'],
+                    'promo_price_cents' => $promoCents,
+                ]);
+            }
+        });
+
+        $this->audit->record('catalog.quick_price_updated', $actor, 'product', $product->id, ['price_cents' => $oldPrice, 'promo_price_cents' => $oldPromo], ['price_cents' => (int) $validated['price_cents'], 'promo_price_cents' => $promoCents], $request);
+        $this->bulkRules->flushStorefrontCaches();
+
+        return response()->json(['data' => $product->fresh(['variants'])]);
+    }
+
+    public function quickUpdateVariantPrice(Request $request, int $variantId): JsonResponse
+    {
+        /** @var User $actor */
+        $actor = $request->user();
+        if (! $actor->hasPermission('catalog.pricing') && ! $actor->hasPermission('catalog.write')) {
+            return response()->json(['message' => 'Você não possui permissão para alterar preços comerciais.'], 403);
+        }
+
+        $validated = $request->validate([
+            'price_cents' => ['required', 'integer', 'min:1'],
+            'promo_price_cents' => ['nullable', 'integer', 'min:1'],
+            'clear_promo' => ['boolean'],
+            'expected_updated_at' => ['nullable', 'string', 'max:60'],
+        ]);
+
+        $promoCents = ! empty($validated['clear_promo']) ? null : ($validated['promo_price_cents'] ?? null);
+        if ($promoCents !== null && $promoCents >= (int) $validated['price_cents']) {
+            return response()->json(['message' => 'O preço promocional deve ser menor que o preço de venda.'], 422);
+        }
+
+        $variant = ProductVariant::query()->with('product.variants')->findOrFail($variantId);
+
+        if (! empty($validated['expected_updated_at']) && $variant->updated_at && $variant->updated_at->toIso8601String() !== $validated['expected_updated_at']) {
+            return response()->json([
+                'message' => 'Esta variação foi atualizada por outro operador após a abertura.',
+                'conflict' => [
+                    'current_price_cents' => $variant->price_cents,
+                    'current_promo_price_cents' => $variant->promo_price_cents,
+                    'updated_at' => $variant->updated_at->toIso8601String(),
+                ],
+            ], 409);
+        }
+
+        $oldPrice = $variant->price_cents;
+        $oldPromo = $variant->promo_price_cents;
+
+        DB::transaction(function () use ($variant, $validated, $promoCents): void {
+            $variant->update([
+                'price_cents' => (int) $validated['price_cents'],
+                'promo_price_cents' => $promoCents,
+            ]);
+
+            $product = $variant->product;
+            if ($product && ($product->variants->count() <= 1 || $variant->is_default)) {
+                $product->update([
+                    'price_cents' => (int) $validated['price_cents'],
+                    'promo_price_cents' => $promoCents,
+                ]);
+            }
+        });
+
+        $this->audit->record('catalog.variant_quick_price_updated', $actor, 'product_variant', $variant->id, ['price_cents' => $oldPrice, 'promo_price_cents' => $oldPromo], ['price_cents' => (int) $validated['price_cents'], 'promo_price_cents' => $promoCents], $request);
+        $this->bulkRules->flushStorefrontCaches();
+
+        return response()->json(['data' => $variant->fresh('product.variants')]);
     }
 
     public function adjustStock(Request $request, int $variantId): JsonResponse
     {
         $validated = $request->validate([
-            'qty_delta' => ['required', 'integer', 'not_in:0'],
+            'qty_delta' => ['required_without:operation', 'integer', 'not_in:0'],
+            'operation' => ['nullable', Rule::in(['set', 'add', 'subtract'])],
+            'quantity' => ['required_with:operation', 'integer', 'min:0'],
             'reason' => ['required', 'string', 'min:3', 'max:255'],
             'reference' => ['nullable', 'string', 'max:120'],
+            'expected_stock_qty' => ['nullable', 'integer', 'min:0'],
+            'expected_updated_at' => ['nullable', 'string', 'max:60'],
         ]);
 
         $variant = ProductVariant::query()->findOrFail($variantId);
-        $type = (int) $validated['qty_delta'] > 0
-            ? InventoryMovementType::In
-            : InventoryMovementType::Adjustment;
+
+        if (array_key_exists('expected_stock_qty', $validated) && $validated['expected_stock_qty'] !== null && (int) $validated['expected_stock_qty'] !== $variant->stock_qty) {
+            return response()->json([
+                'message' => "O saldo mudou de {$validated['expected_stock_qty']} para {$variant->stock_qty} un. enquanto a janela estava aberta. Revise antes de gravar.",
+                'conflict' => [
+                    'variant_id' => $variant->id,
+                    'sku' => $variant->sku,
+                    'expected_stock_qty' => (int) $validated['expected_stock_qty'],
+                    'current_stock_qty' => $variant->stock_qty,
+                    'current_reserved_qty' => $variant->reserved_qty,
+                    'current_available_qty' => $variant->availableStock(),
+                    'updated_at' => $variant->updated_at?->toIso8601String(),
+                ],
+            ], 409);
+        }
+
+        if (! empty($validated['expected_updated_at']) && $variant->updated_at && $variant->updated_at->toIso8601String() !== $validated['expected_updated_at']) {
+            return response()->json([
+                'message' => 'A variação foi modificada concorrentemente após a abertura do ajuste.',
+                'conflict' => [
+                    'variant_id' => $variant->id,
+                    'sku' => $variant->sku,
+                    'current_stock_qty' => $variant->stock_qty,
+                    'current_reserved_qty' => $variant->reserved_qty,
+                    'current_available_qty' => $variant->availableStock(),
+                    'updated_at' => $variant->updated_at->toIso8601String(),
+                ],
+            ], 409);
+        }
+
+        if (! empty($validated['operation'])) {
+            $op = (string) $validated['operation'];
+            $qty = (int) $validated['quantity'];
+            $qtyDelta = match ($op) {
+                'set' => $qty - $variant->stock_qty,
+                'add' => abs($qty),
+                'subtract' => -abs($qty),
+            };
+            if ($qtyDelta === 0) {
+                return response()->json(['data' => $variant->fresh()]);
+            }
+            $type = match ($op) {
+                'add' => InventoryMovementType::In,
+                'subtract' => InventoryMovementType::Out,
+                default => InventoryMovementType::Adjustment,
+            };
+        } else {
+            $qtyDelta = (int) $validated['qty_delta'];
+            $type = $qtyDelta > 0
+                ? InventoryMovementType::In
+                : InventoryMovementType::Adjustment;
+        }
 
         $updated = $this->inventory->adjustStock(
             $variant,
-            (int) $validated['qty_delta'],
+            $qtyDelta,
             $type,
             $request->user(),
             $validated['reason'],
@@ -270,11 +587,104 @@ class AdminCatalogController extends Controller
 
         $this->audit->record('inventory.adjusted', $request->user(), 'product_variant', $updated->id, null, [
             'sku' => $updated->sku,
-            'qty_delta' => $validated['qty_delta'],
+            'qty_delta' => $qtyDelta,
             'stock_after' => $updated->stock_qty,
         ], $request);
+        $this->bulkRules->flushStorefrontCaches();
 
         return response()->json(['data' => $updated]);
+    }
+
+    public function bulkRulesPreview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'selection' => ['required', 'array'],
+            'rules' => ['required', 'array'],
+        ]);
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $preview = $this->bulkRules->previewRules($validated['selection'], $validated['rules'], $actor);
+
+        return response()->json(['data' => $preview]);
+    }
+
+    public function bulkRulesCommit(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'selection' => ['required', 'array'],
+            'rules' => ['required', 'array'],
+            'idempotency_key' => ['nullable', 'string', 'max:100'],
+            'preview_snapshot' => ['nullable', 'array'],
+            'apply_valid_only' => ['boolean'],
+            'async' => ['boolean'],
+            'conflict_resolution' => ['nullable', Rule::in(['abort', 'overwrite'])],
+        ]);
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $idempotencyKey = trim((string) ($validated['idempotency_key'] ?? $request->header('X-Idempotency-Key') ?? Str::uuid()->toString()));
+        $result = $this->bulkRules->commitRules(
+            $validated['selection'],
+            $validated['rules'],
+            $actor,
+            $idempotencyKey,
+            $validated['preview_snapshot'] ?? [],
+            (bool) ($validated['apply_valid_only'] ?? false),
+            (bool) ($validated['async'] ?? false),
+            (string) ($validated['conflict_resolution'] ?? 'abort'),
+        );
+
+        if (($result['status'] ?? '') === 'conflict') {
+            return response()->json([
+                'message' => 'Conflito de concorrência: saldos alterados após a prévia. Revise os itens destacados.',
+                'data' => $result,
+            ], 409);
+        }
+
+        return response()->json(['data' => $result], ! empty($result['queued']) ? 202 : 200);
+    }
+
+    public function bulkBatchStatus(int $id): JsonResponse
+    {
+        $batch = BulkEditBatch::query()->with(['user:id,name', 'items'])->findOrFail($id);
+
+        return response()->json(['data' => $batch]);
+    }
+
+    public function bulkLifecyclePreview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'selection' => ['required', 'array'],
+            'action' => ['required', Rule::in(['archive', 'restore', 'delete'])],
+        ]);
+
+        return response()->json([
+            'data' => $this->lifecycle->previewLifecycle($validated['selection'], (string) $validated['action']),
+        ]);
+    }
+
+    public function bulkLifecycleCommit(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'selection' => ['required', 'array'],
+            'action' => ['required', Rule::in(['archive', 'restore', 'delete'])],
+            'idempotency_key' => ['nullable', 'string', 'max:100'],
+            'archive_blocked' => ['boolean'],
+        ]);
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $idempotencyKey = trim((string) ($validated['idempotency_key'] ?? $request->header('X-Idempotency-Key') ?? Str::uuid()->toString()));
+        $result = $this->lifecycle->commitLifecycle(
+            $validated['selection'],
+            (string) $validated['action'],
+            $actor,
+            $idempotencyKey,
+            (bool) ($validated['archive_blocked'] ?? false),
+        );
+
+        return response()->json(['data' => $result]);
     }
 
     public function stockMovements(Request $request): JsonResponse
@@ -613,13 +1023,16 @@ class AdminCatalogController extends Controller
         }
 
         $dryRun = $request->boolean('dry_run', true);
-        $report = $this->csv->importCsv($content, $dryRun);
+        $report = $this->csv->importCsv($content, $dryRun, $request->user());
 
         $this->audit->record('catalog.csv_import', $request->user(), 'catalog', null, null, [
             'dry_run' => $dryRun,
             'created' => $report['created'],
             'updated' => $report['updated'],
         ], $request);
+        if (! $dryRun) {
+            $this->bulkRules->flushStorefrontCaches();
+        }
 
         return response()->json(['data' => $report]);
     }
@@ -685,6 +1098,8 @@ class AdminCatalogController extends Controller
             'slug' => ['nullable', 'string', 'max:220'],
             'sku' => ['required', 'string', 'max:80', Rule::unique('products', 'sku')->ignore($ignoreId)],
             'gtin' => ['nullable', 'string', 'max:40'],
+            'supplier_code' => ['nullable', 'string', 'max:80'],
+            'power_watts' => ['nullable', 'integer', 'min:1', 'max:5000'],
             'manufacturer' => ['nullable', 'string', 'max:150'],
             'short_description' => ['nullable', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
@@ -725,6 +1140,7 @@ class AdminCatalogController extends Controller
             'variants' => ['nullable', 'array'],
             'variants.*.id' => ['nullable', 'integer'],
             'variants.*.sku' => ['required_with:variants', 'string', 'max:80'],
+            'variants.*.supplier_code' => ['nullable', 'string', 'max:80'],
             'variants.*.name' => ['required_with:variants', 'string', 'max:160'],
             'variants.*.shade_code' => ['nullable', 'string', 'max:40'],
             'variants.*.color_family' => ['nullable', 'string', 'max:60'],
@@ -764,12 +1180,9 @@ class AdminCatalogController extends Controller
 
     /**
      * @param  array<string, mixed>  $validated
-     * @return list<VariantRestocked>
      */
-    private function syncImagesAndVariants(Product $product, array $validated, bool $updating = false): array
+    private function syncImagesAndVariants(Product $product, array $validated, bool $updating = false, ?User $actor = null): void
     {
-        $restockedEvents = [];
-
         if (array_key_exists('images', $validated)) {
             $product->images()->delete();
             foreach (($validated['images'] ?? []) as $index => $img) {
@@ -798,6 +1211,7 @@ class AdminCatalogController extends Controller
                 $attrs = [
                     'product_id' => $product->id,
                     'sku' => (string) $vData['sku'],
+                    'supplier_code' => array_key_exists('supplier_code', $vData) ? (trim((string) $vData['supplier_code']) ?: null) : ($variant?->supplier_code),
                     'name' => (string) $vData['name'],
                     'shade_code' => isset($vData['shade_code']) ? (trim((string) $vData['shade_code']) ?: null) : ($variant?->shade_code),
                     'color_family' => isset($vData['color_family']) ? (trim((string) $vData['color_family']) ?: null) : ($variant?->color_family),
@@ -814,38 +1228,31 @@ class AdminCatalogController extends Controller
 
                 if ($variant) {
                     $oldQty = $variant->stock_qty;
-                    $prevAvailable = $variant->availableStock();
                     $newQty = (int) $vData['stock_qty'];
-                    $variant->update(array_merge($attrs, ['stock_qty' => $newQty]));
+                    $variant->update($attrs);
                     if ($newQty !== $oldQty) {
-                        InventoryMovement::query()->create([
-                            'product_variant_id' => $variant->id,
-                            'type' => InventoryMovementType::Adjustment,
-                            'qty_delta' => $newQty - $oldQty,
-                            'physical_after' => $newQty,
-                            'reserved_after' => $variant->reserved_qty,
-                            'reason' => 'Edição direta no cadastro do produto',
-                        ]);
-                    }
-                    $newAvailable = $variant->fresh()->availableStock();
-                    if ($prevAvailable <= 0 && $newAvailable > 0) {
-                        $restockedEvents[] = new VariantRestocked($variant->fresh(), $prevAvailable, $newAvailable, 'Reposição via edição do produto');
+                        $this->inventory->adjustStock(
+                            $variant,
+                            $newQty - $oldQty,
+                            InventoryMovementType::Adjustment,
+                            $actor,
+                            'Edição direta no cadastro do produto'
+                        );
                     }
                 } else {
                     $initialQty = (int) $vData['stock_qty'];
                     $variant = ProductVariant::query()->create(array_merge($attrs, [
-                        'stock_qty' => $initialQty,
+                        'stock_qty' => 0,
                         'reserved_qty' => 0,
                     ]));
                     if ($initialQty > 0) {
-                        InventoryMovement::query()->create([
-                            'product_variant_id' => $variant->id,
-                            'type' => InventoryMovementType::In,
-                            'qty_delta' => $initialQty,
-                            'physical_after' => $initialQty,
-                            'reserved_after' => 0,
-                            'reason' => 'Saldo inicial da variação',
-                        ]);
+                        $this->inventory->adjustStock(
+                            $variant,
+                            $initialQty,
+                            InventoryMovementType::In,
+                            $actor,
+                            'Saldo inicial da variação'
+                        );
                     }
                 }
 
@@ -857,6 +1264,7 @@ class AdminCatalogController extends Controller
             ProductVariant::query()->create([
                 'product_id' => $product->id,
                 'sku' => $product->sku,
+                'supplier_code' => $product->supplier_code,
                 'name' => 'Padrão',
                 'price_cents' => $product->price_cents,
                 'promo_price_cents' => $product->promo_price_cents,
@@ -867,7 +1275,5 @@ class AdminCatalogController extends Controller
                 'is_active' => true,
             ]);
         }
-
-        return $restockedEvents;
     }
 }

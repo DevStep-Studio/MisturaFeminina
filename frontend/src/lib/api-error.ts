@@ -16,20 +16,23 @@ export class ApiError extends Error {
     public readonly requestId?: string,
     public readonly validation: Record<string, string[]> = {},
     public readonly redirectTo?: string,
+    public readonly payload?: Record<string, unknown>,
+    customMessage?: string,
   ) {
     super(
-      kind === "timeout"
-        ? "A requisição demorou mais que o esperado. Tente novamente."
-        : kind === "offline"
-          ? "Você está sem conexão. Verifique sua internet."
-          : kind === "network"
-            ? "Não foi possível conectar ao servidor. Tente novamente."
-            : kind === "cancelled"
-              ? "Requisição cancelada."
-              : kind === "invalid-response"
-                ? "O servidor retornou uma resposta inválida."
-                : statusMessages[status] ||
-                  "O serviço está temporariamente indisponível. Tente novamente.",
+      customMessage ||
+        (kind === "timeout"
+          ? "A requisição demorou mais que o esperado. Tente novamente."
+          : kind === "offline"
+            ? "Você está sem conexão. Verifique sua internet."
+            : kind === "network"
+              ? "Não foi possível conectar ao servidor. Tente novamente."
+              : kind === "cancelled"
+                ? "Requisição cancelada."
+                : kind === "invalid-response"
+                  ? "O servidor retornou uma resposta inválida."
+                  : statusMessages[status] ||
+                    "O serviço está temporariamente indisponível. Tente novamente."),
     );
     this.name = "ApiError";
   }

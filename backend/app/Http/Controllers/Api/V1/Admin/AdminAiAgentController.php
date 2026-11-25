@@ -275,6 +275,8 @@ class AdminAiAgentController extends Controller
 
         $validated = $request->validate([
             'product_name' => ['sometimes', 'string', 'max:190'],
+            'product_line' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'brand_id' => ['sometimes', 'nullable', 'integer', 'exists:brands,id'],
             'brand_name' => ['sometimes', 'nullable', 'string', 'max:120'],
             'category_id' => ['sometimes', 'nullable', 'integer', 'exists:categories,id'],
             'category_name' => ['sometimes', 'nullable', 'string', 'max:120'],
@@ -283,13 +285,21 @@ class AdminAiAgentController extends Controller
             'color_family' => ['sometimes', 'nullable', 'string', 'max:60'],
             'color_hex' => ['sometimes', 'nullable', 'string', 'max:20'],
             'volume' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'supplier_code' => ['sometimes', 'nullable', 'string', 'max:80'],
             'sku' => ['sometimes', 'string', 'max:80'],
+            'gtin' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'power_watts' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5000'],
+            'shipping_weight_grams' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50000'],
             'price_cents' => ['sometimes', 'integer', 'min:0'],
+            'promo_price_cents' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'stock_qty' => ['sometimes', 'integer', 'min:0'],
             'short_description' => ['sometimes', 'nullable', 'string', 'max:500'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'seo_title' => ['sometimes', 'nullable', 'string', 'max:160'],
             'seo_description' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'group_key' => ['sometimes', 'string', 'max:140'],
+            'ungroup' => ['sometimes', 'boolean'],
+            'matched_product_id' => ['sometimes', 'nullable', 'integer', 'exists:products,id'],
             'resolution_choice' => ['sometimes', Rule::in(['create_new', 'update_existing', 'ignore', 'manual_review'])],
         ]);
 
@@ -298,11 +308,37 @@ class AdminAiAgentController extends Controller
         return response()->json(['data' => $updated]);
     }
 
+    public function bulkUpdateCatalogImportItems(Request $request, int $id): JsonResponse
+    {
+        $import = AiProductImport::query()->findOrFail($id);
+        $validated = $request->validate([
+            'item_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'item_ids.*' => ['integer'],
+            'brand_id' => ['sometimes', 'nullable', 'integer', 'exists:brands,id'],
+            'brand_name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'category_id' => ['sometimes', 'nullable', 'integer', 'exists:categories,id'],
+            'category_name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'product_line' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'resolution_choice' => ['sometimes', Rule::in(['create_new', 'update_existing', 'ignore', 'manual_review'])],
+            'ungroup' => ['sometimes', 'boolean'],
+        ]);
+
+        $itemIds = array_map('intval', $validated['item_ids']);
+        unset($validated['item_ids']);
+        $updated = $this->catalogAgent->bulkUpdateDraftItems($import, $itemIds, $validated);
+
+        return response()->json([
+            'data' => $updated,
+            'import' => $import->fresh(['items', 'user:id,name', 'approvedBy:id,name']),
+        ]);
+    }
+
     public function approveCatalogImport(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
             'item_ids' => ['nullable', 'array'],
             'item_ids.*' => ['integer'],
+            'idempotency_key' => ['nullable', 'string', 'max:100'],
         ]);
 
         /** @var User $actor */
@@ -310,7 +346,10 @@ class AdminAiAgentController extends Controller
         $import = AiProductImport::query()->findOrFail($id);
 
         $itemIds = isset($validated['item_ids']) ? array_map('intval', $validated['item_ids']) : null;
-        $summary = $this->catalogAgent->commitApprovedImport($import, $actor, $itemIds);
+        $idempotencyKey = ! empty($validated['idempotency_key'])
+            ? (string) $validated['idempotency_key']
+            : ($request->header('X-Idempotency-Key') ?: null);
+        $summary = $this->catalogAgent->commitApprovedImport($import, $actor, $itemIds, $idempotencyKey);
 
         return response()->json(['data' => $summary]);
     }

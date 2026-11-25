@@ -1,40 +1,64 @@
-import Check from "lucide-solid/icons/check";
-import CheckCircle2 from "lucide-solid/icons/circle-check";
 import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
+import CheckCircle2 from "lucide-solid/icons/circle-check";
+import ClipboardText from "lucide-solid/icons/clipboard-list";
 import FilePlus from "lucide-solid/icons/file-plus";
 import FileSpreadsheet from "lucide-solid/icons/file-spreadsheet";
+import ImageIcon from "lucide-solid/icons/image";
+import Link2 from "lucide-solid/icons/link-2";
 import Sparkles from "lucide-solid/icons/sparkles";
-import Trash2 from "lucide-solid/icons/trash";
-import { For, Show, createResource, createSignal } from "solid-js";
+import Unlink from "lucide-solid/icons/unlink";
+import { For, Show, createMemo, createResource, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
-import { formatCents } from "../../../lib/format";
+import { assetUrl, formatCents } from "../../../lib/format";
 import {
   formatCentsToBrInput,
   parseBrazilianPriceToCents,
 } from "../admin-helpers";
+import { makeIdempotencyKey } from "../products/types";
 import {
   type AiProductImportDetail,
-  type AiProductImportItemRow,
   aiActionTypeLabel,
-  aiEvidenceOriginLabel,
 } from "./ai-types";
+
+type EntryMode = "text" | "photo" | "spreadsheet";
+type ReviewFilter = "all" | "ready" | "duplicates" | "review";
 
 export function AdminAiCatalogAgentPanel(props: {
   initialImportId?: number | null;
   onCommitted?: () => Promise<void> | void;
 }) {
+  const [entryMode, setEntryMode] = createSignal<EntryMode>("spreadsheet");
   const [instruction, setInstruction] = createSignal("");
   const [rawText, setRawText] = createSignal("");
   const [selectedFiles, setSelectedFiles] = createSignal<File[]>([]);
   const [activeImportId, setActiveImportId] = createSignal<number | null>(
     props.initialImportId ?? null,
   );
+  const [reviewFilter, setReviewFilter] = createSignal<ReviewFilter>("all");
   const [selectedItemIds, setSelectedItemIds] = createSignal<number[]>([]);
+  const [focusedItemId, setFocusedItemId] = createSignal<number | null>(null);
+  const [bulkBrandId, setBulkBrandId] = createSignal("");
+  const [bulkCategoryId, setBulkCategoryId] = createSignal("");
+  const [commitKey, setCommitKey] = createSignal(makeIdempotencyKey("ai-commit"));
   const [busy, setBusy] = createSignal(false);
   const [feedback, setFeedback] = createSignal<{
     type: "ok" | "err";
     text: string;
   } | null>(null);
+
+  const [brands] = createResource(async () => {
+    const res = await api<{ data: Array<{ id: number; name: string }> }>(
+      "/admin/brands",
+    );
+    return res.data ?? [];
+  });
+
+  const [categories] = createResource(async () => {
+    const res = await api<{ data: Array<{ id: number; name: string }> }>(
+      "/admin/categories",
+    );
+    return res.data ?? [];
+  });
 
   const [importsList, { refetch: refetchList }] = createResource(async () => {
     const res = await api<{ data: AiProductImportDetail[] }>(
@@ -53,6 +77,47 @@ export function AdminAiCatalogAgentPanel(props: {
     },
   );
 
+  const filteredItems = createMemo(() => {
+    const items = importDetail()?.items ?? [];
+    const f = reviewFilter();
+    if (f === "ready") {
+      return items.filter(
+        (i) =>
+          i.resolution_choice !== "ignore" &&
+          Boolean(i.validation_result?.is_valid) &&
+          i.action_type !== "possible_duplicate" &&
+          i.approval_status !== "committed",
+      );
+    }
+    if (f === "duplicates") {
+      return items.filter(
+        (i) =>
+          i.action_type === "possible_duplicate" ||
+          i.action_type === "update_variant",
+      );
+    }
+    if (f === "review") {
+      return items.filter(
+        (i) =>
+          !i.validation_result?.is_valid ||
+          (i.validation_result?.errors?.length ?? 0) > 0 ||
+          (i.validation_result?.warnings?.length ?? 0) > 0 ||
+          i.resolution_choice === "manual_review",
+      );
+    }
+    return items;
+  });
+
+  const focusedItem = createMemo(() => {
+    const items = importDetail()?.items ?? [];
+    return (
+      items.find((i) => i.id === focusedItemId()) ??
+      filteredItems()[0] ??
+      items[0] ??
+      null
+    );
+  });
+
   async function processWithAi(e: Event) {
     e.preventDefault();
     if (
@@ -62,27 +127,20 @@ export function AdminAiCatalogAgentPanel(props: {
     ) {
       setFeedback({
         type: "err",
-        text: "Descreva os produtos, cole uma tabela ou anexe arquivos (.xlsx, .csv, .pdf, imagens).",
+        text: "Informe o texto da lista, selecione uma foto ou envie uma planilha para preparar o rascunho.",
       });
       return;
     }
 
     setBusy(true);
     setFeedback(null);
+    setCommitKey(makeIdempotencyKey("ai-commit"));
     try {
       const fd = new FormData();
-      if (activeImportId()) {
-        fd.append("import_id", String(activeImportId()));
-      }
-      if (instruction().trim()) {
-        fd.append("instruction", instruction().trim());
-      }
-      if (rawText().trim()) {
-        fd.append("raw_text", rawText().trim());
-      }
-      for (const file of selectedFiles()) {
-        fd.append("files[]", file);
-      }
+      if (activeImportId()) fd.append("import_id", String(activeImportId()));
+      if (instruction().trim()) fd.append("instruction", instruction().trim());
+      if (rawText().trim()) fd.append("raw_text", rawText().trim());
+      for (const f of selectedFiles()) fd.append("files[]", f);
 
       const res = await api<{ data: AiProductImportDetail }>(
         "/admin/ai/catalog/imports",
@@ -92,15 +150,13 @@ export function AdminAiCatalogAgentPanel(props: {
           timeoutMs: 60000,
         },
       );
-
       setActiveImportId(res.data.id);
-      setInstruction("");
-      setRawText("");
+      setFocusedItemId(res.data.items?.[0]?.id ?? null);
       setSelectedFiles([]);
       setSelectedItemIds([]);
       setFeedback({
         type: "ok",
-        text: `Rascunho #${res.data.id} preparado com ${res.data.grouped_products_count} produto(s) e ${res.data.grouped_variants_count} variação(ões) para revisão.`,
+        text: `Rascunho #${res.data.id}: ${res.data.grouped_products_count} produto(s), ${res.data.grouped_variants_count} variação(ões) prontas para revisão.`,
       });
       await Promise.all([refetchList(), refetchDetail()]);
     } catch (err) {
@@ -109,21 +165,21 @@ export function AdminAiCatalogAgentPanel(props: {
         text:
           err instanceof ApiError
             ? err.message
-            : "Não foi possível processar o cadastro com IA.",
+            : "Erro ao analisar documento com IA.",
       });
     } finally {
       setBusy(false);
     }
   }
 
-  async function updateItemField(
+  async function updateItem(
     importId: number,
-    item: AiProductImportItemRow,
+    itemId: number,
     patch: Record<string, unknown>,
   ) {
     setBusy(true);
     try {
-      await api(`/admin/ai/catalog/imports/${importId}/items/${item.id}`, {
+      await api(`/admin/ai/catalog/imports/${importId}/items/${itemId}`, {
         method: "PATCH",
         body: patch,
       });
@@ -134,42 +190,69 @@ export function AdminAiCatalogAgentPanel(props: {
         text:
           err instanceof ApiError
             ? err.message
-            : "Falha ao atualizar item do rascunho.",
+            : "Não foi possível salvar alteração do rascunho.",
       });
     } finally {
       setBusy(false);
     }
   }
 
-  function toggleSelection(itemId: number) {
-    setSelectedItemIds((prev) =>
-      prev.includes(itemId)
-        ? prev.filter((id) => id !== itemId)
-        : [...prev, itemId],
-    );
+  async function applyBulkDraftAssignment(patch: Record<string, unknown>) {
+    const detail = importDetail();
+    if (!detail || selectedItemIds().length === 0) return;
+    setBusy(true);
+    try {
+      await api(`/admin/ai/catalog/imports/${detail.id}/items/bulk`, {
+        method: "PATCH",
+        body: {
+          item_ids: selectedItemIds(),
+          ...patch,
+        },
+      });
+      setFeedback({
+        type: "ok",
+        text: `${selectedItemIds().length} item(ns) do rascunho atualizados.`,
+      });
+      await refetchDetail();
+    } catch (err) {
+      setFeedback({
+        type: "err",
+        text:
+          err instanceof ApiError
+            ? err.message
+            : "Falha ao atualizar itens selecionados.",
+      });
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function approveImport(onlySelected: boolean) {
+  async function commitItems(onlySelected: boolean) {
     const detail = importDetail();
     if (!detail) return;
     setBusy(true);
     setFeedback(null);
     try {
-      const payload = onlySelected ? { item_ids: selectedItemIds() } : {};
       const res = await api<{
         data: {
           created_products: number;
           created_variants: number;
           updated_variants: number;
+          idempotent_replay?: boolean;
         };
       }>(`/admin/ai/catalog/imports/${detail.id}/approve`, {
         method: "POST",
-        body: payload,
+        body: {
+          item_ids: onlySelected ? selectedItemIds() : undefined,
+          idempotency_key: commitKey(),
+        },
       });
+      const d = res.data;
       setFeedback({
         type: "ok",
-        text: `Publicação concluída: ${res.data.created_products} produto(s) novo(s), ${res.data.created_variants} variação(ões) criada(s) e ${res.data.updated_variants} atualizada(s).`,
+        text: `Cadastro confirmado: ${d.created_products} produto(s) novo(s), ${d.created_variants} variação(ões) criada(s), ${d.updated_variants} atualizada(s).`,
       });
+      setCommitKey(makeIdempotencyKey("ai-commit"));
       await Promise.all([refetchList(), refetchDetail()]);
       await props.onCommitted?.();
     } catch (err) {
@@ -178,539 +261,753 @@ export function AdminAiCatalogAgentPanel(props: {
         text:
           err instanceof ApiError
             ? err.message
-            : "Revise os itens com pendências de SKU ou preço antes de aprovar.",
+            : "Existem itens pendentes de revisão obrigatória antes de cadastrar.",
       });
     } finally {
       setBusy(false);
     }
   }
 
-  async function discardImport() {
-    const detail = importDetail();
-    if (!detail) return;
-    setBusy(true);
-    try {
-      await api(`/admin/ai/catalog/imports/${detail.id}/discard`, {
-        method: "POST",
-      });
-      setFeedback({
-        type: "ok",
-        text: `Rascunho #${detail.id} descartado.`,
-      });
-      setActiveImportId(null);
-      await refetchList();
-    } finally {
-      setBusy(false);
-    }
+  function toggleSelect(id: number) {
+    setSelectedItemIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
   return (
-    <div class="space-y-6">
+    <div class="space-y-5 pb-16">
       <Show when={feedback()}>
-        {(f) => (
+        {(fb) => (
           <p
             role="status"
-            class={`rounded-xl border px-4 py-2.5 text-sm font-medium ${
-              f().type === "ok"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            class={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-medium ${
+              fb().type === "ok"
+                ? "border-purple-200 bg-purple-50 text-zinc-900"
                 : "border-red-200 bg-red-50 text-red-800"
             }`}
           >
-            {f().text}
+            <Show
+              when={fb().type === "ok"}
+              fallback={<AlertTriangle class="h-4 w-4 text-red-700" />}
+            >
+              <CheckCircle2 class="h-4 w-4 text-[#93509e]" />
+            </Show>
+            {fb().text}
           </p>
         )}
       </Show>
 
-      <div class="grid gap-6 lg:grid-cols-12">
-        {/* Entrada Conversacional + Arquivos */}
+      {/* Unified 3-entry intake flow (visible when creating or refining a batch) */}
+      <Show when={!importDetail()}>
         <form
           onSubmit={(e) => void processWithAi(e)}
-          class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-5"
+          class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5"
         >
-          <div class="flex items-center justify-between">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 class="flex items-center gap-2 text-base font-bold text-zinc-900">
-                <Sparkles class="size-4 text-[#93509e]" />
-                Agente de Cadastro Inteligente
+                <Sparkles class="h-4 w-4 text-[#93509e]" />
+                Cadastrar com IA — escolha como começar
               </h2>
-              <p class="mt-0.5 text-xs text-zinc-500">
-                Envie planilhas (.xlsx, .csv), fichas PDF, imagens ou descreva a
-                coleção para gerar rascunhos revisáveis.
+              <p class="text-xs text-zinc-500">
+                Todas as entradas levam à mesma grade de revisão. Especificações ilegíveis (como potência W) nunca são inventadas.
               </p>
             </div>
-            <Show when={activeImportId()}>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveImportId(null);
-                  setSelectedItemIds([]);
-                }}
-                class="rounded-md border border-zinc-300 px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50"
-              >
-                Novo lote
-              </button>
-            </Show>
           </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700">
-              Descreva os produtos que deseja cadastrar (ou continue o rascunho)
-            </label>
-            <textarea
-              rows={3}
-              value={instruction()}
-              onInput={(e) => setInstruction(e.currentTarget.value)}
-              placeholder='Ex.: "Cadastre a linha de esmaltes em gel da marca X, 15 ml, nas cores Nude 017, Nude 018, Rosa 042 e Vermelho 005. Todos custam R$ 19,90 e possuem estoque inicial de 10 unidades."'
-              class="mt-1 w-full rounded-lg border border-zinc-300 p-2.5 text-xs focus:border-[#93509e] focus:outline-none"
-            />
+          <div class="grid gap-2 sm:grid-cols-3 text-xs">
+            <button
+              type="button"
+              onClick={() => setEntryMode("text")}
+              class={`flex items-center gap-2 rounded-lg border p-3 text-left font-semibold ${
+                entryMode() === "text"
+                  ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                  : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              <ClipboardText class="h-4 w-4 shrink-0" />
+              <span>1. Colar texto ou lista de fornecedor</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setEntryMode("photo")}
+              class={`flex items-center gap-2 rounded-lg border p-3 text-left font-semibold ${
+                entryMode() === "photo"
+                  ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                  : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              <ImageIcon class="h-4 w-4 shrink-0" />
+              <span>2. Foto da embalagem ou rótulo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setEntryMode("spreadsheet")}
+              class={`flex items-center gap-2 rounded-lg border p-3 text-left font-semibold ${
+                entryMode() === "spreadsheet"
+                  ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                  : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              <FileSpreadsheet class="h-4 w-4 shrink-0" />
+              <span>3. Planilha (.xlsx, .csv) ou ficha PDF</span>
+            </button>
           </div>
 
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700">
-              Anexar arquivos do fornecedor (.xlsx, .csv, .pdf, .jpg, .png,
-              .webp)
-            </label>
-            <label class="mt-1 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#DFC2E3] bg-[#FCF8FD] px-4 py-3 text-xs font-semibold text-[#93509e] hover:bg-[#F3E2F6]/60">
-              <FilePlus class="size-4" />
-              <span>
-                {selectedFiles().length > 0
-                  ? `${selectedFiles().length} arquivo(s) selecionado(s)`
-                  : "Selecionar planilhas, fichas PDF ou fotos de embalagens"}
-              </span>
-              <input
-                type="file"
-                multiple
-                accept=".xlsx,.csv,.tsv,.txt,.pdf,.jpg,.jpeg,.png,.webp"
-                onChange={(e) => {
-                  const list = e.currentTarget.files;
-                  setSelectedFiles(list ? Array.from(list) : []);
-                }}
-                class="hidden"
+          <Show when={entryMode() === "text"}>
+            <div class="space-y-2">
+              <label class="block text-xs font-semibold text-zinc-700">
+                Cole a lista enviada pelo fornecedor ou descreva os itens
+              </label>
+              <textarea
+                rows={5}
+                value={instruction()}
+                onInput={(e) => setInstruction(e.currentTarget.value)}
+                placeholder={'Ex.: "Cadastre a linha de esmaltes em gel da marca X, 15 ml, nas cores Nude 017, Nude 018..." ou lista "- Gel 15 g - R$ 12,50"'}
+                class="w-full rounded-md border border-zinc-300 p-3 text-xs focus:border-[#93509e] focus:outline-none"
               />
-            </label>
-            <Show when={selectedFiles().length > 0}>
-              <ul class="mt-1.5 space-y-1 text-[11px] text-zinc-600">
-                <For each={selectedFiles()}>
-                  {(file) => (
-                    <li class="flex items-center gap-1.5">
-                      <FileSpreadsheet class="size-3.5 text-[#93509e]" />
-                      {file.name}
-                    </li>
-                  )}
-                </For>
-              </ul>
-            </Show>
+            </div>
+          </Show>
+
+          <Show when={entryMode() === "photo" || entryMode() === "spreadsheet"}>
+            <div class="space-y-3">
+              <label class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-xs font-semibold text-zinc-700 hover:border-[#93509e]">
+                <FilePlus class="h-5 w-5 text-[#93509e]" />
+                <span>
+                  {selectedFiles().length > 0
+                    ? `${selectedFiles().length} arquivo(s) selecionado(s)`
+                    : entryMode() === "photo"
+                      ? "Enviar foto JPG, PNG ou WEBP da embalagem / etiqueta"
+                      : "Enviar planilha XLSX / CSV ou ficha técnica PDF"}
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  accept={
+                    entryMode() === "photo"
+                      ? ".jpg,.jpeg,.png,.webp"
+                      : ".xlsx,.csv,.tsv,.txt,.pdf"
+                  }
+                  onChange={(e) => {
+                    const list = e.currentTarget.files;
+                    setSelectedFiles(list ? Array.from(list) : []);
+                  }}
+                  class="hidden"
+                />
+              </label>
+
+              <Show when={entryMode() === "spreadsheet"}>
+                <textarea
+                  rows={3}
+                  value={rawText()}
+                  onInput={(e) => setRawText(e.currentTarget.value)}
+                  placeholder="Ou cole linhas copiadas de uma planilha..."
+                  class="w-full rounded-md border border-zinc-300 p-2.5 font-mono text-xs focus:border-[#93509e] focus:outline-none"
+                />
+              </Show>
+
+              <input
+                type="text"
+                value={instruction()}
+                onInput={(e) => setInstruction(e.currentTarget.value)}
+                placeholder="Contexto opcional (ex.: Marca Y, estoque inicial 10 un.)"
+                class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs focus:border-[#93509e] focus:outline-none"
+              />
+            </div>
+          </Show>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div class="flex flex-wrap gap-2 text-xs">
+              <For each={(importsList() ?? []).slice(0, 4)}>
+                {(imp) => (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveImportId(imp.id);
+                      setFocusedItemId(null);
+                    }}
+                    class="rounded border border-zinc-200 px-2.5 py-1 text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Retomar rascunho #{imp.id} ({imp.total_records} itens)
+                  </button>
+                )}
+              </For>
+            </div>
+            <button
+              type="submit"
+              disabled={busy()}
+              class="rounded-md bg-[#93509e] px-5 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
+            >
+              {busy() ? "Extraindo..." : "Preparar rascunho para revisão"}
+            </button>
           </div>
+        </form>
+      </Show>
 
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700">
-              Ou cole linhas de planilha / ficha técnica aqui
-            </label>
-            <textarea
-              rows={4}
-              value={rawText()}
-              onInput={(e) => setRawText(e.currentTarget.value)}
-              placeholder="Cole colunas copiadas do Excel, CSV ou especificação do fornecedor..."
-              class="mt-1 w-full rounded-lg border border-zinc-300 p-2.5 font-mono text-[11px] focus:border-[#93509e] focus:outline-none"
-            />
-          </div>
+      {/* Unified Review Stage */}
+      <Show when={importDetail()}>
+        {(detail) => (
+          <div class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white p-4">
+              <div>
+                <h2 class="text-base font-bold text-zinc-900">
+                  Revisão do Lote #{detail().id}
+                </h2>
+                <p class="text-xs text-zinc-500">
+                  {detail().grouped_products_count} produto(s) · {detail().grouped_variants_count} item(ns) · Zeros à esquerda preservados em códigos.
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveImportId(null);
+                    setSelectedItemIds([]);
+                  }}
+                  class="rounded-md border border-zinc-300 px-3 py-1.5 font-semibold text-zinc-700 hover:bg-zinc-50"
+                >
+                  Nova importação
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await api(`/admin/ai/catalog/imports/${detail().id}/discard`, {
+                      method: "POST",
+                    });
+                    setActiveImportId(null);
+                    await refetchList();
+                  }}
+                  class="rounded-md border border-red-200 px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50"
+                >
+                  Descartar lote
+                </button>
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={busy()}
-            class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#93509e] px-4 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-50"
-          >
-            <Sparkles class="size-4" />
-            {busy()
-              ? "Processando e validando catálogo..."
-              : activeImportId()
-                ? `Atualizar rascunho #${activeImportId()} com IA`
-                : "Processar com IA e preparar revisão"}
-          </button>
-
-          {/* Rascunhos recentes para retomar */}
-          <Show when={(importsList()?.length ?? 0) > 0}>
-            <div class="border-t border-zinc-100 pt-3">
-              <p class="mb-2 text-[11px] font-bold uppercase text-zinc-500">
-                Lotes recentes / rascunhos
-              </p>
-              <div class="max-h-44 space-y-1.5 overflow-y-auto">
-                <For each={importsList() ?? []}>
-                  {(imp) => (
+            {/* Filter tabs: Todos | Prontos | Possíveis duplicados | Precisam de revisão */}
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap gap-1.5 text-xs">
+                <For
+                  each={
+                    [
+                      ["all", `Todos (${detail().items.length})`],
+                      [
+                        "ready",
+                        `Prontos (${detail().items.filter((i) => i.resolution_choice !== "ignore" && i.validation_result?.is_valid && i.action_type !== "possible_duplicate").length})`,
+                      ],
+                      [
+                        "duplicates",
+                        `Possíveis duplicados (${detail().items.filter((i) => i.action_type === "possible_duplicate" || i.action_type === "update_variant").length})`,
+                      ],
+                      [
+                        "review",
+                        `Precisam de revisão (${detail().items.filter((i) => !i.validation_result?.is_valid || (i.validation_result?.warnings?.length ?? 0) > 0 || i.resolution_choice === "manual_review").length})`,
+                      ],
+                    ] as const
+                  }
+                >
+                  {([key, label]) => (
                     <button
                       type="button"
-                      onClick={() => {
-                        setActiveImportId(imp.id);
-                        setSelectedItemIds([]);
-                      }}
-                      class={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                        activeImportId() === imp.id
-                          ? "border-[#93509e] bg-[#FCF8FD]"
-                          : "border-zinc-200 hover:bg-zinc-50"
+                      onClick={() => setReviewFilter(key)}
+                      class={`rounded-md px-3 py-1.5 font-semibold ${
+                        reviewFilter() === key
+                          ? "bg-[#93509e] text-white"
+                          : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
                       }`}
                     >
-                      <div>
-                        <p class="font-bold text-zinc-900">
-                          Lote #{imp.id} ({imp.source_type.toUpperCase()})
-                        </p>
-                        <p class="text-[11px] text-zinc-500">
-                          {imp.grouped_products_count} produto(s) ·{" "}
-                          {imp.grouped_variants_count} variação(ões)
-                        </p>
-                      </div>
-                      <span
-                        class={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          imp.status === "awaiting_review"
-                            ? "bg-amber-100 text-amber-800"
-                            : imp.status === "approved"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-zinc-100 text-zinc-600"
-                        }`}
-                      >
-                        {imp.status === "awaiting_review"
-                          ? "Aguardando revisão"
-                          : imp.status === "approved"
-                            ? "Publicado"
-                            : imp.status}
-                      </span>
+                      {label}
                     </button>
                   )}
                 </For>
               </div>
             </div>
-          </Show>
-        </form>
 
-        {/* Tela obrigatoria de revisao em lote */}
-        <section class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-7">
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
-            <div>
-              <h2 class="text-base font-bold text-zinc-900">
-                Revisar cadastros preparados pela IA
-              </h2>
-              <p class="text-xs text-zinc-500">
-                Nenhuma alteração vai para a loja antes da sua revisão e
-                aprovação comercial.
-              </p>
-            </div>
-            <Show when={importDetail()}>
-              {(d) => (
-                <div class="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    disabled={busy() || selectedItemIds().length === 0}
-                    onClick={() => void approveImport(true)}
-                    class="inline-flex h-8 items-center gap-1 rounded-lg border border-[#93509e] px-3 text-xs font-bold text-[#93509e] hover:bg-[#FCF8FD] disabled:opacity-40"
-                  >
-                    <Check class="size-3.5" />
-                    Aprovar selecionados ({selectedItemIds().length})
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy() || d().status === "approved"}
-                    onClick={() => void approveImport(false)}
-                    class="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-40"
-                  >
-                    <CheckCircle2 class="size-3.5" />
-                    Aprovar todos os válidos
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy() || d().status === "approved"}
-                    onClick={() => void discardImport()}
-                    class="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40"
-                  >
-                    <Trash2 class="size-3.5" />
-                    Descartar
-                  </button>
-                </div>
-              )}
-            </Show>
-          </div>
-
-          <Show
-            when={importDetail()}
-            fallback={
-              <div class="rounded-xl border border-dashed border-zinc-200 bg-zinc-50/70 p-8 text-center">
-                <FileSpreadsheet class="mx-auto mb-2 size-8 text-zinc-400" />
-                <p class="text-sm font-semibold text-zinc-700">
-                  Nenhum lote aberto para revisão
-                </p>
-                <p class="mt-1 text-xs text-zinc-500">
-                  Envie uma planilha, ficha PDF ou instrução ao lado para o
-                  Agente de Cadastro organizar produtos e variações.
-                </p>
+            {/* Bulk assignment bar for selected draft items */}
+            <Show when={selectedItemIds().length > 0}>
+              <div class="flex flex-wrap items-center gap-2 rounded-lg border border-[#93509e] bg-purple-50/70 p-3 text-xs">
+                <span class="font-bold text-zinc-900">
+                  {selectedItemIds().length} item(ns) selecionados:
+                </span>
+                <select
+                  value={bulkBrandId()}
+                  onChange={(e) => setBulkBrandId(e.currentTarget.value)}
+                  class="h-8 rounded border border-zinc-300 bg-white px-2"
+                >
+                  <option value="">Definir marca...</option>
+                  <For each={brands() ?? []}>
+                    {(b) => <option value={b.id}>{b.name}</option>}
+                  </For>
+                </select>
+                <button
+                  type="button"
+                  disabled={!bulkBrandId()}
+                  onClick={() => {
+                    const b = (brands() ?? []).find(
+                      (x) => String(x.id) === bulkBrandId(),
+                    );
+                    if (b) {
+                      void applyBulkDraftAssignment({
+                        brand_id: b.id,
+                        brand_name: b.name,
+                      });
+                    }
+                  }}
+                  class="rounded border border-zinc-300 bg-white px-2.5 py-1 font-semibold"
+                >
+                  Aplicar marca
+                </button>
+                <select
+                  value={bulkCategoryId()}
+                  onChange={(e) => setBulkCategoryId(e.currentTarget.value)}
+                  class="h-8 rounded border border-zinc-300 bg-white px-2"
+                >
+                  <option value="">Definir categoria...</option>
+                  <For each={categories() ?? []}>
+                    {(c) => <option value={c.id}>{c.name}</option>}
+                  </For>
+                </select>
+                <button
+                  type="button"
+                  disabled={!bulkCategoryId()}
+                  onClick={() => {
+                    const c = (categories() ?? []).find(
+                      (x) => String(x.id) === bulkCategoryId(),
+                    );
+                    if (c) {
+                      void applyBulkDraftAssignment({
+                        category_id: c.id,
+                        category_name: c.name,
+                      });
+                    }
+                  }}
+                  class="rounded border border-zinc-300 bg-white px-2.5 py-1 font-semibold"
+                >
+                  Aplicar categoria
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void applyBulkDraftAssignment({ resolution_choice: "ignore" })
+                  }
+                  class="rounded border border-zinc-300 bg-white px-2.5 py-1 font-semibold text-zinc-700"
+                >
+                  Ignorar selecionados
+                </button>
               </div>
-            }
-          >
-            {(detail) => (
-              <div class="space-y-4">
-                {/* Resumo do processamento */}
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-2.5 text-xs">
-                    <span class="text-zinc-500">Produtos / Variações</span>
-                    <p class="text-base font-black text-zinc-900">
-                      {detail().grouped_products_count} /{" "}
-                      {detail().grouped_variants_count}
-                    </p>
-                  </div>
-                  <div class="rounded-lg border border-emerald-200 bg-emerald-50/60 p-2.5 text-xs">
-                    <span class="text-emerald-700">Novos / Atualizações</span>
-                    <p class="text-base font-black text-emerald-900">
-                      {detail().new_count} / {detail().update_count}
-                    </p>
-                  </div>
-                  <div class="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 text-xs">
-                    <span class="text-amber-700">Duplicidades</span>
-                    <p class="text-base font-black text-amber-900">
-                      {detail().duplicate_count}
-                    </p>
-                  </div>
-                  <div class="rounded-lg border border-red-200 bg-red-50/60 p-2.5 text-xs">
-                    <span class="text-red-700">Incompletos / Erros</span>
-                    <p class="text-base font-black text-red-900">
-                      {detail().incomplete_count} / {detail().error_count}
-                    </p>
-                  </div>
-                </div>
+            </Show>
 
-                {/* Historico conversacional quando houver */}
-                <Show when={(detail().conversation_messages?.length ?? 0) > 0}>
-                  <div class="space-y-1.5 rounded-lg border border-[#DFC2E3] bg-[#FCF8FD] p-3 text-xs">
-                    <For each={detail().conversation_messages ?? []}>
-                      {(msg) => (
-                        <p class="text-zinc-700">
-                          <strong
-                            class={
-                              msg.role === "assistant"
-                                ? "text-[#93509e]"
-                                : "text-zinc-900"
-                            }
-                          >
-                            {msg.role === "assistant" ? "Agente IA:" : "Você:"}
-                          </strong>{" "}
-                          {msg.content}
-                        </p>
-                      )}
-                    </For>
-                  </div>
-                </Show>
-
-                {/* Grade editável */}
-                <div class="overflow-x-auto rounded-lg border border-zinc-200">
-                  <table class="w-full text-left text-xs">
-                    <thead class="border-b border-zinc-200 bg-zinc-50 text-[11px] uppercase text-zinc-500">
-                      <tr>
-                        <th class="p-2">Sel.</th>
-                        <th class="p-2">Produto / Marca / Categoria</th>
-                        <th class="p-2">Variação</th>
-                        <th class="p-2">SKU</th>
-                        <th class="p-2">Preço (R$)</th>
-                        <th class="p-2">Est.</th>
-                        <th class="p-2">Situação &amp; Origem</th>
-                        <th class="p-2">Ação</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-zinc-100">
-                      <For each={detail().items}>
-                        {(item) => (
+            <div class="grid gap-4 lg:grid-cols-12">
+              {/* Review grid */}
+              <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white lg:col-span-7">
+                <table class="w-full min-w-[540px] border-collapse text-left text-xs">
+                  <thead>
+                    <tr class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold uppercase text-zinc-600">
+                      <th class="w-8 px-2.5 py-2">
+                        <input
+                          type="checkbox"
+                          aria-label="Selecionar todos desta aba"
+                          checked={
+                            filteredItems().length > 0 &&
+                            filteredItems().every((i) =>
+                              selectedItemIds().includes(i.id),
+                            )
+                          }
+                          onChange={(e) =>
+                            setSelectedItemIds(
+                              e.currentTarget.checked
+                                ? filteredItems().map((i) => i.id)
+                                : [],
+                            )
+                          }
+                          class="accent-[#93509e]"
+                        />
+                      </th>
+                      <th class="sticky left-0 z-10 bg-zinc-50 px-2.5 py-2">
+                        Item / SKU
+                      </th>
+                      <th class="px-2 py-2">Ação</th>
+                      <th class="px-2 py-2 text-right">Preço (R$)</th>
+                      <th class="px-2 py-2 text-right">Estoque</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-100">
+                    <For each={filteredItems()}>
+                      {(item) => {
+                        const hasIssue = () =>
+                          (item.validation_result?.errors?.length ?? 0) > 0 ||
+                          !item.validation_result?.is_valid;
+                        const active = () => focusedItem()?.id === item.id;
+                        return (
                           <tr
-                            class={
-                              item.approval_status === "committed"
-                                ? "bg-emerald-50/40"
-                                : ""
-                            }
+                            onClick={() => setFocusedItemId(item.id)}
+                            class={`cursor-pointer ${
+                              active()
+                                ? "bg-purple-50/70"
+                                : hasIssue()
+                                  ? "bg-red-50/40"
+                                  : ""
+                            }`}
                           >
-                            <td class="p-2 align-top">
+                            <td
+                              class="px-2.5 py-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <input
                                 type="checkbox"
-                                disabled={item.approval_status === "committed"}
                                 checked={selectedItemIds().includes(item.id)}
-                                onChange={() => toggleSelection(item.id)}
+                                onChange={() => toggleSelect(item.id)}
+                                class="accent-[#93509e]"
                               />
                             </td>
-                            <td class="min-w-[200px] p-2 align-top">
-                              <input
-                                type="text"
-                                value={item.proposed_data.product_name}
-                                onBlur={(e) => {
-                                  const v = e.currentTarget.value.trim();
-                                  if (
-                                    v &&
-                                    v !== item.proposed_data.product_name
-                                  ) {
-                                    void updateItemField(detail().id, item, {
-                                      product_name: v,
-                                    });
-                                  }
-                                }}
-                                class="w-full rounded border border-zinc-200 px-2 py-1 text-xs font-bold"
-                              />
-                              <p class="mt-1 text-[10px] text-zinc-500">
-                                Marca:{" "}
-                                {item.proposed_data.brand_name ||
-                                  "Não identificada"}{" "}
-                                · Cat.:{" "}
-                                {item.proposed_data.category_name || "Revisar"}
+                            <td class="sticky left-0 z-10 bg-white px-2.5 py-2">
+                              <p class="max-w-[200px] truncate font-semibold text-zinc-900">
+                                {item.proposed_data.product_name}
                               </p>
-                            </td>
-                            <td class="min-w-[120px] p-2 align-top">
-                              <input
-                                type="text"
-                                value={item.proposed_data.variant_name}
-                                onBlur={(e) => {
-                                  const v = e.currentTarget.value.trim();
-                                  if (
-                                    v &&
-                                    v !== item.proposed_data.variant_name
-                                  ) {
-                                    void updateItemField(detail().id, item, {
-                                      variant_name: v,
-                                    });
-                                  }
-                                }}
-                                class="w-full rounded border border-zinc-200 px-2 py-1 text-xs"
-                              />
-                            </td>
-                            <td class="min-w-[115px] p-2 align-top">
-                              <input
-                                type="text"
-                                value={item.proposed_data.sku}
-                                onBlur={(e) => {
-                                  const v = e.currentTarget.value
-                                    .trim()
-                                    .toUpperCase();
-                                  if (v && v !== item.proposed_data.sku) {
-                                    void updateItemField(detail().id, item, {
-                                      sku: v,
-                                    });
-                                  }
-                                }}
-                                class="w-full rounded border border-zinc-200 px-2 py-1 font-mono text-[11px]"
-                              />
-                            </td>
-                            <td class="min-w-[90px] p-2 align-top">
-                              <input
-                                type="text"
-                                value={formatCentsToBrInput(
-                                  item.proposed_data.price_cents,
-                                )}
-                                onBlur={(e) => {
-                                  const cents = parseBrazilianPriceToCents(
-                                    e.currentTarget.value,
-                                  );
-                                  if (
-                                    cents > 0 &&
-                                    cents !== item.proposed_data.price_cents
-                                  ) {
-                                    void updateItemField(detail().id, item, {
-                                      price_cents: cents,
-                                    });
-                                  }
-                                }}
-                                placeholder="0,00"
-                                class="w-full rounded border border-zinc-200 px-2 py-1 text-xs"
-                              />
-                              <Show
-                                when={item.proposed_data.suggested_price_cents}
-                              >
-                                <span class="text-[10px] text-[#93509e]">
-                                  Sug. s/ custo
-                                </span>
+                              <p class="font-mono text-[11px] text-zinc-500">
+                                {item.proposed_data.sku} ·{" "}
+                                {item.proposed_data.variant_name}
+                              </p>
+                              <Show when={(item.validation_result?.errors?.length ?? 0) > 0}>
+                                <p class="text-[10px] font-semibold text-red-700">
+                                  {item.validation_result?.errors[0]}
+                                </p>
                               </Show>
                             </td>
-                            <td class="w-16 p-2 align-top">
-                              <input
-                                type="number"
-                                min="0"
-                                value={item.proposed_data.stock_qty}
-                                onBlur={(e) => {
-                                  const qty = Number(e.currentTarget.value);
-                                  if (
-                                    Number.isFinite(qty) &&
-                                    qty !== item.proposed_data.stock_qty
-                                  ) {
-                                    void updateItemField(detail().id, item, {
-                                      stock_qty: qty,
-                                    });
-                                  }
-                                }}
-                                class="w-full rounded border border-zinc-200 px-2 py-1 text-xs"
-                              />
-                            </td>
-                            <td class="min-w-[170px] p-2 align-top text-[11px]">
-                              <span class="inline-block rounded bg-zinc-100 px-1.5 py-0.5 font-bold text-zinc-800">
+                            <td class="px-2 py-2 text-[11px]">
+                              <span
+                                class={`font-medium ${
+                                  item.action_type === "possible_duplicate"
+                                    ? "text-amber-800"
+                                    : "text-zinc-700"
+                                }`}
+                              >
                                 {aiActionTypeLabel(item.action_type)}
                               </span>
-                              <p class="mt-0.5 text-[10px] text-zinc-500">
-                                Origem:{" "}
-                                {item.source_evidence?.origin_file || "manual"}{" "}
-                                ·{" "}
-                                {aiEvidenceOriginLabel(
-                                  item.source_evidence?.fields?.price,
-                                )}
-                              </p>
-                              <Show when={item.duplicate_comparison}>
-                                {(dup) => (
-                                  <p class="mt-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-800">
-                                    Existente:{" "}
-                                    <strong>
-                                      {dup().existing.product_name}
-                                    </strong>{" "}
-                                    ({formatCents(dup().existing.price_cents)})
-                                  </p>
-                                )}
-                              </Show>
-                              <For each={item.validation_result?.errors ?? []}>
-                                {(err) => (
-                                  <p class="mt-0.5 flex items-center gap-1 font-semibold text-red-600">
-                                    <AlertTriangle class="size-3 shrink-0" />
-                                    {err}
-                                  </p>
-                                )}
-                              </For>
-                              <For
-                                each={item.validation_result?.warnings ?? []}
-                              >
-                                {(w) => (
-                                  <p class="mt-0.5 text-[10px] text-amber-700">
-                                    {w}
-                                  </p>
-                                )}
-                              </For>
                             </td>
-                            <td class="p-2 align-top">
-                              <select
-                                disabled={item.approval_status === "committed"}
-                                value={item.resolution_choice}
-                                onChange={(e) =>
-                                  void updateItemField(detail().id, item, {
-                                    resolution_choice: e.currentTarget.value,
-                                  })
-                                }
-                                class="rounded border border-zinc-300 bg-white px-2 py-1 text-[11px]"
-                              >
-                                <option value="create_new">Criar novo</option>
-                                <option value="update_existing">
-                                  Atualizar existente
-                                </option>
-                                <option value="manual_review">
-                                  Revisar manual
-                                </option>
-                                <option value="ignore">Ignorar linha</option>
-                              </select>
+                            <td class="px-2 py-2 text-right font-semibold tabular-nums">
+                              {item.proposed_data.price_cents > 0
+                                ? formatCents(item.proposed_data.price_cents)
+                                : "Pendente"}
+                            </td>
+                            <td class="px-2 py-2 text-right tabular-nums">
+                              {item.proposed_data.stock_qty} un.
                             </td>
                           </tr>
-                        )}
-                      </For>
-                    </tbody>
-                  </table>
-                </div>
+                        );
+                      }}
+                    </For>
+                  </tbody>
+                </table>
               </div>
-            )}
-          </Show>
-        </section>
-      </div>
+
+              {/* Side-by-side Evidence + Detail Editor */}
+              <div class="space-y-3 rounded-lg border border-zinc-200 bg-white p-4 text-xs lg:col-span-5">
+                <Show
+                  when={focusedItem()}
+                  fallback={
+                    <p class="text-zinc-500">
+                      Selecione uma linha à esquerda para revisar a fonte original e editar os campos.
+                    </p>
+                  }
+                >
+                  {(item) => (
+                    <div class="space-y-3">
+                      <div class="flex items-start justify-between gap-2 border-b border-zinc-100 pb-2">
+                        <div>
+                          <h3 class="font-bold text-zinc-900">
+                            {item().proposed_data.product_name}
+                          </h3>
+                          <p class="text-[11px] text-zinc-500">
+                            Origem: {item().source_evidence?.origin_file} ({item().source_evidence?.origin_detail})
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void updateItem(detail().id, item().id, {
+                              ungroup: true,
+                            })
+                          }
+                          class="inline-flex items-center gap-1 rounded border border-zinc-200 px-2 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50"
+                        >
+                          <Unlink class="h-3 w-3" />
+                          Separar produto
+                        </button>
+                      </div>
+
+                      {/* Photo or original text snippet side-by-side */}
+                      <Show when={item().source_evidence?.image_url}>
+                        {(url) => (
+                          <div class="rounded-md border border-zinc-200 bg-zinc-50 p-2">
+                            <p class="mb-1 text-[10px] font-semibold uppercase text-zinc-500">
+                              Foto enviada pelo usuário
+                            </p>
+                            <img
+                              src={assetUrl(url())}
+                              alt={item().proposed_data.product_name}
+                              class="max-h-44 w-full rounded object-contain bg-white"
+                            />
+                          </div>
+                        )}
+                      </Show>
+                      <Show when={item().source_evidence?.raw_snippet}>
+                        {(snip) => (
+                          <div class="rounded-md border border-zinc-200 bg-zinc-50 p-2 text-[11px] font-mono text-zinc-700">
+                            {snip()}
+                          </div>
+                        )}
+                      </Show>
+
+                      {/* Duplicate / Existing Catalog Side-by-side comparison */}
+                      <Show when={item().duplicate_comparison}>
+                        {(dup) => (
+                          <div class="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/70 p-2.5 text-[11px]">
+                            <p class="font-bold text-amber-900">
+                              Correspondência encontrada: {dup().reason}
+                            </p>
+                            <p class="text-zinc-800">
+                              <strong>Atual no catálogo:</strong>{" "}
+                              {dup().existing.product_name} (SKU {dup().existing.sku}) ·{" "}
+                              {formatCents(dup().existing.price_cents)}
+                            </p>
+                            <div class="flex flex-wrap gap-1.5 pt-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void updateItem(detail().id, item().id, {
+                                    matched_product_id: dup().existing.product_id,
+                                    resolution_choice: "update_existing",
+                                  })
+                                }
+                                class="inline-flex items-center gap-1 rounded border border-[#93509e] bg-white px-2 py-0.5 font-semibold text-[#93509e]"
+                              >
+                                <Link2 class="h-3 w-3" />
+                                Vincular a este produto
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void updateItem(detail().id, item().id, {
+                                    matched_product_id: null,
+                                    resolution_choice: "create_new",
+                                    ungroup: true,
+                                  })
+                                }
+                                class="rounded border border-zinc-300 bg-white px-2 py-0.5 font-semibold"
+                              >
+                                Cadastrar separado
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </Show>
+
+                      {/* Errors & Warnings */}
+                      <Show when={(item().validation_result?.errors?.length ?? 0) > 0}>
+                        <div class="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-[11px] text-red-800">
+                          <For each={item().validation_result?.errors ?? []}>
+                            {(err) => <p class="font-semibold">{err}</p>}
+                          </For>
+                        </div>
+                      </Show>
+                      <Show when={(item().validation_result?.warnings?.length ?? 0) > 0}>
+                        <div class="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
+                          <For each={item().validation_result?.warnings ?? []}>
+                            {(w) => <p>{w}</p>}
+                          </For>
+                        </div>
+                      </Show>
+
+                      {/* Structured Fields */}
+                      <div class="grid gap-2 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                          <label class="block text-[11px] font-semibold text-zinc-700">Nome comercial</label>
+                          <input
+                            type="text"
+                            value={item().proposed_data.product_name}
+                            onBlur={(e) => {
+                              if (e.currentTarget.value !== item().proposed_data.product_name) {
+                                void updateItem(detail().id, item().id, {
+                                  product_name: e.currentTarget.value,
+                                });
+                              }
+                            }}
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">SKU</label>
+                          <input
+                            type="text"
+                            value={item().proposed_data.sku}
+                            onBlur={(e) =>
+                              void updateItem(detail().id, item().id, {
+                                sku: e.currentTarget.value.toUpperCase(),
+                              })
+                            }
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2 font-mono uppercase"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">Código de barras (GTIN)</label>
+                          <input
+                            type="text"
+                            value={item().proposed_data.gtin ?? ""}
+                            onBlur={(e) =>
+                              void updateItem(detail().id, item().id, {
+                                gtin: e.currentTarget.value || null,
+                              })
+                            }
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">
+                            Preço de venda (R$)
+                            <Show when={item().proposed_data.cost_price_cents}>
+                              {(c) => (
+                                <span class="ml-1 text-[10px] font-normal text-amber-800">
+                                  (Custo fonte: {formatCents(c())})
+                                </span>
+                              )}
+                            </Show>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={formatCentsToBrInput(item().proposed_data.price_cents)}
+                            onBlur={(e) => {
+                              const cents = parseBrazilianPriceToCents(e.currentTarget.value);
+                              if (cents >= 0) {
+                                void updateItem(detail().id, item().id, {
+                                  price_cents: cents,
+                                });
+                              }
+                            }}
+                            placeholder="Informar R$"
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2 text-right font-semibold tabular-nums"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">Estoque</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item().proposed_data.stock_qty}
+                            onBlur={(e) =>
+                              void updateItem(detail().id, item().id, {
+                                stock_qty: Number(e.currentTarget.value) || 0,
+                              })
+                            }
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2 text-right tabular-nums"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">Conteúdo / Volume</label>
+                          <input
+                            type="text"
+                            value={item().proposed_data.volume ?? ""}
+                            onBlur={(e) =>
+                              void updateItem(detail().id, item().id, {
+                                volume: e.currentTarget.value || null,
+                              })
+                            }
+                            placeholder="Ex.: 15 ml, 15 g"
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">Peso envio (g)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item().proposed_data.shipping_weight_grams ?? ""}
+                            onBlur={(e) =>
+                              void updateItem(detail().id, item().id, {
+                                shipping_weight_grams: e.currentTarget.value
+                                  ? Number(e.currentTarget.value)
+                                  : null,
+                              })
+                            }
+                            placeholder="Não inferido do rótulo"
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2"
+                          />
+                        </div>
+                        <Show when={item().proposed_data.is_equipment || item().proposed_data.power_watts}>
+                          <div>
+                            <label class="block text-[11px] font-semibold text-red-700">
+                              Potência elétrica (W) *
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item().proposed_data.power_watts ?? ""}
+                              onBlur={(e) =>
+                                void updateItem(detail().id, item().id, {
+                                  power_watts: e.currentTarget.value
+                                    ? Number(e.currentTarget.value)
+                                    : null,
+                                })
+                              }
+                              placeholder="Informe se legível"
+                              class="mt-0.5 h-8 w-full rounded border border-red-300 px-2"
+                            />
+                          </div>
+                        </Show>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">Decisão</label>
+                          <select
+                            value={item().resolution_choice}
+                            onChange={(e) =>
+                              void updateItem(detail().id, item().id, {
+                                resolution_choice: e.currentTarget.value,
+                              })
+                            }
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 bg-white px-2"
+                          >
+                            <option value="create_new">Cadastrar novo</option>
+                            <option value="update_existing">Atualizar existente</option>
+                            <option value="manual_review">Manter em revisão</option>
+                            <option value="ignore">Ignorar item</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </Show>
+              </div>
+            </div>
+
+            {/* Sticky Footer */}
+            <div class="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-sm">
+              <span class="text-xs text-zinc-600">
+                Rascunho salvo automaticamente a cada edição de campo.
+              </span>
+              <div class="flex flex-wrap gap-2">
+                <Show when={selectedItemIds().length > 0}>
+                  <button
+                    type="button"
+                    disabled={busy()}
+                    onClick={() => void commitItems(true)}
+                    class="rounded-md bg-[#93509e] px-4 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
+                  >
+                    Cadastrar {selectedItemIds().length} selecionados
+                  </button>
+                </Show>
+                <button
+                  type="button"
+                  disabled={busy()}
+                  onClick={() => void commitItems(false)}
+                  class="rounded-md bg-[#93509e] px-5 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
+                >
+                  {busy() ? "Gravando..." : "Aprovar e cadastrar lote"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Show>
     </div>
   );
 }

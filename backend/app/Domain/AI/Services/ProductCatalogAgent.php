@@ -292,21 +292,72 @@ class ProductCatalogAgent
         }
 
         $proposed = $item->proposed_data;
-        foreach (['product_name', 'brand_id', 'brand_name', 'category_id', 'category_name', 'variant_name', 'shade_code', 'color_family', 'color_hex', 'volume', 'short_description', 'description', 'seo_title', 'seo_description'] as $strKey) {
+        $evidence = $item->source_evidence ?? [];
+        $evidenceFields = is_array($evidence['fields'] ?? null) ? $evidence['fields'] : [];
+
+        foreach ([
+            'product_name',
+            'product_line',
+            'brand_id',
+            'brand_name',
+            'category_id',
+            'category_name',
+            'variant_name',
+            'shade_code',
+            'color_family',
+            'color_hex',
+            'volume',
+            'supplier_code',
+            'short_description',
+            'description',
+            'seo_title',
+            'seo_description',
+        ] as $strKey) {
             if (array_key_exists($strKey, $changes)) {
                 $proposed[$strKey] = $changes[$strKey];
+                $evidenceFields[$strKey] = 'manual';
             }
         }
         if (array_key_exists('sku', $changes)) {
             $newSku = strtoupper(trim((string) $changes['sku']));
             $proposed['sku'] = $newSku;
             $item->sku = $newSku;
+            $evidenceFields['sku'] = 'manual';
+        }
+        if (array_key_exists('gtin', $changes)) {
+            $newGtin = $changes['gtin'] !== null ? trim((string) $changes['gtin']) : null;
+            $proposed['gtin'] = $newGtin;
+            $item->gtin = $newGtin;
+            $evidenceFields['gtin'] = $newGtin ? 'manual' : 'missing';
+        }
+        if (array_key_exists('power_watts', $changes)) {
+            $pw = $changes['power_watts'] !== null && $changes['power_watts'] !== '' ? (int) $changes['power_watts'] : null;
+            $proposed['power_watts'] = $pw;
+            $evidenceFields['power_watts'] = $pw ? 'manual' : ((! empty($proposed['is_equipment'])) ? 'missing_illegible' : 'not_applicable');
+        }
+        if (array_key_exists('shipping_weight_grams', $changes)) {
+            $sw = $changes['shipping_weight_grams'] !== null && $changes['shipping_weight_grams'] !== '' ? (int) $changes['shipping_weight_grams'] : null;
+            $proposed['shipping_weight_grams'] = $sw;
+            $evidenceFields['shipping_weight'] = $sw ? 'manual' : 'missing';
         }
         if (array_key_exists('price_cents', $changes)) {
             $proposed['price_cents'] = max(0, (int) $changes['price_cents']);
+            $evidenceFields['price'] = $proposed['price_cents'] > 0 ? 'manual' : 'missing';
+        }
+        if (array_key_exists('promo_price_cents', $changes)) {
+            $proposed['promo_price_cents'] = $changes['promo_price_cents'] !== null ? max(0, (int) $changes['promo_price_cents']) : null;
         }
         if (array_key_exists('stock_qty', $changes)) {
             $proposed['stock_qty'] = max(0, (int) $changes['stock_qty']);
+            $evidenceFields['stock_qty'] = 'manual';
+        }
+        if (! empty($changes['ungroup'])) {
+            $item->group_key = 'ungrouped-item-'.$item->id;
+        } elseif (array_key_exists('group_key', $changes) && ! empty($changes['group_key'])) {
+            $item->group_key = (string) $changes['group_key'];
+        }
+        if (array_key_exists('matched_product_id', $changes)) {
+            $item->matched_product_id = $changes['matched_product_id'] ? (int) $changes['matched_product_id'] : null;
         }
         if (isset($changes['resolution_choice']) && in_array($changes['resolution_choice'], ['create_new', 'update_existing', 'ignore', 'manual_review'], true)) {
             $item->resolution_choice = (string) $changes['resolution_choice'];
@@ -317,33 +368,123 @@ class ProductCatalogAgent
         if (empty($proposed['sku'])) {
             $errors[] = 'SKU obrigatório.';
         }
-        if ((int) ($proposed['price_cents'] ?? 0) <= 0 && $item->resolution_choice !== 'ignore') {
+        if ((int) ($proposed['price_cents'] ?? 0) <= 0 && $item->resolution_choice !== 'ignore' && ! $item->matched_variant_id) {
             $errors[] = 'Preço de venda deve ser maior que zero.';
         }
+        if (! empty($proposed['is_equipment']) && empty($proposed['power_watts']) && $item->resolution_choice !== 'ignore') {
+            $errors[] = 'Equipamento sem potência (W) informada manualmente.';
+        }
+
+        // Cross-check SKU vs GTIN conflict across different products
+        $skuUpper = strtoupper(trim((string) ($proposed['sku'] ?? '')));
+        $gtinVal = trim((string) ($proposed['gtin'] ?? ''));
+        if ($skuUpper !== '' && $gtinVal !== '') {
+            $skuVar = ProductVariant::query()->whereRaw('UPPER(sku) = ?', [$skuUpper])->first();
+            $gtinProd = Product::query()->where('gtin', $gtinVal)->first()
+                ?? ProductVariant::query()->with('product')->where('gtin', $gtinVal)->first()?->product;
+            if ($skuVar && $gtinProd && (int) $skuVar->product_id !== (int) $gtinProd->id) {
+                $errors[] = "Conflito: SKU {$skuUpper} e código de barras {$gtinVal} apontam para produtos diferentes no catálogo.";
+            }
+        }
+
         $validation['errors'] = $errors;
         $validation['is_valid'] = $errors === [];
 
+        $evidence['fields'] = $evidenceFields;
+        $item->source_evidence = $evidence;
         $item->proposed_data = $proposed;
         $item->validation_result = $validation;
         $item->save();
+
+        if ($import) {
+            $this->recomputeImportStats($import);
+        }
 
         return $item->fresh() ?? $item;
     }
 
     /**
+     * Applies bulk field assignments (brand, category, resolution_choice, ungroup) across selected draft items.
+     *
+     * @param  list<int>  $itemIds
+     * @param  array<string, mixed>  $changes
+     * @return list<AiProductImportItem>
+     */
+    public function bulkUpdateDraftItems(AiProductImport $import, array $itemIds, array $changes): array
+    {
+        if (in_array($import->status, ['approved', 'discarded'], true)) {
+            throw ValidationException::withMessages(['import' => ['Importação já finalizada não pode ser editada.']]);
+        }
+
+        $updated = [];
+        $items = $import->items()->whereIn('id', $itemIds)->get();
+        foreach ($items as $item) {
+            $updated[] = $this->updateDraftItem($item, $changes);
+        }
+
+        $this->recomputeImportStats($import);
+
+        return $updated;
+    }
+
+    private function recomputeImportStats(AiProductImport $import): void
+    {
+        $items = $import->items()->get();
+        $groups = [];
+        $errorCount = 0;
+        $incompleteCount = 0;
+        foreach ($items as $it) {
+            $groups[$it->group_key] = true;
+            $val = $it->validation_result ?? [];
+            if (! empty($val['errors'])) {
+                $errorCount++;
+            } elseif (! empty($val['warnings'])) {
+                $incompleteCount++;
+            }
+        }
+
+        $import->update([
+            'grouped_products_count' => count($groups),
+            'grouped_variants_count' => $items->count(),
+            'error_count' => $errorCount,
+            'incomplete_count' => $incompleteCount,
+        ]);
+    }
+
+    /**
      * Commits approved draft items atomically into live `Product` & `ProductVariant` tables via existing `InventoryService`.
-     * Idempotent: already-committed items are skipped safely without creating duplicates.
+     * Idempotent: supports explicit `idempotencyKey` replay AND skips already-committed items safely without duplicates.
      *
      * @param  list<int>|null  $selectedItemIds
      * @return array<string, mixed>
      */
-    public function commitApprovedImport(AiProductImport $import, User $actor, ?array $selectedItemIds = null): array
-    {
+    public function commitApprovedImport(
+        AiProductImport $import,
+        User $actor,
+        ?array $selectedItemIds = null,
+        ?string $idempotencyKey = null,
+    ): array {
         if (! $actor->hasPermission('ai.catalog.approve')) {
             throw ValidationException::withMessages(['permission' => ['Usuário sem permissão comercial para publicar cadastros da IA.']]);
         }
 
-        $result = DB::transaction(function () use ($import, $actor, $selectedItemIds): array {
+        if ($idempotencyKey) {
+            $existingBatch = BulkEditBatch::query()->where('idempotency_key', $idempotencyKey)->first();
+            if ($existingBatch) {
+                return [
+                    'import_id' => $import->id,
+                    'created_products' => 0,
+                    'created_variants' => 0,
+                    'updated_variants' => 0,
+                    'skipped_already_committed' => $import->items()->where('approval_status', 'committed')->count(),
+                    'idempotent_replay' => true,
+                    'batch_id' => $existingBatch->id,
+                    'status' => $import->status,
+                ];
+            }
+        }
+
+        $result = DB::transaction(function () use ($import, $actor, $selectedItemIds, $idempotencyKey): array {
             /** @var AiProductImport $locked */
             $locked = AiProductImport::query()->with('items')->lockForUpdate()->findOrFail($import->id);
             if ($locked->status === 'discarded') {
@@ -371,13 +512,16 @@ class ProductCatalogAgent
 
             $batch = BulkEditBatch::query()->create([
                 'batch_code' => 'AI-IMP-'.$locked->id.'-'.strtoupper(Str::random(4)),
-                'idempotency_key' => 'ai-import-commit-'.$locked->id.'-'.($selectedItemIds ? md5(json_encode($selectedItemIds) ?: '') : 'all'),
+                'idempotency_key' => $idempotencyKey ?: ('ai-import-commit-'.$locked->id.'-'.($selectedItemIds ? md5(json_encode($selectedItemIds) ?: '') : 'all')),
                 'user_id' => $actor->id,
                 'source' => 'ai_catalog_agent',
+                'operation_type' => 'ai_import',
                 'status' => 'completed',
                 'total_rows' => $itemsQuery->count(),
                 'created_count' => 0,
                 'updated_count' => 0,
+                'skipped_count' => 0,
+                'pending_count' => 0,
                 'failed_count' => 0,
             ]);
 
@@ -388,11 +532,18 @@ class ProductCatalogAgent
 
             foreach ($itemsQuery as $item) {
                 $p = $item->proposed_data;
+                $evidenceFields = is_array($item->source_evidence['fields'] ?? null) ? $item->source_evidence['fields'] : [];
                 $sku = strtoupper(trim((string) ($p['sku'] ?? $item->sku ?? '')));
                 $priceCents = (int) ($p['price_cents'] ?? 0);
-                if ($sku === '' || $priceCents <= 0) {
+
+                if ($sku === '') {
                     throw ValidationException::withMessages([
-                        'items' => ["Item #{$item->id} ({$item->product_reference}) possui SKU ou preço inválido e deve ser revisado antes de aprovar."],
+                        'items' => ["Item #{$item->id} ({$item->product_reference}) sem SKU definido."],
+                    ]);
+                }
+                if (! empty($p['is_equipment']) && empty($p['power_watts'])) {
+                    throw ValidationException::withMessages([
+                        'items' => ["Item #{$item->id} ({$item->product_reference}): equipamento sem potência elétrica (W) informada manualmente."],
                     ]);
                 }
 
@@ -402,19 +553,57 @@ class ProductCatalogAgent
                     ? ProductVariant::query()->with('product')->find($item->matched_variant_id)
                     : ProductVariant::query()->with('product')->whereRaw('UPPER(sku) = ?', [$sku])->first();
 
+                $gtin = ! empty($p['gtin']) ? trim((string) $p['gtin']) : null;
+                if ($gtin && $existingVar) {
+                    $otherGtinProd = Product::query()->where('gtin', $gtin)->where('id', '!=', $existingVar->product_id)->first();
+                    if ($otherGtinProd) {
+                        throw ValidationException::withMessages([
+                            'items' => ["Conflito de catálogo no item #{$item->id}: SKU {$sku} e código de barras {$gtin} apontam para produtos distintos."],
+                        ]);
+                    }
+                }
+
                 if ($existingVar) {
                     $oldStock = $existingVar->stock_qty;
-                    $targetStock = max(0, (int) ($p['stock_qty'] ?? $oldStock));
-                    $delta = $targetStock - $oldStock;
+                    $priceSource = (string) ($evidenceFields['price'] ?? 'provided');
+                    $stockSource = (string) ($evidenceFields['stock_qty'] ?? 'provided');
 
-                    $existingVar->update([
-                        'name' => (string) ($p['variant_name'] ?? $existingVar->name),
-                        'shade_code' => $p['shade_code'] ?? $existingVar->shade_code,
-                        'color_family' => $p['color_family'] ?? $existingVar->color_family,
-                        'color_hex' => $p['color_hex'] ?? $existingVar->color_hex,
-                        'price_cents' => $priceCents,
-                        'promo_price_cents' => $p['promo_price_cents'] ?? $existingVar->promo_price_cents,
-                    ]);
+                    $finalPrice = ($priceCents > 0 && ($priceSource !== 'missing' || ! empty($p['price_cents'])))
+                        ? $priceCents
+                        : $existingVar->price_cents;
+
+                    $varUpdate = [
+                        'price_cents' => $finalPrice,
+                    ];
+                    if (($evidenceFields['variant_name'] ?? 'provided') !== 'missing' && ! empty($p['variant_name']) && $p['variant_name'] !== 'Padrão') {
+                        $varUpdate['name'] = (string) $p['variant_name'];
+                    }
+                    if (! empty($p['shade_code'])) {
+                        $varUpdate['shade_code'] = (string) $p['shade_code'];
+                    }
+                    if (! empty($p['color_family'])) {
+                        $varUpdate['color_family'] = (string) $p['color_family'];
+                    }
+                    if (! empty($p['color_hex'])) {
+                        $varUpdate['color_hex'] = (string) $p['color_hex'];
+                    }
+                    if (! empty($p['supplier_code'])) {
+                        $varUpdate['supplier_code'] = (string) $p['supplier_code'];
+                    }
+                    if ($gtin !== null) {
+                        $varUpdate['gtin'] = $gtin;
+                    }
+                    if (array_key_exists('promo_price_cents', $p) && $p['promo_price_cents'] !== null) {
+                        $varUpdate['promo_price_cents'] = (int) $p['promo_price_cents'];
+                    }
+
+                    $oldPriceSnap = $existingVar->price_cents;
+                    $existingVar->update($varUpdate);
+
+                    $targetStock = ($stockSource === 'missing')
+                        ? $oldStock
+                        : max(0, (int) ($p['stock_qty'] ?? $oldStock));
+                    $delta = $targetStock - $oldStock;
 
                     if ($delta !== 0) {
                         $this->inventory->adjustStock(
@@ -433,8 +622,8 @@ class ProductCatalogAgent
                         'product_variant_id' => $existingVar->id,
                         'sku' => $sku,
                         'action' => 'updated',
-                        'old_values' => ['price_cents' => $existingVar->price_cents, 'stock_qty' => $oldStock],
-                        'new_values' => ['price_cents' => $priceCents, 'stock_qty' => $targetStock],
+                        'old_values' => ['price_cents' => $oldPriceSnap, 'stock_qty' => $oldStock],
+                        'new_values' => ['price_cents' => $finalPrice, 'stock_qty' => $targetStock],
                     ]);
 
                     $item->update([
@@ -445,6 +634,12 @@ class ProductCatalogAgent
                     $updatedVariants++;
 
                     continue;
+                }
+
+                if ($priceCents <= 0) {
+                    throw ValidationException::withMessages([
+                        'items' => ["Item #{$item->id} ({$item->product_reference}) exige preço de venda maior que zero para cadastro."],
+                    ]);
                 }
 
                 // Resolve or create parent product for this group_key
@@ -471,12 +666,18 @@ class ProductCatalogAgent
                         ? $baseSlug.'-'.strtolower(Str::random(4))
                         : $baseSlug;
 
+                    $parentSku = Product::query()->where('sku', $sku.'-PARENT')->exists()
+                        ? $sku.'-PARENT-'.strtoupper(Str::random(3))
+                        : $sku.'-PARENT';
+
                     $parentProduct = Product::query()->create([
                         'brand_id' => $brandId,
                         'name' => (string) ($p['product_name'] ?? $item->product_reference),
                         'slug' => $uniqueSlug,
-                        'sku' => $sku.'-PARENT',
-                        'gtin' => $p['gtin'] ?? null,
+                        'sku' => $parentSku,
+                        'gtin' => $gtin,
+                        'supplier_code' => ! empty($p['supplier_code']) ? (string) $p['supplier_code'] : null,
+                        'power_watts' => ! empty($p['power_watts']) ? (int) $p['power_watts'] : null,
                         'manufacturer' => $p['manufacturer'] ?? null,
                         'short_description' => $p['short_description'] ?? null,
                         'description' => $p['description'] ?? null,
@@ -486,7 +687,7 @@ class ProductCatalogAgent
                         'cost_cents' => (int) ($p['cost_price_cents'] ?? 0),
                         'price_cents' => $priceCents,
                         'promo_price_cents' => $p['promo_price_cents'] ?? null,
-                        'weight_grams' => 150,
+                        'weight_grams' => ! empty($p['shipping_weight_grams']) ? (int) $p['shipping_weight_grams'] : 200,
                         'is_active' => true,
                         'is_new_arrival' => true,
                         'seo_title' => $p['seo_title'] ?? null,
@@ -505,7 +706,8 @@ class ProductCatalogAgent
                 $variant = ProductVariant::query()->create([
                     'product_id' => $parentProduct->id,
                     'sku' => $sku,
-                    'gtin' => $p['gtin'] ?? null,
+                    'gtin' => $gtin,
+                    'supplier_code' => ! empty($p['supplier_code']) ? (string) $p['supplier_code'] : null,
                     'name' => (string) ($p['variant_name'] ?? 'Padrão'),
                     'shade_code' => $p['shade_code'] ?? null,
                     'color_family' => $p['color_family'] ?? null,
@@ -514,7 +716,7 @@ class ProductCatalogAgent
                     'promo_price_cents' => $p['promo_price_cents'] ?? null,
                     'stock_qty' => 0,
                     'reserved_qty' => 0,
-                    'weight_grams' => 150,
+                    'weight_grams' => ! empty($p['shipping_weight_grams']) ? (int) $p['shipping_weight_grams'] : 200,
                     'is_default' => $parentProduct->variants()->count() === 0,
                     'is_active' => true,
                     'sort_order' => $item->row_index,

@@ -63,6 +63,7 @@ export interface AiProductImportItemRow {
   approval_status: string;
   proposed_data: {
     product_name: string;
+    product_line?: string | null;
     slug?: string;
     brand_id?: number | null;
     brand_name?: string | null;
@@ -73,10 +74,16 @@ export interface AiProductImportItemRow {
     color_family?: string | null;
     color_hex?: string | null;
     volume?: string | null;
+    shipping_weight_grams?: number | null;
+    power_watts?: number | null;
+    is_equipment?: boolean;
+    supplier_code?: string | null;
     sku: string;
     gtin?: string | null;
+    cost_price_cents?: number | null;
     price_cents: number;
     suggested_price_cents?: number | null;
+    promo_price_cents?: number | null;
     stock_qty: number;
     short_description?: string | null;
     description?: string | null;
@@ -88,6 +95,9 @@ export interface AiProductImportItemRow {
   source_evidence?: {
     origin_file?: string;
     origin_detail?: string;
+    raw_snippet?: string | null;
+    image_url?: string | null;
+    image_path?: string | null;
     fields?: Record<string, string>;
   } | null;
   validation_result?: {

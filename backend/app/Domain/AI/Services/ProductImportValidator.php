@@ -31,8 +31,10 @@ class ProductImportValidator
 
         $brands = Brand::query()->where('is_active', true)->get();
         $categories = Category::query()->where('is_active', true)->get();
-        $existingProducts = Product::query()->with(['brand:id,name', 'variants:id,product_id,sku,name'])->get();
-        $existingVariantsBySku = ProductVariant::query()->with('product:id,name,sku')->get()->keyBy(fn (ProductVariant $v): string => strtoupper($v->sku));
+        $existingProducts = Product::query()->with(['brand:id,name', 'variants:id,product_id,sku,gtin,name'])->get();
+        $existingVariantsBySku = ProductVariant::query()->with('product:id,name,sku,gtin,price_cents')->get()->keyBy(fn (ProductVariant $v): string => strtoupper($v->sku));
+        $existingVariantsByGtin = ProductVariant::query()->with('product:id,name,sku,gtin,price_cents')->whereNotNull('gtin')->where('gtin', '!=', '')->get()->keyBy('gtin');
+        $existingProductsByGtin = $existingProducts->filter(fn (Product $p): bool => ! empty($p->gtin))->keyBy('gtin');
 
         $seenSkusInFile = [];
         $groupCounters = [];
@@ -47,20 +49,30 @@ class ProductImportValidator
         foreach ($rawRows as $idx => $row) {
             $rawName = trim((string) ($row['product_name'] ?? ''));
             $brandNameRaw = ! empty($row['brand']) ? trim((string) $row['brand']) : null;
+            $productLine = ! empty($row['product_line']) ? trim((string) $row['product_line']) : null;
             $volume = ! empty($row['volume']) ? trim((string) $row['volume']) : null;
             $variantNameRaw = ! empty($row['variant_name']) ? trim((string) $row['variant_name']) : 'Padrão';
             $shadeCode = ! empty($row['shade_code']) ? trim((string) $row['shade_code']) : null;
             $sku = ! empty($row['sku']) ? strtoupper(trim((string) $row['sku'])) : null;
+            $supplierCode = ! empty($row['supplier_code']) ? trim((string) $row['supplier_code']) : null;
             $gtin = ! empty($row['gtin']) ? trim((string) $row['gtin']) : null;
+            $powerWatts = isset($row['power_watts']) && is_numeric($row['power_watts']) && (int) $row['power_watts'] > 0
+                ? (int) $row['power_watts']
+                : null;
+            $shippingWeightGrams = isset($row['shipping_weight_grams']) && is_numeric($row['shipping_weight_grams']) && (int) $row['shipping_weight_grams'] > 0
+                ? (int) $row['shipping_weight_grams']
+                : null;
 
             $baseLineName = $this->extractProductLineName($rawName, $variantNameRaw);
             $matchedBrand = $this->matchBrand($brandNameRaw, $brands);
             $matchedCategory = $this->matchCategory(! empty($row['category']) ? (string) $row['category'] : null, "{$rawName} {$baseLineName}", $categories);
 
             $standardizedProductName = $this->standardizeProductName($baseLineName, $matchedBrand->name ?? $brandNameRaw, $volume);
+            $isEquipment = ! empty($row['is_equipment'])
+                || preg_match('/\b(cabine|luminaria|luminária|motor|micromotor|secador|estufa|aspirador)\b/iu', "{$rawName} {$standardizedProductName}") === 1;
             $groupKey = Str::slug("{$standardizedProductName}|".($matchedBrand->slug ?? $brandNameRaw ?? ''));
 
-            // Determine price & suggestion based purely on provided values
+            // Determine price vs supplier cost carefully — never turn a supplier cost into retail price without operator confirmation
             $salePriceCents = isset($row['sale_price_cents']) ? (int) $row['sale_price_cents'] : null;
             $costPriceCents = isset($row['cost_price_cents']) ? (int) $row['cost_price_cents'] : null;
             $suggestedPriceCents = null;
@@ -70,12 +82,12 @@ class ProductImportValidator
                 $priceOrigin = 'provided';
             } elseif ($costPriceCents !== null && $costPriceCents > 0) {
                 $suggestedPriceCents = (int) round($costPriceCents * (1 + ($marginPct / 100)));
-                $priceOrigin = 'ai_suggestion_from_cost';
+                $priceOrigin = 'supplier_cost_requires_retail_confirmation';
             }
 
             $stockQty = array_key_exists('stock_qty', $row) && $row['stock_qty'] !== null ? (int) $row['stock_qty'] : null;
 
-            // SKU rule: never replace existing supplier SKU, only suggest internal code if absent
+            // SKU rule: preserve supplier SKU and leading zeros verbatim; only suggest internal code if omitted
             $skuOrigin = 'provided';
             if ($sku === null || $sku === '') {
                 $sku = $this->suggestInternalSku($standardizedProductName, $shadeCode ?: $variantNameRaw, $idx);
@@ -85,13 +97,16 @@ class ProductImportValidator
             $errors = [];
             $warnings = [];
             if ($rawName === '' || str_contains($rawName, 'Informação não identificada')) {
-                $warnings[] = 'Nome comercial ausente ou não identificado na fonte — revisar.';
+                $warnings[] = 'Nome comercial não identificado com segurança na fonte — revisar.';
             }
             if ($priceOrigin === 'missing') {
                 $warnings[] = 'Preço de venda não informado na fonte.';
+            } elseif ($priceOrigin === 'supplier_cost_requires_retail_confirmation') {
+                $costBrl = 'R$ '.number_format($costPriceCents / 100, 2, ',', '.');
+                $warnings[] = "Valor ({$costBrl}) identificado como custo/lista de fornecedor — confirme o preço de venda antes de publicar.";
             }
-            if ($priceOrigin === 'ai_suggestion_from_cost') {
-                $warnings[] = "Preço sugerido a partir do custo (+{$marginPct}% margem) — requer aprovação.";
+            if ($isEquipment && $powerWatts === null) {
+                $errors[] = 'Equipamento elétrico sem potência (W) legível — informe manualmente antes de cadastrar.';
             }
             if ($stockQty === null) {
                 $warnings[] = 'Quantidade em estoque não informada.';
@@ -103,9 +118,13 @@ class ProductImportValidator
             }
             $seenSkusInFile[$sku] = true;
 
-            // Duplicate check against real catalog
+            // Duplicate & Conflict check against real catalog
             $matchedVariant = $existingVariantsBySku->get($sku);
             $matchedProduct = $matchedVariant?->product;
+            $gtinConflictProd = $gtin
+                ? ($existingVariantsByGtin->get($gtin)?->product ?? $existingProductsByGtin->get($gtin))
+                : null;
+
             $duplicateComparison = null;
             $actionType = 'new_product';
             $resolutionChoice = 'create_new';
@@ -114,6 +133,13 @@ class ProductImportValidator
                 $actionType = 'update_variant';
                 $resolutionChoice = 'update_existing';
                 $updateCount++;
+
+                if ($gtinConflictProd && (int) $gtinConflictProd->id !== (int) $matchedProduct->id) {
+                    $actionType = 'possible_duplicate';
+                    $resolutionChoice = 'manual_review';
+                    $errors[] = "Conflito: SKU {$sku} pertence a \"{$matchedProduct->name}\", mas o código de barras {$gtin} pertence a \"{$gtinConflictProd->name}\".";
+                }
+
                 $duplicateComparison = [
                     'reason' => 'SKU já cadastrado no catálogo oficial',
                     'existing' => [
@@ -122,26 +148,47 @@ class ProductImportValidator
                         'variant_id' => $matchedVariant->id,
                         'variant_name' => $matchedVariant->name,
                         'sku' => $matchedVariant->sku,
+                        'gtin' => $matchedVariant->gtin ?? $matchedProduct->gtin,
                         'price_cents' => $matchedVariant->price_cents,
                         'stock_qty' => $matchedVariant->stock_qty,
                     ],
                 ];
+            } elseif ($gtinConflictProd) {
+                $actionType = 'possible_duplicate';
+                $duplicateCount++;
+                if ($skuOrigin === 'provided' && strtoupper($gtinConflictProd->sku) !== $sku) {
+                    $resolutionChoice = 'manual_review';
+                    $warnings[] = "Código de barras {$gtin} já vinculado ao produto \"{$gtinConflictProd->name}\" (SKU {$gtinConflictProd->sku}). Confirme se deseja adicionar variação ou corrigir o código.";
+                } else {
+                    $resolutionChoice = 'update_existing';
+                }
+                $matchedProduct = $gtinConflictProd;
+                $duplicateComparison = [
+                    'reason' => 'Mesmo código de barras (GTIN/EAN) cadastrado',
+                    'existing' => [
+                        'product_id' => $gtinConflictProd->id,
+                        'product_name' => $gtinConflictProd->name,
+                        'sku' => $gtinConflictProd->sku,
+                        'gtin' => $gtinConflictProd->gtin,
+                        'price_cents' => $gtinConflictProd->price_cents,
+                    ],
+                ];
             } else {
-                // Compare Brand + Name/Line/Volume/GTIN
+                // Compare Brand + Name similarity — NEVER auto-update solely from similar name
                 $candidateProd = $this->findSimilarExistingProduct($standardizedProductName, $matchedBrand?->id, $gtin, $existingProducts);
                 if ($candidateProd) {
                     $actionType = 'possible_duplicate';
-                    $resolutionChoice = 'update_existing';
+                    $resolutionChoice = 'manual_review';
                     $matchedProduct = $candidateProd;
                     $duplicateCount++;
+                    $warnings[] = 'Possível duplicidade detectada por nome/marca semelhantes — revise antes de vincular ou criar separado.';
                     $duplicateComparison = [
-                        'reason' => $gtin && $candidateProd->gtin === $gtin
-                            ? 'Mesmo GTIN/EAN cadastrado'
-                            : 'Nome comercial e marca semelhantes a produto existente',
+                        'reason' => 'Nome comercial e marca semelhantes a produto existente (revisão manual necessária)',
                         'existing' => [
                             'product_id' => $candidateProd->id,
                             'product_name' => $candidateProd->name,
                             'sku' => $candidateProd->sku,
+                            'gtin' => $candidateProd->gtin,
                             'price_cents' => $candidateProd->price_cents,
                         ],
                     ];
@@ -158,9 +205,12 @@ class ProductImportValidator
 
             if ($errors !== []) {
                 $errorCount++;
+                if ($actionType === 'new_product' && ($rawName === '' || str_contains($rawName, 'Informação não identificada') || ($isEquipment && $powerWatts === null))) {
+                    $actionType = 'insufficient_info';
+                }
             } elseif ($warnings !== []) {
                 $incompleteCount++;
-                if ($actionType === 'new_product' && $rawName === '') {
+                if ($actionType === 'new_product' && ($rawName === '' || str_contains($rawName, 'Informação não identificada'))) {
                     $actionType = 'insufficient_info';
                 }
             }
@@ -175,6 +225,8 @@ class ProductImportValidator
                 $row
             );
 
+            $effectivePriceForDraft = $salePriceCents ?? 0;
+
             $items[] = [
                 'row_index' => $idx,
                 'group_key' => $groupKey,
@@ -188,6 +240,7 @@ class ProductImportValidator
                 'approval_status' => 'pending',
                 'proposed_data' => [
                     'product_name' => $standardizedProductName,
+                    'product_line' => $productLine,
                     'slug' => $slug,
                     'brand_id' => $matchedBrand?->id,
                     'brand_name' => $matchedBrand->name ?? $brandNameRaw,
@@ -198,13 +251,17 @@ class ProductImportValidator
                     'color_family' => ! empty($row['color_family']) ? (string) $row['color_family'] : $this->inferColorFamily($variantNameRaw),
                     'color_hex' => ! empty($row['color_hex']) ? (string) $row['color_hex'] : null,
                     'volume' => $volume,
+                    'shipping_weight_grams' => $shippingWeightGrams,
+                    'power_watts' => $powerWatts,
+                    'is_equipment' => $isEquipment,
+                    'supplier_code' => $supplierCode,
                     'sku' => $sku,
                     'gtin' => $gtin,
                     'cost_price_cents' => $costPriceCents,
-                    'price_cents' => $salePriceCents ?? $suggestedPriceCents ?? 0,
+                    'price_cents' => $effectivePriceForDraft,
                     'suggested_price_cents' => $suggestedPriceCents,
                     'promo_price_cents' => $row['promo_price_cents'] ?? null,
-                    'stock_qty' => max(0, $stockQty ?? 0),
+                    'stock_qty' => $stockQty !== null ? max(0, $stockQty) : 0,
                     'short_description' => $shortDesc,
                     'description' => $description,
                     'ingredients' => $row['ingredients'] ?? null,
@@ -217,11 +274,19 @@ class ProductImportValidator
                 'source_evidence' => [
                     'origin_file' => $row['origin_file'] ?? 'manual',
                     'origin_detail' => $row['origin_detail'] ?? '',
+                    'raw_snippet' => $row['evidence']['raw_snippet'] ?? ($row['description_raw'] ?? null),
+                    'image_url' => $row['evidence']['image_url'] ?? null,
+                    'image_path' => $row['evidence']['image_path'] ?? null,
                     'fields' => [
-                        'product_name' => $rawName !== '' ? 'provided' : 'missing',
+                        'product_name' => $rawName !== '' && ! str_contains($rawName, 'Informação não identificada') ? 'provided' : 'missing',
                         'brand' => $matchedBrand ? 'existing' : ($brandNameRaw ? 'provided' : 'missing'),
                         'category' => $matchedCategory ? 'existing' : 'missing',
                         'sku' => $skuOrigin,
+                        'supplier_code' => $supplierCode ? 'provided' : 'missing',
+                        'gtin' => $gtin ? 'provided' : 'missing',
+                        'volume' => $volume ? 'provided' : 'missing',
+                        'shipping_weight' => $shippingWeightGrams ? 'provided' : 'missing',
+                        'power_watts' => $powerWatts ? 'provided' : ($isEquipment ? 'missing_illegible' : 'not_applicable'),
                         'price' => $priceOrigin,
                         'stock_qty' => $stockQty !== null ? 'provided' : 'missing',
                         'description' => 'ai_suggestion',
@@ -229,7 +294,7 @@ class ProductImportValidator
                     ],
                 ],
                 'validation_result' => [
-                    'is_valid' => $errors === [] && ($salePriceCents !== null || $suggestedPriceCents !== null || $matchedVariant !== null),
+                    'is_valid' => $errors === [] && ($salePriceCents !== null || $matchedVariant !== null),
                     'errors' => $errors,
                     'warnings' => $warnings,
                 ],

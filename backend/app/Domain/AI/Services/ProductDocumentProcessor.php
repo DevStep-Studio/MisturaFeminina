@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\AI\Services;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ProductDocumentProcessor
@@ -66,9 +67,12 @@ class ProductDocumentProcessor
                 array_push($allRows, ...$pdfResult['rows']);
             } elseif (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
                 $sourceTypes[] = 'image';
-                $imgResult = $this->processImage($bytes, $ext, $origName);
+                $imgResult = $this->processImage($bytes, $ext, $origName, $instruction);
                 array_push($allRows, ...$imgResult['rows']);
                 $docMeta['image_analysis'] = $imgResult['meta'];
+                if (! empty($imgResult['image_url'])) {
+                    $docMeta['uploaded_images'][] = $imgResult['image_url'];
+                }
             }
         }
 
@@ -351,19 +355,27 @@ class ProductDocumentProcessor
         ];
     }
 
-    /** @return array{rows: list<array<string, mixed>>, meta: array<string, mixed>} */
-    private function processImage(string $bytes, string $ext, string $origin): array
+    /** @return array{rows: list<array<string, mixed>>, meta: array<string, mixed>, image_url?: string} */
+    private function processImage(string $bytes, string $ext, string $origin, ?string $instruction = null): array
     {
         $conn = $this->provider->connectionStatus();
         $mime = $ext === 'jpg' ? 'jpeg' : $ext;
         $dataUrl = "data:image/{$mime};base64,".base64_encode($bytes);
 
+        $safeExt = $ext === 'jpeg' ? 'jpg' : $ext;
+        $relPath = 'ai-imports/'.now()->format('Y/m').'/'.Str::random(16).'.'.$safeExt;
+        Storage::disk('public')->put($relPath, $bytes);
+        $imageUrl = '/storage/'.$relPath;
+
+        $combinedHint = mb_strtolower($origin.' '.($instruction ?? ''));
+        $looksLikeEquipment = preg_match('/\b(cabine|luminaria|luminária|motor|micromotor|lixa eletrica|secador|estufa|aspirador|autoclave)\b/iu', $combinedHint) === 1;
+
         if ($conn['has_api_key']) {
             $resp = $this->provider->chatStructured(
                 'catalog',
-                'Extraia SOMENTE informações visíveis na embalagem do cosmético. '
-                .'Se não conseguir ler com segurança, retorne "Informação não identificada — revisar". '
-                .'NUNCA invente ingredientes, composição química ou registro ANVISA.',
+                'Extraia SOMENTE informações visíveis na embalagem ou etiqueta do produto. '
+                .'Se não conseguir ler com segurança (especialmente potência em Watts W de equipamentos, volume ou código), retorne vazio ou "Informação não identificada — revisar". '
+                .'NUNCA invente potência elétrica, ingredientes, composição química ou registro ANVISA.',
                 'Leia os dados visíveis nesta imagem de produto.',
                 [
                     'type' => 'object',
@@ -375,6 +387,7 @@ class ProductDocumentProcessor
                         'volume' => ['type' => 'string'],
                         'variant_name' => ['type' => 'string'],
                         'reference' => ['type' => 'string'],
+                        'power_watts' => ['type' => ['integer', 'null']],
                     ],
                 ],
                 [$dataUrl]
@@ -382,13 +395,20 @@ class ProductDocumentProcessor
 
             $c = is_array($resp['content'] ?? null) ? $resp['content'] : null;
             if ($c !== null) {
+                $pName = (string) ($c['product_name'] ?? 'Informação não identificada — revisar');
+                $isEquip = $looksLikeEquipment || preg_match('/\b(cabine|luminaria|luminária|motor|micromotor|secador|estufa|aspirador)\b/iu', $pName) === 1;
+                $powerWatts = isset($c['power_watts']) && is_numeric($c['power_watts']) && (int) $c['power_watts'] > 0
+                    ? (int) $c['power_watts']
+                    : null;
+
                 return [
-                    'meta' => ['vision_used' => true, 'status' => 'extracted'],
+                    'image_url' => $imageUrl,
+                    'meta' => ['vision_used' => true, 'status' => 'extracted', 'image_url' => $imageUrl],
                     'rows' => [[
                         'row_index' => 0,
                         'origin_file' => $origin,
                         'origin_detail' => 'Imagem analisada via visão IA',
-                        'product_name' => (string) ($c['product_name'] ?? 'Informação não identificada — revisar'),
+                        'product_name' => $pName,
                         'brand' => (string) ($c['brand'] ?? '') ?: null,
                         'category' => null,
                         'variant_name' => (string) ($c['variant_name'] ?? 'Padrão'),
@@ -397,7 +417,10 @@ class ProductDocumentProcessor
                         'color_hex' => null,
                         'volume' => (string) ($c['volume'] ?? '') ?: null,
                         'sku' => (string) ($c['reference'] ?? '') ?: null,
+                        'supplier_code' => null,
                         'gtin' => null,
+                        'power_watts' => $powerWatts,
+                        'is_equipment' => $isEquip,
                         'cost_price_cents' => null,
                         'sale_price_cents' => null,
                         'promo_price_cents' => null,
@@ -406,29 +429,39 @@ class ProductDocumentProcessor
                         'usage_instructions' => null,
                         'manufacturer' => null,
                         'description_raw' => null,
-                        'evidence' => ['source' => 'image_vision', 'ingredients' => 'missing'],
+                        'evidence' => [
+                            'source' => 'image_vision',
+                            'image_url' => $imageUrl,
+                            'image_path' => $relPath,
+                            'ingredients' => 'missing',
+                            'power_watts' => $powerWatts ? 'provided_vision' : ($isEquip ? 'missing_illegible' : 'not_applicable'),
+                        ],
                     ]],
                 ];
             }
         }
 
-        // Without connected multimodal LLM vision, never hallucinate label text
+        // Without connected multimodal LLM vision, never hallucinate label text or technical wattage
         return [
-            'meta' => ['vision_used' => false, 'status' => 'Informação não identificada — revisar'],
+            'image_url' => $imageUrl,
+            'meta' => ['vision_used' => false, 'status' => 'Informação não identificada — revisar', 'image_url' => $imageUrl],
             'rows' => [[
                 'row_index' => 0,
                 'origin_file' => $origin,
-                'origin_detail' => "Imagem {$origin} (leitura visual requer provedor com visão ativo)",
+                'origin_detail' => "Imagem {$origin} (leitura visual requer conferência manual ou provedor de visão ativo)",
                 'product_name' => pathinfo($origin, PATHINFO_FILENAME).' — Informação não identificada — revisar',
                 'brand' => null,
                 'category' => null,
-                'variant_name' => 'Informação não identificada — revisar',
+                'variant_name' => 'Padrão',
                 'shade_code' => null,
                 'color_family' => null,
                 'color_hex' => null,
                 'volume' => null,
                 'sku' => null,
+                'supplier_code' => null,
                 'gtin' => null,
+                'power_watts' => null,
+                'is_equipment' => $looksLikeEquipment,
                 'cost_price_cents' => null,
                 'sale_price_cents' => null,
                 'promo_price_cents' => null,
@@ -437,7 +470,13 @@ class ProductDocumentProcessor
                 'usage_instructions' => null,
                 'manufacturer' => null,
                 'description_raw' => null,
-                'evidence' => ['product_name' => 'missing', 'image' => 'provided_file'],
+                'evidence' => [
+                    'product_name' => 'missing',
+                    'image' => 'provided_file',
+                    'image_url' => $imageUrl,
+                    'image_path' => $relPath,
+                    'power_watts' => $looksLikeEquipment ? 'missing_illegible' : 'not_applicable',
+                ],
             ]],
         ];
     }
@@ -467,6 +506,7 @@ class ProductDocumentProcessor
             $startRow = 1;
             $colMap = array_map(function (string $h): string {
                 return match (true) {
+                    str_contains($h, 'forn') && (str_contains($h, 'cod') || str_contains($h, 'ref')) => 'supplier_code',
                     str_contains($h, 'sku') || str_contains($h, 'referencia') || $h === 'ref' || str_contains($h, 'ref.') => 'sku',
                     str_contains($h, 'ean') || str_contains($h, 'gtin') || str_contains($h, 'barras') => 'gtin',
                     str_contains($h, 'custo') => 'cost_price_cents',
@@ -474,7 +514,10 @@ class ProductDocumentProcessor
                     str_contains($h, 'preco') || str_contains($h, 'valor') => 'sale_price_cents',
                     str_contains($h, 'estoq') || str_contains($h, 'qtd') || str_contains($h, 'quant') || str_contains($h, 'saldo') => 'stock_qty',
                     str_contains($h, 'marca') => 'brand',
+                    str_contains($h, 'linha') => 'product_line',
                     str_contains($h, 'categ') => 'category',
+                    str_contains($h, 'potenc') || str_contains($h, 'watts') => 'power_watts',
+                    str_contains($h, 'envio') || str_contains($h, 'frete') || str_contains($h, 'bruto') => 'shipping_weight_grams',
                     str_contains($h, 'volume') || str_contains($h, 'peso') || str_contains($h, 'tamanho') => 'volume',
                     str_contains($h, 'numero') || (str_contains($h, 'cod') && str_contains($h, 'cor')) => 'shade_code',
                     str_contains($h, 'famil') => 'color_family',
@@ -494,6 +537,7 @@ class ProductDocumentProcessor
                 'origin_file' => $origin,
                 'origin_detail' => 'Linha '.($r + 1),
                 'product_name' => '',
+                'product_line' => null,
                 'brand' => null,
                 'category' => null,
                 'variant_name' => null,
@@ -502,7 +546,10 @@ class ProductDocumentProcessor
                 'color_hex' => null,
                 'volume' => null,
                 'sku' => null,
+                'supplier_code' => null,
                 'gtin' => null,
+                'power_watts' => null,
+                'shipping_weight_grams' => null,
                 'cost_price_cents' => null,
                 'sale_price_cents' => null,
                 'promo_price_cents' => null,
@@ -511,7 +558,10 @@ class ProductDocumentProcessor
                 'usage_instructions' => null,
                 'manufacturer' => null,
                 'description_raw' => null,
-                'evidence' => ['source_columns' => $hasHeader ? $matrix[0] : []],
+                'evidence' => [
+                    'source_columns' => $hasHeader ? $matrix[0] : [],
+                    'raw_snippet' => implode(' | ', $cells),
+                ],
             ];
 
             foreach ($cells as $cIdx => $cell) {
@@ -526,8 +576,17 @@ class ProductDocumentProcessor
                 } elseif ($field === 'stock_qty') {
                     $cleanInt = preg_replace('/[^\d-]/', '', $val) ?? '';
                     $item['stock_qty'] = $cleanInt !== '' ? (int) $cleanInt : -1;
+                } elseif ($field === 'power_watts') {
+                    $cleanInt = preg_replace('/[^\d]/', '', $val) ?? '';
+                    $item['power_watts'] = $cleanInt !== '' && (int) $cleanInt > 0 ? (int) $cleanInt : null;
+                } elseif ($field === 'shipping_weight_grams') {
+                    $cleanInt = preg_replace('/[^\d]/', '', $val) ?? '';
+                    $item['shipping_weight_grams'] = $cleanInt !== '' && (int) $cleanInt > 0 ? (int) $cleanInt : null;
                 } elseif ($field === 'sku') {
                     $item['sku'] = strtoupper($val);
+                } elseif ($field === 'gtin' || $field === 'supplier_code') {
+                    // Always preserve as exact string so leading zeros never disappear
+                    $item[$field] = (string) $val;
                 } elseif ($field === 'product_name' && $item['product_name'] !== '') {
                     // Append secondary name token instead of overwriting when unmapped column hits
                     $item['product_name'] .= ' '.$val;
@@ -560,6 +619,80 @@ class ProductDocumentProcessor
         $defaults = $this->parseContextDefaultsFromText($text);
         $baseProduct = $defaults['product_line'] ?? null;
 
+        // Check multi-line supplier/catalog pasted list (e.g. "- Gel 15 g - R$ 12,50 | SKU: GEL01")
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $text) ?: []), fn (string $l): bool => $l !== ''));
+        $isSupplierCostList = preg_match('/\b(lista\s+de\s+custo|tabela\s+(?:do\s+)?fornecedor|pre[cç]o\s+de\s+custo|custo\s+fornecedor|fornecedor)\b/iu', $text) === 1;
+
+        if (count($lines) >= 2 && preg_match('/(?:cores|tonalidades)\s*:/iu', $text) !== 1) {
+            $multiRows = [];
+            foreach ($lines as $idx => $line) {
+                $cleanLine = ltrim($line, "-•* \t");
+                if ($cleanLine === '' || (count($lines) > 1 && $idx === 0 && preg_match('/\b(lista|tabela|fornecedor|custo)\b/iu', $cleanLine) === 1 && ! preg_match('/r\$\s*\d+/iu', $cleanLine))) {
+                    continue;
+                }
+                $linePrice = null;
+                if (preg_match('/r\$\s*(\d{1,5}(?:[.,]\d{2})?)/iu', $cleanLine, $pm)) {
+                    $linePrice = $this->parseMoneyToCents($pm[1]);
+                }
+                $lineVol = null;
+                if (preg_match('/\b(\d+(?:[.,]\d+)?\s*(?:ml|g|l|kg))\b/iu', $cleanLine, $vm)) {
+                    $lineVol = preg_replace('/\s+/', ' ', strtolower(trim($vm[1])));
+                }
+                $lineSku = null;
+                if (preg_match('/(?:sku|ref\.?|c[oó]digo)\s*[:#]?\s*([A-Za-z0-9\-_]+)/iu', $cleanLine, $sm)) {
+                    $lineSku = strtoupper($sm[1]);
+                }
+                $lineName = trim(preg_replace(['/r\$\s*\d{1,5}(?:[.,]\d{2})?/iu', '/(?:sku|ref\.?|c[oó]digo)\s*[:#]?\s*[A-Za-z0-9\-_]+/iu'], '', $cleanLine) ?? $cleanLine, " -|:\t");
+                if ($lineName === '') {
+                    continue;
+                }
+
+                $isEquip = preg_match('/\b(cabine|luminaria|luminária|motor|micromotor|secador|estufa|aspirador)\b/iu', $lineName) === 1;
+                $watts = null;
+                if (preg_match('/\b(\d{2,4})\s*(?:w|watts)\b/iu', $cleanLine, $wm)) {
+                    $watts = (int) $wm[1];
+                }
+
+                $multiRows[] = [
+                    'row_index' => count($multiRows),
+                    'origin_file' => $origin,
+                    'origin_detail' => 'Linha '.($idx + 1).' da lista',
+                    'product_name' => $lineName,
+                    'product_line' => $defaults['product_line'] ?? null,
+                    'brand' => $defaults['brand'] ?? null,
+                    'category' => null,
+                    'variant_name' => 'Padrão',
+                    'shade_code' => null,
+                    'color_family' => null,
+                    'color_hex' => null,
+                    'volume' => $lineVol ?? ($defaults['volume'] ?? null),
+                    'sku' => $lineSku,
+                    'supplier_code' => null,
+                    'gtin' => null,
+                    'power_watts' => $watts,
+                    'is_equipment' => $isEquip,
+                    'shipping_weight_grams' => null,
+                    'cost_price_cents' => $isSupplierCostList ? $linePrice : null,
+                    'sale_price_cents' => $isSupplierCostList ? null : ($linePrice ?? ($defaults['sale_price_cents'] ?? null)),
+                    'promo_price_cents' => null,
+                    'stock_qty' => $defaults['stock_qty'] ?? null,
+                    'ingredients' => null,
+                    'usage_instructions' => null,
+                    'manufacturer' => null,
+                    'description_raw' => $line,
+                    'evidence' => [
+                        'product_name' => 'provided_text',
+                        'raw_snippet' => $line,
+                        'price' => $isSupplierCostList ? 'supplier_cost_requires_retail_confirmation' : ($linePrice ? 'provided_text' : 'missing'),
+                        'power_watts' => $watts ? 'provided_text' : ($isEquip ? 'missing_illegible' : 'not_applicable'),
+                    ],
+                ];
+            }
+            if ($multiRows !== []) {
+                return $multiRows;
+            }
+        }
+
         // Extract list of colors after "cores" / "tonalidades"
         $shades = [];
         if (preg_match('/(?:cores|tonalidades)\s*[:\-]?\s*([^\.\n;]+)/iu', $text, $m)) {
@@ -580,6 +713,12 @@ class ProductDocumentProcessor
             $shades = ['Padrão'];
         }
 
+        $isEquip = preg_match('/\b(cabine|luminaria|luminária|motor|micromotor|secador|estufa|aspirador)\b/iu', $text) === 1;
+        $watts = null;
+        if (preg_match('/\b(\d{2,4})\s*(?:w|watts)\b/iu', $text, $wm)) {
+            $watts = (int) $wm[1];
+        }
+
         $rows = [];
         foreach ($shades as $idx => $shade) {
             preg_match('/\b(\d{2,4})\b/', $shade, $codeMatch);
@@ -588,6 +727,7 @@ class ProductDocumentProcessor
                 'origin_file' => $origin,
                 'origin_detail' => 'Texto descritivo',
                 'product_name' => $baseProduct ?: 'Produto para Revisão',
+                'product_line' => $defaults['product_line'] ?? null,
                 'brand' => $defaults['brand'] ?? null,
                 'category' => null,
                 'variant_name' => $shade,
@@ -596,9 +736,13 @@ class ProductDocumentProcessor
                 'color_hex' => null,
                 'volume' => $defaults['volume'] ?? null,
                 'sku' => null,
+                'supplier_code' => null,
                 'gtin' => null,
-                'cost_price_cents' => null,
-                'sale_price_cents' => $defaults['sale_price_cents'] ?? null,
+                'power_watts' => $watts,
+                'is_equipment' => $isEquip,
+                'shipping_weight_grams' => null,
+                'cost_price_cents' => $isSupplierCostList ? ($defaults['cost_price_cents'] ?? null) : null,
+                'sale_price_cents' => $isSupplierCostList ? null : ($defaults['sale_price_cents'] ?? null),
                 'promo_price_cents' => null,
                 'stock_qty' => $defaults['stock_qty'] ?? null,
                 'ingredients' => null,
@@ -608,7 +752,9 @@ class ProductDocumentProcessor
                 'evidence' => [
                     'product_name' => 'provided_text',
                     'variant_name' => 'provided_text',
+                    'raw_snippet' => mb_substr($text, 0, 400),
                     'ingredients' => 'missing',
+                    'power_watts' => $watts ? 'provided_text' : ($isEquip ? 'missing_illegible' : 'not_applicable'),
                 ],
             ];
         }
@@ -630,10 +776,15 @@ class ProductDocumentProcessor
         if (preg_match('/\b(\d+(?:[.,]\d+)?\s*(?:ml|g|l|kg|un|w))\b/iu', $text, $m)) {
             $out['volume'] = preg_replace('/\s+/', ' ', strtolower(trim($m[1])));
         }
+        $isExplicitSupplierCost = preg_match('/\b(lista\s+de\s+custo|tabela\s+(?:do\s+)?fornecedor|pre[cç]o\s+de\s+custo|custo\s+fornecedor)\b/iu', $text) === 1;
         if (preg_match('/(?:r\$|custam|pre[cç]o)\s*(?:r\$\s*)?(\d{1,4}(?:[.,]\d{2})?)/iu', $text, $m)) {
             $cents = $this->parseMoneyToCents($m[1]);
             if ($cents !== null && $cents > 0) {
-                $out['sale_price_cents'] = $cents;
+                if ($isExplicitSupplierCost) {
+                    $out['cost_price_cents'] = $cents;
+                } else {
+                    $out['sale_price_cents'] = $cents;
+                }
             }
         }
         if (preg_match('/(?:estoque(?:\s+inicial)?(?:\s+de)?|qtd\.?)\s*(\d{1,5})\s*(?:unidade|un)?/iu', $text, $m)) {

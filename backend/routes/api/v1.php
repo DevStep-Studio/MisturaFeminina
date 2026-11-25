@@ -144,11 +144,22 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
 
         // Catalog & Inventory & CSV & Reviews & Restock
         Route::get('products', [AdminCatalogController::class, 'indexProducts'])->middleware('permission:catalog.view');
+        Route::post('products/bulk-rules/preview', [AdminCatalogController::class, 'bulkRulesPreview'])->middleware('permission:catalog.view');
+        Route::post('products/bulk-rules/commit', [AdminCatalogController::class, 'bulkRulesCommit'])->middleware('permission:catalog.bulk_edit');
+        Route::post('products/bulk-lifecycle/preview', [AdminCatalogController::class, 'bulkLifecyclePreview'])->middleware('permission:catalog.view');
+        Route::post('products/bulk-lifecycle/commit', [AdminCatalogController::class, 'bulkLifecycleCommit'])->middleware('permission:catalog.write');
+        Route::get('products/bulk-batches/{id}', [AdminCatalogController::class, 'bulkBatchStatus'])->middleware('permission:catalog.view');
         Route::get('products/{id}', [AdminCatalogController::class, 'showProduct'])->middleware('permission:catalog.view');
+        Route::get('products/{id}/links', [AdminCatalogController::class, 'productLinks'])->middleware('permission:catalog.view');
         Route::post('products', [AdminCatalogController::class, 'storeProduct'])->middleware('permission:catalog.write');
         Route::put('products/{id}', [AdminCatalogController::class, 'updateProduct'])->middleware('permission:catalog.write');
+        Route::patch('products/{id}/quick-price', [AdminCatalogController::class, 'quickUpdatePrice'])->middleware('permission:catalog.view');
+        Route::post('products/{id}/archive', [AdminCatalogController::class, 'archiveProduct'])->middleware('permission:catalog.write');
+        Route::post('products/{id}/restore', [AdminCatalogController::class, 'restoreProduct'])->middleware('permission:catalog.write');
         Route::delete('products/{id}', [AdminCatalogController::class, 'destroyProduct'])->middleware('permission:catalog.write');
+        Route::delete('products/{id}/force', [AdminCatalogController::class, 'forceDestroyProduct'])->middleware('permission:catalog.write');
         Route::post('variants/{variantId}/stock', [AdminCatalogController::class, 'adjustStock'])->middleware('permission:inventory.manage');
+        Route::patch('variants/{variantId}/quick-price', [AdminCatalogController::class, 'quickUpdateVariantPrice'])->middleware('permission:catalog.view');
         Route::get('inventory/movements', [AdminCatalogController::class, 'stockMovements'])->middleware('permission:catalog.view');
         Route::get('categories', [AdminCatalogController::class, 'listCategories'])->middleware('permission:catalog.view');
         Route::post('categories', [AdminCatalogController::class, 'storeCategory'])->middleware('permission:catalog.write');
@@ -303,6 +314,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             Route::get('catalog/imports', [AdminAiAgentController::class, 'listCatalogImports'])->middleware('permission:ai.catalog');
             Route::post('catalog/imports', [AdminAiAgentController::class, 'createCatalogImport'])->middleware('permission:ai.catalog');
             Route::get('catalog/imports/{id}', [AdminAiAgentController::class, 'showCatalogImport'])->middleware('permission:ai.catalog');
+            Route::patch('catalog/imports/{id}/items/bulk', [AdminAiAgentController::class, 'bulkUpdateCatalogImportItems'])->middleware('permission:ai.catalog');
             Route::patch('catalog/imports/{id}/items/{itemId}', [AdminAiAgentController::class, 'updateCatalogImportItem'])->middleware('permission:ai.catalog');
             Route::post('catalog/imports/{id}/approve', [AdminAiAgentController::class, 'approveCatalogImport'])->middleware('permission:ai.catalog.approve');
             Route::post('catalog/imports/{id}/discard', [AdminAiAgentController::class, 'discardCatalogImport'])->middleware('permission:ai.catalog');

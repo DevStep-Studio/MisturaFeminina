@@ -30,10 +30,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Brand|null $brand
  */
 #[Fillable([
-    'brand_id', 'name', 'slug', 'sku', 'gtin', 'manufacturer',
+    'brand_id', 'name', 'slug', 'sku', 'gtin', 'supplier_code', 'manufacturer',
     'short_description', 'description', 'ingredients', 'usage_instructions',
     'product_type', 'cost_cents', 'price_cents', 'promo_price_cents',
-    'promo_starts_at', 'promo_ends_at', 'unit_label', 'unit_quantity',
+    'promo_starts_at', 'promo_ends_at', 'unit_label', 'unit_quantity', 'power_watts',
     'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'video_url',
     'tags', 'is_active', 'is_featured', 'is_new_arrival', 'is_best_seller',
     'wholesale_enabled', 'wholesale_group_variants', 'wholesale_tiers', 'sales_count',
