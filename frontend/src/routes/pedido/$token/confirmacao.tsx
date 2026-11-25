@@ -156,7 +156,8 @@ function OrderConfirmationPage() {
   }
 
   async function reloadOrder() {
-    await refetch();
+    const updated = await refetch();
+    return updated?.payment ?? null;
   }
   async function refreshRemote() {
     setActionBusy(true);
@@ -231,7 +232,7 @@ function OrderConfirmationPage() {
             const payment = () => payload().payment;
             const isApproved = () => payment()?.status === "approved";
             const isFailed = () =>
-              ["rejected", "cancelled", "expired"].includes(
+              ["failed", "rejected", "cancelled", "expired"].includes(
                 payment()?.status || "",
               );
 
@@ -354,6 +355,19 @@ function OrderConfirmationPage() {
 
                   {/* Retry failed payment */}
                   <Show
+                    when={
+                      isFailed() && order().payment_provider === "mercadopago"
+                    }
+                  >
+                    <p
+                      role="alert"
+                      class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+                    >
+                      {payment()?.failure_reason ||
+                        "Pagamento não autorizado. Confira os dados ou use outro meio de pagamento."}
+                    </p>
+                  </Show>
+                  <Show
                     when={isFailed() && order().payment_provider === "asaas"}
                   >
                     <div class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
@@ -400,16 +414,12 @@ function OrderConfirmationPage() {
                       <h2 class="mb-3 text-base font-bold">
                         Concluir pagamento com segurança
                       </h2>
-                      <Show when={payment()?.id ?? "initial"} keyed>
-                        {(_attempt) => (
-                          <PaymentBrick
-                            publicKey={payments()!.public_key!}
-                            order={order()}
-                            method={order().payment_method}
-                            onUpdated={reloadOrder}
-                          />
-                        )}
-                      </Show>
+                      <PaymentBrick
+                        publicKey={payments()!.public_key!}
+                        order={order()}
+                        method={order().payment_method}
+                        onUpdated={reloadOrder}
+                      />
                     </div>
                   </Show>
                   <Show

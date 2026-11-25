@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\StockReservation;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PaymentService
 {
@@ -53,7 +54,24 @@ class PaymentService
             if ($payment->status !== PaymentStatus::Processing) {
                 throw $e;
             }
-            $payment->update(['status' => $e instanceof GatewayFailure && ! $e->uncertain ? PaymentStatus::Failed : PaymentStatus::Unknown, 'failure_reason' => 'Não foi possível confirmar a operação. Consulte o pedido.']);
+            $diagnostic = [
+                'api' => $provider === 'mercadopago' ? 'payments_v1' : 'asaas_v3',
+                'http_status' => $e instanceof GatewayFailure ? $e->httpStatus : null,
+                'error_codes' => $e instanceof GatewayFailure ? $e->providerCodes : [],
+                'request_id' => request()->attributes->get('request_id'),
+            ];
+            $payment->update([
+                'status' => $e instanceof GatewayFailure && ! $e->uncertain ? PaymentStatus::Failed : PaymentStatus::Unknown,
+                'failure_reason' => $e instanceof GatewayFailure ? $e->customerMessage() : 'Não foi possível confirmar a operação. Consulte o pedido antes de tentar novamente.',
+                'raw_sanitized_response' => $diagnostic,
+            ]);
+            Log::warning('payment.creation_failed', [
+                'order_id' => $order->id,
+                'payment_id' => $payment->id,
+                'provider' => $provider,
+                'environment' => $payment->environment,
+                ...$diagnostic,
+            ]);
 
             return $payment->fresh();
         }
@@ -106,7 +124,11 @@ class PaymentService
             if (in_array($locked->status, [PaymentStatus::Approved, PaymentStatus::Refunded, PaymentStatus::ChargedBack], true) && in_array($status, [PaymentStatus::Pending, PaymentStatus::Rejected, PaymentStatus::Cancelled], true)) {
                 return $locked;
             }
-            $locked->update(['external_payment_id' => (string) $id, 'checkout_url' => $url, 'boleto_url' => $mp ? PaymentGateway::safeUrl($remote['transaction_details']['external_resource_url'] ?? null, 'mercadopago') : null, 'barcode' => is_string($remote['barcode']['content'] ?? null) ? $remote['barcode']['content'] : null, 'pix_copy_paste' => $mp && $locked->method === PaymentMethod::Pix && is_string($pix['qr_code'] ?? null) ? $pix['qr_code'] : null, 'pix_qr_code_base64' => $mp && is_string($pix['qr_code_base64'] ?? null) && strlen($pix['qr_code_base64']) < 100000 && preg_match('/^[A-Za-z0-9+\/=]+$/D', $pix['qr_code_base64']) ? $pix['qr_code_base64'] : null, 'pix_expires_at' => $remote['date_of_expiration'] ?? null, 'provider_updated_at' => $updated, 'raw_sanitized_response' => ['status' => $remote['status'] ?? null, 'api' => 'payments_v1'], 'failure_reason' => $status === PaymentStatus::Rejected ? 'Pagamento recusado pelo provedor.' : null]);
+            $diagnostic = ['status' => $status->value, 'status_detail' => GatewayFailure::safeCode($remote['status_detail'] ?? null), 'api' => $mp ? 'payments_v1' : 'asaas_v3'];
+            if ($status === PaymentStatus::Rejected && $locked->status !== PaymentStatus::Rejected) {
+                Log::warning('payment.rejected', ['order_id' => $order->id, 'payment_id' => $locked->id, 'provider' => $locked->provider, 'environment' => $locked->environment, ...$diagnostic]);
+            }
+            $locked->update(['external_payment_id' => (string) $id, 'checkout_url' => $url, 'boleto_url' => $mp ? PaymentGateway::safeUrl($remote['transaction_details']['external_resource_url'] ?? null, 'mercadopago') : null, 'barcode' => is_string($remote['barcode']['content'] ?? null) ? $remote['barcode']['content'] : null, 'pix_copy_paste' => $mp && $locked->method === PaymentMethod::Pix && is_string($pix['qr_code'] ?? null) ? $pix['qr_code'] : null, 'pix_qr_code_base64' => $mp && is_string($pix['qr_code_base64'] ?? null) && strlen($pix['qr_code_base64']) < 100000 && preg_match('/^[A-Za-z0-9+\/=]+$/D', $pix['qr_code_base64']) ? $pix['qr_code_base64'] : null, 'pix_expires_at' => $remote['date_of_expiration'] ?? null, 'provider_updated_at' => $updated, 'raw_sanitized_response' => $diagnostic, 'failure_reason' => $status === PaymentStatus::Rejected ? GatewayFailure::rejectionMessage($remote['status_detail'] ?? null) : null]);
             app(WebhookProcessorService::class)->applyPaymentTransition($locked, $status, $feeCents, 'Status confirmado na API do provedor');
 
             return $locked->fresh();

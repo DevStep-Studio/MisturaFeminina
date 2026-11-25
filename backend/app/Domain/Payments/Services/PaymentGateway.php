@@ -36,7 +36,19 @@ class PaymentGateway
             throw new GatewayFailure(true);
         }
         if (! $response->successful() || ! is_array($response->json())) {
-            throw new GatewayFailure($response->status() >= 500 || in_array($response->status(), [408, 429], true));
+            $body = $response->json();
+            $codes = [];
+            if (is_array($body)) {
+                $codes[] = GatewayFailure::safeCode($body['error'] ?? null);
+                foreach (is_array($body['cause'] ?? null) ? array_slice($body['cause'], 0, 10) : [] as $cause) {
+                    $codes[] = GatewayFailure::safeCode(is_array($cause) ? ($cause['code'] ?? null) : null);
+                }
+            }
+            throw new GatewayFailure(
+                $response->successful() || $response->status() >= 500 || in_array($response->status(), [408, 429], true),
+                $response->status(),
+                array_values(array_unique(array_filter($codes))),
+            );
         }
 
         return $response->json();
@@ -86,8 +98,8 @@ class PaymentGateway
                 throw new GatewayFailure(false);
             }
 
-        } catch (GatewayFailure) {
-            throw new GatewayFailure(false);
+        } catch (GatewayFailure $e) {
+            throw new GatewayFailure(false, $e->httpStatus, $e->providerCodes);
         }
 
         return $this->request('asaas', $attempt->environment, 'POST', '/payments', ['customer' => $customer['id'], 'billingType' => match ($attempt->method->value) {

@@ -18,6 +18,7 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
@@ -58,6 +59,85 @@ test('deferred Mercado Pago order uses server totals and only charges after Bric
     expect(Order::count())->toBe(1);
     $this->withHeader('X-Idempotency-Key', 'brick-order')->postJson('/api/v1/checkout', [...$body, 'customer_name' => 'Outro Nome'])->assertConflict();
 });
+test('provider errors preserve only safe diagnostics and return a useful payment failure', function (int $httpStatus, string $expectedStatus, string $message): void {
+    prepareRealStore();
+    $cart = checkoutCart();
+    $created = $this->withHeaders(['X-Cart-Token' => $cart['token'], 'X-Idempotency-Key' => 'diagnostic-order'])
+        ->postJson('/api/v1/checkout', [...$cart['body'], 'payment_method' => 'credit_card', 'defer_payment' => true])->assertCreated();
+    $orderToken = $created->json('data.order.public_token');
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['api.mercadopago.com/v1/payments' => Http::response([
+        'error' => 'bad_request',
+        'message' => 'Secret card-token and buyer@example.com must not be logged',
+        'cause' => [['code' => 2067, 'description' => 'private details'], ['code' => 'secret-card-token']],
+        'token' => 'secret-card-token',
+    ], $httpStatus)]);
+    Log::spy();
+    $body = ['payment_method' => 'credit_card', 'payment_data' => ['card_token' => 'secret-card-token', 'payment_method_id' => 'master']];
+    $response = $this->withHeader('X-Idempotency-Key', 'diagnostic-payment')
+        ->postJson("/api/v1/orders/$orderToken/retry-payment", $body)->assertOk()
+        ->assertJsonPath('data.payment.status', $expectedStatus);
+    expect($response->json('data.payment.failure_reason'))->toContain($message);
+    $payment = Payment::firstOrFail();
+    expect($payment->raw_sanitized_response['http_status'])->toBe($httpStatus);
+    expect($payment->raw_sanitized_response['error_codes'])->toBe(['bad_request', '2067']);
+    expect(json_encode($payment->raw_sanitized_response))->not->toContain('secret-card-token', 'buyer@example.com', 'private details');
+    Log::shouldHaveReceived('warning')->once()->withArgs(function (string $event, array $context) use ($payment, $httpStatus): bool {
+        return $event === 'payment.creation_failed' && $context['payment_id'] === $payment->id
+            && $context['order_id'] === $payment->order_id && $context['http_status'] === $httpStatus
+            && ! str_contains(json_encode($context), 'secret-card-token');
+    });
+
+    $this->postJson("/api/v1/orders/$orderToken/retry-payment", $body)->assertOk()->assertJsonPath('data.payment.id', $payment->id);
+    Http::assertSentCount(1);
+    $this->withHeader('X-Idempotency-Key', 'next-payment')
+        ->postJson("/api/v1/orders/$orderToken/retry-payment", $body)
+        ->assertStatus($expectedStatus === 'unknown' ? 409 : 200);
+    Http::assertSentCount($expectedStatus === 'unknown' ? 1 : 2);
+})->with([
+    'invalid data' => [400, 'failed', 'dados do pagamento'],
+    'invalid credentials' => [401, 'failed', 'autenticar'],
+    'forbidden credentials' => [403, 'failed', 'autenticar'],
+    'validation error' => [422, 'failed', 'dados do pagamento'],
+    'provider unavailable' => [500, 'unknown', 'confirmando'],
+]);
+
+test('a provider timeout remains uncertain and blocks another charge', function (): void {
+    prepareRealStore();
+    $cart = checkoutCart();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['api.mercadopago.com/v1/payments' => Http::failedConnection()]);
+    $created = $this->withHeader('X-Cart-Token', $cart['token'])->postJson('/api/v1/checkout', $cart['body'])
+        ->assertCreated()->assertJsonPath('data.payment.status', 'unknown');
+    $orderToken = $created->json('data.order.public_token');
+    $this->postJson("/api/v1/orders/$orderToken/retry-payment", ['payment_method' => 'pix'])->assertConflict();
+    expect(Payment::count())->toBe(1);
+});
+
+test('card rejection retains the provider detail and explains the reason publicly', function (): void {
+    prepareRealStore();
+    $cart = checkoutCart();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['api.mercadopago.com/v1/payments' => function (Request $request) {
+        return Http::response([
+            'id' => 'rejected-card', 'status' => 'rejected', 'status_detail' => 'cc_rejected_insufficient_amount',
+            'external_reference' => $request['external_reference'], 'transaction_amount' => $request['transaction_amount'], 'currency_id' => 'BRL',
+            'payer' => ['email' => 'private@example.com'], 'token' => 'private-token',
+        ]);
+    }]);
+    $response = $this->withHeader('X-Cart-Token', $cart['token'])->postJson('/api/v1/checkout', [
+        ...$cart['body'], 'payment_method' => 'credit_card',
+        'payment_data' => ['card_token' => 'private-token', 'payment_method_id' => 'visa'],
+    ])->assertCreated()->assertJsonPath('data.payment.status', 'rejected');
+    expect($response->json('data.payment.failure_reason'))->toContain('limite suficiente');
+    expect(Payment::firstOrFail()->raw_sanitized_response)->toBe([
+        'status' => 'rejected', 'status_detail' => 'cc_rejected_insufficient_amount', 'api' => 'payments_v1',
+    ]);
+});
+
 test('quote cannot cross carts or survive changed quantities and dimensions', function (): void {
     prepareRealStore();
     $first = checkoutCart();
