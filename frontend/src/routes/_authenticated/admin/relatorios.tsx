@@ -235,11 +235,14 @@ function AdminReportsPage() {
                 </div>
               </div>
 
-              <div class="grid gap-6 lg:grid-cols-2">
+              <div class="grid gap-6 lg:grid-cols-2 lg:items-start">
                 <AdminDonutChart
                   title="Distribuição por Meio de Pagamento"
                   subtitle="Faturamento bruto e número de transações no período"
-                  segments={r().by_payment_method.map((m, idx) => ({
+                  segments={r()
+                    .by_payment_method.slice()
+                    .sort((a, b) => b.count - a.count)
+                    .map((m, idx) => ({
                     id: m.method,
                     label:
                       m.method === "pix"
@@ -247,13 +250,20 @@ function AdminReportsPage() {
                         : m.method === "credit_card"
                           ? "Cartão de Crédito"
                           : m.method === "boleto"
-                            ? "Boleto"
+                            ? "Boleto Bancário"
                             : m.method.toUpperCase(),
                     value: m.count,
                     cents: m.gross_cents,
-                    color: ["#10b981", "#93509e", "#3b82f6", "#f59e0b"][
-                      idx % 4
-                    ],
+                    feeCents: m.fee_cents,
+                    netCents: m.net_cents,
+                    color:
+                      m.method === "pix"
+                        ? "#10b981"
+                        : m.method === "credit_card"
+                          ? "#93509e"
+                          : m.method === "boleto"
+                            ? "#f59e0b"
+                            : ["#10b981", "#93509e", "#f59e0b", "#3b82f6"][idx % 4],
                   }))}
                   centerLabel="Pagamentos"
                 />

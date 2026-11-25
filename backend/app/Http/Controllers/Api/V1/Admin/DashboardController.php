@@ -136,22 +136,37 @@ class DashboardController extends Controller
         ]);
 
         // Payment methods breakdown
-        $paymentMethods = DB::table('payments')
+        $paymentMethodsQuery = DB::table('payments')
             ->selectRaw('method, COUNT(*) as count, COALESCE(SUM(gross_amount_cents), 0) as total_cents')
-            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->where(function ($q) use ($thirtyDaysAgo) {
+                $q->where('created_at', '>=', $thirtyDaysAgo)
+                    ->orWhere('paid_at', '>=', $thirtyDaysAgo);
+            })
+            ->where('status', 'approved')
             ->groupBy('method')
-            ->get()
-            ->map(fn (object $r): array => [
-                'method' => (string) $r->method,
-                'label' => match ((string) $r->method) {
-                    'pix' => 'PIX',
-                    'credit_card' => 'Cartão de Crédito',
-                    'boleto' => 'Boleto Bancário',
-                    default => ucfirst((string) $r->method),
-                },
-                'count' => (int) $r->count,
-                'total_cents' => (int) $r->total_cents,
-            ]);
+            ->get();
+
+        if ($paymentMethodsQuery->isEmpty()) {
+            $paymentMethodsQuery = DB::table('orders')
+                ->selectRaw('payment_method as method, COUNT(*) as count, COALESCE(SUM(total_cents), 0) as total_cents')
+                ->where('created_at', '>=', $thirtyDaysAgo)
+                ->whereIn('status', $paidStatuses)
+                ->whereNotNull('payment_method')
+                ->groupBy('payment_method')
+                ->get();
+        }
+
+        $paymentMethods = $paymentMethodsQuery->map(fn (object $r): array => [
+            'method' => (string) $r->method,
+            'label' => match ((string) $r->method) {
+                'pix' => 'PIX',
+                'credit_card' => 'Cartão de Crédito',
+                'boleto' => 'Boleto Bancário',
+                default => ucfirst((string) $r->method),
+            },
+            'count' => (int) $r->count,
+            'total_cents' => (int) $r->total_cents,
+        ]);
 
         $ordersByStatus = DB::table('orders')
             ->selectRaw('status, COUNT(*) as orders_count, COALESCE(SUM(total_cents), 0) as total_cents')

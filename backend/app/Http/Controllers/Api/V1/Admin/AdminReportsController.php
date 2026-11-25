@@ -42,11 +42,24 @@ class AdminReportsController extends Controller
         $shippingTotalCents = (int) (clone $ordersQuery)->whereIn('status', $paidStatuses)->sum('shipping_cents');
 
         $byMethod = Payment::query()
-            ->whereBetween('created_at', [$from, $to])
+            ->where(function ($q) use ($from, $to) {
+                $q->whereBetween('created_at', [$from, $to])
+                    ->orWhereBetween('paid_at', [$from, $to]);
+            })
             ->where('status', 'approved')
             ->selectRaw('method, COUNT(*) as count, COALESCE(SUM(gross_amount_cents), 0) as gross_cents, COALESCE(SUM(fee_cents), 0) as fee_cents, COALESCE(SUM(net_amount_cents), 0) as net_cents')
             ->groupBy('method')
             ->get();
+
+        if ($byMethod->isEmpty()) {
+            $byMethod = Order::query()
+                ->whereBetween('created_at', [$from, $to])
+                ->whereIn('status', $paidStatuses)
+                ->whereNotNull('payment_method')
+                ->selectRaw('payment_method as method, COUNT(*) as count, COALESCE(SUM(total_cents), 0) as gross_cents, 0 as fee_cents, COALESCE(SUM(total_cents), 0) as net_cents')
+                ->groupBy('payment_method')
+                ->get();
+        }
 
         $topProductsRaw = OrderItem::query()
             ->whereHas('order', fn ($q) => $q->whereBetween('created_at', [$from, $to])->whereIn('status', $paidStatuses))

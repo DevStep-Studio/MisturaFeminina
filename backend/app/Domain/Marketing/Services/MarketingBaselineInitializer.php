@@ -13,6 +13,7 @@ use App\Models\MarketingOpportunity;
 use App\Models\MarketingRecommendation;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payment;
 use App\Models\Product;
 use App\Models\SeoAudit;
 use App\Models\SeoUrlInspection;
@@ -212,6 +213,8 @@ class MarketingBaselineInitializer
                         $discount = $subtotal > 8000 ? 1000 : 0;
                         $total = $subtotal - $discount + $shipping;
 
+                        $orderMethod = ['pix', 'pix', 'pix', 'credit_card', 'credit_card', 'boleto'][$orderCounter % 6];
+
                         $order = Order::query()->create([
                             'order_number' => "MF-{$orderCounter}",
                             'public_token' => Str::random(32),
@@ -237,11 +240,35 @@ class MarketingBaselineInitializer
                             'shipping_cents' => $shipping,
                             'tax_cents' => 0,
                             'total_cents' => $total,
+                            'payment_method' => $orderMethod,
                             'status' => OrderStatus::Delivered->value,
                             'paid_at' => $orderDate,
                             'created_at' => $orderDate,
                             'updated_at' => $orderDate,
                             'notes_internal' => "Atribuição: {$channelKey}",
+                        ]);
+
+                        $feeRate = match ($orderMethod) {
+                            'credit_card' => 0.0349,
+                            'pix' => 0.0099,
+                            'boleto' => 0.0249,
+                        };
+                        $feeCents = (int) round($total * $feeRate);
+
+                        Payment::query()->create([
+                            'order_id' => $order->id,
+                            'provider' => 'mercadopago',
+                            'environment' => 'sandbox',
+                            'idempotency_key' => Str::uuid()->toString(),
+                            'method' => $orderMethod,
+                            'installments' => $orderMethod === 'credit_card' ? rand(1, 3) : 1,
+                            'gross_amount_cents' => $total,
+                            'fee_cents' => $feeCents,
+                            'net_amount_cents' => max(0, $total - $feeCents),
+                            'status' => 'approved',
+                            'paid_at' => $orderDate,
+                            'created_at' => $orderDate,
+                            'updated_at' => $orderDate,
                         ]);
 
                         $variant = $prod->variants->first();
