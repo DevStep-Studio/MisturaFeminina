@@ -74,7 +74,12 @@ export function AdminMetricCard(props: {
 
       <Show when={props.footer || props.actionLabel}>
         <div class="mt-2.5 flex items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-500">
-          <div class="min-w-0 truncate">{props.footer}</div>
+          <div
+            class="min-w-0 truncate"
+            title={typeof props.footer === "string" ? props.footer : undefined}
+          >
+            {props.footer}
+          </div>
           <Show when={props.onClick}>
             <span class="inline-flex shrink-0 items-center gap-0.5 font-medium text-[#62298d]">
               {props.actionLabel ?? "Ver detalhes"}

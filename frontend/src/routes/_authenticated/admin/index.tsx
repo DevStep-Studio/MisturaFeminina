@@ -186,8 +186,18 @@ function AdminDashboardPage() {
     "orders",
   );
 
-  const canViewProfit = () =>
-    hasPermission(session.user()?.permissions ?? [], "reports.profit.view");
+  const canViewProfit = () => {
+    const u = session.user();
+    if (!u) return true;
+    if (
+      u.roles?.includes("superadmin") ||
+      u.roles?.includes("admin") ||
+      u.roles?.includes("finance")
+    ) {
+      return true;
+    }
+    return hasPermission(u.permissions ?? [], "reports.profit.view");
+  };
 
   function applyPreset(next: "today" | "7d" | "30d") {
     setPreset(next);
@@ -391,7 +401,7 @@ function AdminDashboardPage() {
 
           return (
             <div class="space-y-6">
-              {/* FIRST FOLD: Financial Performance (3 aligned cards) + Current Inventory Valuation ("Posição atual") */}
+              {/* FIRST FOLD: Primary Financial Cards (Lucro, Reinvestimento/CMV, Receita, Estoque) + Operational Pulse */}
               <Show
                 when={canViewProfit() && d().financial_summary}
                 fallback={
@@ -450,10 +460,105 @@ function AdminDashboardPage() {
                       aria-label="Resultado de vendas e custo"
                       class="space-y-4"
                     >
-                      {/* Three primary aligned financial cards */}
-                      <div class="grid gap-4 md:grid-cols-3">
+                      {/* 4 Primary Financial Cards: Lucro, Reinvestimento, Receita, Estoque */}
+                      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {/* Card 1: Total do Lucro (Quanto de lucro entrou) */}
                         <AdminMetricCard
-                          label="Receita de produtos"
+                          label="Total do Lucro (Entrou)"
+                          value={
+                            hasPeriodSales()
+                              ? formatBrlSigned(fs().kpis.gross_profit_cents)
+                              : "Sem dados no período"
+                          }
+                          highlightTone={
+                            hasPeriodSales() && fs().kpis.gross_profit_cents > 0
+                              ? "brand"
+                              : fs().kpis.gross_profit_cents < 0
+                                ? "danger"
+                                : "default"
+                          }
+                          badge={
+                            <span class="adm-tabular rounded-[6px] bg-[#f5ebf7] px-2 py-0.5 text-[11px] font-semibold text-[#62298d]">
+                              Margem: {formatMarginPercentage(fs().kpis.gross_margin_pct)}
+                            </span>
+                          }
+                          secondary={
+                            <Show when={cmp()?.has_prior_data && profitDelta()}>
+                              {(lbl) => (
+                                <span class="adm-tabular text-xs font-semibold text-zinc-600">
+                                  {lbl()} vs ant.
+                                </span>
+                              )}
+                            </Show>
+                          }
+                          onClick={() => {
+                            setDrillFilter("all");
+                            setDrillMode("sales");
+                          }}
+                          actionLabel="Ver lucro"
+                          footer={
+                            <Show
+                              when={fs().coverage.is_partial}
+                              fallback={
+                                <span>
+                                  {hasPeriodSales()
+                                    ? "Lucro livre das vendas"
+                                    : `${fs().period.from} até ${fs().period.to}`}
+                                </span>
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDrillFilter("missing_cost");
+                                  setDrillMode("sales");
+                                }}
+                                class="font-semibold text-amber-800 underline hover:text-amber-950"
+                              >
+                                {fs().coverage.label}
+                              </button>
+                            </Show>
+                          }
+                        />
+
+                        {/* Card 2: Custo a Reinvestir (CMV - Reposição de estoque) */}
+                        <AdminMetricCard
+                          label="Custo a Reinvestir (CMV)"
+                          value={
+                            hasPeriodSales()
+                              ? formatCents(fs().kpis.cmv_cents)
+                              : "Sem dados no período"
+                          }
+                          badge={
+                            <span class="adm-tabular rounded-[6px] border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                              Repor estoque
+                            </span>
+                          }
+                          secondary={
+                            <Show when={cmp()?.has_prior_data && cmvDelta()}>
+                              {(lbl) => (
+                                <span class="adm-tabular text-xs font-semibold text-zinc-600">
+                                  {lbl()} vs ant.
+                                </span>
+                              )}
+                            </Show>
+                          }
+                          onClick={() => {
+                            setDrillFilter("all");
+                            setDrillMode("sales");
+                          }}
+                          actionLabel="Conferir CMV"
+                          footer={
+                            hasPeriodSales()
+                              ? "Capital p/ repor estoque"
+                              : "Custo das mercadorias vendidas"
+                          }
+                        />
+
+                        {/* Card 3: Receita de Produtos */}
+                        <AdminMetricCard
+                          label="Receita de Produtos"
                           value={
                             hasPeriodSales()
                               ? formatCents(fs().kpis.products_revenue_cents)
@@ -475,146 +580,104 @@ function AdminDashboardPage() {
                           actionLabel="Ver itens"
                           footer={
                             hasPeriodSales()
-                              ? "Sem frete · após cupons e devoluções"
-                              : `${fs().period.from} até ${fs().period.to}`
+                              ? `${fs().kpis.total_units_sold} un. vendidas`
+                              : "Sem frete · após cupons"
                           }
                         />
 
-                        <AdminMetricCard
-                          label="Custo da mercadoria vendida"
-                          value={
-                            hasPeriodSales()
-                              ? formatCents(fs().kpis.cmv_cents)
-                              : "Sem dados no período"
+                        {/* Card 4: Valor do Estoque Atual (Patrimônio Físico) */}
+                        <Show
+                          when={d().inventory_valuation}
+                          fallback={
+                            <AdminMetricCard
+                              label="Ticket Médio"
+                              value={
+                                d().kpis.paid_orders_30d > 0
+                                  ? formatCents(d().kpis.avg_ticket_cents)
+                                  : "Sem dados no período"
+                              }
+                              footer={`${d().kpis.paid_orders_30d} pedidos pagos`}
+                            />
                           }
-                          badge={
-                            <Show when={cmp()?.has_prior_data && cmvDelta()}>
-                              {(lbl) => (
-                                <span class="adm-tabular rounded-[6px] bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
-                                  {lbl()} vs ant.
-                                </span>
-                              )}
-                            </Show>
-                          }
-                          onClick={() => {
-                            setDrillFilter("all");
-                            setDrillMode("sales");
-                          }}
-                          actionLabel="Conferir CMV"
-                          footer={
-                            hasPeriodSales()
-                              ? `${fs().kpis.covered_units_sold} un. com custo histórico`
-                              : "Custo reconhecido no pagamento"
-                          }
-                        />
-
-                        <div class="adm-card-interactive flex flex-col justify-between rounded-[12px] border border-zinc-200/90 bg-white p-4 hover:border-[#e4c6ea] hover:bg-[#fcfafd] sm:p-5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDrillFilter("all");
-                              setDrillMode("sales");
-                            }}
-                            class="w-full text-left"
-                          >
-                            <div class="flex items-start justify-between gap-2">
-                              <p class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                                Lucro bruto
-                              </p>
-                              <span class="adm-tabular rounded-[6px] bg-[#f5ebf7] px-2 py-0.5 text-[11px] font-semibold text-[#62298d]">
-                                Margem: {formatMarginPercentage(fs().kpis.gross_margin_pct)}
-                              </span>
-                            </div>
-
-                            <div class="mt-2 flex items-baseline justify-between gap-2">
-                              <p
-                                class={`adm-tabular text-2xl font-bold tracking-tight ${
-                                  !hasPeriodSales()
-                                    ? "text-zinc-900"
-                                    : fs().kpis.gross_profit_cents < 0
-                                      ? "text-red-700"
-                                      : "text-[#62298d]"
-                                }`}
-                              >
-                                {hasPeriodSales()
-                                  ? formatBrlSigned(fs().kpis.gross_profit_cents)
-                                  : "Sem dados no período"}
-                              </p>
-                              <Show when={cmp()?.has_prior_data && profitDelta()}>
-                                {(lbl) => (
-                                  <span class="adm-tabular text-xs font-semibold text-zinc-600">
-                                    {lbl()} vs ant.
-                                  </span>
-                                )}
-                              </Show>
-                            </div>
-                          </button>
-
-                          <div class="mt-2.5 flex items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs">
-                            <Show
-                              when={fs().coverage.is_partial}
-                              fallback={
-                                <span class="text-zinc-500">
-                                  {fs().coverage.label}
+                        >
+                          {(inv) => (
+                            <AdminMetricCard
+                              label="Valor em Estoque Físico"
+                              value={formatCents(inv().total_cost_cents)}
+                              badge={
+                                <span class="adm-tabular rounded-[6px] border border-[#e4c6ea] bg-[#f5ebf7] px-2 py-0.5 text-[10px] font-semibold text-[#62298d]">
+                                  {inv().label}
                                 </span>
                               }
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDrillFilter("missing_cost");
-                                  setDrillMode("sales");
-                                }}
-                                class="font-semibold text-amber-800 underline hover:text-amber-950"
-                              >
-                                {fs().coverage.label}
-                              </button>
-                            </Show>
-                          </div>
-                        </div>
+                              onClick={() => setDrillMode("inventory")}
+                              actionLabel="Conferir"
+                              footer={
+                                inv().is_partial
+                                  ? inv().coverage_label
+                                  : `${inv().valued_units} un. em estoque`
+                              }
+                            />
+                          )}
+                        </Show>
                       </div>
 
-                      {/* Separate Temporal Block: Inventory Cost Valuation ("Posição atual") */}
-                      <Show when={d().inventory_valuation}>
-                        {(inv) => (
-                          <div class="flex flex-wrap items-center justify-between gap-4 rounded-[12px] border border-zinc-200/90 bg-white px-4 py-3.5 sm:px-5">
-                            <div class="flex min-w-0 flex-wrap items-center gap-3">
-                              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#f5ebf7] text-[#62298d]">
-                                <Boxes class="h-4 w-4" />
-                              </div>
-                              <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                  <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                                    Valor do estoque a custo
-                                  </h2>
-                                  <span class="rounded-[6px] border border-[#e4c6ea] bg-[#f5ebf7] px-2 py-0.5 text-[10px] font-semibold text-[#62298d]">
-                                    {inv().label}
-                                  </span>
-                                </div>
-                                <p class="mt-0.5 text-xs text-zinc-500">
-                                  {inv().is_partial
-                                    ? inv().coverage_label
-                                    : `${inv().valued_units} un. avaliadas em estoque atual`}
-                                </p>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => setDrillMode("inventory")}
-                              class="adm-btn flex w-full items-center justify-between gap-3 rounded-[8px] px-0 py-1 text-right hover:bg-zinc-50 sm:w-auto sm:justify-end sm:px-2.5 sm:py-1.5"
-                            >
-                              <span class="adm-tabular text-xl font-bold text-zinc-900">
-                                {formatCents(inv().total_cost_cents)}
-                              </span>
-                              <span class="inline-flex items-center gap-1 text-xs font-semibold text-[#62298d]">
-                                Conferir
-                                <ArrowRight class="h-3.5 w-3.5" />
-                              </span>
-                            </button>
-                          </div>
-                        )}
-                      </Show>
+                      {/* Operational Pulse Strip: Quick daily status */}
+                      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div class="rounded-xl border border-zinc-200/80 bg-zinc-50/70 px-3.5 py-2.5">
+                          <p class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                            Vendas hoje
+                          </p>
+                          <p class="mt-0.5 text-base font-bold text-zinc-900">
+                            {formatCents(d().kpis.sales_today_cents)}
+                          </p>
+                          <p class="truncate text-[11px] text-zinc-500">
+                            Últimos 7d: {formatCents(d().kpis.sales_7d_cents)}
+                          </p>
+                        </div>
+                        <div class="rounded-xl border border-zinc-200/80 bg-zinc-50/70 px-3.5 py-2.5">
+                          <p class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                            Ticket médio
+                          </p>
+                          <p class="mt-0.5 text-base font-bold text-zinc-900">
+                            {d().kpis.paid_orders_30d > 0
+                              ? formatCents(d().kpis.avg_ticket_cents)
+                              : "—"}
+                          </p>
+                          <p class="truncate text-[11px] text-zinc-500">
+                            {d().kpis.paid_orders_30d} pedidos pagos
+                          </p>
+                        </div>
+                        <div class="rounded-xl border border-zinc-200/80 bg-zinc-50/70 px-3.5 py-2.5">
+                          <p class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                            A separar / enviar
+                          </p>
+                          <p
+                            class={`mt-0.5 text-base font-bold ${
+                              d().kpis.to_pack_count > 0 ? "text-[#93509e]" : "text-zinc-900"
+                            }`}
+                          >
+                            {d().kpis.to_pack_count} pedido(s)
+                          </p>
+                          <p class="truncate text-[11px] text-zinc-500">
+                            {d().kpis.pending_payment_count} aguardando pagto
+                          </p>
+                        </div>
+                        <div class="rounded-xl border border-zinc-200/80 bg-zinc-50/70 px-3.5 py-2.5">
+                          <p class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                            Estoque em alerta
+                          </p>
+                          <p
+                            class={`mt-0.5 text-base font-bold ${
+                              d().low_stock_variants.length > 0 ? "text-amber-800" : "text-zinc-900"
+                            }`}
+                          >
+                            {d().low_stock_variants.length} SKU(s)
+                          </p>
+                          <p class="truncate text-[11px] text-zinc-500">
+                            Estoque baixo ou zerado
+                          </p>
+                        </div>
+                      </div>
                     </section>
                   );
                 }}

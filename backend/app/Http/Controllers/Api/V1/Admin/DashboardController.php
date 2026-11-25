@@ -198,7 +198,8 @@ class DashboardController extends Controller
         $restockDemand = $this->restock->demandSummary();
         $replenishmentInsights = $this->replenishment->adminInsights();
 
-        $canViewProfit = $request->user()?->hasPermission('reports.profit.view') ?? false;
+        $canViewProfit = $request->user()?->hasRole('superadmin', 'admin', 'finance')
+            || ($request->user()?->hasPermission('reports.profit.view') ?? false);
         $from = $request->filled('from')
             ? CarbonImmutable::parse((string) $request->query('from'))->startOfDay()
             : now()->subDays(29)->startOfDay()->toImmutable();

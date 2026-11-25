@@ -110,7 +110,7 @@ class AdminReportsController extends Controller
             'top_coupons' => $topCoupons,
         ];
 
-        if ($request->user()?->hasPermission('reports.profit.view')) {
+        if ($request->user()?->hasRole('superadmin', 'admin', 'finance') || $request->user()?->hasPermission('reports.profit.view')) {
             $data['profit_summary'] = $this->profitAnalytics->periodProfitSummary($from, $to);
             $data['top_products_profit'] = $this->profitAnalytics->topProductsProfitBreakdown($from, $to, 15);
             $data['inventory_valuation'] = $this->profitAnalytics->inventoryCostValuation();
