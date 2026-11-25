@@ -27,6 +27,12 @@ import { SectionHeading } from "../../features/storefront/components/SectionHead
 import { ShippingQuoteWidget } from "../../features/storefront/components/ShippingQuoteWidget";
 import { StoreShell } from "../../features/storefront/components/StoreShell";
 import { VariantRestockModal } from "../../features/storefront/components/VariantRestockModal";
+import {
+  evaluateAxisOptionAvailability,
+  getVariantOptionMap,
+  normalizeOptionSlug,
+  resolveSelectedVariant,
+} from "../../features/storefront/variant-selection";
 import { addToReplenishment } from "../../features/storefront/replenishment";
 import {
   addBulkCartItems,
@@ -211,6 +217,7 @@ function ProductDetailPage() {
   const [selectedVariantId, setSelectedVariantId] = createSignal<number | null>(
     null,
   );
+  const [selectedByAxis, setSelectedByAxis] = createSignal<Record<string, string>>({});
   const [activeImage, setActiveImage] = createSignal<string | null>(null);
   const [qty, setQty] = createSignal(1);
   const [adding, setAdding] = createSignal(false);
@@ -252,6 +259,7 @@ function ProductDetailPage() {
       p.variants.find((v) => v.in_stock) ??
       p.variants[0];
     setSelectedVariantId(def?.id ?? null);
+    setSelectedByAxis(def ? getVariantOptionMap(def) : {});
     setActiveImage(
       def?.image_path || p.primary_image || p.images[0]?.path || null,
     );
@@ -281,14 +289,65 @@ function ProductDetailPage() {
     });
   });
 
-  const activeVariant = createMemo<ProductVariantData | null>(() => {
+  const effectiveAxes = createMemo(() => {
     const p = product();
-    if (!p || p.variants.length === 0) return null;
-    return (
-      p.variants.find((v) => v.id === selectedVariantId()) ??
-      p.variants[0] ??
-      null
-    );
+    if (!p) return [];
+    const axes = p.variation_axes ?? [];
+    if (axes.length > 0) return axes;
+    if (
+      p.has_variants ||
+      p.variants.length > 1 ||
+      (p.variants.length === 1 && p.variants[0]!.name !== "Padrão")
+    ) {
+      return [
+        {
+          slug: "opcao",
+          name: p.name.split(" ").slice(0, 2).join(" ") || "Opção",
+          display_type: "pill",
+          values: p.variants.map((v) => ({
+            slug: normalizeOptionSlug(v.name),
+            value: v.name,
+            color_hex: v.color_hex ?? null,
+          })),
+        },
+      ];
+    }
+    return [];
+  });
+
+  const hasSelectableVariations = createMemo(() => effectiveAxes().length > 0);
+
+  const variantResolution = createMemo(() => {
+    const p = product();
+    if (!p) return { state: "not_sold" as const, variant: null };
+    const axes = effectiveAxes();
+    if (axes.length === 0) {
+      const def =
+        p.variants.find((v) => v.id === selectedVariantId()) ??
+        p.variants[0] ??
+        null;
+      if (!def) {
+        return {
+          state: p.in_stock
+            ? ("matched_in_stock" as const)
+            : ("matched_out_of_stock" as const),
+          variant: null,
+        };
+      }
+      return {
+        state: def.in_stock
+          ? ("matched_in_stock" as const)
+          : ("matched_out_of_stock" as const),
+        variant: def,
+      };
+    }
+    return resolveSelectedVariant(axes, selectedByAxis(), p.variants);
+  });
+
+  const isNotSoldCombination = () => variantResolution().state === "not_sold";
+
+  const activeVariant = createMemo<ProductVariantData | null>(() => {
+    return variantResolution().variant;
   });
 
   const wholesaleCondition = () => product()?.wholesale_condition;
@@ -343,8 +402,10 @@ function ProductDetailPage() {
     return product()?.discount_percent ?? 0;
   };
 
-  const inStock = () =>
-    activeVariant()?.in_stock ?? product()?.in_stock ?? false;
+  const inStock = () => {
+    if (isNotSoldCombination()) return false;
+    return activeVariant()?.in_stock ?? product()?.in_stock ?? false;
+  };
   const maxQty = () =>
     Math.max(
       1,
@@ -352,11 +413,32 @@ function ProductDetailPage() {
     );
 
   function chooseVariant(v: ProductVariantData) {
+    const p = product();
     setSelectedVariantId(v.id);
+    setSelectedByAxis(getVariantOptionMap(v));
     if (v.image_path) {
       setActiveImage(v.image_path);
+    } else if (p) {
+      setActiveImage(p.primary_image || p.images[0]?.path || null);
     }
     setQty(1);
+    setRestockMsg(null);
+  }
+
+  function selectAxisOption(axisSlug: string, optionSlug: string) {
+    const p = product();
+    if (!p) return;
+    const nextMap = { ...selectedByAxis(), [axisSlug]: optionSlug };
+    setSelectedByAxis(nextMap);
+    const resolved = resolveSelectedVariant(effectiveAxes(), nextMap, p.variants);
+    setSelectedVariantId(resolved.variant?.id ?? null);
+    if (resolved.variant?.image_path) {
+      setActiveImage(resolved.variant.image_path);
+    } else {
+      setActiveImage(p.primary_image || p.images[0]?.path || null);
+    }
+    setQty(1);
+    setRestockMsg(null);
   }
 
   async function handleAddToCart() {
@@ -632,9 +714,6 @@ function ProductDetailPage() {
             }
           };
 
-          const variantGroupLabel = () =>
-            p().name.split(" ").slice(0, 2).join(" ");
-
           return (
             <>
               <div class="mx-auto max-w-7xl px-4 pb-14 pt-4 sm:pt-6">
@@ -750,9 +829,21 @@ function ProductDetailPage() {
                       <h1 class="text-xl font-extrabold text-[#2E0C49] sm:text-[22px]">
                         {p().name}
                       </h1>
-                      <p class="mt-1 text-xs text-[#2E0C49]/80">
-                        Referência: {p().name}
-                      </p>
+                      <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#2E0C49]/80">
+                        <span>
+                          SKU:{" "}
+                          <strong class="font-mono font-semibold text-[#2E0C49]">
+                            {isNotSoldCombination()
+                              ? "—"
+                              : (activeVariant()?.sku ?? p().sku)}
+                          </strong>
+                        </span>
+                        <Show when={p().unit_label}>
+                          <span class="rounded border border-[#E5DAE9] bg-[#FAF5FB] px-2 py-0.5 text-[11px] font-semibold text-[#62298d]">
+                            Apresentação: {p().unit_label}
+                          </span>
+                        </Show>
+                      </div>
                     </div>
 
                     <div>
@@ -806,44 +897,85 @@ function ProductDetailPage() {
                       </span>
                     </div>
 
-                    <Show when={p().variants.length > 0}>
-                      <div class="space-y-1.5 pt-1">
-                        <label
-                          for="pdp-variant-select"
-                          class="block text-xs font-bold text-[#2E0C49]"
-                        >
-                          {variantGroupLabel()}:
-                        </label>
-                        <div class="relative inline-block">
-                          <select
-                            id="pdp-variant-select"
-                            value={activeVariant()?.id ?? ""}
-                            onChange={(e) => {
-                              const selected = p().variants.find(
-                                (item) =>
-                                  item.id === Number(e.currentTarget.value),
-                              );
-                              if (selected) chooseVariant(selected);
-                            }}
-                            class="h-10 min-w-[165px] appearance-none rounded-lg border border-[#E5DAE9] bg-[#FAF5FB] pl-4 pr-9 text-xs font-medium text-[#2E0C49] focus:outline-none focus:ring-2 focus:ring-[#93509e]"
-                          >
-                            <option value="" disabled>
-                              Selecione
-                            </option>
-                            <For each={p().variants}>
-                              {(v) => (
-                                <option value={v.id}>
-                                  {v.name}
-                                  {v.in_stock ? "" : " (Esgotado)"}
-                                </option>
-                              )}
-                            </For>
-                          </select>
-                          <ChevronDown
-                            class="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#2E0C49]"
-                            aria-hidden="true"
-                          />
-                        </div>
+                    <Show when={hasSelectableVariations()}>
+                      <div class="space-y-3 pt-1" data-testid="pdp-variation-axes">
+                        <For each={effectiveAxes()}>
+                          {(axis) => (
+                            <div class="space-y-1.5">
+                              <div class="flex items-center justify-between text-xs">
+                                <span class="font-bold text-[#2E0C49]">
+                                  {axis.name}:{" "}
+                                  <span class="font-semibold text-[#93509e]">
+                                    {axis.values.find(
+                                      (v) => v.slug === selectedByAxis()[axis.slug],
+                                    )?.value ?? "Selecione"}
+                                  </span>
+                                </span>
+                              </div>
+                              <div
+                                role="radiogroup"
+                                aria-label={axis.name}
+                                class="flex flex-wrap gap-2"
+                              >
+                                <For each={axis.values}>
+                                  {(val) => {
+                                    const isSelected = () =>
+                                      selectedByAxis()[axis.slug] === val.slug;
+                                    const availability = () =>
+                                      evaluateAxisOptionAvailability(
+                                        effectiveAxes(),
+                                        selectedByAxis(),
+                                        axis.slug,
+                                        val.slug,
+                                        p().variants,
+                                      );
+                                    return (
+                                      <button
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={isSelected()}
+                                        data-axis-slug={axis.slug}
+                                        data-option-slug={val.slug}
+                                        data-option-state={availability()}
+                                        onClick={() =>
+                                          selectAxisOption(axis.slug, val.slug)
+                                        }
+                                        class={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#93509e] ${
+                                          isSelected()
+                                            ? "border-[#93509e] bg-[#FAF5FB] text-[#2E0C49] ring-1 ring-[#93509e]/40"
+                                            : availability() === "not_sold"
+                                              ? "border-dashed border-zinc-300 bg-zinc-50 text-zinc-400 hover:border-zinc-400"
+                                              : availability() === "out_of_stock"
+                                                ? "border-amber-200 bg-amber-50/40 text-zinc-600 line-through decoration-zinc-400 hover:border-[#93509e]/40"
+                                                : "border-[#E5DAE9] bg-white text-[#2E0C49] hover:border-[#93509e]"
+                                        }`}
+                                      >
+                                        <Show when={val.color_hex}>
+                                          <span
+                                            aria-hidden="true"
+                                            class="h-3.5 w-3.5 shrink-0 rounded-full border border-black/15"
+                                            style={{ background: val.color_hex! }}
+                                          />
+                                        </Show>
+                                        <span>{val.value}</span>
+                                        <Show
+                                          when={
+                                            !isSelected() &&
+                                            availability() === "out_of_stock"
+                                          }
+                                        >
+                                          <span class="text-[10px] font-medium text-amber-700 no-underline">
+                                            (Esgotado)
+                                          </span>
+                                        </Show>
+                                      </button>
+                                    );
+                                  }}
+                                </For>
+                              </div>
+                            </div>
+                          )}
+                        </For>
                       </div>
                     </Show>
 
@@ -965,14 +1097,45 @@ function ProductDetailPage() {
                       </Show>
                     </div>
 
-                    {/* Quantity pill + COMPRAR CTA + WhatsApp CTA or Restock Alert */}
+                    {/* Quantity pill + COMPRAR CTA + WhatsApp CTA, Not-Sold Notice, or Restock Alert */}
                     <Show
-                      when={inStock()}
+                      when={!isNotSoldCombination()}
                       fallback={
-                        <form
-                          onSubmit={submitRestock}
-                          class="space-y-4 rounded-2xl border border-[#E5D4F0] bg-[#FAF7FC] p-4 sm:p-5"
+                        <div
+                          data-testid="pdp-not-sold-notice"
+                          class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-700"
                         >
+                          <p class="font-bold text-zinc-900">
+                            Combinação não comercializada pela loja
+                          </p>
+                          <p class="text-zinc-600">
+                            Esta combinação específica de opções não faz parte do catálogo de venda. Escolha uma opção disponível abaixo:
+                          </p>
+                          <div class="flex flex-wrap gap-1.5">
+                            <For each={p().variants.slice(0, 6)}>
+                              {(alt) => (
+                                <button
+                                  type="button"
+                                  onClick={() => chooseVariant(alt)}
+                                  class="rounded-md border border-[#E5DAE9] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#2E0C49] hover:border-[#93509e]"
+                                >
+                                  {alt.name}
+                                  {alt.in_stock ? "" : " (Esgotado)"}
+                                </button>
+                              )}
+                            </For>
+                          </div>
+                        </div>
+                      }
+                    >
+                      <Show
+                        when={inStock()}
+                        fallback={
+                          <form
+                            onSubmit={submitRestock}
+                            data-testid="pdp-out-of-stock-restock"
+                            class="space-y-4 rounded-2xl border border-[#E5D4F0] bg-[#FAF7FC] p-4 sm:p-5"
+                          >
                           <div class="flex items-start gap-3">
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E5D4F0] bg-white text-[#93509e]">
                               <Bell class="h-4 w-4" aria-hidden="true" />
@@ -1115,6 +1278,7 @@ function ProductDetailPage() {
                             : "Adicionar à Lista de Reposição"}
                         </button>
                       </div>
+                    </Show>
                     </Show>
 
                     <Show when={(p().variants?.length ?? 0) > 1}>

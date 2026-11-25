@@ -80,7 +80,7 @@ class CartService
         $guestCart->load('items.variant');
         foreach ($guestCart->items as $guestItem) {
             $variant = $guestItem->variant;
-            if (! $variant || ! $variant->is_active) {
+            if (! $variant || ! $variant->is_active || $variant->archived_at !== null) {
                 continue;
             }
             /** @var CartItem|null $existing */
@@ -117,8 +117,8 @@ class CartService
     public function addItem(Cart $cart, ProductVariant $variant, int $quantity): Cart
     {
         $variant->loadMissing('product');
-        if (! $variant->is_active || ! $variant->product || ! $variant->product->is_active) {
-            throw ValidationException::withMessages(['variant_id' => ['Produto indisponível no momento.']]);
+        if (! $variant->is_active || $variant->archived_at !== null || ! $variant->product || ! $variant->product->is_active) {
+            throw ValidationException::withMessages(['variant_id' => ['Esta opção não está disponível para compra no momento.']]);
         }
 
         /** @var CartItem|null $existing */
@@ -181,7 +181,7 @@ class CartService
             foreach ($aggregated as $variantId => $qty) {
                 /** @var ProductVariant|null $variant */
                 $variant = $variants->get($variantId);
-                if (! $variant || ! $variant->is_active || ! $variant->product || ! $variant->product->is_active) {
+                if (! $variant || ! $variant->is_active || $variant->archived_at !== null || ! $variant->product || ! $variant->product->is_active) {
                     $rejected[] = [
                         'variant_id' => $variantId,
                         'sku' => $variant->sku ?? '',
@@ -317,7 +317,7 @@ class CartService
         foreach ($cart->items as $item) {
             $product = $item->product;
             $variant = $item->variant;
-            if (! $product || ! $variant || ! $product->is_active || ! $variant->is_active) {
+            if (! $product || ! $variant || ! $product->is_active || ! $variant->is_active || $variant->archived_at !== null) {
                 continue;
             }
 
@@ -334,7 +334,7 @@ class CartService
             $totalWeightGrams += $weight * $item->quantity;
 
             $primaryImg = $product->images->firstWhere('is_primary', true) ?? $product->images->first();
-            $imagePath = $variant->image ? $variant->image->path : ($primaryImg ? $primaryImg->path : null);
+            $imagePath = $variant->effectiveImagePath() ?: ($primaryImg ? $primaryImg->path : null);
 
             $itemsData[] = [
                 'id' => $item->id,
@@ -344,6 +344,8 @@ class CartService
                 'variant_id' => $variant->id,
                 'variant_name' => $variant->name,
                 'sku' => $variant->sku,
+                'option_values' => $variant->option_values ?? [],
+                'weight_grams' => $weight,
                 'quantity' => $item->quantity,
                 'available_stock' => $variant->availableStock(),
                 'in_stock' => $variant->availableStock() >= $item->quantity,

@@ -61,13 +61,14 @@ class CatalogBulkRuleService
             });
         } elseif ($opFilter === 'out_of_stock_variants') {
             $query->where('is_active', true)
-                ->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) <= 0'));
+                ->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereNull('archived_at')->whereRaw('(stock_qty - reserved_qty) <= 0'));
         } elseif ($opFilter === 'missing_cost' || (string) ($filters['cost_status'] ?? '') === 'missing') {
             $query->where(function (Builder $cq): void {
                 $cq->where(function (Builder $noVar): void {
-                    $noVar->whereDoesntHave('variants')->whereNull('cost_cents');
+                    $noVar->whereDoesntHave('variants', fn (Builder $vq) => $vq->whereNull('archived_at'))->whereNull('cost_cents');
                 })->orWhereHas('variants', function (Builder $vq): void {
-                    $vq->whereNull('product_variants.cost_cents')
+                    $vq->whereNull('product_variants.archived_at')
+                        ->whereNull('product_variants.cost_cents')
                         ->whereHas('product', fn (Builder $pq) => $pq->whereNull('products.cost_cents'));
                 });
             });
@@ -94,11 +95,11 @@ class CatalogBulkRuleService
 
         $availability = (string) ($filters['availability'] ?? 'all');
         if ($availability === 'in_stock') {
-            $query->whereHas('variants', fn (Builder $vq) => $vq->whereRaw('(stock_qty - reserved_qty) > 0'));
+            $query->whereHas('variants', fn (Builder $vq) => $vq->whereNull('archived_at')->whereRaw('(stock_qty - reserved_qty) > 0'));
         } elseif ($availability === 'low_stock') {
-            $query->whereHas('variants', fn (Builder $vq) => $vq->whereRaw('(stock_qty - reserved_qty) > 0 AND (stock_qty - reserved_qty) <= 5'));
+            $query->whereHas('variants', fn (Builder $vq) => $vq->whereNull('archived_at')->whereRaw('(stock_qty - reserved_qty) > 0 AND (stock_qty - reserved_qty) <= 5'));
         } elseif ($availability === 'out_of_stock') {
-            $query->whereDoesntHave('variants', fn (Builder $vq) => $vq->whereRaw('(stock_qty - reserved_qty) > 0'));
+            $query->whereDoesntHave('variants', fn (Builder $vq) => $vq->whereNull('archived_at')->whereRaw('(stock_qty - reserved_qty) > 0'));
         }
 
         $search = trim((string) ($filters['search'] ?? ''));
@@ -225,7 +226,7 @@ class CatalogBulkRuleService
         $impactedPromoCount = 0;
 
         foreach ($products as $product) {
-            $variants = $product->variants;
+            $variants = $product->variants->whereNull('archived_at')->values();
             if ($variantFilterIds !== []) {
                 $filteredVars = $variants->whereIn('id', $variantFilterIds);
                 if ($filteredVars->isNotEmpty()) {
@@ -233,7 +234,7 @@ class CatalogBulkRuleService
                 }
             }
 
-            $isMultiVariant = $product->variants->count() > 1;
+            $isMultiVariant = $product->variants->whereNull('archived_at')->count() > 1;
             $productCatIds = $product->categories->pluck('id')->all();
 
             // Check impacted wholesale rules and promotions

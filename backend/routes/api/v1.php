@@ -163,6 +163,8 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::delete('products/{id}/force', [AdminCatalogController::class, 'forceDestroyProduct'])->middleware('permission:catalog.write');
         Route::post('variants/{variantId}/stock', [AdminCatalogController::class, 'adjustStock'])->middleware('permission:inventory.manage');
         Route::patch('variants/{variantId}/quick-price', [AdminCatalogController::class, 'quickUpdateVariantPrice'])->middleware('permission:catalog.view');
+        Route::post('products/{id}/variants/{variantId}/archive', [AdminCatalogController::class, 'archiveVariant'])->middleware('permission:catalog.write');
+        Route::post('products/{id}/variants/{variantId}/restore', [AdminCatalogController::class, 'restoreVariant'])->middleware('permission:catalog.write');
         Route::get('inventory/movements', [AdminCatalogController::class, 'stockMovements'])->middleware('permission:catalog.view');
         Route::get('categories', [AdminCatalogController::class, 'listCategories'])->middleware('permission:catalog.view');
         Route::post('categories', [AdminCatalogController::class, 'storeCategory'])->middleware('permission:catalog.write');

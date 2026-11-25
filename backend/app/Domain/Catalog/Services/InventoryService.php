@@ -38,9 +38,9 @@ class InventoryService
                 ->lockForUpdate()
                 ->first();
 
-            if (! $variant || ! $variant->is_active) {
+            if (! $variant || ! $variant->is_active || $variant->archived_at !== null) {
                 throw ValidationException::withMessages([
-                    'stock' => ['Um dos produtos selecionados não está mais disponível.'],
+                    'stock' => ['Um dos produtos ou combinações selecionadas não está mais disponível para venda.'],
                 ]);
             }
 

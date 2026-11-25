@@ -47,7 +47,7 @@ class StorefrontController extends Controller
                 $featured = Product::query()
                     ->where('is_active', true)
                     ->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $catIds))
-                    ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+                    ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')])
                     ->orderByRaw("CASE WHEN sku LIKE 'JK-%' THEN 0 ELSE 1 END ASC")
                     ->orderByDesc('is_featured')
                     ->orderByDesc('sales_count')
@@ -65,7 +65,7 @@ class StorefrontController extends Controller
             ->where('is_active', true)
             ->whereNotNull('promo_price_cents')
             ->whereColumn('promo_price_cents', '<', 'price_cents')
-            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')])
             ->orderByRaw("CASE WHEN sku LIKE 'JK-%' THEN 0 ELSE 1 END ASC")
             ->orderByDesc('is_featured')
             ->orderByDesc('sales_count')
@@ -76,8 +76,8 @@ class StorefrontController extends Controller
 
         $recommendedProducts = Product::query()
             ->where('is_active', true)
-            ->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) > 0'))
-            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereNull('archived_at')->whereRaw('(stock_qty - reserved_qty) > 0'))
+            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')])
             ->orderByRaw("CASE WHEN sku LIKE 'JK-%' THEN 0 ELSE 1 END ASC")
             ->orderByDesc('is_best_seller')
             ->orderByDesc('is_featured')
@@ -176,7 +176,7 @@ class StorefrontController extends Controller
                         $bySku = Product::query()
                             ->where('is_active', true)
                             ->whereIn('sku', $skus)
-                            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute')])
+                            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')->with('attributeValues.attribute')])
                             ->get()
                             ->keyBy('sku');
                         $payload = collect($skus)
@@ -187,7 +187,7 @@ class StorefrontController extends Controller
                     } else {
                         $query = Product::query()
                             ->where('is_active', true)
-                            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute')]);
+                            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')->with('attributeValues.attribute')]);
 
                         $filter = (string) ($cfg['filter'] ?? 'featured');
                         match ($filter) {
@@ -200,7 +200,7 @@ class StorefrontController extends Controller
                         };
 
                         $payload = $query
-                            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = products.id AND pv.is_active = 1 AND (pv.stock_qty - pv.reserved_qty) > 0) THEN 0 ELSE 1 END ASC')
+                            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = products.id AND pv.is_active = 1 AND pv.archived_at IS NULL AND (pv.stock_qty - pv.reserved_qty) > 0) THEN 0 ELSE 1 END ASC')
                             ->orderByDesc('id')
                             ->limit((int) ($cfg['limit'] ?? 8))
                             ->get()

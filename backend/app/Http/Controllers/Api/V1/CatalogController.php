@@ -22,6 +22,7 @@ use App\Models\SlugRedirect;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class CatalogController extends Controller
@@ -183,7 +184,7 @@ class CatalogController extends Controller
         }
 
         if ($autocomplete) {
-            $suggestions = $query->with(['brand:id,name', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            $suggestions = $query->with(['brand:id,name', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')])
                 ->orderByDesc('sales_count')
                 ->limit(6)
                 ->get()
@@ -227,6 +228,9 @@ class CatalogController extends Controller
                 'images',
                 'attributeValues.attribute',
                 'variants' => fn ($q) => $q->where('is_active', true)
+                    ->whereNull('archived_at')
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
                     ->with(['attributeValues.attribute', 'image'])
                     ->withCount(['restockRequests as pending_restock_count' => fn ($rq) => $rq->where('status', 'pending')]),
                 'kitItems.componentProduct:id,name,slug',
@@ -248,7 +252,7 @@ class CatalogController extends Controller
             ->where('is_active', true)
             ->where('id', '!=', $product->id)
             ->when(count($categoryIds) > 0, fn ($q) => $q->whereHas('categories', fn ($cq) => $cq->whereIn('categories.id', $categoryIds)))
-            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
+            ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')])
             ->orderByDesc('sales_count')
             ->limit(8)
             ->get()
@@ -286,6 +290,8 @@ class CatalogController extends Controller
                 'wholesale_condition' => app(WholesalePricingService::class)->calculateForProduct($product, $request->user()),
                 'comparison_group' => $this->attributes->resolveComparisonGroup($product),
                 'specs' => $this->attributes->extractComparableSpecs($product),
+                'has_variants' => $product->usesVariations(),
+                'variation_axes' => self::buildVariationAxes($product, $product->variants),
                 'categories' => $product->categories,
                 'images' => $product->images,
                 'variants' => $product->variants->map(fn (ProductVariant $v): array => self::serializeVariant($v))->values(),
@@ -433,7 +439,7 @@ class CatalogController extends Controller
         }
 
         if ($request->boolean('in_stock')) {
-            $query->whereHas('variants', fn (Builder $vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) > 0'));
+            $query->whereHas('variants', fn (Builder $vq) => $vq->where('is_active', true)->whereNull('archived_at')->whereRaw('(stock_qty - reserved_qty) > 0'));
         }
 
         if ($request->filled('min_price')) {
@@ -462,7 +468,7 @@ class CatalogController extends Controller
             'categories:id,name,slug',
             'images',
             'attributeValues.attribute',
-            'variants' => fn ($q) => $q->where('is_active', true)->with('attributeValues.attribute'),
+            'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')->orderBy('sort_order')->orderBy('id')->with('attributeValues.attribute'),
         ])->paginate($perPage);
 
         $availableBrands = Brand::query()
@@ -503,7 +509,10 @@ class CatalogController extends Controller
     /** @return array<string, mixed> */
     public static function serializeProductCard(Product $product, int $maxInstallments = 3): array
     {
-        $activeVariants = $product->variants->where('is_active', true);
+        $activeVariants = $product->variants
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->values();
         $defaultVariant = $activeVariants->firstWhere('is_default', true) ?? $activeVariants->first();
 
         $effectivePrice = $defaultVariant ? $defaultVariant->effectivePriceCents() : $product->effectivePriceCents();
@@ -535,6 +544,7 @@ class CatalogController extends Controller
             'slug' => $product->slug,
             'sku' => $product->sku,
             'product_type' => $product->product_type->value,
+            'has_variants' => $product->usesVariations(),
             'brand' => $product->brand ? ['id' => $product->brand->id, 'name' => $product->brand->name, 'slug' => $product->brand->slug] : null,
             'primary_image' => $primaryImg?->path,
             'primary_image_alt' => $primaryImg?->alt_text ?: $product->name,
@@ -555,6 +565,141 @@ class CatalogController extends Controller
         ];
     }
 
+    /**
+     * Builds storefront attribute selector axes strictly matching active non-archived variants.
+     *
+     * @param  Collection<int, ProductVariant>  $activeVariants
+     * @return list<array<string, mixed>>
+     */
+    public static function buildVariationAxes(Product $product, Collection $activeVariants): array
+    {
+        $sellableSet = $activeVariants->filter(fn (ProductVariant $v): bool => $v->is_active && $v->archived_at === null)->values();
+        if (! $product->usesVariations() && $sellableSet->count() <= 1) {
+            return [];
+        }
+        if ($sellableSet->isEmpty()) {
+            return [];
+        }
+
+        // Track option values actually used on active variants so archived options drop off cleanly
+        $usedByAttrSlug = [];
+        foreach ($sellableSet as $v) {
+            if (is_array($v->option_values) && $v->option_values !== []) {
+                foreach ($v->option_values as $opt) {
+                    if (empty($opt['value'])) {
+                        continue;
+                    }
+                    $aSlug = (string) ($opt['attribute_slug'] ?? Str::slug((string) ($opt['attribute_name'] ?? 'opcao')));
+                    $vSlug = (string) ($opt['value_slug'] ?? Str::slug((string) $opt['value']));
+                    $usedByAttrSlug[$aSlug][$vSlug] = [
+                        'slug' => $vSlug,
+                        'value' => (string) $opt['value'],
+                        'color_hex' => $opt['color_hex'] ?? $v->color_hex,
+                    ];
+                }
+            }
+        }
+
+        $declared = is_array($product->variation_attributes) ? $product->variation_attributes : [];
+        if ($declared !== [] && $usedByAttrSlug !== []) {
+            $axes = [];
+            foreach ($declared as $axis) {
+                if (empty($axis['name'])) {
+                    continue;
+                }
+                $aSlug = (string) ($axis['slug'] ?? Str::slug((string) $axis['name']));
+                $values = [];
+                foreach (($axis['values'] ?? []) as $val) {
+                    $vLabel = is_array($val) ? (string) ($val['value'] ?? '') : (string) $val;
+                    $vSlug = is_array($val) ? (string) ($val['slug'] ?? Str::slug($vLabel)) : Str::slug($vLabel);
+                    if ($vLabel === '' || ! isset($usedByAttrSlug[$aSlug][$vSlug])) {
+                        continue;
+                    }
+                    $values[] = [
+                        'slug' => $vSlug,
+                        'value' => $vLabel,
+                        'color_hex' => is_array($val) ? ($val['color_hex'] ?? null) : null,
+                    ];
+                }
+                if ($values !== []) {
+                    $axes[] = [
+                        'slug' => $aSlug,
+                        'name' => (string) $axis['name'],
+                        'display_type' => (string) ($axis['display_type'] ?? ($aSlug === 'cor' ? 'color_swatch' : 'pill')),
+                        'values' => $values,
+                    ];
+                }
+            }
+            if ($axes !== []) {
+                return $axes;
+            }
+        }
+
+        // Reconstruct from variant option_values / pivot attributeValues / variant names (supports legacy seeded data)
+        if ($usedByAttrSlug !== []) {
+            $axes = [];
+            $firstSellable = $sellableSet->first();
+            $firstOpts = is_array($firstSellable->option_values) ? $firstSellable->option_values : [];
+            foreach ($firstOpts as $opt) {
+                $aSlug = (string) ($opt['attribute_slug'] ?? Str::slug((string) ($opt['attribute_name'] ?? 'opcao')));
+                if (! isset($usedByAttrSlug[$aSlug])) {
+                    continue;
+                }
+                $axes[] = [
+                    'slug' => $aSlug,
+                    'name' => (string) ($opt['attribute_name'] ?? ucfirst($aSlug)),
+                    'display_type' => $aSlug === 'cor' ? 'color_swatch' : 'pill',
+                    'values' => array_values($usedByAttrSlug[$aSlug]),
+                ];
+            }
+            if ($axes !== []) {
+                return $axes;
+            }
+        }
+
+        $attrBuckets = [];
+        foreach ($sellableSet as $v) {
+            foreach ($v->attributeValues as $av) {
+                if (! $av->attribute) {
+                    continue;
+                }
+                $aSlug = $av->attribute->slug;
+                $attrBuckets[$aSlug]['name'] = $av->attribute->name;
+                $attrBuckets[$aSlug]['display_type'] = $av->attribute->display_type;
+                $attrBuckets[$aSlug]['values'][$av->slug] = [
+                    'slug' => $av->slug,
+                    'value' => $av->value,
+                    'color_hex' => $av->color_hex ?: $v->color_hex,
+                ];
+            }
+        }
+        if ($attrBuckets !== []) {
+            $out = [];
+            foreach ($attrBuckets as $aSlug => $bucket) {
+                $out[] = [
+                    'slug' => (string) $aSlug,
+                    'name' => (string) $bucket['name'],
+                    'display_type' => (string) $bucket['display_type'],
+                    'values' => array_values($bucket['values']),
+                ];
+            }
+
+            return $out;
+        }
+
+        // Legacy fallback when variants only carry shade name/hex without attribute rows
+        return [[
+            'slug' => 'opcao',
+            'name' => 'Opção',
+            'display_type' => $sellableSet->contains(fn (ProductVariant $v): bool => ! empty($v->color_hex)) ? 'color_swatch' : 'pill',
+            'values' => $sellableSet->map(fn (ProductVariant $v): array => [
+                'slug' => Str::slug($v->name) ?: (string) $v->id,
+                'value' => $v->name,
+                'color_hex' => $v->color_hex,
+            ])->values()->all(),
+        ]];
+    }
+
     /** @return array<string, mixed> */
     public static function serializeVariant(ProductVariant $variant): array
     {
@@ -565,25 +710,31 @@ class CatalogController extends Controller
             'sku' => $variant->sku,
             'gtin' => $variant->gtin,
             'name' => $variant->name,
+            'option_values' => $variant->option_values ?? [],
+            'variant_signature' => $variant->variant_signature,
             'shade_code' => $variant->shade_code,
             'color_family' => $variant->color_family,
             'color_hex' => $variant->color_hex ?: $attrColorHex,
             'swatch_image_path' => $variant->swatch_image_path,
             'sort_order' => $variant->sort_order,
             'price_cents' => $variant->price_cents,
+            'promo_price_cents' => $variant->promo_price_cents,
             'effective_price_cents' => $variant->effectivePriceCents(),
+            'weight_grams' => $variant->effectiveWeightGrams(),
             'stock_qty' => $variant->stock_qty,
             'available_stock' => $variant->availableStock(),
             'in_stock' => $variant->availableStock() > 0,
             'is_default' => $variant->is_default,
-            'image_path' => $variant->image?->path,
+            'image_path' => $variant->effectiveImagePath(),
             'waiting_restock_count' => (int) ($variant->getAttribute('pending_restock_count') ?? 0),
             'attributes' => $variant->attributeValues->map(fn ($av): array => [
                 'attribute_id' => $av->attribute_id,
+                'attribute_slug' => $av->attribute->slug,
                 'attribute_name' => $av->attribute->name,
                 'display_type' => $av->attribute->display_type,
                 'value_id' => $av->id,
                 'value' => $av->value,
+                'value_slug' => $av->slug,
                 'color_hex' => $av->color_hex,
             ])->values()->all(),
         ];

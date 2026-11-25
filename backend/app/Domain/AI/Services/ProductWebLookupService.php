@@ -512,6 +512,13 @@ class ProductWebLookupService
             ? strtoupper($manufacturerCode)
             : $this->suggestInternalSku($copy['name'], $candidate['brand_name'] ?? '');
 
+        $extractedSuggestions = $this->extractDraftAttributeSuggestions(
+            $cleanQuery,
+            $candidate,
+            $facts,
+            $attrs
+        );
+
         // Never prefill price_cents, cost_cents or stock_qty from external competitor prices!
         $draft = [
             'name' => $copy['name'],
@@ -519,6 +526,7 @@ class ProductWebLookupService
             'gtin' => $barcode !== '' ? $barcode : ($facts['gtin'] ?? ''),
             'supplier_code' => $manufacturerCode !== '' ? $manufacturerCode : ($facts['mpn'] ?? ''),
             'power_watts' => $candidate['power_watts'],
+            'unit_label' => $extractedSuggestions['unit_label'],
             'brand_id' => $candidate['brand_id'],
             'suggested_new_brand_name' => $candidate['suggested_new_brand_name'],
             'category_ids' => $candidate['category_id'] ? [$candidate['category_id']] : [],
@@ -532,6 +540,9 @@ class ProductWebLookupService
             'price_cents' => null,
             'cost_cents' => null,
             'stock_qty' => null,
+            'suggested_has_variants' => $extractedSuggestions['suggested_has_variants'],
+            'suggested_fixed_specs' => $extractedSuggestions['fixed_specs'],
+            'suggested_variation_attributes' => $extractedSuggestions['variation_attributes'],
         ];
 
         return [
@@ -1145,6 +1156,112 @@ class ProductWebLookupService
             'price_cents' => null,
             'cost_cents' => null,
             'stock_qty' => null,
+            'unit_label' => $attrs['volume_label'] ?? null,
+            'suggested_has_variants' => false,
+            'suggested_fixed_specs' => ! empty($attrs['volume_label'])
+                ? [['attribute_slug' => 'volume', 'attribute_name' => 'Volume', 'value' => (string) $attrs['volume_label']]]
+                : [],
+            'suggested_variation_attributes' => [],
+        ];
+    }
+
+    /**
+     * Extracts factual fixed characteristics vs multi-option variation attribute suggestions from source text.
+     * Single verified presentations (e.g. "15 ml") stay as fixed specs unless source explicitly lists multiple options.
+     *
+     * @param  array<string, mixed>  $candidate
+     * @param  array<string, mixed>|null  $facts
+     * @param  array<string, mixed>  $attrs
+     * @return array{
+     *   unit_label: ?string,
+     *   suggested_has_variants: bool,
+     *   fixed_specs: list<array{attribute_slug: string, attribute_name: string, value: string}>,
+     *   variation_attributes: list<array{slug: string, name: string, values: list<string>}>
+     * }
+     */
+    private function extractDraftAttributeSuggestions(string $cleanQuery, array $candidate, ?array $facts, array $attrs): array
+    {
+        $sourceText = trim(implode(' ', [
+            $cleanQuery,
+            (string) ($candidate['title'] ?? ''),
+            (string) ($candidate['snippet'] ?? ''),
+            (string) ($facts['title'] ?? ''),
+            (string) ($facts['description'] ?? ''),
+            implode(' ', array_map('strval', (array) ($facts['raw_facts'] ?? []))),
+        ]));
+
+        // Extract distinct verified volume/weight presentations in evidence text
+        $volumes = [];
+        if (preg_match_all('/\b(\d+(?:[.,]\d+)?)\s*(ml|l|g|kg)\b/iu', $sourceText, $volMatches, PREG_SET_ORDER)) {
+            $seenVol = [];
+            foreach ($volMatches as $m) {
+                $lbl = trim(str_replace(',', '.', $m[1]).' '.mb_strtolower($m[2]));
+                $key = str_replace(' ', '', $lbl);
+                if (! isset($seenVol[$key])) {
+                    $seenVol[$key] = true;
+                    $volumes[] = $lbl;
+                }
+            }
+        }
+        if ($volumes === [] && ! empty($candidate['volume_label'])) {
+            $volumes[] = (string) $candidate['volume_label'];
+        }
+
+        // Extract multiple shades only when evidence explicitly names >= 2 distinct colors
+        $colors = [];
+        if (preg_match_all('/\b(nude|ros[eé]|vermelho|vinho|renda|pink|coral|marsala|terracota|lil[aá]s|preto|branco\s*leitoso|branco|azul)\b/iu', $sourceText, $colorMatches)) {
+            $seenCol = [];
+            foreach ($colorMatches[1] as $cRaw) {
+                $cleanColor = mb_convert_case(trim($cRaw), MB_CASE_TITLE, 'UTF-8');
+                $cKey = Str::slug($cleanColor);
+                if ($cKey !== '' && ! isset($seenCol[$cKey])) {
+                    $seenCol[$cKey] = true;
+                    $colors[] = $cleanColor;
+                }
+            }
+        }
+
+        $fixedSpecs = [];
+        $unitLabel = null;
+        $variationAttributes = [];
+
+        if (count($volumes) === 1) {
+            $unitLabel = $volumes[0];
+            $fixedSpecs[] = [
+                'attribute_slug' => 'volume',
+                'attribute_name' => 'Volume',
+                'value' => $volumes[0],
+            ];
+        } elseif (count($volumes) > 1) {
+            $variationAttributes[] = [
+                'slug' => 'volume',
+                'name' => 'Volume',
+                'values' => array_slice($volumes, 0, 8),
+            ];
+        }
+
+        if (count($colors) >= 2) {
+            $variationAttributes[] = [
+                'slug' => 'cor',
+                'name' => 'Cor',
+                'values' => array_slice($colors, 0, 12),
+            ];
+        }
+
+        if (! empty($attrs['power_watts']) || ! empty($candidate['power_watts'])) {
+            $watts = (int) ($candidate['power_watts'] ?? $attrs['power_watts']);
+            $fixedSpecs[] = [
+                'attribute_slug' => 'potencia',
+                'attribute_name' => 'Potência',
+                'value' => "{$watts}W",
+            ];
+        }
+
+        return [
+            'unit_label' => $unitLabel,
+            'suggested_has_variants' => $variationAttributes !== [],
+            'fixed_specs' => $fixedSpecs,
+            'variation_attributes' => $variationAttributes,
         ];
     }
 

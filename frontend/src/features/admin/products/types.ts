@@ -33,18 +33,52 @@ export interface AdminVariantRow {
   supplier_code?: string | null;
   gtin?: string | null;
   name: string;
+  option_values?: Array<{
+    uid?: string;
+    value_id?: number;
+    attribute_id?: number;
+    attribute_slug: string;
+    attribute_name: string;
+    value: string;
+    value_slug: string;
+    color_hex?: string | null;
+  }>;
+  variant_signature?: string | null;
   shade_code?: string | null;
   color_family?: string | null;
   color_hex?: string | null;
+  image_path?: string | null;
+  effective_image_path?: string | null;
   price_cents: number;
   promo_price_cents?: number | null;
+  inherits_price?: boolean;
+  inherits_promo_price?: boolean;
   cost_cents?: number | null;
   effective_cost_cents?: number | null;
+  weight_grams?: number | null;
+  inherits_weight?: boolean;
+  inherits_image?: boolean;
   stock_qty: number;
   reserved_qty: number;
   sort_order?: number;
   is_default?: boolean;
   is_active?: boolean;
+  is_archived?: boolean;
+  archived_at?: string | null;
+  attribute_values?: Array<{
+    id: number;
+    attribute_id: number;
+    value: string;
+    slug?: string;
+    color_hex?: string | null;
+    attribute?: { id: number; name: string; slug: string; display_type?: string };
+  }>;
+  links?: {
+    orders_count: number;
+    movements_count: number;
+    receipts_count?: number;
+    can_delete: boolean;
+  };
   updated_at?: string;
 }
 
@@ -56,6 +90,7 @@ export interface AdminProductRow {
   gtin?: string | null;
   supplier_code?: string | null;
   power_watts?: number | null;
+  unit_label?: string | null;
   manufacturer?: string | null;
   price_cents: number;
   promo_price_cents: number | null;
@@ -72,6 +107,23 @@ export interface AdminProductRow {
   seo_description?: string | null;
   brand_id: number | null;
   product_type?: "simple" | "variable" | "kit" | string;
+  has_variants?: boolean;
+  variation_attributes?: Array<{
+    attribute_id?: number;
+    name: string;
+    slug: string;
+    display_type?: string;
+    sort_order?: number;
+    values: Array<{
+      value_id?: number;
+      uid?: string;
+      value: string;
+      slug?: string;
+      color_hex?: string | null;
+      sort_order?: number;
+    }>;
+  }>;
+  archived_variants_count?: number;
   is_active: boolean;
   is_archived?: boolean;
   is_featured: boolean;

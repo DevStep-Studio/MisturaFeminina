@@ -189,8 +189,12 @@ class AccountController extends Controller
         $order = Order::query()
             ->where('user_id', $request->user()->id)
             ->where('order_number', $orderNumber)
-            ->with(['items', 'payments', 'statusHistories', 'shipment.trackingEvents'])
+            ->with(['items.variant', 'payments', 'statusHistories', 'shipment.trackingEvents'])
             ->firstOrFail();
+
+        $order->items->each(function ($item): void {
+            $item->setAttribute('variant_archived', $item->variant?->isArchived() ?? false);
+        });
 
         return response()->json(['data' => $order]);
     }

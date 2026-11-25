@@ -170,7 +170,7 @@ class CheckoutService
                     'order_discount_allocated_cents' => $allocOrderDiscount,
                     'total_cents' => $lineTotalCents,
                     'net_revenue_cents' => max(0, $lineTotalCents - $allocOrderDiscount),
-                    'weight_grams_snapshot' => 200,
+                    'weight_grams_snapshot' => (int) ($line['weight_grams'] ?? 200),
                     'wholesale_rule_id' => $line['wholesale_rule_id'] ?? null,
                     'wholesale_rule_name' => $line['wholesale_rule_name'] ?? null,
                     'wholesale_tier_min_qty' => $line['wholesale_tier_min_qty'] ?? null,

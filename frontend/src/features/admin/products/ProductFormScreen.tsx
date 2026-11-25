@@ -21,9 +21,18 @@ import {
   AdminMultiCombobox,
 } from "../ui";
 import {
-  AdminVariantsEditor,
-  type AdminVariantDraft,
-} from "../AdminVariantsEditor";
+  VariationMatrixBuilder,
+  type CatalogAttrItem,
+} from "./VariationMatrixBuilder";
+import {
+  type VariationAttributeDraft,
+  type VariationRowDraft,
+  type VariationRowErrorMap,
+  buildVariationPersistencePayload,
+  mapServerValidationErrorsToVariationRows,
+  reconstructInitialVariationState,
+  validateVariationRows,
+} from "./variation-matrix";
 import {
   type AdminProductRow,
   type BrandOption,
@@ -34,7 +43,14 @@ import {
 export interface AttributeOption {
   id: number;
   name: string;
-  values: Array<{ id: number; value: string }>;
+  slug?: string;
+  display_type?: string;
+  values: Array<{
+    id: number;
+    value: string;
+    slug?: string;
+    color_hex?: string | null;
+  }>;
 }
 
 export function ProductFormScreen(props: {
@@ -83,12 +99,42 @@ export function ProductFormScreen(props: {
   const [isNew, setIsNew] = createSignal(true);
   const [wholesaleGroupVariants, setWholesaleGroupVariants] =
     createSignal(true);
+  const [unitLabel, setUnitLabel] = createSignal("");
   const [selectedAttrValueIds, setSelectedAttrValueIds] = createSignal<
     number[]
   >([]);
-  const [variantsDraft, setVariantsDraft] = createSignal<AdminVariantDraft[]>(
+  const [hasVariants, setHasVariants] = createSignal(false);
+  const [variationAttributes, setVariationAttributes] = createSignal<
+    VariationAttributeDraft[]
+  >([]);
+  const [variationRows, setVariationRows] = createSignal<VariationRowDraft[]>(
     [],
   );
+  const [legacySimpleStock, setLegacySimpleStock] = createSignal(0);
+  const [confirmDisableImpact, setConfirmDisableImpact] = createSignal(false);
+  const [variationRowErrors, setVariationRowErrors] = createSignal<
+    Record<string, VariationRowErrorMap>
+  >({});
+  const [serverVariantErrors, setServerVariantErrors] = createSignal<
+    Record<string, string[]>
+  >({});
+  const [variationSectionError, setVariationSectionError] = createSignal<
+    string | null
+  >(null);
+  const [createdCatalogAttrs, setCreatedCatalogAttrs] = createSignal<
+    CatalogAttrItem[]
+  >([]);
+
+  const mergedCatalogAttributes = createMemo<CatalogAttrItem[]>(() => {
+    const map = new Map<string, CatalogAttrItem>();
+    for (const a of props.attributes ?? []) {
+      map.set(a.slug || a.name.toLowerCase(), a);
+    }
+    for (const a of createdCatalogAttrs()) {
+      map.set(a.slug || a.name.toLowerCase(), a);
+    }
+    return Array.from(map.values());
+  });
 
   const [busy, setBusy] = createSignal(false);
   const [errorMsg, setErrorMsg] = createSignal<string | null>(null);
@@ -124,12 +170,15 @@ export function ProductFormScreen(props: {
       return;
     }
 
+    const initVar = reconstructInitialVariationState(src, isDuplicate);
+
     setName(isDuplicate ? `${src.name ?? ""} (Cópia)` : (src.name ?? ""));
     setSlug(isDuplicate ? "" : (src.slug ?? ""));
     setSku(isDuplicate ? "" : (src.sku ?? ""));
     setGtin(isDuplicate ? "" : (src.gtin ?? ""));
     setSupplierCode(src.supplier_code ?? "");
     setPowerWatts(src.power_watts ? String(src.power_watts) : "");
+    setUnitLabel(src.unit_label ?? "");
     setBrandId(src.brand_id ? String(src.brand_id) : "");
     setSelectedCats((src.categories ?? []).map((c) => c.id));
     setPriceBrl(
@@ -153,7 +202,7 @@ export function ProductFormScreen(props: {
     setWholesaleTiersDraft(
       (src.wholesale_tiers ?? []).map((t) => ({ ...t })),
     );
-    setStockQty(isDuplicate ? 0 : (src.variants?.[0]?.stock_qty ?? 0));
+    setStockQty(isDuplicate ? 0 : initVar.legacySimpleStock);
     setWeightGrams(src.weight_grams || 200);
     const primaryImg = src.images?.find((i) => i.is_primary) ?? src.images?.[0];
     setImagePath(primaryImg?.path || "");
@@ -167,23 +216,14 @@ export function ProductFormScreen(props: {
     setIsNew(src.is_new_arrival);
     setWholesaleGroupVariants(src.wholesale_group_variants ?? true);
     setSelectedAttrValueIds((src.attribute_values ?? []).map((av) => av.id));
-    setVariantsDraft(
-      (src.variants ?? []).map((v, idx) => ({
-        id: isDuplicate ? undefined : v.id,
-        name: v.name || `Tonalidade ${idx + 1}`,
-        shade_code: v.shade_code || "",
-        color_family: v.color_family || "",
-        color_hex: v.color_hex || "#93509e",
-        sku: isDuplicate ? "" : v.sku || `${src.sku}-${idx + 1}`,
-        price_cents: v.price_cents ?? src.price_cents,
-        promo_price_cents: v.promo_price_cents ?? null,
-        cost_cents: v.cost_cents ?? null,
-        stock_qty: isDuplicate ? 0 : (v.stock_qty ?? 0),
-        sort_order: v.sort_order ?? idx,
-        is_default: v.is_default ?? idx === 0,
-        is_active: v.is_active ?? true,
-      })),
-    );
+    setHasVariants(initVar.hasVariants);
+    setVariationAttributes(initVar.attributes);
+    setVariationRows(initVar.rows);
+    setLegacySimpleStock(isDuplicate ? 0 : initVar.legacySimpleStock);
+    setConfirmDisableImpact(false);
+    setVariationRowErrors({});
+    setServerVariantErrors({});
+    setVariationSectionError(null);
     setApplyAllVariantsConfirm(false);
     setAiAssist(null);
     setErrorMsg(null);
@@ -196,6 +236,7 @@ export function ProductFormScreen(props: {
     setGtin("");
     setSupplierCode("");
     setPowerWatts("");
+    setUnitLabel("");
     setBrandId("");
     setSelectedCats([]);
     setPriceBrl("29,90");
@@ -214,7 +255,14 @@ export function ProductFormScreen(props: {
     setIsNew(true);
     setWholesaleGroupVariants(true);
     setSelectedAttrValueIds([]);
-    setVariantsDraft([]);
+    setHasVariants(false);
+    setVariationAttributes([]);
+    setVariationRows([]);
+    setLegacySimpleStock(0);
+    setConfirmDisableImpact(false);
+    setVariationRowErrors({});
+    setServerVariantErrors({});
+    setVariationSectionError(null);
     setWholesaleTiersDraft([]);
     setReusedCostNotice(false);
     setApplyAllVariantsConfirm(false);
@@ -325,7 +373,51 @@ export function ProductFormScreen(props: {
       return;
     }
 
-    const firstVariantId = props.product?.variants?.[0]?.id;
+    setVariationRowErrors({});
+    setServerVariantErrors({});
+    setVariationSectionError(null);
+
+    if (hasVariants()) {
+      const enabledCount = variationRows().filter(
+        (r) => r.enabled && !r.is_archived,
+      ).length;
+      if (enabledCount === 0) {
+        const msg =
+          'Adicione e habilite ao menos uma combinação vendável ou desative "Este produto tem variações".';
+        setVariationSectionError(msg);
+        setErrorMsg(msg);
+        return;
+      }
+      const varValidation = validateVariationRows(variationRows());
+      if (!varValidation.valid) {
+        setVariationRowErrors(varValidation.rowErrors);
+        setVariationSectionError(varValidation.summaryMessage);
+        setErrorMsg(
+          varValidation.summaryMessage ||
+            "Revise os campos destacados na grade de variações.",
+        );
+        return;
+      }
+    }
+
+    const variationPayload = buildVariationPersistencePayload({
+      hasVariants: hasVariants(),
+      attributes: variationAttributes(),
+      rows: variationRows(),
+      parentPriceCents: priceCents,
+      parentPromoPriceCents: promoCents,
+      simpleStockQty: Number(stockQty()) || 0,
+      confirmDisableImpact: confirmDisableImpact(),
+    });
+
+    const sanitizedVariants = variationPayload.variants?.map((v) =>
+      canWriteCost()
+        ? v
+        : {
+            ...v,
+            cost_cents: undefined,
+          },
+    );
 
     const payload = {
       name: name().trim(),
@@ -334,6 +426,7 @@ export function ProductFormScreen(props: {
       gtin: gtin().trim() || null,
       supplier_code: supplierCode().trim() || null,
       power_watts: powerWatts().trim() ? Number.parseInt(powerWatts().trim(), 10) || null : null,
+      unit_label: unitLabel().trim() || null,
       brand_id: brandId() ? Number(brandId()) : null,
       category_ids: selectedCats(),
       price_cents: priceCents,
@@ -349,6 +442,14 @@ export function ProductFormScreen(props: {
       is_new_arrival: isNew(),
       wholesale_group_variants: wholesaleGroupVariants(),
       product_attribute_value_ids: selectedAttrValueIds(),
+      has_variants: variationPayload.has_variants,
+      product_type: variationPayload.product_type,
+      confirm_disable_variations: variationPayload.confirm_disable_variations,
+      variation_attributes: variationPayload.variation_attributes,
+      ...(variationPayload.stock_qty !== undefined
+        ? { stock_qty: variationPayload.stock_qty }
+        : {}),
+      ...(sanitizedVariants !== undefined ? { variants: sanitizedVariants } : {}),
       images: imagePath().trim()
         ? [
             {
@@ -358,38 +459,6 @@ export function ProductFormScreen(props: {
             },
           ]
         : [],
-      variants:
-        variantsDraft().length > 0
-          ? variantsDraft().map((v, idx) => ({
-              id: v.id,
-              sku:
-                v.sku.trim().toUpperCase() ||
-                `${sku().trim().toUpperCase()}-${idx + 1}`,
-              name: v.name.trim() || `Tonalidade ${idx + 1}`,
-              shade_code: v.shade_code.trim() || null,
-              color_family: v.color_family.trim() || null,
-              color_hex: v.color_hex.trim() || null,
-              price_cents: v.price_cents || priceCents,
-              promo_price_cents: v.promo_price_cents,
-              ...(canWriteCost() ? { cost_cents: v.cost_cents ?? null } : {}),
-              stock_qty: v.stock_qty,
-              sort_order: idx,
-              is_default: idx === 0,
-              is_active: v.is_active,
-            }))
-          : [
-              {
-                id: props.mode === "edit" ? firstVariantId : undefined,
-                sku: sku().trim().toUpperCase(),
-                name: props.product?.variants?.[0]?.name || "Padrão",
-                price_cents: priceCents,
-                promo_price_cents: promoCents,
-                ...(canWriteCost() ? { cost_cents: costParsed.cents } : {}),
-                stock_qty: Math.max(0, Number(stockQty()) || 0),
-                is_default: true,
-                is_active: true,
-              },
-            ],
     };
 
     setFieldErrors({});
@@ -422,6 +491,12 @@ export function ProductFormScreen(props: {
     } catch (err) {
       if (err instanceof ApiError) {
         setFieldErrors(err.validation ?? {});
+        const mappedServer = mapServerValidationErrorsToVariationRows(
+          err.validation,
+          variationRows(),
+        );
+        setServerVariantErrors(mappedServer.byRowKey);
+        setVariationSectionError(mappedServer.sectionError);
         setErrorMsg(err.message);
       } else {
         setErrorMsg("Não foi possível salvar o produto.");
@@ -431,13 +506,59 @@ export function ProductFormScreen(props: {
     }
   }
 
+  async function handleArchiveSavedVariant(variantId: number) {
+    if (!props.product) return;
+    try {
+      const res = await api<{ data?: AdminProductRow }>(
+        `/admin/products/${props.product.id}/variants/${variantId}/archive`,
+        { method: "POST" },
+      );
+      if (res.data) {
+        const refreshed = reconstructInitialVariationState(res.data, false);
+        setVariationAttributes(refreshed.attributes);
+        setVariationRows(refreshed.rows);
+      } else {
+        setVariationRows((prev) =>
+          prev.map((r) =>
+            r.id === variantId
+              ? { ...r, enabled: false, is_archived: true, is_active: false }
+              : r,
+          ),
+        );
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setVariationSectionError(err.message);
+      }
+    }
+  }
+
+  async function handleRestoreSavedVariant(variantId: number) {
+    if (!props.product) return;
+    try {
+      const res = await api<{ data?: AdminProductRow }>(
+        `/admin/products/${props.product.id}/variants/${variantId}/restore`,
+        { method: "POST" },
+      );
+      if (res.data) {
+        const refreshed = reconstructInitialVariationState(res.data, false);
+        setVariationAttributes(refreshed.attributes);
+        setVariationRows(refreshed.rows);
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setVariationSectionError(err.message);
+      }
+    }
+  }
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         void submitForm(false);
       }}
-      class="mx-auto max-w-4xl space-y-6 pb-20"
+      class="mx-auto max-w-6xl space-y-6 pb-24"
     >
       {/* Header bar */}
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 pb-4">
@@ -749,7 +870,7 @@ export function ProductFormScreen(props: {
               class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none"
             />
           </div>
-          <Show when={variantsDraft().length <= 1}>
+          <Show when={!hasVariants()}>
             <div>
               <label class="block text-xs font-semibold text-zinc-700">
                 Saldo físico em estoque
@@ -773,11 +894,19 @@ export function ProductFormScreen(props: {
           )}
         </Show>
 
-        <Show when={canWriteCost() && variantsDraft().length > 1}>
+        <Show
+          when={
+            canWriteCost() &&
+            hasVariants() &&
+            variationRows().filter((r) => r.enabled && !r.is_archived).length > 1
+          }
+        >
           <div class="space-y-2 border-t border-zinc-100 pt-3 text-xs">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="text-zinc-600">
-                Este produto possui {variantsDraft().length} variações com edição individual de custo abaixo.
+                Este produto possui{" "}
+                {variationRows().filter((r) => r.enabled && !r.is_archived).length}{" "}
+                variações ativas com edição individual de custo abaixo.
               </span>
               <button
                 type="button"
@@ -795,7 +924,9 @@ export function ProductFormScreen(props: {
                     {parsedCost().valid && parsedCost().cents !== null
                       ? formatBrlFromCents(parsedCost().cents)
                       : "Não informado"}{" "}
-                    para {variantsDraft().length} SKU(s)
+                    para{" "}
+                    {variationRows().filter((r) => r.enabled && !r.is_archived).length}{" "}
+                    SKU(s)
                   </span>
                   <div class="flex gap-2">
                     <button
@@ -809,8 +940,12 @@ export function ProductFormScreen(props: {
                       type="button"
                       onClick={() => {
                         const targetCents = parsedCost().valid ? parsedCost().cents : null;
-                        setVariantsDraft((prev) =>
-                          prev.map((item) => ({ ...item, cost_cents: targetCents })),
+                        setVariationRows((prev) =>
+                          prev.map((item) =>
+                            item.enabled && !item.is_archived
+                              ? { ...item, cost_cents: targetCents }
+                              : item,
+                          ),
                         );
                         setApplyAllVariantsConfirm(false);
                       }}
@@ -821,7 +956,7 @@ export function ProductFormScreen(props: {
                   </div>
                 </div>
                 <div class="max-h-28 overflow-y-auto text-[11px] text-zinc-700">
-                  <For each={variantsDraft()}>
+                  <For each={variationRows().filter((r) => r.enabled && !r.is_archived)}>
                     {(vr) => (
                       <div class="flex justify-between border-b border-purple-100 py-0.5">
                         <span class="font-mono">{vr.sku || vr.name}</span>
@@ -913,41 +1048,109 @@ export function ProductFormScreen(props: {
           </Show>
         </div>
 
-        <AdminVariantsEditor
-          variants={variantsDraft()}
-          onChange={setVariantsDraft}
+        <VariationMatrixBuilder
+          hasVariants={hasVariants()}
+          onToggleHasVariants={(next) => {
+            setHasVariants(next);
+            if (!next) {
+              setVariationRowErrors({});
+              setServerVariantErrors({});
+              setVariationSectionError(null);
+            }
+          }}
+          attributes={variationAttributes()}
+          onAttributesChange={setVariationAttributes}
+          rows={variationRows()}
+          onRowsChange={setVariationRows}
+          catalogAttributes={mergedCatalogAttributes()}
+          onCatalogAttributeCreated={(attr) =>
+            setCreatedCatalogAttrs((prev) => [...prev, attr])
+          }
+          parentSku={sku().trim().toUpperCase()}
+          parentPriceCents={parseBrl(priceBrl()) || 0}
+          parentPromoPriceCents={
+            promoBrl().trim() ? parseBrl(promoBrl()) || null : null
+          }
+          parentCostCents={parsedCost().valid ? parsedCost().cents : null}
+          parentWeightGrams={Number(weightGrams()) || 200}
+          parentImagePath={imagePath().trim()}
           canCostView={canViewCost()}
           canCostWrite={canWriteCost()}
-          parentCostCents={parsedCost().valid ? parsedCost().cents : null}
+          isEditMode={props.mode === "edit"}
+          legacySimpleStock={legacySimpleStock()}
+          disableImpactConfirmed={confirmDisableImpact()}
+          onConfirmDisableImpact={setConfirmDisableImpact}
+          onArchiveSavedVariant={handleArchiveSavedVariant}
+          onRestoreSavedVariant={handleRestoreSavedVariant}
+          rowErrors={variationRowErrors()}
+          serverVariantErrors={serverVariantErrors()}
+          sectionError={variationSectionError()}
         />
 
-        <Show when={props.attributes.length > 0}>
-          <div class="space-y-1.5 rounded-md border border-zinc-200 p-3 text-xs">
-            <p class="font-semibold text-zinc-700">Especificações de filtro</p>
-            <div class="flex flex-wrap gap-3">
-              <For each={props.attributes}>
-                {(attr) => (
-                  <div>
-                    <span class="text-[11px] font-bold text-zinc-500">{attr.name}: </span>
-                    <For each={attr.values}>
-                      {(val) => (
-                        <label class="mr-2 inline-flex cursor-pointer items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedAttrValueIds().includes(val.id)}
-                            onChange={() => toggleAttr(val.id)}
-                            class="accent-[#93509e]"
-                          />
-                          {val.value}
-                        </label>
-                      )}
-                    </For>
-                  </div>
-                )}
-              </For>
+        {/* Fixed product characteristics (not purchasable option axes) */}
+        <div class="space-y-3 rounded-[10px] border border-zinc-200 bg-white p-3.5 text-xs">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="font-bold text-zinc-800">
+                Ficha técnica fixa do produto (não gera opções de compra)
+              </p>
+              <p class="text-[11px] text-zinc-500">
+                Use para características comuns a todas as unidades (ex.: esmalte vendido exclusivamente em{" "}
+                <strong>8 ml</strong> com variação só de cor).
+              </p>
+            </div>
+            <div class="w-40">
+              <label
+                for="pf-unit-label-input"
+                class="block text-[11px] font-semibold text-zinc-700"
+              >
+                Apresentação fixa (ex.: 8 ml)
+              </label>
+              <input
+                id="pf-unit-label-input"
+                type="text"
+                placeholder="Ex.: 8 ml, 15g, Bivolt"
+                value={unitLabel()}
+                onInput={(e) => setUnitLabel(e.currentTarget.value)}
+                class="mt-0.5 h-8 w-full rounded-[6px] border border-zinc-300 px-2.5 text-xs focus:border-[#93509e] focus:outline-none"
+              />
             </div>
           </div>
-        </Show>
+
+          <Show when={mergedCatalogAttributes().length > 0}>
+            <div class="border-t border-zinc-100 pt-2.5">
+              <p class="mb-1.5 text-[11px] font-semibold text-zinc-600">
+                Especificações fixas para filtros da loja
+              </p>
+              <div class="flex flex-wrap gap-3">
+                <For each={mergedCatalogAttributes()}>
+                  {(attr) => (
+                    <Show when={attr.values.length > 0}>
+                      <div>
+                        <span class="text-[11px] font-bold text-zinc-500">
+                          {attr.name}:{" "}
+                        </span>
+                        <For each={attr.values}>
+                          {(val) => (
+                            <label class="mr-2 inline-flex cursor-pointer items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={selectedAttrValueIds().includes(val.id)}
+                                onChange={() => toggleAttr(val.id)}
+                                class="accent-[#93509e]"
+                              />
+                              {val.value}
+                            </label>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
+        </div>
       </section>
 
       {/* Section 4: Descriptions, SEO & Visibility */}

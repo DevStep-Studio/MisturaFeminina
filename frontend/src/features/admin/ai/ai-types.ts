@@ -248,6 +248,7 @@ export interface ProductLookupDraft {
   gtin: string;
   supplier_code?: string;
   power_watts?: number | null;
+  unit_label?: string | null;
   brand_id: number | null;
   suggested_new_brand_name?: string | null;
   category_ids: number[];
@@ -261,6 +262,17 @@ export interface ProductLookupDraft {
   price_cents: number | null;
   cost_cents: number | null;
   stock_qty: number | null;
+  suggested_has_variants?: boolean;
+  suggested_fixed_specs?: Array<{
+    attribute_slug: string;
+    attribute_name: string;
+    value: string;
+  }>;
+  suggested_variation_attributes?: Array<{
+    slug: string;
+    name: string;
+    values: string[];
+  }>;
 }
 
 export interface ProductLookupCandidate {

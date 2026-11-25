@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
@@ -23,13 +24,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $color_family
  * @property string|null $color_hex
  * @property string|null $swatch_image_path
+ * @property string|null $image_path
+ * @property array<int, array<string, mixed>>|null $option_values
+ * @property string|null $variant_signature
+ * @property bool $inherits_price
+ * @property bool $inherits_promo_price
+ * @property bool $inherits_weight
+ * @property bool $inherits_image
  * @property int $sort_order
  * @property bool $is_default
  * @property bool $is_active
+ * @property CarbonInterface|null $archived_at
  * @property-read Product|null $product
  * @property-read ProductImage|null $image
  */
-#[Fillable(['product_id', 'sku', 'gtin', 'supplier_code', 'name', 'shade_code', 'color_family', 'color_hex', 'swatch_image_path', 'price_cents', 'promo_price_cents', 'cost_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'is_default', 'is_active', 'sort_order'])]
+#[Fillable(['product_id', 'sku', 'gtin', 'supplier_code', 'name', 'option_values', 'variant_signature', 'shade_code', 'color_family', 'color_hex', 'swatch_image_path', 'image_path', 'price_cents', 'promo_price_cents', 'inherits_price', 'inherits_promo_price', 'cost_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'inherits_weight', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'inherits_image', 'is_default', 'is_active', 'archived_at', 'sort_order'])]
 #[Hidden(['cost_cents'])]
 class ProductVariant extends Model
 {
@@ -63,9 +72,31 @@ class ProductVariant extends Model
         return $this->hasMany(RestockRequest::class, 'product_variant_id');
     }
 
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
+
     public function availableStock(): int
     {
         return max(0, (int) $this->stock_qty - (int) $this->reserved_qty);
+    }
+
+    public function isSellable(): bool
+    {
+        return $this->is_active && $this->archived_at === null && $this->availableStock() > 0;
+    }
+
+    public function effectiveWeightGrams(): int
+    {
+        $product = $this->product;
+
+        return (int) ($this->weight_grams ?? ($product !== null ? $product->weight_grams : 200));
+    }
+
+    public function effectiveImagePath(): ?string
+    {
+        return $this->image_path ?: $this->image?->path ?: null;
     }
 
     public function effectivePriceCents(): int
@@ -115,18 +146,24 @@ class ProductVariant extends Model
     protected function casts(): array
     {
         return [
+            'option_values' => 'array',
             'price_cents' => 'integer',
             'promo_price_cents' => 'integer',
+            'inherits_price' => 'boolean',
+            'inherits_promo_price' => 'boolean',
             'cost_cents' => 'integer',
             'stock_qty' => 'integer',
             'reserved_qty' => 'integer',
             'min_stock_alert' => 'integer',
             'weight_grams' => 'integer',
+            'inherits_weight' => 'boolean',
             'width_cm' => 'integer',
             'height_cm' => 'integer',
             'length_cm' => 'integer',
+            'inherits_image' => 'boolean',
             'is_default' => 'boolean',
             'is_active' => 'boolean',
+            'archived_at' => 'datetime',
             'sort_order' => 'integer',
         ];
     }

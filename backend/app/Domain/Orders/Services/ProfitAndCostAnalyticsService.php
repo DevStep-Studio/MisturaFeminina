@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain\Orders\Services;
 
-use App\Domain\Shared\Enums\OrderStatus;
 use App\Models\InventoryMovement;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -506,7 +505,7 @@ class ProfitAndCostAnalyticsService
     public function summarizeOrder(Order $order, bool $includeCost): array
     {
         $order->loadMissing([
-            'items' => fn ($q) => $q->orderBy('id'),
+            'items' => fn ($q) => $q->with('variant')->orderBy('id'),
             'returns.items',
         ]);
 
@@ -545,6 +544,7 @@ class ProfitAndCostAnalyticsService
                 'id' => $oi->id,
                 'product_id' => $oi->product_id,
                 'product_variant_id' => $oi->product_variant_id,
+                'variant_archived' => $oi->variant?->isArchived() ?? false,
                 'product_name_snapshot' => $oi->product_name_snapshot,
                 'variant_name_snapshot' => $oi->variant_name_snapshot,
                 'sku_snapshot' => $oi->sku_snapshot,

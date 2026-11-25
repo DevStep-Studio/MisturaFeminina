@@ -127,6 +127,7 @@ export interface ProductCardData {
   in_stock: boolean;
   available_stock: number;
   default_variant_id: number | null;
+  has_variants?: boolean;
   has_multiple_variants: boolean;
   category_slug?: string | null;
   comparison_group?: string;
@@ -134,18 +135,39 @@ export interface ProductCardData {
   wholesale_condition?: WholesaleConditionData;
 }
 
+export interface ProductVariationAxis {
+  slug: string;
+  name: string;
+  display_type: "color_swatch" | "pill" | string;
+  values: {
+    slug: string;
+    value: string;
+    color_hex?: string | null;
+  }[];
+}
+
 export interface ProductVariantData {
   id: number;
   sku: string;
   gtin: string | null;
   name: string;
+  option_values?: Array<{
+    attribute_slug: string;
+    attribute_name: string;
+    value: string;
+    value_slug: string;
+    color_hex?: string | null;
+  }>;
+  variant_signature?: string | null;
   shade_code?: string | null;
   color_family?: string | null;
   color_hex?: string | null;
   swatch_image_path?: string | null;
   sort_order?: number;
   price_cents: number;
+  promo_price_cents?: number | null;
   effective_price_cents: number;
+  weight_grams?: number | null;
   stock_qty: number;
   available_stock: number;
   in_stock: boolean;
@@ -154,15 +176,18 @@ export interface ProductVariantData {
   waiting_restock_count?: number;
   attributes: {
     attribute_id: number;
+    attribute_slug?: string;
     attribute_name: string;
     display_type: string;
     value_id: number;
     value: string;
+    value_slug?: string;
     color_hex: string | null;
   }[];
 }
 
 export interface ProductDetailData extends ProductCardData {
+  variation_axes?: ProductVariationAxis[];
   gtin: string | null;
   manufacturer: string | null;
   short_description: string | null;

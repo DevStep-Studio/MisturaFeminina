@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property ProductType $product_type
+ * @property bool $has_variants
+ * @property array<int, array<string, mixed>>|null $variation_attributes
  * @property int|null $cost_cents
  * @property int $price_cents
  * @property int|null $promo_price_cents
@@ -34,7 +36,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable([
     'brand_id', 'name', 'slug', 'sku', 'gtin', 'supplier_code', 'manufacturer',
     'short_description', 'description', 'ingredients', 'usage_instructions',
-    'product_type', 'cost_cents', 'price_cents', 'promo_price_cents',
+    'product_type', 'has_variants', 'variation_attributes', 'cost_cents', 'price_cents', 'promo_price_cents',
     'promo_starts_at', 'promo_ends_at', 'unit_label', 'unit_quantity', 'power_watts',
     'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'video_url',
     'tags', 'is_active', 'is_featured', 'is_new_arrival', 'is_best_seller',
@@ -114,10 +116,17 @@ class Product extends Model
         return (int) $this->price_cents;
     }
 
+    public function usesVariations(): bool
+    {
+        return (bool) $this->has_variants || $this->product_type === ProductType::Variable;
+    }
+
     protected function casts(): array
     {
         return [
             'product_type' => ProductType::class,
+            'has_variants' => 'boolean',
+            'variation_attributes' => 'array',
             'cost_cents' => 'integer',
             'price_cents' => 'integer',
             'promo_price_cents' => 'integer',

@@ -93,6 +93,7 @@ class ProductAttributeService
             ->join('product_variants', 'variant_attribute_values.product_variant_id', '=', 'product_variants.id')
             ->whereIn('product_variants.product_id', $productIds)
             ->where('product_variants.is_active', true)
+            ->whereNull('product_variants.archived_at')
             ->select('variant_attribute_values.attribute_value_id', 'product_variants.product_id')
             ->get();
 
@@ -201,6 +202,7 @@ class ProductAttributeService
                         ->whereHas('attribute', fn (Builder $aq) => $aq->where('slug', $attrSlug));
                 })->orWhereHas('variants', function (Builder $vq) use ($attrSlug, $valSlugs): void {
                     $vq->where('is_active', true)
+                        ->whereNull('archived_at')
                         ->whereHas('attributeValues', function (Builder $avq) use ($attrSlug, $valSlugs): void {
                             $avq->whereIn('attribute_values.slug', $valSlugs)
                                 ->whereHas('attribute', fn (Builder $aq) => $aq->where('slug', $attrSlug));
@@ -263,7 +265,7 @@ class ProductAttributeService
             $bySlug[$attr->slug]['values'][] = $av->value;
         }
 
-        foreach ($product->variants->where('is_active', true) as $variant) {
+        foreach ($product->variants->where('is_active', true)->whereNull('archived_at') as $variant) {
             foreach ($variant->attributeValues as $av) {
                 $attr = $av->attribute;
                 if (! $attr || ! $attr->is_comparable) {

@@ -77,7 +77,7 @@ class AdminOrderController extends Controller
     {
         $order = Order::query()
             ->with([
-                'items',
+                'items.variant',
                 'payments.events',
                 'refunds',
                 'statusHistories.user:id,name',

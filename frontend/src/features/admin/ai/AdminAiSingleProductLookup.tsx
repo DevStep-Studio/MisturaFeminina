@@ -9,7 +9,7 @@ import RefreshCw from "lucide-solid/icons/refresh-cw";
 import Search from "lucide-solid/icons/search";
 import Sparkles from "lucide-solid/icons/sparkles";
 import Trash2 from "lucide-solid/icons/trash";
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
 import { assetUrl, formatCents } from "../../../lib/format";
 import { ProductImage } from "../../storefront/components/ProductImage";
@@ -18,6 +18,21 @@ import {
   parseBrazilianPriceToCents,
 } from "../admin-helpers";
 import { type BrandOption, type CategoryOption, makeIdempotencyKey } from "../products/types";
+import {
+  VariationMatrixBuilder,
+  type CatalogAttrItem,
+} from "../products/VariationMatrixBuilder";
+import {
+  type VariationAttributeDraft,
+  type VariationRowDraft,
+  type VariationRowErrorMap,
+  buildVariationPersistencePayload,
+  generateOrMergeVariationRows,
+  makeStableUid,
+  mapServerValidationErrorsToVariationRows,
+  normalizeSlug,
+  validateVariationRows,
+} from "../products/variation-matrix";
 import {
   calculateUnitMarginPreview,
   formatBrlSigned,
@@ -61,6 +76,7 @@ function extractApiMessage(err: unknown, fallback: string): string {
 export function AdminAiSingleProductLookup(props: {
   brands: BrandOption[];
   categories: CategoryOption[];
+  attributes?: CatalogAttrItem[];
   canCostWrite: boolean;
   onOpenExistingProduct: (productId: number) => void;
   onProductSaved: (
@@ -120,9 +136,55 @@ export function AdminAiSingleProductLookup(props: {
   );
   const [shortDesc, setShortDesc] = createSignal("");
   const [fullDesc, setFullDesc] = createSignal("");
+  const [unitLabel, setUnitLabel] = createSignal("");
+  const [suggestedFixedSpecs, setSuggestedFixedSpecs] = createSignal<
+    Array<{ attribute_slug: string; attribute_name: string; value: string }>
+  >([]);
+  const [hasVariants, setHasVariants] = createSignal(false);
+  const [variationAttributes, setVariationAttributes] = createSignal<
+    VariationAttributeDraft[]
+  >([]);
+  const [variationRows, setVariationRows] = createSignal<VariationRowDraft[]>(
+    [],
+  );
+  const [variationRowErrors, setVariationRowErrors] = createSignal<
+    Record<string, VariationRowErrorMap>
+  >({});
+  const [serverVariantErrors, setServerVariantErrors] = createSignal<
+    Record<string, string[]>
+  >({});
+  const [variationSectionError, setVariationSectionError] = createSignal<
+    string | null
+  >(null);
+  const [createdCatalogAttrs, setCreatedCatalogAttrs] = createSignal<
+    CatalogAttrItem[]
+  >([]);
   const [priceBrl, setPriceBrl] = createSignal("");
   const [costBrl, setCostBrl] = createSignal("");
   const [stockQty, setStockQty] = createSignal("");
+
+  const [fetchedAttributes] = createResource(async () => {
+    if (props.attributes && props.attributes.length > 0) {
+      return props.attributes;
+    }
+    try {
+      const res = await api<{ data: CatalogAttrItem[] }>("/admin/attributes");
+      return res.data ?? [];
+    } catch {
+      return [];
+    }
+  });
+
+  const catalogAttributes = createMemo<CatalogAttrItem[]>(() => {
+    const map = new Map<string, CatalogAttrItem>();
+    for (const a of props.attributes ?? fetchedAttributes() ?? []) {
+      map.set(a.slug || normalizeSlug(a.name), a);
+    }
+    for (const a of createdCatalogAttrs()) {
+      map.set(a.slug || normalizeSlug(a.name), a);
+    }
+    return Array.from(map.values());
+  });
 
   // Photo state (strict separation between external preview and confirmed store storage)
   const [savedImagePath, setSavedImagePath] = createSignal("");
@@ -198,6 +260,14 @@ export function AdminAiSingleProductLookup(props: {
     setSuggestedNewCat(null);
     setShortDesc("");
     setFullDesc("");
+    setUnitLabel("");
+    setSuggestedFixedSpecs([]);
+    setHasVariants(false);
+    setVariationAttributes([]);
+    setVariationRows([]);
+    setVariationRowErrors({});
+    setServerVariantErrors({});
+    setVariationSectionError(null);
     setPriceBrl("");
     setCostBrl("");
     setStockQty("");
@@ -230,6 +300,8 @@ export function AdminAiSingleProductLookup(props: {
     setGtin(draft.gtin || "");
     setSupplierCode(draft.supplier_code || "");
     setPowerWatts(draft.power_watts ? String(draft.power_watts) : "");
+    setUnitLabel(draft.unit_label || "");
+    setSuggestedFixedSpecs(draft.suggested_fixed_specs ?? []);
     setBrandId(draft.brand_id ? String(draft.brand_id) : "");
     setSuggestedNewBrand(draft.suggested_new_brand_name ?? null);
     setSelectedCatIds(draft.category_ids ?? []);
@@ -251,6 +323,57 @@ export function AdminAiSingleProductLookup(props: {
         ? String(draft.stock_qty)
         : "",
     );
+
+    const suggestedAttrs = draft.suggested_variation_attributes ?? [];
+    if (draft.suggested_has_variants && suggestedAttrs.length > 0) {
+      const catList = catalogAttributes();
+      const builtAttrs: VariationAttributeDraft[] = suggestedAttrs.map((sa, idx) => {
+        const slug = sa.slug || normalizeSlug(sa.name);
+        const catMatch = catList.find((c) => normalizeSlug(c.slug || c.name) === slug);
+        return {
+          uid: makeStableUid("attr"),
+          attribute_id: catMatch?.id,
+          name: sa.name,
+          slug,
+          display_type: slug === "cor" ? "color_swatch" : "pill",
+          sort_order: idx + 1,
+          values: sa.values.map((valLabel, vIdx) => {
+            const valSlug = normalizeSlug(valLabel);
+            const valMatch = catMatch?.values.find(
+              (cv) => normalizeSlug(cv.slug || cv.value) === valSlug,
+            );
+            return {
+              uid: makeStableUid("val"),
+              value_id: valMatch?.id,
+              value: valLabel,
+              slug: valSlug,
+              color_hex: valMatch?.color_hex ?? null,
+              sort_order: vIdx + 1,
+            };
+          }),
+        };
+      });
+      const basePrice =
+        draft.price_cents && draft.price_cents > 0 ? draft.price_cents : 0;
+      const builtRows = generateOrMergeVariationRows({
+        attributes: builtAttrs,
+        existingRows: [],
+        parentSku: draft.sku || "",
+        parentPriceCents: basePrice,
+        parentPromoPriceCents: null,
+      });
+      setHasVariants(true);
+      setVariationAttributes(builtAttrs);
+      setVariationRows(builtRows);
+    } else {
+      setHasVariants(false);
+      setVariationAttributes([]);
+      setVariationRows([]);
+    }
+    setVariationRowErrors({});
+    setServerVariantErrors({});
+    setVariationSectionError(null);
+
     setSavedImagePath(draft.image_path || "");
     setExternalImageUrl(draft.image_url || null);
     setImageStatus(imgStatus);
@@ -480,6 +603,9 @@ export function AdminAiSingleProductLookup(props: {
     setSaveError(null);
     setFieldErrors({});
     setDuplicateConflicts([]);
+    setVariationRowErrors({});
+    setServerVariantErrors({});
+    setVariationSectionError(null);
 
     const trimmedName = name().trim();
     const trimmedSku = sku().trim().toUpperCase();
@@ -498,8 +624,31 @@ export function AdminAiSingleProductLookup(props: {
         "Informe um custo válido (>= R$ 0,00) ou deixe em branco.",
       ];
     }
-    if (!Number.isFinite(qty) || qty < 0) {
+    if (!hasVariants() && (!Number.isFinite(qty) || qty < 0)) {
       localErrors.stock_qty = ["Informe uma quantidade de estoque válida (>= 0)."];
+    }
+
+    if (hasVariants()) {
+      const enabledCount = variationRows().filter(
+        (r) => r.enabled && !r.is_archived,
+      ).length;
+      if (enabledCount === 0) {
+        const msg =
+          'Habilite ao menos uma combinação vendável ou desative "Este produto tem variações".';
+        setVariationSectionError(msg);
+        setSaveError(msg);
+        return;
+      }
+      const varCheck = validateVariationRows(variationRows());
+      if (!varCheck.valid) {
+        setVariationRowErrors(varCheck.rowErrors);
+        setVariationSectionError(varCheck.summaryMessage);
+        setSaveError(
+          varCheck.summaryMessage ||
+            "Revise as combinações destacadas na grade de variações.",
+        );
+        return;
+      }
     }
 
     if (Object.keys(localErrors).length > 0) {
@@ -507,6 +656,19 @@ export function AdminAiSingleProductLookup(props: {
       setSaveError("Revise os campos obrigatórios destacados antes de salvar.");
       return;
     }
+
+    const variationPayload = buildVariationPersistencePayload({
+      hasVariants: hasVariants(),
+      attributes: variationAttributes(),
+      rows: variationRows(),
+      parentPriceCents: priceCents!,
+      parentPromoPriceCents: null,
+      simpleStockQty: Number.isFinite(qty) ? Math.max(0, qty) : 0,
+    });
+
+    const sanitizedVariants = variationPayload.variants?.map((v) =>
+      props.canCostWrite ? v : { ...v, cost_cents: undefined },
+    );
 
     setSaving(true);
     try {
@@ -553,11 +715,18 @@ export function AdminAiSingleProductLookup(props: {
         power_watts: powerWatts().trim()
           ? Number.parseInt(powerWatts().trim(), 10) || null
           : null,
+        unit_label: unitLabel().trim() || null,
         brand_id: brandId() ? Number(brandId()) : null,
         category_ids: selectedCatIds(),
         price_cents: priceCents,
         ...(props.canCostWrite ? { cost_cents: costParsed.cents } : {}),
-        stock_qty: qty,
+        has_variants: variationPayload.has_variants,
+        product_type: variationPayload.product_type,
+        variation_attributes: variationPayload.variation_attributes,
+        ...(variationPayload.stock_qty !== undefined
+          ? { stock_qty: variationPayload.stock_qty }
+          : {}),
+        ...(sanitizedVariants !== undefined ? { variants: sanitizedVariants } : {}),
         short_description: shortDesc().trim() || undefined,
         description: fullDesc().trim() || undefined,
         seo_title: `${trimmedName} | Mistura Feminina Cosméticos`.slice(0, 180),
@@ -613,7 +782,15 @@ export function AdminAiSingleProductLookup(props: {
             "Falha ao gravar o produto. Tente novamente sem perder seus dados.",
           ),
         );
-        if (err.validation) setFieldErrors(err.validation);
+        if (err.validation) {
+          setFieldErrors(err.validation);
+          const mappedServer = mapServerValidationErrorsToVariationRows(
+            err.validation,
+            variationRows(),
+          );
+          setServerVariantErrors(mappedServer.byRowKey);
+          setVariationSectionError(mappedServer.sectionError);
+        }
       } else {
         setSaveError("Falha ao gravar o produto. Tente novamente sem perder seus dados.");
       }
@@ -1254,6 +1431,85 @@ export function AdminAiSingleProductLookup(props: {
                 )}
               </Show>
 
+              {/* Ficha fixa & Variações opcionais */}
+              <div class="space-y-3 rounded-[10px] border border-zinc-200 bg-white p-3.5 text-xs">
+                <div class="grid gap-3 sm:grid-cols-12">
+                  <div class="sm:col-span-5">
+                    <AdminField
+                      label="Apresentação / medida fixa (ex.: 15 ml)"
+                      forId="adm-ai-prod-unitlabel"
+                    >
+                      <AdminInput
+                        id="adm-ai-prod-unitlabel"
+                        type="text"
+                        placeholder="Ex.: 15 ml, 8 ml, 48W Bivolt"
+                        value={unitLabel()}
+                        onInput={(e) => setUnitLabel(e.currentTarget.value)}
+                      />
+                    </AdminField>
+                  </div>
+                  <div class="flex items-end sm:col-span-7">
+                    <Show
+                      when={suggestedFixedSpecs().length > 0}
+                      fallback={
+                        <p class="pb-1.5 text-[11px] text-zinc-500">
+                          Características fixas da ficha ficam separadas das opções de compra (variações).
+                        </p>
+                      }
+                    >
+                      <div class="flex flex-wrap items-center gap-1.5 pb-1">
+                        <span class="text-[11px] font-semibold text-zinc-600">
+                          Ficha sugerida:
+                        </span>
+                        <For each={suggestedFixedSpecs()}>
+                          {(spec) => (
+                            <span class="rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
+                              {spec.attribute_name}: {spec.value}
+                            </span>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </div>
+                </div>
+              </div>
+
+              <VariationMatrixBuilder
+                hasVariants={hasVariants()}
+                onToggleHasVariants={(next) => {
+                  setHasVariants(next);
+                  if (!next) {
+                    setVariationRowErrors({});
+                    setServerVariantErrors({});
+                    setVariationSectionError(null);
+                  }
+                }}
+                attributes={variationAttributes()}
+                onAttributesChange={setVariationAttributes}
+                rows={variationRows()}
+                onRowsChange={setVariationRows}
+                catalogAttributes={catalogAttributes()}
+                onCatalogAttributeCreated={(attr) =>
+                  setCreatedCatalogAttrs((prev) => [...prev, attr])
+                }
+                parentSku={sku().trim().toUpperCase()}
+                parentPriceCents={parseBrazilianPriceToCents(priceBrl()) ?? 0}
+                parentPromoPriceCents={null}
+                parentCostCents={
+                  props.canCostWrite && parseBrlNullableCost(costBrl()).valid
+                    ? parseBrlNullableCost(costBrl()).cents
+                    : null
+                }
+                parentWeightGrams={200}
+                parentImagePath={savedImagePath()}
+                canCostView={props.canCostWrite}
+                canCostWrite={props.canCostWrite}
+                isEditMode={false}
+                rowErrors={variationRowErrors()}
+                serverVariantErrors={serverVariantErrors()}
+                sectionError={variationSectionError()}
+              />
+
               {/* Store-exclusive Commercial Data: Price, Cost, Stock */}
               <div class="space-y-3 rounded-[10px] border border-zinc-200 bg-zinc-50/70 p-4">
                 <div>
@@ -1267,7 +1523,11 @@ export function AdminAiSingleProductLookup(props: {
 
                 <div
                   class={`grid gap-3 ${
-                    props.canCostWrite ? "sm:grid-cols-3" : "sm:grid-cols-2"
+                    props.canCostWrite && !hasVariants()
+                      ? "sm:grid-cols-3"
+                      : props.canCostWrite || !hasVariants()
+                        ? "sm:grid-cols-2"
+                        : "sm:grid-cols-1"
                   }`}
                 >
                   <AdminField
@@ -1307,23 +1567,25 @@ export function AdminAiSingleProductLookup(props: {
                     </AdminField>
                   </Show>
 
-                  <AdminField
-                    label="Estoque inicial (un.)"
-                    forId="adm-ai-prod-stock"
-                    required
-                    error={fieldErrors().stock_qty?.[0] ?? null}
-                  >
-                    <AdminInput
-                      id="adm-ai-prod-stock"
-                      type="number"
-                      min="0"
-                      mono
-                      placeholder="Ex.: 10"
-                      value={stockQty()}
-                      hasError={Boolean(fieldErrors().stock_qty?.[0])}
-                      onInput={(e) => setStockQty(e.currentTarget.value)}
-                    />
-                  </AdminField>
+                  <Show when={!hasVariants()}>
+                    <AdminField
+                      label="Estoque inicial (un.)"
+                      forId="adm-ai-prod-stock"
+                      required
+                      error={fieldErrors().stock_qty?.[0] ?? null}
+                    >
+                      <AdminInput
+                        id="adm-ai-prod-stock"
+                        type="number"
+                        min="0"
+                        mono
+                        placeholder="Ex.: 10"
+                        value={stockQty()}
+                        hasError={Boolean(fieldErrors().stock_qty?.[0])}
+                        onInput={(e) => setStockQty(e.currentTarget.value)}
+                      />
+                    </AdminField>
+                  </Show>
                 </div>
 
                 <Show when={props.canCostWrite && marginPreview().profitCents !== null}>
