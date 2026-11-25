@@ -11,7 +11,6 @@ use App\Domain\Shared\Enums\RoleSlug;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
-use App\Models\Cart;
 use App\Models\CustomerProfile;
 use App\Models\Role;
 use App\Models\User;
@@ -221,11 +220,8 @@ class AuthController extends Controller
         if (! is_string($guestToken) || ! Str::isUuid($guestToken)) {
             return;
         }
-        $guestCart = Cart::query()->where('token', $guestToken)->whereNull('user_id')->first();
-        if (! $guestCart) {
-            return;
-        }
-        $userCart = Cart::query()->where('user_id', $user->id)->latest('id')->first();
-        $this->carts->mergeGuestCart($user, $guestCart, $userCart);
+        $cartRequest = clone $request;
+        $cartRequest->setUserResolver(fn (): User => $user);
+        $this->carts->resolveCart($cartRequest, false);
     }
 }

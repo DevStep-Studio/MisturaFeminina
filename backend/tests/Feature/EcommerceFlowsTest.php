@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Domain\Shared\Enums\PaymentStatus;
 use App\Mail\RestockAvailableMail;
 use App\Models\Coupon;
+use App\Models\Cart;
 use App\Models\IntegrationSetting;
 use App\Models\Order;
 use App\Models\Product;
@@ -13,8 +14,11 @@ use App\Models\StockReservation;
 use App\Models\User;
 use Database\Seeders\DemoStoreSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -60,6 +64,102 @@ test('storefront bootstrap, home, search, and restock alert work end-to-end', fu
         ->assertJsonPath('data.stock_qty', 10);
 
     Mail::assertQueued(RestockAvailableMail::class, fn (RestockAvailableMail $mail): bool => $mail->hasTo('avise@misturafeminina.local'));
+});
+
+test('authenticated cart resolution replaces a token belonging to another account', function (): void {
+    $owner = User::factory()->create();
+    $customer = User::factory()->create();
+    $otherCart = Cart::query()->create([
+        'token' => Str::uuid()->toString(),
+        'user_id' => $owner->id,
+    ]);
+
+    $response = $this->actingAs($customer)
+        ->withHeader('X-Cart-Token', $otherCart->token)
+        ->getJson('/api/v1/cart')
+        ->assertOk()
+        ->assertJsonPath('data.items_count', 0);
+
+    $newToken = $response->json('data.token');
+    expect($newToken)->not->toBe($otherCart->token);
+    $this->assertDatabaseHas('carts', ['token' => $newToken, 'user_id' => $customer->id]);
+    $this->assertDatabaseHas('carts', ['id' => $otherCart->id, 'user_id' => $owner->id]);
+
+    $this->getJson('/api/v1/cart')->assertOk()->assertJsonPath('data.token', $newToken);
+    expect(Cart::query()->where('user_id', $customer->id)->count())->toBe(1);
+});
+
+test('anonymous cart resolution does not expose a cart belonging to an account', function (): void {
+    $owner = User::factory()->create();
+    $ownedCart = Cart::query()->create([
+        'token' => Str::uuid()->toString(),
+        'user_id' => $owner->id,
+    ]);
+
+    $response = $this->withHeader('X-Cart-Token', $ownedCart->token)
+        ->getJson('/api/v1/cart')->assertOk();
+
+    expect($response->json('data.token'))->not->toBe($ownedCart->token);
+    $this->assertDatabaseHas('carts', ['token' => $response->json('data.token'), 'user_id' => null]);
+    $this->assertDatabaseHas('carts', ['id' => $ownedCart->id, 'user_id' => $owner->id]);
+});
+
+test('anonymous cart resolution reuses the same guest token', function (): void {
+    $token = Str::uuid()->toString();
+
+    $this->withHeader('X-Cart-Token', $token)
+        ->getJson('/api/v1/cart')->assertOk()->assertJsonPath('data.token', $token);
+    $this->getJson('/api/v1/cart')->assertOk()->assertJsonPath('data.token', $token);
+
+    expect(Cart::query()->where('token', $token)->count())->toBe(1);
+});
+
+test('anonymous cart resolution recovers when its token is created after lookup', function (): void {
+    $token = Str::uuid()->toString();
+    $inserted = false;
+    DB::listen(function (QueryExecuted $query) use ($token, &$inserted): void {
+        if (! $inserted && str_starts_with($query->sql, 'select') && str_contains($query->sql, 'carts') && in_array($token, $query->bindings, true)) {
+            $inserted = true;
+            DB::table('carts')->insert([
+                'token' => $token,
+                'expires_at' => now()->addDays(14),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    });
+
+    $this->withHeader('X-Cart-Token', $token)
+        ->getJson('/api/v1/cart')->assertOk()->assertJsonPath('data.token', $token);
+
+    expect($inserted)->toBeTrue();
+    expect(Cart::query()->where('token', $token)->count())->toBe(1);
+});
+
+test('login merges guest items into the existing account cart only once', function (): void {
+    $customer = User::factory()->create();
+    $variant = ProductVariant::query()->where('sku', 'MF-MSC-004')->firstOrFail();
+    $variant->update(['stock_qty' => 10, 'reserved_qty' => 0]);
+    $userCart = Cart::query()->create(['token' => Str::uuid()->toString(), 'user_id' => $customer->id]);
+    $guestCart = Cart::query()->create(['token' => Str::uuid()->toString()]);
+    foreach ([[$userCart, 2], [$guestCart, 3]] as [$cart, $quantity]) {
+        $cart->items()->create([
+            'product_id' => $variant->product_id,
+            'product_variant_id' => $variant->id,
+            'quantity' => $quantity,
+            'unit_price_snapshot_cents' => $variant->effectivePriceCents(),
+        ]);
+    }
+
+    $this->withHeader('X-Cart-Token', $guestCart->token)
+        ->postJson('/login', ['email' => $customer->email, 'password' => 'password'])
+        ->assertNoContent();
+
+    $this->actingAs($customer)->getJson('/api/v1/cart')
+        ->assertOk()->assertJsonPath('data.token', $userCart->token)->assertJsonPath('data.items_count', 5);
+    $this->getJson('/api/v1/cart')->assertOk()->assertJsonPath('data.items_count', 5);
+    $this->assertDatabaseMissing('carts', ['id' => $guestCart->id]);
+    expect(Cart::query()->where('user_id', $customer->id)->count())->toBe(1);
 });
 
 test('guest cart merges on login, recalculates coupon/shipping, and prevents last-unit overselling', function (): void {
