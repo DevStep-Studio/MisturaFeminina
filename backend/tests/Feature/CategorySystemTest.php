@@ -166,6 +166,16 @@ test('seeder oficial cadastra todas as 98 categorias em 3 niveis respeitando ord
     expect(Category::query()->count())->toBe(98);
     expect($brocas->fresh()->description)->toBe('Descrição customizada pelo admin');
     expect($brocas->fresh()->seo_title)->toBe('Brocas Profissionais | Mistura Feminina');
+
+    // Admin endpoint triggers backup + idempotent sync without duplicating
+    $staff = createCategoryStaff('seed-staff@misturafeminina.com.br');
+    $this->actingAs($staff);
+    $syncRes = $this->postJson('/api/v1/admin/categories/seed-official')
+        ->assertOk()
+        ->json('data');
+    expect($syncRes['created'])->toBe(0);
+    expect($syncRes['reused'])->toBe(98);
+    expect($syncRes['backup_output'])->toContain('Backup criado em:');
 });
 
 test('admin CRUD protege contra duplicata no mesmo nivel, ciclos hierarquicos e exclusao com transferencia segura', function (): void {

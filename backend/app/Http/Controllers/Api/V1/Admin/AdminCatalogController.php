@@ -836,6 +836,48 @@ class AdminCatalogController extends Controller
         return response()->json(['data' => $this->categoryHierarchy->listAdminCategories()]);
     }
 
+    public function seedOfficialCategories(Request $request): JsonResponse
+    {
+        $backupCode = \Illuminate\Support\Facades\Artisan::call('mistura:backup');
+        $backupOutput = trim(\Illuminate\Support\Facades\Artisan::output());
+        if ($backupCode !== 0) {
+            return response()->json([
+                'message' => 'Backup prévio do banco falhou; sincronização cancelada para preservar dados.',
+                'backup_output' => $backupOutput,
+            ], 500);
+        }
+
+        $migrated = false;
+        if (! CategoryHierarchyService::hasPrimaryPivotColumn()) {
+            $migCode = \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+            if ($migCode !== 0) {
+                return response()->json([
+                    'message' => 'Falha ao aplicar migration incremental de categorias.',
+                    'migrate_output' => trim(\Illuminate\Support\Facades\Artisan::output()),
+                ], 500);
+            }
+            CategoryHierarchyService::resetSchemaCache();
+            $migrated = true;
+        }
+
+        $seeder = new \Database\Seeders\OfficialCategoriesSeeder;
+        $stats = $seeder->seedOfficialCategories();
+        $this->categoryHierarchy->clearCaches();
+
+        $this->audit->record('catalog.official_categories_seeded', $request->user(), 'category', null, null, array_merge($stats, [
+            'backup_output' => $backupOutput,
+            'migrated' => $migrated,
+        ]), $request);
+
+        return response()->json([
+            'message' => "Estrutura oficial sincronizada: {$stats['created']} criada(s), {$stats['reused']} preservada(s).",
+            'data' => array_merge($stats, [
+                'migrated' => $migrated,
+                'backup_output' => $backupOutput,
+            ]),
+        ]);
+    }
+
     public function storeCategory(Request $request): JsonResponse
     {
         $validated = $request->validate([

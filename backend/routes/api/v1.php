@@ -169,6 +169,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('inventory/movements', [AdminCatalogController::class, 'stockMovements'])->middleware('permission:catalog.view');
         Route::get('categories', [AdminCatalogController::class, 'listCategories'])->middleware('permission:catalog.view');
         Route::post('categories', [AdminCatalogController::class, 'storeCategory'])->middleware('permission:catalog.write');
+        Route::post('categories/seed-official', [AdminCatalogController::class, 'seedOfficialCategories'])->middleware('permission:catalog.write');
         Route::post('categories/reorder', [AdminCatalogController::class, 'reorderCategories'])->middleware('permission:catalog.write');
         Route::post('categories/bulk', [AdminCatalogController::class, 'bulkCategories'])->middleware('permission:catalog.write');
         Route::get('categories/{id}/dependencies', [AdminCatalogController::class, 'categoryDependencies'])->middleware('permission:catalog.view');

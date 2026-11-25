@@ -974,6 +974,38 @@ export function CategoryTreeManager(props: {
           <div class="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
+              disabled={saving()}
+              onClick={async () => {
+                if (saving()) return;
+                setSaving(true);
+                setFeedback(null);
+                setErrorBanner(null);
+                try {
+                  const res = await api<{
+                    message?: string;
+                    data?: { created?: number; reused?: number };
+                  }>("/admin/categories/seed-official", { method: "POST" });
+                  await props.onRefresh();
+                  setFeedback(
+                    res.message ??
+                      `Estrutura oficial sincronizada (${res.data?.created ?? 0} criada(s), ${res.data?.reused ?? 0} preservada(s)).`,
+                  );
+                } catch (err) {
+                  setErrorBanner(
+                    err instanceof ApiError
+                      ? err.message
+                      : "Não foi possível sincronizar a estrutura oficial.",
+                  );
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              class="rounded border border-[#e4c6ea] bg-[#f5ebf7] px-2.5 py-1 font-semibold text-[#62298d] hover:bg-[#ecdaf0] disabled:opacity-50"
+            >
+              Carregar estrutura oficial
+            </button>
+            <button
+              type="button"
               onClick={expandAll}
               class="rounded px-2 py-1 font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
             >

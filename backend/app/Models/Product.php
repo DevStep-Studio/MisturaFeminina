@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Domain\Shared\Enums\ProductType;
 use Carbon\CarbonInterface;
+use App\Domain\Catalog\Services\CategoryHierarchyService;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
@@ -57,9 +58,11 @@ class Product extends Model
     /** @return BelongsToMany<Category, $this> */
     public function categories(): BelongsToMany
     {
-        return $this->belongsToMany(Category::class, 'category_product')
-            ->withPivot('is_primary')
-            ->orderByDesc('category_product.is_primary');
+        $rel = $this->belongsToMany(Category::class, 'category_product');
+
+        return CategoryHierarchyService::hasPrimaryPivotColumn()
+            ? $rel->withPivot('is_primary')->orderByDesc('category_product.is_primary')
+            : $rel;
     }
 
     /** @return HasMany<ProductImage, $this> */

@@ -46,7 +46,11 @@ class Category extends Model
     /** @return BelongsToMany<Product, $this> */
     public function products(): BelongsToMany
     {
-        return $this->belongsToMany(Product::class, 'category_product')->withPivot('is_primary');
+        $rel = $this->belongsToMany(Product::class, 'category_product');
+
+        return CategoryHierarchyService::hasPrimaryPivotColumn()
+            ? $rel->withPivot('is_primary')
+            : $rel;
     }
 
     /** @return BelongsToMany<Attribute, $this> */

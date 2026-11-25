@@ -20,6 +20,23 @@ class CategoryHierarchyService
 
     public const CACHE_BOOTSTRAP_MENU_KEY = 'catalog:categories:bootstrap_menu:v1';
 
+    private static ?bool $primaryPivotSupported = null;
+
+    public static function hasPrimaryPivotColumn(): bool
+    {
+        if (self::$primaryPivotSupported === null) {
+            self::$primaryPivotSupported = Schema::hasTable('category_product')
+                && Schema::hasColumn('category_product', 'is_primary');
+        }
+
+        return self::$primaryPivotSupported;
+    }
+
+    public static function resetSchemaCache(): void
+    {
+        self::$primaryPivotSupported = null;
+    }
+
     public function clearCaches(): void
     {
         Cache::forget(self::CACHE_DIRECTORY_KEY);
