@@ -47,10 +47,12 @@ interface ReportData {
     net_cents: number;
   }[];
   top_products: {
+    product_id?: number | null;
     sku_snapshot: string;
     product_name_snapshot: string;
     qty_sold: number;
     revenue_cents: number;
+    image_url?: string | null;
   }[];
   top_coupons: { coupon_code: string; uses: number; discount_cents: number }[];
   profit_summary?: {
@@ -156,7 +158,7 @@ function AdminReportsPage() {
               type="date"
               value={from()}
               onInput={(e) => setFrom(e.currentTarget.value)}
-              class="mt-1 h-9 rounded-md border border-zinc-300 px-3 text-xs"
+              class="mt-1 h-9 rounded-xl border border-zinc-300/90 bg-white px-3 text-xs font-semibold text-zinc-800 shadow-2xs transition focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/15"
             />
           </div>
           <div>
@@ -165,7 +167,7 @@ function AdminReportsPage() {
               type="date"
               value={to()}
               onInput={(e) => setTo(e.currentTarget.value)}
-              class="mt-1 h-9 rounded-md border border-zinc-300 px-3 text-xs"
+              class="mt-1 h-9 rounded-xl border border-zinc-300/90 bg-white px-3 text-xs font-semibold text-zinc-800 shadow-2xs transition focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/15"
             />
           </div>
         </div>
@@ -263,6 +265,8 @@ function AdminReportsPage() {
                     name: p.product_name_snapshot,
                     total_qty: p.qty_sold,
                     total_cents: p.revenue_cents,
+                    image_url: p.image_url,
+                    product_id: p.product_id,
                   }))}
                 />
               </div>

@@ -496,14 +496,17 @@ export function AdminLayout(
               </div>
             </div>
 
-            <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-              <Show when={props.headerActions}>{props.headerActions}</Show>
+            <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2.5">
+              <Show when={props.headerActions}>
+                {props.headerActions}
+                <div class="hidden h-5 w-px bg-zinc-200 sm:block" aria-hidden="true" />
+              </Show>
               <Link
                 to="/"
-                class="adm-btn inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+                class="group inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-zinc-200/90 bg-white px-3.5 text-xs font-semibold text-zinc-700 shadow-2xs transition-all hover:border-[#93509e]/40 hover:bg-[#FAF5FB] hover:text-[#93509e]"
               >
-                <ExternalLink class="h-3.5 w-3.5" />
-                Ver Loja
+                <ExternalLink class="h-3.5 w-3.5 text-zinc-400 transition-colors group-hover:text-[#93509e]" />
+                <span class="whitespace-nowrap">Ver Loja</span>
               </Link>
             </div>
           </header>

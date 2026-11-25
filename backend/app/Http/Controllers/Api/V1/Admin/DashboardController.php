@@ -11,6 +11,7 @@ use App\Domain\Shared\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AnalyticsEvent;
 use App\Models\Order;
+use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\RestockRequest;
 use App\Models\Review;
@@ -97,20 +98,42 @@ class DashboardController extends Controller
         }
 
         // Top 5 products by revenue
-        $topProducts = DB::table('order_items')
+        $topProductsRaw = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->whereIn('orders.status', $paidStatuses)
             ->where('orders.created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('order_items.product_name_snapshot as name, SUM(order_items.quantity) as total_qty, SUM(order_items.total_cents) as total_cents')
-            ->groupBy('name')
+            ->selectRaw('order_items.product_name_snapshot as name, MAX(order_items.product_id) as product_id, SUM(order_items.quantity) as total_qty, SUM(order_items.total_cents) as total_cents')
+            ->groupBy('order_items.product_name_snapshot')
             ->orderByDesc('total_cents')
             ->limit(5)
+            ->get();
+
+        $productIds = $topProductsRaw->pluck('product_id')->filter()->unique()->all();
+        $imagesByProductId = ProductImage::query()
+            ->whereIn('product_id', $productIds)
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
             ->get()
-            ->map(fn (object $p): array => [
-                'name' => (string) $p->name,
-                'total_qty' => (int) $p->total_qty,
-                'total_cents' => (int) $p->total_cents,
-            ]);
+            ->groupBy('product_id')
+            ->map(fn ($imgs) => $imgs->first()?->path);
+
+        $variantImagesByProductId = ProductVariant::query()
+            ->whereIn('product_id', $productIds)
+            ->whereNotNull('image_path')
+            ->orderBy('sort_order')
+            ->get()
+            ->groupBy('product_id')
+            ->map(fn ($vars) => $vars->first()?->image_path);
+
+        $topProducts = $topProductsRaw->map(fn (object $p): array => [
+            'name' => (string) $p->name,
+            'product_id' => $p->product_id ? (int) $p->product_id : null,
+            'image_url' => $p->product_id && (isset($imagesByProductId[$p->product_id]) || isset($variantImagesByProductId[$p->product_id]))
+                ? (string) ($imagesByProductId[$p->product_id] ?? $variantImagesByProductId[$p->product_id])
+                : null,
+            'total_qty' => (int) $p->total_qty,
+            'total_cents' => (int) $p->total_cents,
+        ]);
 
         // Payment methods breakdown
         $paymentMethods = DB::table('payments')

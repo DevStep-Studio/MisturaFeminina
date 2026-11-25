@@ -208,16 +208,18 @@ function AdminAiCentralPage() {
               {/* Card 1: Agente de Atendimento */}
               <div class="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
                 <div>
-                  <div class="flex items-center justify-between">
-                    <span class="inline-flex items-center gap-2 text-sm font-extrabold text-zinc-900">
-                      <MessageCircle class="size-4 text-[#93509e]" />
-                      Agente de Atendimento
-                    </span>
-                    <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-bold text-zinc-700">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#EBD4EC]/60 bg-[#FAF5FB] text-[#93509e]">
+                      <MessageCircle class="size-4" aria-hidden="true" />
+                    </div>
+                    <span class="whitespace-nowrap rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-bold text-zinc-700">
                       {ov().agents.find((a) => a.slug === "customer_support")
                         ?.integration_label ?? ov().provider.label}
                     </span>
                   </div>
+                  <h3 class="mt-2.5 whitespace-nowrap text-sm font-extrabold tracking-tight text-zinc-900">
+                    Agente de Atendimento
+                  </h3>
                   <p class="mt-2 text-xs text-zinc-600">
                     Prepare respostas personalizadas utilizando os dados reais
                     dos pedidos.
@@ -254,16 +256,18 @@ function AdminAiCentralPage() {
               {/* Card 2: Agente de Cadastro */}
               <div class="flex flex-col justify-between rounded-xl border border-[#DFC2E3] bg-white p-5 shadow-2xs">
                 <div>
-                  <div class="flex items-center justify-between">
-                    <span class="inline-flex items-center gap-2 text-sm font-extrabold text-zinc-900">
-                      <FileSpreadsheet class="size-4 text-[#93509e]" />
-                      Agente de Cadastro
-                    </span>
-                    <span class="rounded-full bg-[#F3E2F6] px-2.5 py-0.5 text-[10px] font-bold text-[#93509e]">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#EBD4EC]/60 bg-[#FAF5FB] text-[#93509e]">
+                      <FileSpreadsheet class="size-4" aria-hidden="true" />
+                    </div>
+                    <span class="whitespace-nowrap rounded-full bg-[#F3E2F6] px-2.5 py-0.5 text-[10px] font-bold text-[#93509e]">
                       {ov().agents.find((a) => a.slug === "product_catalog")
                         ?.integration_label ?? ov().provider.label}
                     </span>
                   </div>
+                  <h3 class="mt-2.5 whitespace-nowrap text-sm font-extrabold tracking-tight text-zinc-900">
+                    Agente de Cadastro
+                  </h3>
                   <p class="mt-2 text-xs text-zinc-600">
                     Transforme planilhas, fichas e documentos em produtos
                     prontos para revisão.
@@ -301,17 +305,19 @@ function AdminAiCentralPage() {
               {/* Card 3: Agente de Reposicao */}
               <div class="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs">
                 <div>
-                  <div class="flex items-center justify-between">
-                    <span class="inline-flex items-center gap-2 text-sm font-extrabold text-zinc-900">
-                      <PackagePlus class="size-4 text-[#93509e]" />
-                      Agente de Reposição
-                    </span>
-                    <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-bold text-zinc-700">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#EBD4EC]/60 bg-[#FAF5FB] text-[#93509e]">
+                      <PackagePlus class="size-4" aria-hidden="true" />
+                    </div>
+                    <span class="whitespace-nowrap rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-bold text-zinc-700">
                       {ov().agents.find(
                         (a) => a.slug === "inventory_replenishment",
                       )?.integration_label ?? ov().provider.label}
                     </span>
                   </div>
+                  <h3 class="mt-2.5 whitespace-nowrap text-sm font-extrabold tracking-tight text-zinc-900">
+                    Agente de Reposição
+                  </h3>
                   <p class="mt-2 text-xs text-zinc-600">
                     Analise vendas e estoques para descobrir o que precisa ser
                     reposto.
@@ -351,16 +357,18 @@ function AdminAiCentralPage() {
               {/* Card 4: Marketing & Growth */}
               <div class="flex flex-col justify-between rounded-xl border border-[#DFC2E3] bg-white p-5 shadow-2xs">
                 <div>
-                  <div class="flex items-center justify-between">
-                    <span class="inline-flex items-center gap-2 text-sm font-extrabold text-zinc-900">
-                      <TrendingUp class="size-4 text-[#93509e]" />
-                      Marketing & Growth
-                    </span>
-                    <span class="rounded-full bg-[#F3E2F6] px-2.5 py-0.5 text-[10px] font-bold text-[#93509e]">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#EBD4EC]/60 bg-[#FAF5FB] text-[#93509e]">
+                      <TrendingUp class="size-4" aria-hidden="true" />
+                    </div>
+                    <span class="whitespace-nowrap rounded-full bg-[#F3E2F6] px-2.5 py-0.5 text-[10px] font-bold text-[#93509e]">
                       {ov().agents.find((a) => a.slug === "marketing_growth")
                         ?.integration_label ?? ov().provider.label}
                     </span>
                   </div>
+                  <h3 class="mt-2.5 whitespace-nowrap text-sm font-extrabold tracking-tight text-zinc-900">
+                    Marketing & Growth
+                  </h3>
                   <p class="mt-2 text-xs text-zinc-600">
                     Analise o desempenho da loja, melhore seu SEO e otimize campanhas do Google e das redes sociais.
                   </p>
@@ -390,9 +398,9 @@ function AdminAiCentralPage() {
             </section>
 
             {/* Indicadores Reais */}
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-[11px] font-bold uppercase text-zinc-500">
+                <p class="truncate text-[11px] font-bold uppercase tracking-wide text-zinc-500" title="Cadastros preparados">
                   Cadastros preparados
                 </p>
                 <p class="mt-1 text-2xl font-black text-zinc-900">
@@ -400,7 +408,7 @@ function AdminAiCentralPage() {
                 </p>
               </div>
               <div class="rounded-xl border border-amber-200 bg-white p-4">
-                <p class="text-[11px] font-bold uppercase text-zinc-500">
+                <p class="truncate text-[11px] font-bold uppercase tracking-wide text-zinc-500" title="Aguardando revisão">
                   Aguardando revisão
                 </p>
                 <p class="mt-1 text-2xl font-black text-amber-700">
@@ -408,7 +416,7 @@ function AdminAiCentralPage() {
                 </p>
               </div>
               <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-[11px] font-bold uppercase text-zinc-500">
+                <p class="truncate text-[11px] font-bold uppercase tracking-wide text-zinc-500" title="Respostas preparadas">
                   Respostas preparadas
                 </p>
                 <p class="mt-1 text-2xl font-black text-[#93509e]">
@@ -416,15 +424,15 @@ function AdminAiCentralPage() {
                 </p>
               </div>
               <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-[11px] font-bold uppercase text-zinc-500">
+                <p class="truncate text-[11px] font-bold uppercase tracking-wide text-zinc-500" title="Sugestões de reposição">
                   Sugestões de reposição
                 </p>
                 <p class="mt-1 text-2xl font-black text-zinc-900">
                   {ov().kpis.replenishment_recommendations_generated}
                 </p>
               </div>
-              <div class="rounded-xl border border-zinc-200 bg-white p-4">
-                <p class="text-[11px] font-bold uppercase text-zinc-500">
+              <div class="col-span-2 rounded-xl border border-zinc-200 bg-white p-4 sm:col-span-1">
+                <p class="truncate text-[11px] font-bold uppercase tracking-wide text-zinc-500" title="Execuções com falha">
                   Execuções com falha
                 </p>
                 <p class="mt-1 text-2xl font-black text-red-700">

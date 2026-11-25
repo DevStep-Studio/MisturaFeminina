@@ -213,19 +213,20 @@ function AdminDashboardPage() {
   );
 
   const periodFilterControls = (
-    <div class="flex flex-wrap items-center gap-1.5 text-xs">
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      {/* Segmented Period Shortcuts */}
       <div
         role="group"
         aria-label="Atalhos de período"
-        class="inline-flex rounded-[8px] border border-zinc-200 bg-zinc-50 p-0.5"
+        class="inline-flex h-9 shrink-0 items-center rounded-xl border border-zinc-200/90 bg-zinc-100/70 p-1 shadow-2xs"
       >
         <button
           type="button"
           onClick={() => applyPreset("today")}
-          class={`rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors ${
+          class={`h-7 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-all duration-150 ${
             preset() === "today"
-              ? "bg-white font-semibold text-[#62298d] shadow-2xs"
-              : "text-zinc-600 hover:text-zinc-900"
+              ? "bg-white font-bold text-[#93509e] shadow-2xs"
+              : "text-zinc-500 hover:text-zinc-900"
           }`}
         >
           Hoje
@@ -233,10 +234,10 @@ function AdminDashboardPage() {
         <button
           type="button"
           onClick={() => applyPreset("7d")}
-          class={`rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors ${
+          class={`h-7 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-all duration-150 ${
             preset() === "7d"
-              ? "bg-white font-semibold text-[#62298d] shadow-2xs"
-              : "text-zinc-600 hover:text-zinc-900"
+              ? "bg-white font-bold text-[#93509e] shadow-2xs"
+              : "text-zinc-500 hover:text-zinc-900"
           }`}
         >
           7 dias
@@ -244,17 +245,19 @@ function AdminDashboardPage() {
         <button
           type="button"
           onClick={() => applyPreset("30d")}
-          class={`rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors ${
+          class={`h-7 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-all duration-150 ${
             preset() === "30d"
-              ? "bg-white font-semibold text-[#62298d] shadow-2xs"
-              : "text-zinc-600 hover:text-zinc-900"
+              ? "bg-white font-bold text-[#93509e] shadow-2xs"
+              : "text-zinc-500 hover:text-zinc-900"
           }`}
         >
           30 dias
         </button>
       </div>
-      <div class="flex max-w-full flex-wrap items-center gap-1">
-        <Calendar class="hidden h-3.5 w-3.5 text-zinc-400 sm:block" />
+
+      {/* Unified Date Range Selector */}
+      <div class="inline-flex h-9 shrink-0 items-center rounded-xl border border-zinc-200/90 bg-white px-3 shadow-2xs transition-all focus-within:border-[#93509e] focus-within:ring-2 focus-within:ring-[#93509e]/15 hover:border-zinc-300">
+        <Calendar class="mr-2 h-3.5 w-3.5 shrink-0 text-[#93509e]" aria-hidden="true" />
         <input
           type="date"
           aria-label="Data inicial de vendas"
@@ -263,9 +266,9 @@ function AdminDashboardPage() {
             setPreset("custom");
             setProfitFrom(e.currentTarget.value);
           }}
-          class="h-8 min-w-0 max-w-full rounded-[8px] border border-zinc-300 bg-white px-2 text-xs text-zinc-800 focus:border-[#93509e] focus:outline-none"
+          class="h-full bg-transparent text-xs font-semibold text-zinc-800 focus:outline-none cursor-pointer"
         />
-        <span class="text-zinc-400">–</span>
+        <span class="px-2 text-xs font-normal text-zinc-400">até</span>
         <input
           type="date"
           aria-label="Data final de vendas"
@@ -274,7 +277,7 @@ function AdminDashboardPage() {
             setPreset("custom");
             setProfitTo(e.currentTarget.value);
           }}
-          class="h-8 min-w-0 max-w-full rounded-[8px] border border-zinc-300 bg-white px-2 text-xs text-zinc-800 focus:border-[#93509e] focus:outline-none"
+          class="h-full bg-transparent text-xs font-semibold text-zinc-800 focus:outline-none cursor-pointer"
         />
       </div>
     </div>

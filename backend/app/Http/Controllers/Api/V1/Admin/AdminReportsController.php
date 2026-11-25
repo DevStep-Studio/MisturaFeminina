@@ -10,6 +10,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Models\ProductImage;
+use App\Models\ProductVariant;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,13 +48,41 @@ class AdminReportsController extends Controller
             ->groupBy('method')
             ->get();
 
-        $topProducts = OrderItem::query()
+        $topProductsRaw = OrderItem::query()
             ->whereHas('order', fn ($q) => $q->whereBetween('created_at', [$from, $to])->whereIn('status', $paidStatuses))
-            ->selectRaw('sku_snapshot, product_name_snapshot, SUM(quantity) as qty_sold, SUM(total_cents) as revenue_cents')
+            ->selectRaw('MAX(product_id) as product_id, sku_snapshot, product_name_snapshot, SUM(quantity) as qty_sold, SUM(total_cents) as revenue_cents')
             ->groupBy('sku_snapshot', 'product_name_snapshot')
             ->orderByDesc('qty_sold')
             ->limit(10)
             ->get();
+
+        $reportProductIds = $topProductsRaw->pluck('product_id')->filter()->unique()->all();
+        $reportImagesByProductId = ProductImage::query()
+            ->whereIn('product_id', $reportProductIds)
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
+            ->get()
+            ->groupBy('product_id')
+            ->map(fn ($imgs) => $imgs->first()?->path);
+
+        $reportVariantImages = ProductVariant::query()
+            ->whereIn('product_id', $reportProductIds)
+            ->whereNotNull('image_path')
+            ->orderBy('sort_order')
+            ->get()
+            ->groupBy('product_id')
+            ->map(fn ($vars) => $vars->first()?->image_path);
+
+        $topProducts = $topProductsRaw->map(fn ($p): array => [
+            'product_id' => $p->product_id ? (int) $p->product_id : null,
+            'sku_snapshot' => (string) $p->sku_snapshot,
+            'product_name_snapshot' => (string) $p->product_name_snapshot,
+            'qty_sold' => (int) $p->qty_sold,
+            'revenue_cents' => (int) $p->revenue_cents,
+            'image_url' => $p->product_id && (isset($reportImagesByProductId[$p->product_id]) || isset($reportVariantImages[$p->product_id]))
+                ? (string) ($reportImagesByProductId[$p->product_id] ?? $reportVariantImages[$p->product_id])
+                : null,
+        ]);
 
         $topCoupons = Order::query()
             ->whereBetween('created_at', [$from, $to])

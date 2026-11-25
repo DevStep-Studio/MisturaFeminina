@@ -421,7 +421,7 @@ export function ProductCatalogTable(props: {
       </Show>
 
       {/* Desktop compact table: Seleção | Produto e SKU | Preço | Estoque | Situação | Ações */}
-      <div class="hidden overflow-visible rounded-[12px] border border-zinc-200/90 bg-white md:block">
+      <div class="hidden overflow-x-auto rounded-[12px] border border-zinc-200/90 bg-white md:block">
         <table class="w-full border-collapse text-left text-sm">
           <thead>
             <tr class="border-b border-zinc-200 bg-zinc-50/80 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
