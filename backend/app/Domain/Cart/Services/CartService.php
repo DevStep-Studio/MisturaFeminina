@@ -32,28 +32,41 @@ class CartService
         $headerToken = $request->header('X-Cart-Token') ?: $request->cookie('mf_cart_token');
         $token = is_string($headerToken) && Str::isUuid($headerToken) ? $headerToken : null;
 
-        $cart = null;
-        if ($user) {
-            $cart = Cart::query()->where('user_id', $user->id)->latest('id')->first();
+        return DB::transaction(function () use ($user, $token, $createIfMissing): ?Cart {
+            $cart = null;
+            if ($user) {
+                // Serialize cart creation and guest merges for the same account.
+                User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                $cart = Cart::query()->where('user_id', $user->id)->latest('id')->lockForUpdate()->first();
+            }
+
             if ($token) {
-                $guestCart = Cart::query()->where('token', $token)->whereNull('user_id')->first();
-                if ($guestCart && (! $cart || $guestCart->id !== $cart->id)) {
-                    $cart = $this->mergeGuestCart($user, $guestCart, $cart);
+                $guestCart = Cart::query()->where('token', $token)->lockForUpdate()->first();
+                if ($guestCart && $guestCart->user_id === null) {
+                    $cart = $user ? $this->mergeGuestCart($user, $guestCart, $cart) : $guestCart;
                 }
             }
-        } elseif ($token) {
-            $cart = Cart::query()->where('token', $token)->first();
-        }
 
-        if (! $cart && $createIfMissing) {
-            $cart = Cart::query()->create([
-                'token' => $token ?? Str::uuid()->toString(),
-                'user_id' => $user?->id,
-                'expires_at' => now()->addDays(14),
-            ]);
-        }
+            if (! $cart && $createIfMissing) {
+                if (! $user && $token) {
+                    $guestCart = Cart::query()->createOrFirst(
+                        ['token' => $token],
+                        ['expires_at' => now()->addDays(14)],
+                    );
+                    if ($guestCart->user_id === null) {
+                        return $guestCart;
+                    }
+                }
 
-        return $cart;
+                $cart = Cart::query()->create([
+                    'token' => Str::uuid()->toString(),
+                    'user_id' => $user?->id,
+                    'expires_at' => now()->addDays(14),
+                ]);
+            }
+
+            return $cart;
+        }, 3);
     }
 
     public function mergeGuestCart(User $user, Cart $guestCart, ?Cart $userCart = null): Cart
