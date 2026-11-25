@@ -1,21 +1,25 @@
 import { Link } from "@tanstack/solid-router";
 import ChevronUp from "lucide-solid/icons/chevron-up";
+import Clock from "lucide-solid/icons/clock";
+import CreditCard from "lucide-solid/icons/credit-card";
 import Lock from "lucide-solid/icons/lock";
 import Mail from "lucide-solid/icons/mail";
 import MessageCircle from "lucide-solid/icons/message-circle";
 import Phone from "lucide-solid/icons/phone";
+import QrCode from "lucide-solid/icons/qr-code";
 import ShieldCheck from "lucide-solid/icons/shield-check";
+import Sparkles from "lucide-solid/icons/sparkles";
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { assetUrl, whatsappUrl } from "../../../lib/format";
 import { storefrontStore } from "../store";
 
 const PAYMENT_BADGES = [
-  "VISA",
-  "Mastercard",
-  "Elo",
-  "Amex",
-  "Hipercard",
-  "Pix",
+  { name: "Pix", isPix: true },
+  { name: "VISA", isPix: false },
+  { name: "Mastercard", isPix: false },
+  { name: "Elo", isPix: false },
+  { name: "Amex", isPix: false },
+  { name: "Hipercard", isPix: false },
 ] as const;
 
 export function StoreFooter() {
@@ -50,43 +54,46 @@ export function StoreFooter() {
     );
 
   return (
-    <footer class="relative border-t border-[#EBC0EA] bg-[#FBD5F9] text-[#2E0C49]">
-      <div class="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.85fr_0.95fr_1.25fr_1.05fr]">
+    <footer class="relative bg-[#93509e] text-white">
+      <div class="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.85fr_0.95fr_1.25fr_1.05fr]">
+        {/* Brand Column */}
         <div class="flex flex-col items-start space-y-4">
           <Link
             to="/"
-            class="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#62298D]"
+            class="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <img
-              src={assetUrl(settings().logo_light_url || "/logo-mf.png")}
+              src={assetUrl(settings().logo_dark_url || "/logo-mf-dark.png")}
               alt={settings().store_name || "Mistura Feminina Cosméticos"}
-              class="h-11 w-auto object-contain"
+              class="h-11 w-auto object-contain brightness-0 invert"
               onError={(e) => {
                 if (!e.currentTarget.dataset.fallback) {
                   e.currentTarget.dataset.fallback = "1";
-                  e.currentTarget.src = "/logo-mf.png";
+                  e.currentTarget.src = "/logo-mf-dark.png";
+                  e.currentTarget.classList.remove("brightness-0", "invert");
                 }
               }}
             />
           </Link>
 
-          <p class="max-w-xs text-[13px] leading-relaxed text-[#3D1260]">
+          <p class="max-w-xs text-[13px] leading-relaxed text-white/90">
             Curadoria completa em nail design, esmalteria em gel, cabines e
             equipamentos profissionais com envio para todo o Brasil.
           </p>
 
-          <div class="flex items-center gap-2.5">
+          {/* Social Icons */}
+          <div class="flex items-center gap-2 pt-1">
             <Show when={settings().social_instagram}>
               <a
                 href={settings().social_instagram}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white"
+                class="inline-flex size-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white shadow-2xs transition hover:border-white hover:bg-white hover:text-[#93509e]"
               >
                 <svg
                   viewBox="0 0 24 24"
-                  class="h-4 w-4"
+                  class="size-4"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="1.8"
@@ -98,17 +105,18 @@ export function StoreFooter() {
                 </svg>
               </a>
             </Show>
+
             <Show when={settings().social_youtube}>
               <a
                 href={settings().social_youtube}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="YouTube da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white"
+                class="inline-flex size-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white shadow-2xs transition hover:border-white hover:bg-white hover:text-[#93509e]"
               >
                 <svg
                   viewBox="0 0 24 24"
-                  class="h-4 w-4"
+                  class="size-4"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="1.8"
@@ -122,17 +130,18 @@ export function StoreFooter() {
                 </svg>
               </a>
             </Show>
+
             <Show when={settings().social_tiktok}>
               <a
                 href={settings().social_tiktok}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="TikTok da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] transition hover:bg-[#93509e] hover:text-white"
+                class="inline-flex size-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white shadow-2xs transition hover:border-white hover:bg-white hover:text-[#93509e]"
               >
                 <svg
                   viewBox="0 0 24 24"
-                  class="h-4 w-4"
+                  class="size-4"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="1.8"
@@ -142,32 +151,35 @@ export function StoreFooter() {
                 </svg>
               </a>
             </Show>
+
             <Show when={settings().whatsapp_number}>
               <a
                 href={whatsHref()}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp da Mistura Feminina"
-                class="inline-flex size-9 items-center justify-center rounded-lg border border-[#13b918] bg-white text-[#0d8211] transition hover:border-[#0d8211] hover:bg-[#0d8211] hover:text-white"
+                class="inline-flex size-9 items-center justify-center rounded-xl border border-[#25D366] bg-[#25D366] text-white shadow-2xs transition hover:border-[#1da851] hover:bg-[#1da851]"
               >
-                <MessageCircle class="h-4 w-4" aria-hidden="true" />
+                <MessageCircle class="size-4" aria-hidden="true" />
               </a>
             </Show>
           </div>
         </div>
 
+        {/* Categories Column */}
         <div class="space-y-3.5">
-          <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
-            Categorias
+          <h2 class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white">
+            <Sparkles class="size-3.5 text-white/90" aria-hidden="true" />
+            <span>Categorias</span>
           </h2>
-          <ul class="space-y-2.5 text-[13px] text-[#3D1260]">
+          <ul class="space-y-2.5 text-[13px] text-white/85">
             <For each={categories().slice(0, 6)}>
               {(cat) => (
                 <li>
                   <Link
                     to="/categoria/$slug"
                     params={{ slug: cat.slug }}
-                    class="transition-colors hover:text-[#93509e]"
+                    class="transition-colors hover:text-white"
                   >
                     {cat.name}
                   </Link>
@@ -177,20 +189,20 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/categorias"
-                class="transition-colors hover:text-[#93509e]"
+                class="transition-colors hover:text-white"
               >
                 Mapa de Categorias
               </Link>
             </li>
             <li>
-              <Link to="/marcas" class="transition-colors hover:text-[#93509e]">
+              <Link to="/marcas" class="transition-colors hover:text-white">
                 Marcas parceiras
               </Link>
             </li>
             <li>
               <Link
                 to="/promocoes"
-                class="transition-colors hover:text-[#93509e]"
+                class="transition-colors hover:text-white"
               >
                 Promoções
               </Link>
@@ -198,18 +210,20 @@ export function StoreFooter() {
           </ul>
         </div>
 
+        {/* Institutional Column */}
         <div class="space-y-3.5">
-          <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
-            Institucional
+          <h2 class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white">
+            <ShieldCheck class="size-3.5 text-white/90" aria-hidden="true" />
+            <span>Institucional</span>
           </h2>
-          <ul class="space-y-2.5 text-[13px] text-[#3D1260]">
+          <ul class="space-y-2.5 text-[13px] text-white/85">
             <For each={groupedPages()}>
               {(page) => (
                 <li>
                   <Link
                     to="/$slug"
                     params={{ slug: page.slug }}
-                    class="transition-colors hover:text-[#93509e]"
+                    class="transition-colors hover:text-white"
                   >
                     {page.title}
                   </Link>
@@ -219,7 +233,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/rastrear-pedido"
-                class="transition-colors hover:text-[#93509e]"
+                class="transition-colors hover:text-white"
               >
                 Rastrear Pedido
               </Link>
@@ -227,7 +241,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/minha-conta"
-                class="transition-colors hover:text-[#93509e]"
+                class="transition-colors hover:text-white"
               >
                 Minha Conta
               </Link>
@@ -235,7 +249,7 @@ export function StoreFooter() {
             <li>
               <Link
                 to="/contato"
-                class="transition-colors hover:text-[#93509e]"
+                class="transition-colors hover:text-white"
               >
                 Fale Conosco
               </Link>
@@ -243,21 +257,23 @@ export function StoreFooter() {
           </ul>
         </div>
 
+        {/* Customer Support Column */}
         <div class="space-y-3.5">
-          <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
-            Atendimento
+          <h2 class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white">
+            <Phone class="size-3.5 text-white/90" aria-hidden="true" />
+            <span>Atendimento</span>
           </h2>
-          <ul class="space-y-3 text-[13px] text-[#3D1260]">
+          <ul class="space-y-3 text-[13px] text-white/90">
             <Show when={settings().whatsapp_number || settings().phone}>
               <li>
                 <a
                   href={whatsHref()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-2 transition-colors hover:text-[#93509e]"
+                  class="inline-flex items-center gap-2 transition-colors hover:text-white"
                 >
                   <Phone
-                    class="h-4 w-4 shrink-0 text-[#93509e]"
+                    class="size-4 shrink-0 text-white/90"
                     aria-hidden="true"
                   />
                   <span>{settings().phone || settings().whatsapp_number}</span>
@@ -268,32 +284,41 @@ export function StoreFooter() {
               <li>
                 <a
                   href={`mailto:${settings().email}`}
-                  class="inline-flex items-center gap-2 transition-colors hover:text-[#93509e]"
+                  class="inline-flex items-center gap-2 transition-colors hover:text-white"
                 >
                   <Mail
-                    class="h-4 w-4 shrink-0 text-[#93509e]"
+                    class="size-4 shrink-0 text-white/90"
                     aria-hidden="true"
                   />
                   <span>{settings().email}</span>
                 </a>
               </li>
             </Show>
-            <li class="pt-1 text-xs text-[#3D1260]/85">
-              Seg. a Sex. das 9h às 18h
+            <li class="inline-flex items-center gap-2 pt-1 text-xs text-white/80">
+              <Clock class="size-3.5 shrink-0 text-white/80" aria-hidden="true" />
+              <span>Seg. a Sex. das 9h às 18h</span>
             </li>
           </ul>
         </div>
 
+        {/* Payments and Security */}
         <div class="space-y-6">
           <div class="space-y-3">
-            <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
-              Formas de pagamento
+            <h2 class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white">
+              <CreditCard class="size-3.5 text-white/90" aria-hidden="true" />
+              <span>Formas de pagamento</span>
             </h2>
             <div class="flex flex-wrap gap-1.5">
               <For each={PAYMENT_BADGES}>
                 {(badge) => (
-                  <span class="inline-flex h-7 items-center justify-center rounded-md border border-[#E5B8E8] bg-white px-2.5 text-[11px] font-semibold tracking-wide text-[#2E0C49] shadow-2xs">
-                    {badge}
+                  <span class="inline-flex h-7 items-center justify-center gap-1 rounded-md border border-white/20 bg-white px-2.5 text-[11px] font-bold tracking-wide text-[#2E0C49] shadow-2xs">
+                    <Show
+                      when={badge.isPix}
+                      fallback={<CreditCard class="size-3 text-[#93509e]" aria-hidden="true" />}
+                    >
+                      <QrCode class="size-3 text-[#93509e]" aria-hidden="true" />
+                    </Show>
+                    <span>{badge.name}</span>
                   </span>
                 )}
               </For>
@@ -301,20 +326,21 @@ export function StoreFooter() {
           </div>
 
           <div class="space-y-3">
-            <h2 class="text-xs font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
-              Segurança
+            <h2 class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white">
+              <Lock class="size-3.5 text-white/90" aria-hidden="true" />
+              <span>Segurança</span>
             </h2>
             <div class="flex flex-wrap gap-2">
-              <span class="inline-flex items-center gap-1.5 rounded-md border border-[#E5B8E8] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#2E0C49] shadow-2xs">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-white/20 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#2E0C49] shadow-2xs">
                 <ShieldCheck
-                  class="h-3.5 w-3.5 shrink-0 text-[#93509e]"
+                  class="size-3.5 shrink-0 text-emerald-600"
                   aria-hidden="true"
                 />
                 <span>Site Seguro SSL</span>
               </span>
-              <span class="inline-flex items-center gap-1.5 rounded-md border border-[#E5B8E8] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#2E0C49] shadow-2xs">
+              <span class="inline-flex items-center gap-1.5 rounded-md border border-white/20 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#2E0C49] shadow-2xs">
                 <Lock
-                  class="h-3.5 w-3.5 shrink-0 text-[#93509e]"
+                  class="size-3.5 shrink-0 text-[#93509e]"
                   aria-hidden="true"
                 />
                 <span>Loja Protegida</span>
@@ -324,31 +350,34 @@ export function StoreFooter() {
         </div>
       </div>
 
-      <div class="border-t border-[#EBC0EA] bg-[#F5C2F5] px-4 py-5 text-xs text-[#2E0C49]">
-        <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-center sm:flex-row sm:text-left">
+      {/* Sub-Footer / Copyright */}
+      <div class="border-t border-white/10 bg-[#7c3f87] px-4 py-5 text-xs text-white/90 sm:px-6">
+        <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2.5 text-center sm:flex-row sm:text-left">
           <p>
             {settings().company_legal_name || settings().store_name}
             <Show when={settings().cnpj}> • CNPJ: {settings().cnpj}</Show>
             <Show when={settings().address}> • {settings().address}</Show>
             {" — "}© {new Date().getFullYear()} Todos os direitos reservados.
           </p>
-          <p class="shrink-0 text-[11px] text-[#3D1260]">
-            Em até {settings().max_installments}x sem juros no cartão.
+          <p class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-white/90">
+            <CreditCard class="size-3.5 text-white/80" aria-hidden="true" />
+            <span>Em até {settings().max_installments}x sem juros no cartão.</span>
           </p>
         </div>
       </div>
 
+      {/* Floating Back-To-Top Button */}
       <button
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Voltar ao topo"
-        class={`fixed right-4 bottom-20 z-40 inline-flex size-10 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-[0_4px_16px_rgba(147,80,158,0.2)] transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-[#93509e] hover:text-white md:right-5 md:bottom-5 ${
+        class={`fixed right-4 bottom-20 z-40 inline-flex size-10 items-center justify-center rounded-xl border border-white/40 bg-white text-[#93509e] shadow-lg transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-[#7c3f87] hover:text-white md:right-5 md:bottom-5 ${
           showBackToTop()
             ? "translate-y-0 scale-100 opacity-100"
             : "pointer-events-none translate-y-4 scale-90 opacity-0"
         }`}
       >
-        <ChevronUp class="h-4 w-4" aria-hidden="true" />
+        <ChevronUp class="size-4 stroke-[2.2]" aria-hidden="true" />
       </button>
     </footer>
   );
