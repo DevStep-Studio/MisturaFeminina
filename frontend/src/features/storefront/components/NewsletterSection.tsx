@@ -1,11 +1,8 @@
 import { Link } from "@tanstack/solid-router";
 import CircleCheck from "lucide-solid/icons/circle-check";
 import CircleX from "lucide-solid/icons/circle-x";
-import Gift from "lucide-solid/icons/gift";
 import Mail from "lucide-solid/icons/mail";
 import Send from "lucide-solid/icons/send";
-import ShieldCheck from "lucide-solid/icons/shield-check";
-import Sparkles from "lucide-solid/icons/sparkles";
 import User from "lucide-solid/icons/user";
 import { Show, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
@@ -72,12 +69,8 @@ export function NewsletterSection() {
     >
       <div class="mx-auto max-w-7xl px-4 sm:px-6">
         <div class="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          {/* Header & Benefits */}
+          {/* Header */}
           <div class="max-w-xl">
-            <div class="mb-3 inline-flex items-center gap-1.5 rounded-full border border-[#E2D2E6] bg-white px-3 py-1 text-xs font-semibold text-[#93509e] shadow-2xs">
-              <Sparkles class="size-3.5" aria-hidden="true" />
-              <span>Clube de Benefícios & Ofertas</span>
-            </div>
             <h2
               id="newsletter-heading"
               class="text-xl font-bold tracking-tight text-[#2E1049] sm:text-2xl"
@@ -85,23 +78,8 @@ export function NewsletterSection() {
               Cadastre-se em nossa newsletter
             </h2>
             <p class="mt-1 text-xs text-[#523B66] sm:text-sm">
-              Receba reposições em primeira mão, cupons de desconto exclusivos e novidades profissionais.
+              Receba novidades, reposições e ofertas exclusivas em primeira mão.
             </p>
-            {/* Feature Pills with Icons */}
-            <div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[#523B66]">
-              <span class="inline-flex items-center gap-1.5">
-                <Gift class="size-3.5 text-[#93509e]" aria-hidden="true" />
-                <span>Cupom especial na 1ª compra</span>
-              </span>
-              <span class="inline-flex items-center gap-1.5">
-                <Sparkles class="size-3.5 text-[#93509e]" aria-hidden="true" />
-                <span>Reposições antecipadas</span>
-              </span>
-              <span class="inline-flex items-center gap-1.5">
-                <ShieldCheck class="size-3.5 text-[#93509e]" aria-hidden="true" />
-                <span>Zero spam • Cancele quando quiser</span>
-              </span>
-            </div>
           </div>
 
           {/* Form with Icons in Inputs */}

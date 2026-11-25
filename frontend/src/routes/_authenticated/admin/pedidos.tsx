@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
+import ExternalLink from "lucide-solid/icons/external-link";
 import Plus from "lucide-solid/icons/plus";
 import Printer from "lucide-solid/icons/printer";
+import Tag from "lucide-solid/icons/tag";
 import {
   For,
   Show,
@@ -13,6 +15,7 @@ import {
 import { AdminAssistedOrderBuilder } from "../../../features/admin/AdminAssistedOrderBuilder";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminOrderAiAssistantPanel } from "../../../features/admin/ai/AdminOrderAiAssistantPanel";
+import { OrderPrintModal } from "../../../features/admin/orders/OrderPrintModal";
 import {
   AdminOrderTimelineAndAfterSales,
   type OrderOccurrenceRow,
@@ -140,6 +143,7 @@ interface OrderDetailPayload {
     service_name: string | null;
     tracking_code: string | null;
     tracking_url: string | null;
+    label_url?: string | null;
   } | null;
   payments: {
     id: number;
@@ -188,6 +192,10 @@ function AdminOrdersPage() {
     "Devolução parcial / estorno administrativo",
   );
   const [refundSaving, setRefundSaving] = createSignal(false);
+  const [printModalState, setPrintModalState] = createSignal<{
+    orderId: number;
+    mode: "label" | "packing_slip";
+  } | null>(null);
 
   createEffect(() => {
     const s = routeSearch();
@@ -285,26 +293,12 @@ function AdminOrdersPage() {
     }
   }
 
-  async function openPackingList(id: number) {
-    const res = await api<{
-      data: {
-        order_number: string;
-        customer_name: string;
-        items: { sku: string; name: string; variant: string; qty: number }[];
-      };
-    }>(`/admin/orders/${id}/packing-list`);
-    const w = window.open("", "_blank", "width=700,height=700");
-    if (!w) return;
-    const rows = res.data.items
-      .map(
-        (i) =>
-          `<tr><td>${i.sku}</td><td>${i.name} (${i.variant})</td><td>${i.qty}</td></tr>`,
-      )
-      .join("");
-    w.document.write(
-      `<!doctype html><html><head><title>Romaneio ${res.data.order_number}</title><style>body{font-family:sans-serif;padding:24px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #ccc;padding:8px;text-align:left}</style></head><body><h1>Mistura Feminina Cosméticos — Romaneio ${res.data.order_number}</h1><p>Cliente: ${res.data.customer_name}</p><table><thead><tr><th>SKU</th><th>Produto</th><th>Qtd</th></tr></thead><tbody>${rows}</tbody></table></body></html>`,
-    );
-    w.document.close();
+  function openPackingList(id: number) {
+    setPrintModalState({ orderId: id, mode: "packing_slip" });
+  }
+
+  function openAddressLabel(id: number) {
+    setPrintModalState({ orderId: id, mode: "label" });
   }
 
   function openReturnPanel(order: OrderDetailPayload) {
@@ -603,7 +597,7 @@ function AdminOrdersPage() {
           >
             {(d) => (
               <div class="space-y-5 text-sm">
-                <div class="flex items-start justify-between border-b border-zinc-200 pb-3">
+                <div class="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between border-b border-zinc-200 pb-3">
                   <div>
                     <h2 class="text-lg font-bold text-zinc-900">
                       {d().order_number}
@@ -613,14 +607,38 @@ function AdminOrdersPage() {
                       {d().customer_phone}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void openPackingList(d().id)}
-                    class="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-zinc-50"
-                  >
-                    <Printer class="h-3.5 w-3.5" />
-                    Romaneio
-                  </button>
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => openAddressLabel(d().id)}
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 shadow-2xs hover:bg-zinc-50 hover:text-zinc-900 transition"
+                      title="Imprimir etiqueta de endereço (100 × 150 mm) para embalagem"
+                    >
+                      <Tag class="h-3.5 w-3.5 text-[#93509e]" />
+                      <span>Imprimir etiqueta</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPackingList(d().id)}
+                      class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 shadow-2xs hover:bg-zinc-50 hover:text-zinc-900 transition"
+                      title="Imprimir romaneio de separação de itens"
+                    >
+                      <Printer class="h-3.5 w-3.5 text-zinc-600" />
+                      <span>Imprimir romaneio</span>
+                    </button>
+                    <Show when={d().shipment?.label_url}>
+                      <a
+                        href={d().shipment?.label_url!}
+                        target="_blank"
+                        rel="noreferrer"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-semibold text-[#93509e] hover:bg-purple-100 transition"
+                        title="Imprimir etiqueta oficial de postagem da transportadora"
+                      >
+                        <ExternalLink class="h-3.5 w-3.5" />
+                        <span>Etiqueta oficial</span>
+                      </a>
+                    </Show>
+                  </div>
                 </div>
 
                 <div class="rounded-lg bg-zinc-50 p-3 text-xs">
@@ -1117,6 +1135,16 @@ function AdminOrdersPage() {
           </Show>
         </section>
       </div>
+
+      <Show when={printModalState()}>
+        {(state) => (
+          <OrderPrintModal
+            orderId={state().orderId}
+            initialMode={state().mode}
+            onClose={() => setPrintModalState(null)}
+          />
+        )}
+      </Show>
     </AdminLayout>
   );
 }

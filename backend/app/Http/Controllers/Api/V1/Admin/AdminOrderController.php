@@ -21,6 +21,7 @@ use App\Models\OrderReturn;
 use App\Models\OrderStatusHistory;
 use App\Models\Refund;
 use App\Models\Shipment;
+use App\Models\StoreSetting;
 use App\Models\TrackingEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -424,17 +425,121 @@ class AdminOrderController extends Controller
     {
         $order = Order::query()->with(['items', 'shipment'])->findOrFail($id);
 
+        $rawAddress = (array) ($order->shipping_address_snapshot ?? []);
+        $recipientName = $rawAddress['recipient_name'] ?? $rawAddress['name'] ?? $order->customer_name;
+
+        $cep = (string) ($rawAddress['cep'] ?? $rawAddress['zipcode'] ?? '');
+        $digitsCep = preg_replace('/\D/', '', $cep);
+        $formattedCep = strlen($digitsCep) === 8
+            ? substr($digitsCep, 0, 5) . '-' . substr($digitsCep, 5, 3)
+            : $cep;
+
+        $normalizedAddress = [
+            'recipient_name' => (string) $recipientName,
+            'street' => (string) ($rawAddress['street'] ?? $rawAddress['logradouro'] ?? ''),
+            'number' => (string) ($rawAddress['number'] ?? $rawAddress['numero'] ?? ''),
+            'complement' => isset($rawAddress['complement']) && $rawAddress['complement'] !== '' ? (string) $rawAddress['complement'] : (isset($rawAddress['complemento']) && $rawAddress['complemento'] !== '' ? (string) $rawAddress['complemento'] : null),
+            'neighborhood' => (string) ($rawAddress['neighborhood'] ?? $rawAddress['bairro'] ?? ''),
+            'city' => (string) ($rawAddress['city'] ?? $rawAddress['cidade'] ?? ''),
+            'state' => (string) ($rawAddress['state'] ?? $rawAddress['uf'] ?? ''),
+            'cep' => $formattedCep,
+        ];
+
+        $storeName = StoreSetting::where('key', 'store_name')->value('value')['val'] ?? 'Mistura Feminina Cosméticos';
+        $senderAddress = StoreSetting::where('key', 'address')->value('value')['val'] ?? 'Av. Paulista, 1000 - Bela Vista';
+        $senderOriginCep = StoreSetting::where('key', 'origin_cep')->value('value')['val'] ?? '01001-000';
+        $senderCepDigits = preg_replace('/\D/', '', (string) $senderOriginCep);
+        $formattedSenderCep = strlen($senderCepDigits) === 8
+            ? substr($senderCepDigits, 0, 5) . '-' . substr($senderCepDigits, 5, 3)
+            : (string) $senderOriginCep;
+
+        $sender = [
+            'store_name' => $storeName,
+            'address' => $senderAddress,
+            'city' => 'São Paulo',
+            'state' => 'SP',
+            'cep' => $formattedSenderCep,
+        ];
+
+        $items = $order->items->map(function (OrderItem $item) {
+            $sku = $item->sku_snapshot ?? $item->sku ?? null;
+            $productName = $item->product_name_snapshot ?? $item->product_name ?? null;
+            $variantName = $item->variant_name_snapshot ?? $item->variant_name ?? null;
+
+            return [
+                'id' => $item->id,
+                'sku' => $sku ?: 'SKU não informado',
+                'sku_snapshot' => $sku,
+                'product_name' => $productName ?: 'Produto sem identificação',
+                'product_name_snapshot' => $productName,
+                'variant_name' => $variantName ?: 'Padrão',
+                'variant_name_snapshot' => $variantName,
+                'quantity' => $item->quantity,
+                'weight_grams' => $item->weight_grams_snapshot ?? null,
+                // Backward compatibility mappings:
+                'name' => $productName ?: 'Produto sem identificação',
+                'variant' => $variantName ?: 'Padrão',
+                'qty' => $item->quantity,
+            ];
+        });
+
+        $shipment = $order->shipment ? [
+            'carrier' => $order->shipment->carrier,
+            'service_name' => $order->shipment->service_name,
+            'service_code' => $order->shipment->service_code,
+            'tracking_code' => $order->shipment->tracking_code,
+            'label_url' => $order->shipment->label_url,
+            'label_status' => $order->shipment->label_status,
+        ] : null;
+
         return response()->json([
             'data' => [
+                'id' => $order->id,
                 'order_number' => $order->order_number,
+                'status' => $order->status,
                 'created_at' => $order->created_at?->toIso8601String(),
                 'customer_name' => $order->customer_name,
                 'customer_phone' => $order->customer_phone,
-                'shipping_address' => $order->shipping_address_snapshot,
+                'shipping_address' => $normalizedAddress,
+                'raw_shipping_address' => $rawAddress,
+                'sender' => $sender,
                 'shipping_service' => $order->shipping_service_snapshot,
-                'items' => $order->items,
+                'shipment' => $shipment,
+                'items' => $items,
+                'total_units' => $order->items->sum('quantity'),
                 'notes_customer' => $order->notes_customer,
             ],
+        ]);
+    }
+
+    public function updateShippingAddress(Request $request, int $id): JsonResponse
+    {
+        $order = Order::query()->findOrFail($id);
+
+        $validated = $request->validate([
+            'recipient_name' => ['nullable', 'string', 'max:255'],
+            'street' => ['required', 'string', 'max:255'],
+            'number' => ['required', 'string', 'max:50'],
+            'complement' => ['nullable', 'string', 'max:255'],
+            'neighborhood' => ['nullable', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:255'],
+            'state' => ['required', 'string', 'max:2'],
+            'cep' => ['required', 'string', 'regex:/^\d{5}-?\d{3}$/'],
+        ]);
+
+        $digits = preg_replace('/\D/', '', $validated['cep']);
+        $formattedCep = substr($digits, 0, 5) . '-' . substr($digits, 5, 3);
+        $validated['cep'] = $formattedCep;
+
+        $snapshot = array_merge((array) ($order->shipping_address_snapshot ?? []), $validated);
+        $order->update(['shipping_address_snapshot' => $snapshot]);
+
+        return response()->json([
+            'data' => [
+                'id' => $order->id,
+                'shipping_address' => $snapshot,
+            ],
+            'message' => 'Endereço de entrega atualizado com sucesso.',
         ]);
     }
 }

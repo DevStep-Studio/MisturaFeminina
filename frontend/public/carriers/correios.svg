@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 56" width="160" height="56">
+  <rect width="160" height="56" rx="6" fill="#FFFFFF" stroke="#D1D5DB" stroke-width="1.5"/>
+  <!-- Correios double chevron symbol -->
+  <g transform="translate(10, 10)">
+    <path d="M12 4 L22 18 L12 32 L5 32 L15 18 L5 4 Z" fill="#003580"/>
+    <path d="M22 4 L32 18 L22 32 L15 32 L25 18 L15 4 Z" fill="#FFE600"/>
+  </g>
+  <text x="50" y="35" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="19" fill="#003580" letter-spacing="0.5">CORREIOS</text>
+</svg>

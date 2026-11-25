@@ -140,6 +140,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('orders', [AdminOrderController::class, 'index'])->middleware('permission:orders.view');
         Route::get('orders/{id}', [AdminOrderController::class, 'show'])->middleware('permission:orders.view');
         Route::get('orders/{id}/packing-list', [AdminOrderController::class, 'packingList'])->middleware('permission:orders.view');
+        Route::patch('orders/{id}/shipping-address', [AdminOrderController::class, 'updateShippingAddress'])->middleware('permission:orders.manage');
         Route::patch('orders/{id}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
         Route::patch('orders/{id}/shipment', [AdminOrderController::class, 'updateShipment'])->middleware('permission:orders.manage');
         Route::post('orders/{id}/refund', [AdminOrderController::class, 'refund'])->middleware('permission:orders.refund');

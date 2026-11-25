@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Domain\Security\Services\TotpService;
 use App\Models\Category;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use Database\Seeders\DemoStoreSeeder;
@@ -183,4 +184,86 @@ test('admin can create, list on home, and delete dynamic niche home sections wit
 
     $this->actingAs($admin)->deleteJson("/api/v1/admin/home-sections/{$sectionId}")
         ->assertOk();
+});
+
+test('admin can fetch enriched packing list with valid items and sender details and update shipping address', function (): void {
+    $admin = User::query()->where('email', 'admin@misturafeminina.local')->firstOrFail();
+    
+    $order = Order::query()->create([
+        'order_number' => 'MF-TEST-1062',
+        'public_token' => \Illuminate\Support\Str::uuid()->toString(),
+        'idempotency_key' => 'idem-test-1062',
+        'is_guest' => true,
+        'customer_name' => 'Cliente Teste Romaneio',
+        'customer_email' => 'cliente.romaneio@teste.local',
+        'customer_phone' => '11988887777',
+        'shipping_address_snapshot' => [
+            'cep' => '01001000',
+            'street' => 'Praça da Sé',
+            'number' => '10',
+            'neighborhood' => 'Sé',
+            'city' => 'São Paulo',
+            'state' => 'SP',
+        ],
+        'shipping_service_snapshot' => [
+            'carrier' => 'Correios',
+            'service_name' => 'SEDEX',
+        ],
+        'subtotal_cents' => 5000,
+        'discount_cents' => 0,
+        'shipping_cents' => 1500,
+        'tax_cents' => 0,
+        'total_cents' => 6500,
+        'status' => \App\Domain\Shared\Enums\OrderStatus::Paid,
+        'paid_at' => now(),
+    ]);
+
+    \App\Models\OrderItem::query()->create([
+        'order_id' => $order->id,
+        'product_name_snapshot' => 'Esmalte em Gel Alta Duração 15ml',
+        'variant_name_snapshot' => 'Rosé Antigo 012',
+        'sku_snapshot' => 'MF-ESM-001-ROS',
+        'quantity' => 2,
+        'unit_price_cents' => 2500,
+        'total_cents' => 5000,
+        'weight_grams_snapshot' => 150,
+    ]);
+
+    $response = $this->actingAs($admin)->getJson("/api/v1/admin/orders/{$order->id}/packing-list")
+        ->assertOk();
+
+    $data = $response->json('data');
+    expect($data['order_number'])->toBe('MF-TEST-1062');
+    expect($data['items'])->toHaveCount(1);
+    
+    // Check item keys are present and never undefined
+    $firstItem = $data['items'][0];
+    expect($firstItem['sku'])->toBe('MF-ESM-001-ROS');
+    expect($firstItem['product_name'])->toBe('Esmalte em Gel Alta Duração 15ml');
+    expect($firstItem['variant_name'])->toBe('Rosé Antigo 012');
+    expect($firstItem['quantity'])->toBe(2);
+
+    // Check sender details
+    expect($data['sender'])->toHaveKeys(['store_name', 'address', 'cep']);
+
+    // Check updating shipping address
+    $updateResp = $this->actingAs($admin)->patchJson("/api/v1/admin/orders/{$order->id}/shipping-address", [
+        'recipient_name' => 'Maria Destinatária da Silva',
+        'street' => 'Avenida Rio Branco',
+        'number' => '156',
+        'complement' => 'Sala 401',
+        'neighborhood' => 'Centro',
+        'city' => 'Rio de Janeiro',
+        'state' => 'RJ',
+        'cep' => '20040-002',
+    ])->assertOk();
+
+    expect($updateResp->json('data.shipping_address.recipient_name'))->toBe('Maria Destinatária da Silva');
+    expect($updateResp->json('data.shipping_address.cep'))->toBe('20040-002');
+
+    // Confirm packing list reflects updated address
+    $refreshed = $this->actingAs($admin)->getJson("/api/v1/admin/orders/{$order->id}/packing-list")
+        ->assertOk();
+    expect($refreshed->json('data.shipping_address.recipient_name'))->toBe('Maria Destinatária da Silva');
+    expect($refreshed->json('data.shipping_address.cep'))->toBe('20040-002');
 });
