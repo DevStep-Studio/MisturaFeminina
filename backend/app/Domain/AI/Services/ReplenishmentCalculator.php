@@ -181,7 +181,10 @@ class ReplenishmentCalculator
                 $suggestionsNeededCount++;
             }
 
-            $unitCostCents = (int) ($product->cost_cents ?: (int) round($variant->effectivePriceCents() * 0.5));
+            $effectiveSkuCost = $variant->effectiveCostCents();
+            $unitCostCents = $effectiveSkuCost !== null
+                ? $effectiveSkuCost
+                : (int) round($variant->effectivePriceCents() * 0.5);
             $estLineCost = $rawSuggested * $unitCostCents;
             $estimatedOrderCostCents += $estLineCost;
 

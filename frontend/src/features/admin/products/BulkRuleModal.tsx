@@ -20,6 +20,7 @@ export function BulkRuleModal(props: {
   brands: BrandOption[];
   categories: CategoryOption[];
   canPrice: boolean;
+  canCostWrite?: boolean;
   canStock: boolean;
   canWrite: boolean;
   onClose: () => void;
@@ -31,6 +32,10 @@ export function BulkRuleModal(props: {
 
   const [promoOp, setPromoOp] = createSignal<"keep" | "set_fixed" | "remove">("keep");
   const [promoBrl, setPromoBrl] = createSignal("");
+
+  const [costOp, setCostOp] = createSignal<"keep" | "set_fixed" | "adjust_percent" | "clear_to_null">("keep");
+  const [costBrl, setCostBrl] = createSignal("");
+  const [costPercentVal, setCostPercentVal] = createSignal("10");
 
   const [stockOp, setStockOp] = createSignal<"keep" | "set" | "add" | "subtract">("keep");
   const [stockQty, setStockQty] = createSignal("0");
@@ -65,12 +70,21 @@ export function BulkRuleModal(props: {
   function buildRulesPayload() {
     const pCents = parseBrlInputToCents(priceBrl());
     const prCents = parseBrlInputToCents(promoBrl());
+    const cleanCost = costBrl().trim().replace(/R\$/gi, "").replace(/\./g, "").replace(",", ".");
+    const parsedCostNum = Number(cleanCost);
+    const fixedCostCents =
+      cleanCost !== "" && Number.isFinite(parsedCostNum) && parsedCostNum >= 0
+        ? Math.round(parsedCostNum * 100)
+        : undefined;
     return {
       price_op: priceOp(),
       price_cents: priceOp() === "set_fixed" ? Math.max(0, pCents) : undefined,
       percent: priceOp() === "adjust_percent" ? Number.parseFloat(percentVal().replace(",", ".")) || 0 : undefined,
       promo_op: promoOp(),
       promo_price_cents: promoOp() === "set_fixed" ? Math.max(0, prCents) : undefined,
+      cost_op: costOp(),
+      cost_cents: costOp() === "set_fixed" ? fixedCostCents : undefined,
+      cost_percent: costOp() === "adjust_percent" ? Number.parseFloat(costPercentVal().replace(",", ".")) || 0 : undefined,
       stock_op: stockOp(),
       stock_qty: stockOp() !== "keep" ? Math.max(0, Number.parseInt(stockQty(), 10) || 0) : undefined,
       stock_reason: stockReason().trim(),
@@ -338,6 +352,48 @@ export function BulkRuleModal(props: {
                         />
                       </Show>
                     </div>
+                    {/* Custo unitário */}
+                    <Show when={props.canCostWrite}>
+                      <div class="space-y-2 rounded-lg border border-zinc-200 p-3.5 text-xs">
+                        <p class="font-bold text-zinc-900">Custo unitário (R$)</p>
+                        <select
+                          value={costOp()}
+                          onChange={(e) =>
+                            setCostOp(
+                              e.currentTarget.value as
+                                | "keep"
+                                | "set_fixed"
+                                | "adjust_percent"
+                                | "clear_to_null",
+                            )
+                          }
+                          class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5"
+                        >
+                          <option value="keep">Manter custos atuais</option>
+                          <option value="set_fixed">Definir custo fixo (R$)</option>
+                          <option value="adjust_percent">Reajustar por percentual (%)</option>
+                          <option value="clear_to_null">Marcar como não informado</option>
+                        </select>
+                        <Show when={costOp() === "set_fixed"}>
+                          <input
+                            type="text"
+                            placeholder="Ex.: 12,50 ou 0,00"
+                            value={costBrl()}
+                            onInput={(e) => setCostBrl(e.currentTarget.value)}
+                            class="h-9 w-full rounded-md border border-zinc-300 px-3"
+                          />
+                        </Show>
+                        <Show when={costOp() === "adjust_percent"}>
+                          <input
+                            type="text"
+                            placeholder="Ex.: 8 para +8%"
+                            value={costPercentVal()}
+                            onInput={(e) => setCostPercentVal(e.currentTarget.value)}
+                            class="h-9 w-full rounded-md border border-zinc-300 px-3"
+                          />
+                        </Show>
+                      </div>
+                    </Show>
                   </Show>
 
                   {/* Estoque */}

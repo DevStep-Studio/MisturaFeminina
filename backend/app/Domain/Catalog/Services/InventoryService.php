@@ -219,6 +219,58 @@ class InventoryService
         });
     }
 
+    public function restockReturnedUnits(
+        Order $order,
+        ?int $variantId,
+        int $qty,
+        ?User $actor = null,
+        string $reason = 'Devolução ao estoque',
+    ): void {
+        if ($qty <= 0 || ! $variantId) {
+            return;
+        }
+
+        DB::transaction(function () use ($order, $variantId, $qty, $actor, $reason): void {
+            /** @var ProductVariant|null $variant */
+            $variant = ProductVariant::query()->whereKey($variantId)->lockForUpdate()->first();
+            if (! $variant) {
+                return;
+            }
+
+            // Reconcile any remaining consumed reservation so a full cancellation/refund later never double-restocks.
+            /** @var StockReservation|null $reservation */
+            $reservation = StockReservation::query()
+                ->where('order_id', $order->id)
+                ->where('product_variant_id', $variantId)
+                ->where('status', 'consumed')
+                ->lockForUpdate()
+                ->first();
+
+            if ($reservation) {
+                if ((int) $reservation->quantity <= $qty) {
+                    $reservation->update(['status' => 'refunded']);
+                } else {
+                    $reservation->update(['quantity' => (int) $reservation->quantity - $qty]);
+                }
+            }
+
+            $newPhysical = $variant->stock_qty + $qty;
+            $variant->update(['stock_qty' => $newPhysical]);
+
+            InventoryMovement::query()->create([
+                'product_variant_id' => $variant->id,
+                'user_id' => $actor?->id,
+                'order_id' => $order->id,
+                'type' => InventoryMovementType::Refund,
+                'qty_delta' => $qty,
+                'physical_after' => $newPhysical,
+                'reserved_after' => $variant->reserved_qty,
+                'reason' => $reason,
+                'reference' => $order->order_number,
+            ]);
+        });
+    }
+
     public function adjustStock(
         ProductVariant $variant,
         int $qtyDelta,

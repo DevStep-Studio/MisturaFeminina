@@ -7,13 +7,22 @@ import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
 import {
+  calculateUnitMarginPreview,
+  calculateWholesaleTierEstimates,
+  formatBrlSigned,
+  formatMarginPercentage,
+  formatNullableCostInput,
+  parseBrlNullableCost,
+} from "../profit-math";
+import {
   AdminVariantsEditor,
   type AdminVariantDraft,
 } from "../AdminVariantsEditor";
-import type {
-  AdminProductRow,
-  BrandOption,
-  CategoryOption,
+import {
+  type AdminProductRow,
+  type BrandOption,
+  type CategoryOption,
+  formatBrlFromCents,
 } from "./types";
 
 export interface AttributeOption {
@@ -30,6 +39,8 @@ export function ProductFormScreen(props: {
   categories: CategoryOption[];
   attributes: AttributeOption[];
   canWrite: boolean;
+  canCostView?: boolean;
+  canCostWrite?: boolean;
   onCancel: () => void;
   onSaved: (message: string, stayAndReset?: boolean) => Promise<void> | void;
   onDuplicateRequest?: (product: AdminProductRow) => void;
@@ -85,6 +96,14 @@ export function ProductFormScreen(props: {
     };
   } | null>(null);
 
+  const canViewCost = () => props.canCostView ?? true;
+  const canWriteCost = () => props.canCostWrite ?? true;
+  const [wholesaleTiersDraft, setWholesaleTiersDraft] = createSignal<
+    Array<{ min_qty: number; discount_percent?: number; price_cents?: number }>
+  >([]);
+  const [reusedCostNotice, setReusedCostNotice] = createSignal(false);
+  const [applyAllVariantsConfirm, setApplyAllVariantsConfirm] = createSignal(false);
+
   createEffect(() => {
     const src = props.product ?? props.duplicateFrom;
     const isDuplicate = !props.product && !!props.duplicateFrom;
@@ -112,10 +131,16 @@ export function ProductFormScreen(props: {
         ? (src.promo_price_cents / 100).toFixed(2).replace(".", ",")
         : "",
     );
-    setCostBrl(
-      src.cost_cents
-        ? (src.cost_cents / 100).toFixed(2).replace(".", ",")
-        : "",
+    setCostBrl(formatNullableCostInput(src.cost_cents));
+    const hasReusedCost =
+      isDuplicate &&
+      ((src.cost_cents !== null && src.cost_cents !== undefined) ||
+        (src.variants ?? []).some(
+          (v) => v.cost_cents !== null && v.cost_cents !== undefined,
+        ));
+    setReusedCostNotice(hasReusedCost);
+    setWholesaleTiersDraft(
+      (src.wholesale_tiers ?? []).map((t) => ({ ...t })),
     );
     setStockQty(isDuplicate ? 0 : (src.variants?.[0]?.stock_qty ?? 0));
     setWeightGrams(src.weight_grams || 200);
@@ -141,12 +166,14 @@ export function ProductFormScreen(props: {
         sku: isDuplicate ? "" : v.sku || `${src.sku}-${idx + 1}`,
         price_cents: v.price_cents ?? src.price_cents,
         promo_price_cents: v.promo_price_cents ?? null,
+        cost_cents: v.cost_cents ?? null,
         stock_qty: isDuplicate ? 0 : (v.stock_qty ?? 0),
         sort_order: v.sort_order ?? idx,
         is_default: v.is_default ?? idx === 0,
         is_active: v.is_active ?? true,
       })),
     );
+    setApplyAllVariantsConfirm(false);
     setAiAssist(null);
     setErrorMsg(null);
   });
@@ -178,6 +205,9 @@ export function ProductFormScreen(props: {
     setWholesaleGroupVariants(true);
     setSelectedAttrValueIds([]);
     setVariantsDraft([]);
+    setWholesaleTiersDraft([]);
+    setReusedCostNotice(false);
+    setApplyAllVariantsConfirm(false);
     setAiAssist(null);
     setErrorMsg(null);
   }
@@ -191,6 +221,32 @@ export function ProductFormScreen(props: {
     const num = Number(clean);
     return Number.isFinite(num) && num > 0 ? Math.round(num * 100) : 0;
   }
+
+  const parsedCost = createMemo(() => parseBrlNullableCost(costBrl()));
+
+  const marginEstimate = createMemo(() => {
+    const regular = parseBrl(priceBrl());
+    const promo = promoBrl().trim() ? parseBrl(promoBrl()) : null;
+    const costVal = parsedCost();
+    return calculateUnitMarginPreview({
+      regularPriceCents: regular,
+      promoPriceCents: promo,
+      costCents: costVal.valid ? costVal.cents : null,
+    });
+  });
+
+  const wholesaleTierEstimates = createMemo(() => {
+    const est = marginEstimate();
+    const tiersSource =
+      wholesaleTiersDraft().length > 0
+        ? wholesaleTiersDraft()
+        : (props.product?.wholesale_condition?.tiers ?? []);
+    return calculateWholesaleTierEstimates(
+      tiersSource,
+      est.effectivePriceCents,
+      est.costCents,
+    );
+  });
 
   const discountPreview = createMemo(() => {
     const regular = parseBrl(priceBrl());
@@ -278,7 +334,12 @@ export function ProductFormScreen(props: {
       return;
     }
 
-    const costCents = costBrl().trim() ? parseBrl(costBrl()) : 0;
+    const costParsed = parseBrlNullableCost(costBrl());
+    if (canWriteCost() && !costParsed.valid) {
+      setErrorMsg("Informe um custo unitário válido (>= R$ 0,00) ou deixe em branco.");
+      return;
+    }
+
     const firstVariantId = props.product?.variants?.[0]?.id;
 
     const payload = {
@@ -292,7 +353,7 @@ export function ProductFormScreen(props: {
       category_ids: selectedCats(),
       price_cents: priceCents,
       promo_price_cents: promoCents,
-      cost_cents: costCents,
+      ...(canWriteCost() ? { cost_cents: costParsed.cents } : {}),
       weight_grams: Number(weightGrams()) || 200,
       short_description: shortDesc().trim() || undefined,
       description: fullDesc().trim() || undefined,
@@ -325,6 +386,7 @@ export function ProductFormScreen(props: {
               color_hex: v.color_hex.trim() || null,
               price_cents: v.price_cents || priceCents,
               promo_price_cents: v.promo_price_cents,
+              ...(canWriteCost() ? { cost_cents: v.cost_cents ?? null } : {}),
               stock_qty: v.stock_qty,
               sort_order: idx,
               is_default: idx === 0,
@@ -337,6 +399,7 @@ export function ProductFormScreen(props: {
                 name: props.product?.variants?.[0]?.name || "Padrão",
                 price_cents: priceCents,
                 promo_price_cents: promoCents,
+                ...(canWriteCost() ? { cost_cents: costParsed.cents } : {}),
                 stock_qty: Math.max(0, Number(stockQty()) || 0),
                 is_default: true,
                 is_active: true,
@@ -568,10 +631,18 @@ export function ProductFormScreen(props: {
         </div>
       </section>
 
-      {/* Section 2: Pricing & Stock */}
+      {/* Section 2: Preços e custos */}
       <section class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
-        <h3 class="text-sm font-bold text-zinc-900">2. Preço, Estoque e Envio</h3>
-        <div class="grid gap-3 sm:grid-cols-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-sm font-bold text-zinc-900">2. Preços e custos</h3>
+          <Show when={reusedCostNotice()}>
+            <span class="rounded border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
+              Valores reaproveitados da duplicação — revise preço e custo unitário antes de salvar.
+            </span>
+          </Show>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label class="block text-xs font-semibold text-zinc-700">Preço de venda (R$) *</label>
             <input
@@ -583,25 +654,106 @@ export function ProductFormScreen(props: {
               class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right font-semibold tabular-nums focus:border-[#93509e] focus:outline-none"
             />
           </div>
+
+          <Show when={canViewCost()}>
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <label class="block text-xs font-semibold text-zinc-700">
+                  Custo unitário da mercadoria (R$)
+                </label>
+                <span class="text-[11px] font-medium text-zinc-500">
+                  {parsedCost().valid
+                    ? parsedCost().cents === null
+                      ? "Custo não informado"
+                      : parsedCost().cents === 0
+                        ? "R$ 0,00 informado"
+                        : "Informado"
+                    : "Valor inválido"}
+                </span>
+              </div>
+              <input
+                type="text"
+                inputMode="decimal"
+                disabled={!canWriteCost()}
+                value={costBrl()}
+                onInput={(e) => setCostBrl(e.currentTarget.value)}
+                placeholder="Vazio = não informado (ex.: 30,00)"
+                class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none disabled:bg-zinc-100"
+              />
+              <p class="mt-1 text-[11px] text-zinc-500">
+                Quanto a loja pagou por uma unidade deste produto. Deixe vazio se ainda não souber; digite 0,00 apenas se o custo real for zero.
+              </p>
+            </div>
+          </Show>
+        </div>
+
+        {/* Live Gross Profit & Margin Preview */}
+        <Show when={canViewCost()}>
+          <div
+            class={`rounded-md border p-3 text-xs ${
+              marginEstimate().isLoss
+                ? "border-red-200 bg-red-50/70"
+                : "border-zinc-200 bg-zinc-50"
+            }`}
+          >
+            <Show
+              when={marginEstimate().activePriceType === "promo"}
+            >
+              <p class="mb-2 text-[11px] font-semibold text-[#62298d]">
+                Prévia calculada sobre o preço promocional ativo ({formatBrlFromCents(marginEstimate().effectivePriceCents)}) em vez do preço normal.
+              </p>
+            </Show>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Lucro bruto estimado por unidade
+                </p>
+                <p
+                  class={`mt-0.5 text-base font-bold tabular-nums ${
+                    marginEstimate().isLoss
+                      ? "text-red-700"
+                      : marginEstimate().profitCents !== null
+                        ? "text-zinc-900"
+                        : "text-zinc-500"
+                  }`}
+                >
+                  {marginEstimate().profitCents !== null
+                    ? formatBrlSigned(marginEstimate().profitCents!)
+                    : "Custo não informado"}
+                  <Show when={marginEstimate().isLoss}>
+                    <span class="ml-1.5 text-xs font-semibold">(abaixo do custo)</span>
+                  </Show>
+                </p>
+              </div>
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Margem bruta estimada
+                </p>
+                <p
+                  class={`mt-0.5 text-base font-bold tabular-nums ${
+                    marginEstimate().isLoss ? "text-red-700" : "text-[#62298d]"
+                  }`}
+                >
+                  {marginEstimate().costState === "uninformed"
+                    ? "Indisponível"
+                    : formatMarginPercentage(marginEstimate().marginPct, {
+                        compactWhole: true,
+                      })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Show>
+
+        <div class="grid gap-3 sm:grid-cols-3">
           <div>
-            <label class="block text-xs font-semibold text-zinc-700">Promocional (R$)</label>
+            <label class="block text-xs font-semibold text-zinc-700">Preço promocional (R$)</label>
             <input
               type="text"
               inputMode="decimal"
               value={promoBrl()}
               onInput={(e) => setPromoBrl(e.currentTarget.value)}
               placeholder="Opcional"
-              class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none"
-            />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700">Custo (R$)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={costBrl()}
-              onInput={(e) => setCostBrl(e.currentTarget.value)}
-              placeholder="Interno"
               class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none"
             />
           </div>
@@ -615,7 +767,22 @@ export function ProductFormScreen(props: {
               class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none"
             />
           </div>
+          <Show when={variantsDraft().length <= 1}>
+            <div>
+              <label class="block text-xs font-semibold text-zinc-700">
+                Saldo físico em estoque
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={stockQty()}
+                onInput={(e) => setStockQty(Number(e.currentTarget.value))}
+                class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none"
+              />
+            </div>
+          </Show>
         </div>
+
         <Show when={discountPreview()}>
           {(d) => (
             <p class="text-xs font-medium text-[#62298d]">
@@ -623,18 +790,74 @@ export function ProductFormScreen(props: {
             </p>
           )}
         </Show>
-        <Show when={variantsDraft().length <= 1}>
-          <div class="max-w-xs">
-            <label class="block text-xs font-semibold text-zinc-700">
-              Saldo físico em estoque
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={stockQty()}
-              onInput={(e) => setStockQty(Number(e.currentTarget.value))}
-              class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none"
-            />
+
+        <Show when={canWriteCost() && variantsDraft().length > 1}>
+          <div class="space-y-2 border-t border-zinc-100 pt-3 text-xs">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-zinc-600">
+                Este produto possui {variantsDraft().length} variações com edição individual de custo abaixo.
+              </span>
+              <button
+                type="button"
+                onClick={() => setApplyAllVariantsConfirm((v) => !v)}
+                class="rounded-md border border-[#93509e] bg-white px-3 py-1.5 font-semibold text-[#93509e] hover:bg-purple-50"
+              >
+                Aplicar custo a todas as variações
+              </button>
+            </div>
+            <Show when={applyAllVariantsConfirm()}>
+              <div class="space-y-2 rounded-md border border-purple-200 bg-purple-50/40 p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="font-semibold text-zinc-900">
+                    Confirmar aplicação de{" "}
+                    {parsedCost().valid && parsedCost().cents !== null
+                      ? formatBrlFromCents(parsedCost().cents)
+                      : "Não informado"}{" "}
+                    para {variantsDraft().length} SKU(s)
+                  </span>
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setApplyAllVariantsConfirm(false)}
+                      class="rounded border border-zinc-300 bg-white px-2.5 py-1 font-semibold"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetCents = parsedCost().valid ? parsedCost().cents : null;
+                        setVariantsDraft((prev) =>
+                          prev.map((item) => ({ ...item, cost_cents: targetCents })),
+                        );
+                        setApplyAllVariantsConfirm(false);
+                      }}
+                      class="rounded bg-[#93509e] px-3 py-1 font-bold text-white hover:bg-[#7c3f87]"
+                    >
+                      Confirmar para todas
+                    </button>
+                  </div>
+                </div>
+                <div class="max-h-28 overflow-y-auto text-[11px] text-zinc-700">
+                  <For each={variantsDraft()}>
+                    {(vr) => (
+                      <div class="flex justify-between border-b border-purple-100 py-0.5">
+                        <span class="font-mono">{vr.sku || vr.name}</span>
+                        <span class="tabular-nums">
+                          {vr.cost_cents !== null && vr.cost_cents !== undefined
+                            ? formatBrlFromCents(vr.cost_cents)
+                            : "Não informado"}{" "}
+                          →{" "}
+                          {parsedCost().valid && parsedCost().cents !== null
+                            ? formatBrlFromCents(parsedCost().cents)
+                            : "Não informado"}
+                        </span>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </div>
+            </Show>
           </div>
         </Show>
       </section>
@@ -686,7 +909,7 @@ export function ProductFormScreen(props: {
           </div>
         </Show>
 
-        <div class="flex items-center justify-between pt-2 text-xs">
+        <div class="space-y-2 pt-2 text-xs">
           <label class="inline-flex items-center gap-2 font-medium text-zinc-800">
             <input
               type="checkbox"
@@ -696,9 +919,43 @@ export function ProductFormScreen(props: {
             />
             Somar quantidades entre variações para atingir faixa de atacado
           </label>
+          <Show when={canViewCost() && wholesaleTierEstimates().length > 0}>
+            <div class="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <p class="mb-1.5 font-bold text-zinc-800">
+                Atacado — margem estimada por faixa
+              </p>
+              <div class="grid gap-1.5 sm:grid-cols-2">
+                <For each={wholesaleTierEstimates()}>
+                  {(tier) => (
+                    <div class="flex items-center justify-between rounded border border-zinc-200 bg-white px-2.5 py-1.5 tabular-nums">
+                      <span>
+                        <strong>{tier.min_qty}+ un.</strong> ·{" "}
+                        {formatBrlFromCents(tier.unit_price_cents)}
+                      </span>
+                      <span
+                        class={`font-semibold ${
+                          tier.is_loss ? "text-red-700" : "text-zinc-700"
+                        }`}
+                      >
+                        {tier.profit_cents !== null
+                          ? `${formatBrlSigned(tier.profit_cents)} (${formatMarginPercentage(tier.margin_pct, { compactWhole: true })})`
+                          : "Sem custo"}
+                      </span>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
         </div>
 
-        <AdminVariantsEditor variants={variantsDraft()} onChange={setVariantsDraft} />
+        <AdminVariantsEditor
+          variants={variantsDraft()}
+          onChange={setVariantsDraft}
+          canCostView={canViewCost()}
+          canCostWrite={canWriteCost()}
+          parentCostCents={parsedCost().valid ? parsedCost().cents : null}
+        />
 
         <Show when={props.attributes.length > 0}>
           <div class="space-y-1.5 rounded-md border border-zinc-200 p-3 text-xs">

@@ -12,6 +12,8 @@ import { ApiError, api } from "../../../lib/api";
 import { assetUrl, formatCents } from "../../../lib/format";
 import {
   formatCentsToBrInput,
+  formatCostCentsToBrInput,
+  parseBrazilianCostToCents,
   parseBrazilianPriceToCents,
 } from "../admin-helpers";
 import { makeIdempotencyKey } from "../products/types";
@@ -803,6 +805,80 @@ export function AdminAiCatalogAgentPanel(props: {
                         )}
                       </Show>
 
+                      {/* Ambiguous bare currency disambiguation & Pack unit conversion alerts */}
+                      <Show when={(item().proposed_data.ambiguous_price_cents ?? 0) > 0}>
+                        <div class="space-y-1.5 rounded-md border border-purple-200 bg-purple-50/70 p-2.5 text-[11px]">
+                          <p class="font-bold text-[#62298d]">
+                            Valor encontrado ({formatCents(item().proposed_data.ambiguous_price_cents ?? 0)}) sem classificação clara — indique o significado:
+                          </p>
+                          <div class="flex flex-wrap gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void updateItem(detail().id, item().id, {
+                                  price_meaning: "cost",
+                                })
+                              }
+                              class="rounded border border-[#93509e] bg-white px-2 py-1 font-semibold text-[#62298d] hover:bg-purple-50"
+                            >
+                              Custo de aquisição
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void updateItem(detail().id, item().id, {
+                                  price_meaning: "supplier_suggested",
+                                })
+                              }
+                              class="rounded border border-zinc-300 bg-white px-2 py-1 font-semibold text-zinc-700 hover:bg-zinc-50"
+                            >
+                              Preço sugerido pelo fornecedor
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void updateItem(detail().id, item().id, {
+                                  price_meaning: "sale",
+                                })
+                              }
+                              class="rounded border border-zinc-300 bg-white px-2 py-1 font-semibold text-zinc-700 hover:bg-zinc-50"
+                            >
+                              Preço de venda da loja
+                            </button>
+                          </div>
+                        </div>
+                      </Show>
+
+                      <Show when={item().proposed_data.cost_conversion}>
+                        {(conv) => (
+                          <div class="space-y-1.5 rounded-md border border-zinc-200 bg-zinc-50 p-2.5 text-[11px]">
+                            <div class="flex flex-wrap items-center justify-between gap-1">
+                              <span class="font-bold text-zinc-900">
+                                Conversão de embalagem ({conv().pack_label} c/ {conv().pack_qty} un.)
+                              </span>
+                              <span class="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 border border-zinc-200">
+                                Unidade de venda: {conv().selling_unit}
+                              </span>
+                            </div>
+                            <p class="font-mono text-zinc-800">{conv().formula}</p>
+                            <Show when={!conv().applied}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void updateItem(detail().id, item().id, {
+                                    apply_pack_conversion: true,
+                                    selling_unit: "unidade",
+                                  })
+                                }
+                                class="rounded bg-[#93509e] px-2.5 py-1 font-semibold text-white hover:bg-[#7c3f87]"
+                              >
+                                Confirmar venda por unidade e aplicar custo unitário ({formatCents(conv().proposed_unit_cost_cents)})
+                              </button>
+                            </Show>
+                          </div>
+                        )}
+                      </Show>
+
                       {/* Errors & Warnings */}
                       <Show when={(item().validation_result?.errors?.length ?? 0) > 0}>
                         <div class="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-[11px] text-red-800">
@@ -864,11 +940,31 @@ export function AdminAiCatalogAgentPanel(props: {
                         </div>
                         <div>
                           <label class="block text-[11px] font-semibold text-zinc-700">
-                            Preço de venda (R$)
-                            <Show when={item().proposed_data.cost_price_cents}>
-                              {(c) => (
+                            Custo de aquisição unitário (R$)
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={formatCostCentsToBrInput(item().proposed_data.cost_price_cents)}
+                            onBlur={(e) => {
+                              const cents = parseBrazilianCostToCents(e.currentTarget.value);
+                              if (cents === null || cents >= 0) {
+                                void updateItem(detail().id, item().id, {
+                                  cost_price_cents: cents,
+                                });
+                              }
+                            }}
+                            placeholder="Não informado"
+                            class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2 text-right tabular-nums"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-[11px] font-semibold text-zinc-700">
+                            Preço de venda da loja (R$)
+                            <Show when={item().proposed_data.suggested_retail_price_cents}>
+                              {(srp) => (
                                 <span class="ml-1 text-[10px] font-normal text-amber-800">
-                                  (Custo fonte: {formatCents(c())})
+                                  (Sugerido forn.: {formatCents(srp())})
                                 </span>
                               )}
                             </Show>

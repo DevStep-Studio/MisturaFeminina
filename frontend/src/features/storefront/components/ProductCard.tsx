@@ -290,7 +290,7 @@ export function ProductCard(props: {
               <button
                 type="button"
                 onClick={() => setIsWholesaleSelected((prev) => !prev)}
-                class={`group/wholesale inline-flex h-[28px] max-w-full min-w-0 items-center justify-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-medium transition-all duration-200 ${
+                class={`group/wholesale inline-flex h-[28px] max-w-full min-w-0 overflow-hidden items-center justify-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-medium transition-all duration-200 ${
                   isWholesaleSelected()
                     ? "border-[#93509e] bg-[#FAF3FC] text-[#7C2784] ring-1 ring-[#93509e]/40 shadow-xs"
                     : "border-[#ECD4EF] bg-[#FDF8FD] text-[#6E2E78] hover:border-[#93509e] hover:bg-[#FAF3FC]"

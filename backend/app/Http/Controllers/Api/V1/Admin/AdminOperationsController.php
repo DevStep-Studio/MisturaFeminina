@@ -258,12 +258,23 @@ class AdminOperationsController extends Controller
 
     public function listBulkVariants(Request $request): JsonResponse
     {
+        $canViewCost = $request->user()?->hasPermission('catalog.cost.view') ?? false;
         $query = ProductVariant::query()
-            ->with(['product:id,name,sku,slug,is_active', 'product.brand:id,name'])
+            ->with(['product:id,name,sku,slug,is_active,cost_cents', 'product.brand:id,name'])
             ->whereHas('product', fn ($pq) => $pq->where('is_active', true));
 
         if ($request->filled('product_id')) {
             $query->where('product_id', (int) $request->query('product_id'));
+        }
+        if ($request->filled('product_ids')) {
+            $ids = array_values(array_filter(array_map('intval', explode(',', (string) $request->query('product_ids')))));
+            if ($ids !== []) {
+                $query->whereIn('product_id', $ids);
+            }
+        }
+        if ((string) $request->query('cost_status', '') === 'missing' || (string) $request->query('filter', '') === 'missing_cost') {
+            $query->whereNull('cost_cents')
+                ->whereHas('product', fn ($pq) => $pq->whereNull('cost_cents'));
         }
         if ($request->filled('search')) {
             $like = '%'.trim((string) $request->query('search')).'%';
@@ -276,24 +287,33 @@ class AdminOperationsController extends Controller
         }
 
         $variants = $query->orderBy('product_id')->orderBy('sort_order')->orderBy('id')->limit(200)->get()
-            ->map(fn (ProductVariant $v): array => [
-                'variant_id' => $v->id,
-                'product_id' => $v->product_id,
-                'product_name' => $v->product->name ?? '',
-                'product_sku' => $v->product->sku ?? '',
-                'name' => $v->name,
-                'shade_code' => $v->shade_code,
-                'color_family' => $v->color_family,
-                'color_hex' => $v->color_hex,
-                'sku' => $v->sku,
-                'gtin' => $v->gtin,
-                'price_cents' => $v->price_cents,
-                'promo_price_cents' => $v->promo_price_cents,
-                'stock_qty' => $v->stock_qty,
-                'reserved_qty' => $v->reserved_qty,
-                'sort_order' => $v->sort_order,
-                'is_active' => $v->is_active,
-            ])->values();
+            ->map(function (ProductVariant $v) use ($canViewCost): array {
+                $row = [
+                    'variant_id' => $v->id,
+                    'product_id' => $v->product_id,
+                    'product_name' => $v->product->name ?? '',
+                    'product_sku' => $v->product->sku ?? '',
+                    'name' => $v->name,
+                    'shade_code' => $v->shade_code,
+                    'color_family' => $v->color_family,
+                    'color_hex' => $v->color_hex,
+                    'sku' => $v->sku,
+                    'gtin' => $v->gtin,
+                    'price_cents' => $v->price_cents,
+                    'promo_price_cents' => $v->promo_price_cents,
+                    'stock_qty' => $v->stock_qty,
+                    'reserved_qty' => $v->reserved_qty,
+                    'sort_order' => $v->sort_order,
+                    'is_active' => $v->is_active,
+                ];
+                if ($canViewCost) {
+                    $row['cost_cents'] = $v->cost_cents;
+                    $row['parent_cost_cents'] = $v->product?->cost_cents;
+                    $row['effective_cost_cents'] = $v->effectiveCostCents();
+                }
+
+                return $row;
+            })->values();
 
         return response()->json(['data' => $variants]);
     }
@@ -701,6 +721,7 @@ class AdminOperationsController extends Controller
             'items.*.discrepancy_reason' => ['nullable', 'string', 'max:40'],
             'items.*.discrepancy_notes' => ['nullable', 'string', 'max:255'],
             'items.*.unit_cost_cents' => ['nullable', 'integer', 'min:0'],
+            'items.*.apply_cost_to_sku' => ['nullable', 'boolean'],
             'items.*.lot_code' => ['nullable', 'string', 'max:80'],
             'items.*.manufactured_at' => ['nullable', 'date'],
             'items.*.expires_at' => ['nullable', 'date'],

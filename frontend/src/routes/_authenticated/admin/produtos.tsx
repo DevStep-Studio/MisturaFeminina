@@ -96,6 +96,8 @@ function AdminProductsPage() {
   const canWrite = () => hasPermission(permissions(), "catalog.write");
   const canPrice = () =>
     hasPermission(permissions(), "catalog.pricing") || canWrite();
+  const canCostView = () => hasPermission(permissions(), "catalog.cost.view");
+  const canCostWrite = () => hasPermission(permissions(), "catalog.cost.write");
   const canStock = () =>
     hasPermission(permissions(), "inventory.manage") || canWrite();
   const canBulkEdit = () =>
@@ -590,11 +592,10 @@ function AdminProductsPage() {
                     dupId: undefined,
                   })
                 }
-                class={`rounded-md px-3 py-1.5 font-semibold ${
-                  currentView() === v
-                    ? "bg-[#93509e] text-white"
-                    : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-                }`}
+                class={`rounded-md px-3 py-1.5 font-semibold ${currentView() === v
+                  ? "bg-[#93509e] text-white"
+                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                  }`}
               >
                 {label}
               </button>
@@ -734,6 +735,31 @@ function AdminProductsPage() {
                 <option value="out_of_stock">Esgotado</option>
               </select>
 
+              <Show when={canCostView()}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateQuery(
+                      {
+                        filter:
+                          filters().filter === "missing_cost"
+                            ? undefined
+                            : "missing_cost",
+                        page: "1",
+                      },
+                      true,
+                    )
+                  }
+                  class={`h-9 rounded-md border px-3 text-xs font-semibold transition-colors ${
+                    filters().filter === "missing_cost"
+                      ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                      : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+                  }`}
+                >
+                  Sem custo cadastrado
+                </button>
+              </Show>
+
               <select
                 aria-label="Ordenação"
                 value={filters().sort}
@@ -823,7 +849,9 @@ function AdminProductsPage() {
                   }
                   class="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-zinc-700 hover:bg-zinc-50"
                 >
-                  Painel: {filters().filter}
+                  {filters().filter === "missing_cost"
+                    ? "Sem custo cadastrado"
+                    : `Painel: ${filters().filter}`}
                   <X class="h-3 w-3" />
                 </button>
               </Show>
@@ -1088,6 +1116,30 @@ function AdminProductsPage() {
                   <option value="price_desc">Maior preço</option>
                   <option value="stock_asc">Menor estoque</option>
                 </select>
+                <Show when={canCostView()}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateQuery(
+                        {
+                          filter:
+                            filters().filter === "missing_cost"
+                              ? undefined
+                              : "missing_cost",
+                          page: "1",
+                        },
+                        true,
+                      )
+                    }
+                    class={`h-10 rounded-md border px-3 text-left text-xs font-semibold ${
+                      filters().filter === "missing_cost"
+                        ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                        : "border-zinc-300 bg-white text-zinc-700"
+                    }`}
+                  >
+                    Sem custo cadastrado
+                  </button>
+                </Show>
               </div>
 
               <button
@@ -1114,6 +1166,8 @@ function AdminProductsPage() {
           categories={categories() ?? []}
           attributes={attributes() ?? []}
           canWrite={canWrite()}
+          canCostView={canCostView()}
+          canCostWrite={canCostWrite()}
           onCancel={returnToCatalog}
           onDuplicateRequest={(prod) => openNewProduct(prod.id)}
           onArchiveOrDelete={(prodId, action) =>
@@ -1135,6 +1189,8 @@ function AdminProductsPage() {
             routeSearch().product_id ? Number(routeSearch().product_id) : null
           }
           initialProductIds={!selectAllMatching() ? pageSelectedIds() : []}
+          canCostView={canCostView()}
+          canCostWrite={canCostWrite()}
           onCommitted={() => triggerReloadCatalog()}
         />
       </Show>
@@ -1262,6 +1318,7 @@ function AdminProductsPage() {
         brands={brands() ?? []}
         categories={categories() ?? []}
         canPrice={canPrice()}
+        canCostWrite={canCostWrite()}
         canStock={canStock()}
         canWrite={canWrite()}
         onClose={() => setRuleModalOpen(false)}

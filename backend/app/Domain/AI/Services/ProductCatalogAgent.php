@@ -344,6 +344,42 @@ class ProductCatalogAgent
             $proposed['price_cents'] = max(0, (int) $changes['price_cents']);
             $evidenceFields['price'] = $proposed['price_cents'] > 0 ? 'manual' : 'missing';
         }
+        if (array_key_exists('cost_price_cents', $changes)) {
+            $proposed['cost_price_cents'] = $changes['cost_price_cents'] !== null && $changes['cost_price_cents'] !== ''
+                ? max(0, (int) $changes['cost_price_cents'])
+                : null;
+            $evidenceFields['cost'] = $proposed['cost_price_cents'] !== null ? 'manual' : 'missing';
+        }
+        if (array_key_exists('suggested_retail_price_cents', $changes)) {
+            $proposed['suggested_retail_price_cents'] = $changes['suggested_retail_price_cents'] !== null && $changes['suggested_retail_price_cents'] !== ''
+                ? max(0, (int) $changes['suggested_retail_price_cents'])
+                : null;
+        }
+        if (! empty($changes['price_meaning']) && in_array($changes['price_meaning'], ['cost', 'supplier_suggested', 'sale'], true)) {
+            $ambVal = (int) ($proposed['ambiguous_price_cents'] ?? $changes['ambiguous_price_cents'] ?? 0);
+            $meaning = (string) $changes['price_meaning'];
+            $proposed['price_meaning'] = $meaning;
+            if ($ambVal > 0) {
+                if ($meaning === 'cost') {
+                    $proposed['cost_price_cents'] = $ambVal;
+                } elseif ($meaning === 'supplier_suggested') {
+                    $proposed['suggested_retail_price_cents'] = $ambVal;
+                } else {
+                    $proposed['price_cents'] = $ambVal;
+                    $evidenceFields['price'] = 'manual';
+                }
+                $proposed['ambiguous_price_cents'] = null;
+            }
+        }
+        if (! empty($changes['apply_pack_conversion']) && is_array($proposed['cost_conversion'] ?? null)) {
+            $conv = $proposed['cost_conversion'];
+            if (! empty($conv['proposed_unit_cost_cents'])) {
+                $proposed['cost_price_cents'] = (int) $conv['proposed_unit_cost_cents'];
+                $conv['selling_unit'] = (string) ($changes['selling_unit'] ?? 'unidade');
+                $conv['applied'] = true;
+                $proposed['cost_conversion'] = $conv;
+            }
+        }
         if (array_key_exists('promo_price_cents', $changes)) {
             $proposed['promo_price_cents'] = $changes['promo_price_cents'] !== null ? max(0, (int) $changes['promo_price_cents']) : null;
         }
@@ -596,6 +632,9 @@ class ProductCatalogAgent
                     if (array_key_exists('promo_price_cents', $p) && $p['promo_price_cents'] !== null) {
                         $varUpdate['promo_price_cents'] = (int) $p['promo_price_cents'];
                     }
+                    if (array_key_exists('cost_price_cents', $p) && $p['cost_price_cents'] !== null && $actor->hasPermission('catalog.cost.write')) {
+                        $varUpdate['cost_cents'] = (int) $p['cost_price_cents'];
+                    }
 
                     $oldPriceSnap = $existingVar->price_cents;
                     $existingVar->update($varUpdate);
@@ -684,7 +723,9 @@ class ProductCatalogAgent
                         'ingredients' => $p['ingredients'] ?? null,
                         'usage_instructions' => $p['usage_instructions'] ?? null,
                         'product_type' => ProductType::Simple->value,
-                        'cost_cents' => (int) ($p['cost_price_cents'] ?? 0),
+                        'cost_cents' => (array_key_exists('cost_price_cents', $p) && $p['cost_price_cents'] !== null && $actor->hasPermission('catalog.cost.write'))
+                            ? (int) $p['cost_price_cents']
+                            : null,
                         'price_cents' => $priceCents,
                         'promo_price_cents' => $p['promo_price_cents'] ?? null,
                         'weight_grams' => ! empty($p['shipping_weight_grams']) ? (int) $p['shipping_weight_grams'] : 200,
@@ -714,6 +755,9 @@ class ProductCatalogAgent
                     'color_hex' => $p['color_hex'] ?? null,
                     'price_cents' => $priceCents,
                     'promo_price_cents' => $p['promo_price_cents'] ?? null,
+                    'cost_cents' => (array_key_exists('cost_price_cents', $p) && $p['cost_price_cents'] !== null && $actor->hasPermission('catalog.cost.write'))
+                        ? (int) $p['cost_price_cents']
+                        : null,
                     'stock_qty' => 0,
                     'reserved_qty' => 0,
                     'weight_grams' => ! empty($p['shipping_weight_grams']) ? (int) $p['shipping_weight_grams'] : 200,

@@ -84,6 +84,12 @@ class Order extends Model
         return $this->hasMany(Refund::class);
     }
 
+    /** @return HasMany<OrderReturn, $this> */
+    public function returns(): HasMany
+    {
+        return $this->hasMany(OrderReturn::class)->orderByDesc('occurred_at')->orderByDesc('id');
+    }
+
     /** @return HasOne<Shipment, $this> */
     public function shipment(): HasOne
     {

@@ -9,6 +9,8 @@ import { For, Index, Show, createResource, createSignal, onMount } from "solid-j
 import { ApiError, api } from "../../lib/api";
 import {
   formatCentsToBrInput,
+  formatCostCentsToBrInput,
+  parseBrazilianCostToCents,
   parseBrazilianPriceToCents,
 } from "./admin-helpers";
 import { makeIdempotencyKey } from "./products/types";
@@ -25,6 +27,9 @@ interface BulkRow {
   price_brl: string;
   promo_price_brl: string;
   clear_promo?: boolean;
+  cost_brl: string;
+  clear_cost?: boolean;
+  parent_cost_cents?: number | null;
   stock_qty: number | null;
   sort_order: number;
   is_active: boolean;
@@ -70,12 +75,17 @@ export function AdminBulkVariantsGrid(props: {
   products: Array<{ id: number; name: string; sku: string }>;
   initialProductId?: number | null;
   initialProductIds?: number[];
+  canCostView?: boolean;
+  canCostWrite?: boolean;
   onCommitted?: () => Promise<void> | void;
 }) {
+  const canViewCost = () => props.canCostView ?? true;
+  const canWriteCost = () => props.canCostWrite ?? true;
   const [selectedProductId, setSelectedProductId] = createSignal<number | "">(
     props.initialProductId ?? "",
   );
   const [search, setSearch] = createSignal("");
+  const [onlyMissingCost, setOnlyMissingCost] = createSignal(false);
   const [rows, setRows] = createSignal<BulkRow[]>([]);
   const [pasteModalOpen, setPasteModalOpen] = createSignal(false);
   const [rawPaste, setRawPaste] = createSignal("");
@@ -138,6 +148,7 @@ export function AdminBulkVariantsGrid(props: {
         qs.set("product_ids", props.initialProductIds!.join(","));
       }
       if (search().trim()) qs.set("search", search().trim());
+      if (onlyMissingCost()) qs.set("cost_status", "missing");
       const res = await api<{
         data: Array<{
           variant_id: number;
@@ -150,6 +161,8 @@ export function AdminBulkVariantsGrid(props: {
           sku: string;
           price_cents: number;
           promo_price_cents: number | null;
+          cost_cents?: number | null;
+          parent_cost_cents?: number | null;
           stock_qty: number;
           sort_order: number;
           is_active: boolean;
@@ -168,6 +181,9 @@ export function AdminBulkVariantsGrid(props: {
         price_brl: formatCentsToBrInput(v.price_cents),
         promo_price_brl: formatCentsToBrInput(v.promo_price_cents),
         clear_promo: false,
+        cost_brl: formatCostCentsToBrInput(v.cost_cents),
+        clear_cost: false,
+        parent_cost_cents: v.parent_cost_cents ?? null,
         stock_qty: v.stock_qty,
         expected_stock_qty: v.stock_qty,
         sort_order: v.sort_order,
@@ -201,6 +217,8 @@ export function AdminBulkVariantsGrid(props: {
         price_brl: "",
         promo_price_brl: "",
         clear_promo: false,
+        cost_brl: "",
+        clear_cost: false,
         stock_qty: null,
         sort_order: prev.length,
         is_active: true,
@@ -277,6 +295,11 @@ export function AdminBulkVariantsGrid(props: {
         : r.promo_price_brl.trim() !== ""
           ? parseBrazilianPriceToCents(r.promo_price_brl)
           : null;
+      const cCents = r.clear_cost
+        ? null
+        : r.cost_brl.trim() !== ""
+          ? parseBrazilianCostToCents(r.cost_brl)
+          : null;
 
       return {
         row_index: idx,
@@ -292,6 +315,13 @@ export function AdminBulkVariantsGrid(props: {
         price_cents: pCents,
         promo_price_cents: prCents,
         clear_promo: Boolean(r.clear_promo),
+        ...(canWriteCost()
+          ? {
+              cost_brl: r.clear_cost ? "" : r.cost_brl,
+              cost_cents: cCents,
+              clear_cost: Boolean(r.clear_cost),
+            }
+          : {}),
         stock_qty: r.stock_qty,
         expected_stock_qty: r.expected_stock_qty,
         sort_order: idx,
@@ -324,6 +354,8 @@ export function AdminBulkVariantsGrid(props: {
           ? parseBrazilianPriceToCents(r.promo_price_brl)
           : null,
         promo_price_brl: r.promo_price_brl,
+        cost_cents: r.cost_brl.trim() ? parseBrazilianCostToCents(r.cost_brl) : null,
+        cost_brl: r.cost_brl,
         stock_qty: r.stock_qty,
         sort_order: r.sort_order,
         is_active: r.is_active,
@@ -365,6 +397,11 @@ export function AdminBulkVariantsGrid(props: {
               ? formatCentsToBrInput(rawR.promo_price_cents as number)
               : "",
           clear_promo: Boolean(rawR.clear_promo),
+          cost_brl:
+            typeof rawR.cost_cents === "number"
+              ? formatCostCentsToBrInput(rawR.cost_cents as number)
+              : "",
+          clear_cost: Boolean(rawR.clear_cost),
           stock_qty:
             typeof rawR.stock_qty === "number" ? (rawR.stock_qty as number) : null,
           expected_stock_qty:
@@ -409,11 +446,16 @@ export function AdminBulkVariantsGrid(props: {
   }
 
   function downloadTemplate() {
-    const csv = [
-      "Nome da Variante;SKU;Preço;Estoque;Código Cor;Preço Promocional",
-      "Nude 017;GEL-017;19,90;12;017;",
-      "Vermelho Rubi 005;GEL-005;21,50;15;005;18,90",
-    ].join("\n");
+    const headers = canViewCost()
+      ? "Nome da Variante;SKU;Preço;Estoque;Código Cor;Preço Promocional;Custo unitário (R$)"
+      : "Nome da Variante;SKU;Preço;Estoque;Código Cor;Preço Promocional";
+    const row1 = canViewCost()
+      ? "Nude 017;GEL-017;19,90;12;017;;8,50"
+      : "Nude 017;GEL-017;19,90;12;017;";
+    const row2 = canViewCost()
+      ? "Vermelho Rubi 005;GEL-005;21,50;15;005;18,90;"
+      : "Vermelho Rubi 005;GEL-005;21,50;15;005;18,90";
+    const csv = [headers, row1, row2].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -508,6 +550,7 @@ export function AdminBulkVariantsGrid(props: {
             ...pr,
             price_brl: pr.price_brl ?? "",
             promo_price_brl: pr.promo_price_brl ?? "",
+            cost_brl: pr.cost_brl ?? "",
             sort_order: idx,
           })),
         );
@@ -610,6 +653,20 @@ export function AdminBulkVariantsGrid(props: {
           onInput={(e) => setSearch(e.currentTarget.value)}
           class="h-9 min-w-[180px] flex-1 rounded-md border border-zinc-300 px-3"
         />
+        <Show when={canViewCost()}>
+          <label class="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-zinc-50 px-3 font-medium text-zinc-800">
+            <input
+              type="checkbox"
+              checked={onlyMissingCost()}
+              onChange={(e) => {
+                setOnlyMissingCost(e.currentTarget.checked);
+                void loadVariants();
+              }}
+              class="accent-[#93509e]"
+            />
+            Sem custo cadastrado
+          </label>
+        </Show>
         <button
           type="button"
           onClick={() => void loadVariants()}
@@ -735,6 +792,9 @@ export function AdminBulkVariantsGrid(props: {
                 <th class="w-24 px-2 py-2.5">Cód. Cor</th>
                 <th class="w-28 px-2 py-2.5 text-right">Preço (R$)</th>
                 <th class="w-36 px-2 py-2.5 text-right">Promoção (R$)</th>
+                <Show when={canViewCost()}>
+                  <th class="w-40 px-2 py-2.5 text-right">Custo unitário (R$)</th>
+                </Show>
                 <th class="w-24 px-2 py-2.5 text-right">Estoque</th>
                 <th class="w-28 px-2 py-2.5">Situação</th>
                 <th class="w-10 px-2 py-2.5" />
@@ -834,6 +894,51 @@ export function AdminBulkVariantsGrid(props: {
                         </button>
                       </div>
                     </td>
+                    <Show when={canViewCost()}>
+                      <td class="px-2 py-2">
+                        <div class="flex items-center gap-1">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            disabled={!canWriteCost() || Boolean(r().clear_cost)}
+                            data-grid-cell={`${idx}:cost_brl`}
+                            value={r().clear_cost ? "" : r().cost_brl}
+                            onFocus={() =>
+                              handleCellFocus(idx, "cost_brl", r().cost_brl)
+                            }
+                            onInput={(e) =>
+                              updateCell(idx, "cost_brl", e.currentTarget.value)
+                            }
+                            onKeyDown={(e) => handleGridKeyDown(e, idx, "cost_brl")}
+                            placeholder={
+                              r().clear_cost
+                                ? "Remover"
+                                : r().parent_cost_cents !== null &&
+                                    r().parent_cost_cents !== undefined
+                                  ? `Herdar ${formatCostCentsToBrInput(r().parent_cost_cents)}`
+                                  : "Manter"
+                            }
+                            class="h-8 w-full rounded border border-zinc-300 px-2 text-right tabular-nums focus:border-[#93509e] focus:outline-none disabled:bg-zinc-100"
+                          />
+                          <Show when={canWriteCost()}>
+                            <button
+                              type="button"
+                              title="Marcar custo como não informado"
+                              onClick={() =>
+                                updateCell(idx, "clear_cost", !r().clear_cost)
+                              }
+                              class={`h-8 shrink-0 rounded border px-1.5 text-[10px] font-semibold ${
+                                r().clear_cost
+                                  ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                                  : "border-zinc-200 text-zinc-500"
+                              }`}
+                            >
+                              Limpar
+                            </button>
+                          </Show>
+                        </div>
+                      </td>
+                    </Show>
                     <td class="px-2 py-2">
                       <input
                         type="number"

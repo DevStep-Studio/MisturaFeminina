@@ -8,6 +8,10 @@ import { For, Show, createMemo, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminB2bMetricsSection } from "../../../features/admin/AdminB2bMetricsSection";
 import { AdminTodayWorkPanel } from "../../../features/admin/AdminTodayWorkPanel";
+import { ProfitBreakdownDrawer } from "../../../features/admin/ProfitBreakdownDrawer";
+import { formatBrlSigned, formatMarginPercentage } from "../../../features/admin/profit-math";
+import { hasPermission } from "../../../security/permissions";
+import { session } from "../../../security/session";
 import {
   AdminAreaChart,
   type DailySalesPoint,
@@ -112,13 +116,69 @@ interface DashboardSummary {
     purchase_created: number;
     purchase_paid: number;
   };
+  financial_summary?: {
+    period: {
+      from: string;
+      to: string;
+      sale_recognition_rule: string;
+      adjustment_date_rule: string;
+    };
+    kpis: {
+      products_revenue_cents: number;
+      cmv_cents: number;
+      gross_profit_cents: number;
+      gross_margin_pct: number | null;
+      covered_revenue_cents: number;
+      uncovered_revenue_cents: number;
+      total_units_sold: number;
+      covered_units_sold: number;
+      missing_cost_units: number;
+    };
+    coverage: {
+      is_partial: boolean;
+      covered_items_count: number;
+      missing_cost_items_count: number;
+      missing_cost_units_count: number;
+      label: string;
+    };
+  };
+  inventory_valuation?: {
+    label: string;
+    total_cost_cents: number;
+    total_units: number;
+    valued_units: number;
+    missing_cost_units: number;
+    total_skus: number;
+    valued_skus: number;
+    missing_cost_skus_count: number;
+    is_partial: boolean;
+    coverage_label: string;
+  };
 }
 
 function AdminDashboardPage() {
-  const [summary, { refetch }] = createResource(async () => {
-    const res = await api<{ data: DashboardSummary }>("/admin/dashboard");
-    return res.data;
-  });
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const thirtyAgoStr = new Date(Date.now() - 29 * 86400 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const [profitFrom, setProfitFrom] = createSignal(thirtyAgoStr);
+  const [profitTo, setProfitTo] = createSignal(todayStr);
+  const [drillMode, setDrillMode] = createSignal<"sales" | "inventory" | null>(null);
+  const [drillFilter, setDrillFilter] = createSignal<"all" | "missing_cost">("all");
+
+  const canViewProfit = () =>
+    hasPermission(session.user()?.permissions ?? [], "reports.profit.view");
+
+  const [summary, { refetch }] = createResource(
+    () => ({ from: profitFrom(), to: profitTo() }),
+    async (range) => {
+      const qs = new URLSearchParams({ from: range.from, to: range.to });
+      const res = await api<{ data: DashboardSummary }>(
+        `/admin/dashboard?${qs.toString()}`,
+      );
+      return res.data;
+    },
+  );
 
   const [donutTab, setDonutTab] = createSignal<"status" | "payments">("status");
 
@@ -361,6 +421,168 @@ function AdminDashboardPage() {
                   </div>
                 </div>
               </section>
+
+              {/* Financial Gross Profit & Cost Section (RBAC restricted) */}
+              <Show when={canViewProfit() && d().financial_summary}>
+                {(fs) => (
+                  <section class="space-y-4 rounded-2xl border border-zinc-200/80 bg-white p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 class="text-sm font-bold text-zinc-900">
+                          Vendas, Custo da Mercadoria Vendida e Lucro Bruto
+                        </h2>
+                        <p class="text-xs text-zinc-500">
+                          Regra de reconhecimento: {fs().period.sale_recognition_rule}. Sem lucro líquido operacional (taxas/anúncios/impostos à parte).
+                        </p>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <input
+                          type="date"
+                          aria-label="Data inicial de vendas"
+                          value={profitFrom()}
+                          onInput={(e) => setProfitFrom(e.currentTarget.value)}
+                          class="h-8 rounded-md border border-zinc-300 px-2.5"
+                        />
+                        <span class="text-zinc-400">até</span>
+                        <input
+                          type="date"
+                          aria-label="Data final de vendas"
+                          value={profitTo()}
+                          onInput={(e) => setProfitTo(e.currentTarget.value)}
+                          class="h-8 rounded-md border border-zinc-300 px-2.5"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="grid gap-4 lg:grid-cols-4">
+                      {/* 1. Receita de produtos */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrillFilter("all");
+                          setDrillMode("sales");
+                        }}
+                        class="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 text-left transition-colors hover:border-[#93509e] hover:bg-purple-50/30"
+                      >
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                          Receita de produtos
+                        </p>
+                        <p class="mt-1.5 text-2xl font-black tabular-nums text-zinc-900">
+                          {formatCents(fs().kpis.products_revenue_cents)}
+                        </p>
+                        <p class="mt-1 text-[11px] text-zinc-500">
+                          Sem frete · após cupons, atacado e devoluções · Ver itens →
+                        </p>
+                      </button>
+
+                      {/* 2. Custo da mercadoria vendida */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrillFilter("all");
+                          setDrillMode("sales");
+                        }}
+                        class="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 text-left transition-colors hover:border-[#93509e] hover:bg-purple-50/30"
+                      >
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                          Custo da mercadoria vendida
+                        </p>
+                        <p class="mt-1.5 text-2xl font-black tabular-nums text-zinc-900">
+                          {formatCents(fs().kpis.cmv_cents)}
+                        </p>
+                        <p class="mt-1 text-[11px] text-zinc-500">
+                          Custo unitário histórico ({fs().kpis.covered_units_sold} un. cobertas) →
+                        </p>
+                      </button>
+
+                      {/* 3. Lucro bruto + Margem bruta + cobertura transparente */}
+                      <div class="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDrillFilter("all");
+                            setDrillMode("sales");
+                          }}
+                          class="w-full text-left"
+                        >
+                          <div class="flex items-center justify-between gap-2">
+                            <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                              Lucro bruto
+                            </p>
+                            <span class="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[#62298d]">
+                              Margem: {formatMarginPercentage(fs().kpis.gross_margin_pct)}
+                            </span>
+                          </div>
+                          <p
+                            class={`mt-1.5 text-2xl font-black tabular-nums ${
+                              fs().kpis.gross_profit_cents < 0
+                                ? "text-red-700"
+                                : "text-[#93509e]"
+                            }`}
+                          >
+                            {formatBrlSigned(fs().kpis.gross_profit_cents)}
+                          </p>
+                        </button>
+                        <Show
+                          when={fs().coverage.is_partial}
+                          fallback={
+                            <p class="mt-1 text-[11px] text-zinc-500">
+                              {fs().coverage.label}
+                            </p>
+                          }
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDrillFilter("missing_cost");
+                              setDrillMode("sales");
+                            }}
+                            class="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 underline hover:text-amber-950"
+                          >
+                            {fs().coverage.label}
+                          </button>
+                        </Show>
+                      </div>
+
+                      {/* Valor do estoque a custo (separado e rotulado como Posição atual) */}
+                      <Show when={d().inventory_valuation}>
+                        {(inv) => (
+                          <button
+                            type="button"
+                            onClick={() => setDrillMode("inventory")}
+                            class="rounded-xl border border-[#DFC2E3] bg-[#FCF8FD] p-4 text-left transition-colors hover:border-[#93509e]"
+                          >
+                            <div class="flex items-center justify-between gap-2">
+                              <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                                Valor do estoque a custo
+                              </p>
+                              <span class="rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-[#62298d] border border-[#DFC2E3]">
+                                {inv().label}
+                              </span>
+                            </div>
+                            <p class="mt-1.5 text-2xl font-black tabular-nums text-zinc-900">
+                              {formatCents(inv().total_cost_cents)}
+                            </p>
+                            <p class="mt-1 text-[11px] text-zinc-600">
+                              {inv().is_partial
+                                ? `${inv().coverage_label} · Abrir pendências →`
+                                : `${inv().valued_units} un. em estoque avaliadas →`}
+                            </p>
+                          </button>
+                        )}
+                      </Show>
+                    </div>
+                  </section>
+                )}
+              </Show>
+
+              <ProfitBreakdownDrawer
+                mode={drillMode()}
+                from={profitFrom()}
+                to={profitTo()}
+                initialFilter={drillFilter()}
+                onClose={() => setDrillMode(null)}
+              />
 
               {/* Main Interactive Revenue Evolution Chart */}
               <AdminAreaChart

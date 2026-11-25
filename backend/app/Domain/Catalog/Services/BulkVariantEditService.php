@@ -67,6 +67,7 @@ class BulkVariantEditService
 
                         return match (true) {
                             str_contains($norm, 'sku') => 'sku',
+                            str_contains($norm, 'custo') || $norm === 'cost' || $norm === 'cost_brl' || $norm === 'cost_cents' => 'cost',
                             str_contains($norm, 'promo') => 'promo_price',
                             str_contains($norm, 'preco') || str_contains($norm, 'valor') => 'price',
                             str_contains($norm, 'estoq') || str_contains($norm, 'qtd') || str_contains($norm, 'saldo') => 'stock',
@@ -96,6 +97,9 @@ class BulkVariantEditService
                 'promo_price_brl' => null,
                 'promo_price_cents' => null,
                 'clear_promo' => false,
+                'cost_brl' => null,
+                'cost_cents' => null,
+                'clear_cost' => false,
                 'stock_qty' => null,
                 'is_active' => true,
                 'provided_fields' => [],
@@ -142,6 +146,16 @@ class BulkVariantEditService
                         $parsed['promo_price_cents'] = $this->parseBrazilianCents($cell);
                     }
                     $parsed['provided_fields'][] = 'promo_price';
+                } elseif ($field === 'cost') {
+                    if (in_array(mb_strtoupper($cell), ['[LIMPAR]', 'LIMPAR', 'REMOVER', '-'], true)) {
+                        $parsed['clear_cost'] = true;
+                        $parsed['cost_brl'] = null;
+                        $parsed['cost_cents'] = null;
+                    } else {
+                        $parsed['cost_brl'] = $cell;
+                        $parsed['cost_cents'] = $this->parseBrazilianCents($cell);
+                    }
+                    $parsed['provided_fields'][] = 'cost';
                 } elseif ($field === 'stock') {
                     $cleanStock = str_replace(['.', ' '], '', $cell);
                     $parsed['stock_qty'] = preg_match('/^-?\d+$/', $cleanStock) === 1
@@ -200,6 +214,11 @@ class BulkVariantEditService
                         $mergedRow['clear_promo'] = $pastedRow['clear_promo'];
                         $mergedRow['promo_price_brl'] = $pastedRow['promo_price_brl'];
                         $mergedRow['promo_price_cents'] = $pastedRow['promo_price_cents'];
+                    }
+                    if (in_array('cost', $provided, true)) {
+                        $mergedRow['clear_cost'] = $pastedRow['clear_cost'];
+                        $mergedRow['cost_brl'] = $pastedRow['cost_brl'];
+                        $mergedRow['cost_cents'] = $pastedRow['cost_cents'];
                     }
                     if (in_array('stock', $provided, true)) {
                         $mergedRow['stock_qty'] = $pastedRow['stock_qty'];
@@ -330,6 +349,22 @@ class BulkVariantEditService
                 $promoCents = $targetVariant?->promo_price_cents;
             }
 
+            $clearCost = ! empty($row['clear_cost']);
+            $costProvided = $provided === null
+                ? ($clearCost || (array_key_exists('cost_cents', $row) && $row['cost_cents'] !== null && $row['cost_cents'] !== '') || (isset($row['cost_brl']) && trim((string) $row['cost_brl']) !== ''))
+                : in_array('cost', $provided, true);
+
+            if ($clearCost) {
+                $costCents = null;
+            } elseif ($costProvided) {
+                $costCents = (array_key_exists('cost_cents', $row) && $row['cost_cents'] !== null && $row['cost_cents'] !== '')
+                    ? (int) $row['cost_cents']
+                    : $this->parseBrazilianCents($row['cost_brl'] ?? null);
+            } else {
+                // Blank cell preserves existing variant/product cost verbatim!
+                $costCents = $targetVariant ? $targetVariant->cost_cents : null;
+            }
+
             $stockProvided = $provided === null
                 ? (array_key_exists('stock_qty', $row) && $row['stock_qty'] !== null && $row['stock_qty'] !== '')
                 : in_array('stock', $provided, true);
@@ -356,6 +391,9 @@ class BulkVariantEditService
             }
             if ($promoCents !== null && ($promoCents <= 0 || ($priceCents > 0 && $promoCents >= $priceCents))) {
                 $errors[] = 'Preço promocional inválido ou maior/igual ao preço normal.';
+            }
+            if ($costProvided && ! $clearCost && ($costCents === null || $costCents < 0)) {
+                $errors[] = 'Custo unitário inválido (informe um valor >= R$ 0,00 ou deixe vazio para manter).';
             }
             if ($stockQty < 0) {
                 $errors[] = 'Estoque inválido ou negativo.';
@@ -393,6 +431,15 @@ class BulkVariantEditService
                         'label' => 'Promo',
                         'old_display' => $targetVariant->promo_price_cents ? $this->brl($targetVariant->promo_price_cents) : '—',
                         'new_display' => $promoCents ? $this->brl($promoCents) : 'Removido',
+                    ];
+                }
+                if ($costProvided && $costCents !== $targetVariant->cost_cents) {
+                    $oldCostEff = $targetVariant->cost_cents;
+                    $changes[] = [
+                        'field' => 'cost_cents',
+                        'label' => 'Custo unitário',
+                        'old_display' => $oldCostEff !== null ? $this->brl($oldCostEff) : 'Não informado',
+                        'new_display' => $clearCost || $costCents === null ? 'Não informado' : $this->brl($costCents),
                     ];
                 }
                 if ($stockQty >= 0 && $stockQty !== $targetVariant->stock_qty) {
@@ -451,6 +498,9 @@ class BulkVariantEditService
                 'sku' => $sku,
                 'price_cents' => $priceCents,
                 'promo_price_cents' => $promoCents,
+                'cost_cents' => $costProvided ? ($clearCost ? null : $costCents) : ($targetVariant?->cost_cents),
+                'cost_provided' => $costProvided,
+                'clear_cost' => $clearCost,
                 'stock_qty' => $stockQty,
                 'reserved_qty' => $targetVariant?->reserved_qty ?? 0,
                 'expected_updated_at' => $row['expected_updated_at'] ?? $targetVariant?->updated_at?->toIso8601String(),
@@ -517,6 +567,7 @@ class BulkVariantEditService
         }
 
         $canPrice = $actor->hasPermission('catalog.pricing') || $actor->hasPermission('catalog.write');
+        $canCost = $actor->hasPermission('catalog.cost.write');
         $canStock = $actor->hasPermission('inventory.manage') || $actor->hasPermission('catalog.write');
 
         $pendingRows = [];
@@ -530,6 +581,7 @@ class BulkVariantEditService
             $idempotencyKey,
             $source,
             $canPrice,
+            $canCost,
             $canStock,
             $applyValidOnly,
             $checkConcurrency,
@@ -616,12 +668,18 @@ class BulkVariantEditService
                         'shade_code' => $existing->shade_code,
                         'price_cents' => $existing->price_cents,
                         'promo_price_cents' => $existing->promo_price_cents,
+                        'cost_cents' => $existing->cost_cents,
                         'stock_qty' => $existing->stock_qty,
                         'is_active' => $existing->is_active,
                     ];
 
                     if ($existing->price_cents !== $row['price_cents'] && ! $canPrice) {
                         throw ValidationException::withMessages(['permissions' => ['Você não possui permissão para alterar preços comerciais.']]);
+                    }
+                    $costProvided = ! empty($row['cost_provided']);
+                    $targetCostCents = $row['cost_cents'] ?? null;
+                    if ($costProvided && $existing->cost_cents !== $targetCostCents && ! $canCost) {
+                        throw ValidationException::withMessages(['permissions' => ['Você não possui permissão para alterar custos unitários de mercadoria.']]);
                     }
                     $deltaStock = (int) $row['stock_qty'] - $existing->stock_qty;
                     if ($deltaStock !== 0 && ! $canStock) {
@@ -640,14 +698,24 @@ class BulkVariantEditService
                         $updatePayload['price_cents'] = $row['price_cents'];
                         $updatePayload['promo_price_cents'] = $row['promo_price_cents'];
                     }
+                    if ($costProvided && $canCost) {
+                        $updatePayload['cost_cents'] = ! empty($row['clear_cost']) ? null : $targetCostCents;
+                    }
 
                     $existing->update($updatePayload);
 
-                    if ($existing->is_default && $canPrice && $existing->product) {
-                        $existing->product->update([
-                            'price_cents' => $row['price_cents'],
-                            'promo_price_cents' => $row['promo_price_cents'],
-                        ]);
+                    if ($existing->is_default && $existing->product) {
+                        $prodSync = [];
+                        if ($canPrice) {
+                            $prodSync['price_cents'] = $row['price_cents'];
+                            $prodSync['promo_price_cents'] = $row['promo_price_cents'];
+                        }
+                        if ($costProvided && $canCost && $existing->product->variants()->count() <= 1) {
+                            $prodSync['cost_cents'] = ! empty($row['clear_cost']) ? null : $targetCostCents;
+                        }
+                        if ($prodSync !== []) {
+                            $existing->product->update($prodSync);
+                        }
                     }
 
                     if ($deltaStock !== 0) {
@@ -676,6 +744,9 @@ class BulkVariantEditService
                         throw ValidationException::withMessages(['permissions' => ['Cadastro de novas variações exige permissão de preço e estoque.']]);
                     }
                     $product = Product::query()->findOrFail((int) $row['product_id']);
+                    if (! empty($row['cost_provided']) && ! $canCost) {
+                        throw ValidationException::withMessages(['permissions' => ['Você não possui permissão para definir custos de mercadoria.']]);
+                    }
                     $created = ProductVariant::query()->create([
                         'product_id' => $product->id,
                         'sku' => $row['sku'],
@@ -685,6 +756,7 @@ class BulkVariantEditService
                         'color_hex' => $row['color_hex'],
                         'price_cents' => $row['price_cents'],
                         'promo_price_cents' => $row['promo_price_cents'],
+                        'cost_cents' => (! empty($row['cost_provided']) && empty($row['clear_cost'])) ? ($row['cost_cents'] ?? null) : null,
                         'stock_qty' => 0,
                         'reserved_qty' => 0,
                         'min_stock_alert' => 5,

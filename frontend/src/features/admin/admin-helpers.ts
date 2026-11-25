@@ -38,6 +38,27 @@ export function formatCentsToBrInput(cents: number | null | undefined): string {
   return (cents / 100).toFixed(2).replace(".", ",");
 }
 
+export function formatCostCentsToBrInput(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return "";
+  return (cents / 100).toFixed(2).replace(".", ",");
+}
+
+export function parseBrazilianCostToCents(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const clean = trimmed
+    .replace(/R\$/gi, "")
+    .replace(/\s+/g, "")
+    .replace(/[^0-9,.-]/g, "");
+  if (!clean || clean.startsWith("-")) return -1;
+  const normalized = clean.includes(",")
+    ? clean.replace(/\./g, "").replace(",", ".")
+    : clean;
+  const num = Number(normalized);
+  if (!Number.isFinite(num) || num < 0) return -1;
+  return Math.round(num * 100);
+}
+
 function stripAccents(value: string): string {
   return value
     .normalize("NFD")

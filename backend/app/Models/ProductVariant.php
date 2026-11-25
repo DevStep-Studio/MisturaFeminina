@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -13,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property int $price_cents
  * @property int|null $promo_price_cents
+ * @property int|null $cost_cents
  * @property int $stock_qty
  * @property int $reserved_qty
  * @property int $min_stock_alert
@@ -27,7 +29,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Product|null $product
  * @property-read ProductImage|null $image
  */
-#[Fillable(['product_id', 'sku', 'gtin', 'supplier_code', 'name', 'shade_code', 'color_family', 'color_hex', 'swatch_image_path', 'price_cents', 'promo_price_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'is_default', 'is_active', 'sort_order'])]
+#[Fillable(['product_id', 'sku', 'gtin', 'supplier_code', 'name', 'shade_code', 'color_family', 'color_hex', 'swatch_image_path', 'price_cents', 'promo_price_cents', 'cost_cents', 'stock_qty', 'reserved_qty', 'min_stock_alert', 'weight_grams', 'width_cm', 'height_cm', 'length_cm', 'image_id', 'is_default', 'is_active', 'sort_order'])]
+#[Hidden(['cost_cents'])]
 class ProductVariant extends Model
 {
     /** @return BelongsTo<Product, $this> */
@@ -83,11 +86,38 @@ class ProductVariant extends Model
         return (int) $this->price_cents;
     }
 
+    public function effectiveCostCents(): ?int
+    {
+        if ($this->cost_cents !== null) {
+            return (int) $this->cost_cents;
+        }
+
+        if ($this->product?->cost_cents !== null) {
+            return (int) $this->product->cost_cents;
+        }
+
+        return null;
+    }
+
+    public function effectiveCostSource(): string
+    {
+        if ($this->cost_cents !== null) {
+            return 'variant_cost';
+        }
+
+        if ($this->product?->cost_cents !== null) {
+            return 'product_cost';
+        }
+
+        return 'missing';
+    }
+
     protected function casts(): array
     {
         return [
             'price_cents' => 'integer',
             'promo_price_cents' => 'integer',
+            'cost_cents' => 'integer',
             'stock_qty' => 'integer',
             'reserved_qty' => 'integer',
             'min_stock_alert' => 'integer',

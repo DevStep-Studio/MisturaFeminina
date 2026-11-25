@@ -88,7 +88,10 @@ class GoodsReceiptService
                     'rejected_qty' => $rejectedQty,
                     'discrepancy_reason' => $reason,
                     'discrepancy_notes' => isset($line['discrepancy_notes']) ? (trim((string) $line['discrepancy_notes']) ?: null) : null,
-                    'unit_cost_cents' => isset($line['unit_cost_cents']) && $line['unit_cost_cents'] !== '' ? max(0, (int) $line['unit_cost_cents']) : null,
+                    'unit_cost_cents' => isset($line['unit_cost_cents']) && $line['unit_cost_cents'] !== '' && $line['unit_cost_cents'] !== null
+                        ? max(0, (int) $line['unit_cost_cents'])
+                        : null,
+                    'apply_cost_to_sku' => array_key_exists('apply_cost_to_sku', $line) ? (bool) $line['apply_cost_to_sku'] : true,
                     'lot_code' => isset($line['lot_code']) ? (trim((string) $line['lot_code']) ?: null) : null,
                     'manufactured_at' => ! empty($line['manufactured_at']) ? CarbonImmutable::parse((string) $line['manufactured_at'])->toDateString() : null,
                     'expires_at' => ! empty($line['expires_at']) ? CarbonImmutable::parse((string) $line['expires_at'])->toDateString() : null,
@@ -154,6 +157,21 @@ class GoodsReceiptService
 
                 // Only accepted sellable quantity enters available inventory; rejected/damaged units remain outside sellable stock.
                 if ($item->accepted_qty > 0) {
+                    if ($item->unit_cost_cents !== null && ($item->apply_cost_to_sku ?? true)) {
+                        $prevCost = $variant->cost_cents;
+                        if ($prevCost !== $item->unit_cost_cents) {
+                            $variant->update(['cost_cents' => $item->unit_cost_cents]);
+                            $this->audit->record(
+                                'catalog.sku_cost_updated_by_receipt',
+                                $actor,
+                                'product_variant',
+                                $variant->id,
+                                ['cost_cents' => $prevCost],
+                                ['cost_cents' => $item->unit_cost_cents, 'receipt_number' => $locked->receipt_number],
+                            );
+                        }
+                    }
+
                     $this->inventory->adjustStock(
                         $variant,
                         $item->accepted_qty,

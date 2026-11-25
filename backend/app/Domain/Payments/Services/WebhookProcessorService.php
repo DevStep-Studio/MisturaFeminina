@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Payments\Services;
 
 use App\Domain\Catalog\Services\InventoryService;
+use App\Domain\Orders\Services\OrderCostService;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Domain\Shared\Enums\PaymentStatus;
 use App\Mail\OrderStatusMail;
@@ -16,7 +17,10 @@ use Illuminate\Support\Facades\Mail;
 
 class WebhookProcessorService
 {
-    public function __construct(private readonly InventoryService $inventory) {}
+    public function __construct(
+        private readonly InventoryService $inventory,
+        private readonly OrderCostService $orderCost,
+    ) {}
 
     public function applyPaymentTransition(Payment $payment, PaymentStatus $newStatus, int $feeCents = 0, string $note = ''): void
     {
@@ -52,15 +56,24 @@ class WebhookProcessorService
                 PaymentStatus::Pending, PaymentStatus::Processing, PaymentStatus::Unknown, PaymentStatus::Failed => OrderStatus::PendingPayment,
             };
 
-            if ($newStatus === PaymentStatus::Approved && $prevOrderStatus === OrderStatus::PendingPayment) {
+            if ($newStatus === PaymentStatus::Approved && $order->paid_at === null && ! $order->status->isRecognizedSale()) {
                 $this->inventory->confirmDeduction($order);
-                $order->update(['status' => OrderStatus::Paid, 'paid_at' => now()]);
+                $order->update(['status' => OrderStatus::Paid, 'paid_at' => $lockedPayment->paid_at ?? now()]);
+                $this->orderCost->captureCostSnapshotForOrder($order);
             } elseif (in_array($newStatus, [PaymentStatus::Rejected, PaymentStatus::Cancelled, PaymentStatus::Expired], true)
                 && in_array($prevOrderStatus, [OrderStatus::PendingPayment, OrderStatus::PaymentFailed], true)) {
                 $this->inventory->releaseReservation($order, "Pagamento {$newStatus->value}: {$note}");
                 $order->update([
                     'status' => $targetOrderStatus,
                     'cancelled_at' => $targetOrderStatus === OrderStatus::Cancelled ? now() : $order->cancelled_at,
+                ]);
+            } elseif (in_array($newStatus, [PaymentStatus::Refunded, PaymentStatus::ChargedBack], true) && $order->paid_at !== null) {
+                $this->orderCost->processReturnOrRefund($order, [
+                    'idempotency_key' => "gateway:{$newStatus->value}:payment:{$lockedPayment->id}",
+                    'return_type' => 'full_return',
+                    'restock_items' => false,
+                    'financial_refund_cents' => $lockedPayment->gross_amount_cents,
+                    'reason' => $note ?: "Estorno via gateway ({$newStatus->value})",
                 ]);
             } elseif ($prevOrderStatus !== $targetOrderStatus) {
                 $order->update(['status' => $targetOrderStatus]);

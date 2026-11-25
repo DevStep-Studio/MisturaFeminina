@@ -10,6 +10,9 @@ export interface ProductVariantSummary {
   total_available: number;
   out_of_stock_count: number;
   has_promo: boolean;
+  missing_cost_count?: number;
+  cost_min_cents?: number | null;
+  cost_max_cents?: number | null;
 }
 
 export interface ProductLinksSummary {
@@ -35,6 +38,8 @@ export interface AdminVariantRow {
   color_hex?: string | null;
   price_cents: number;
   promo_price_cents?: number | null;
+  cost_cents?: number | null;
+  effective_cost_cents?: number | null;
   stock_qty: number;
   reserved_qty: number;
   sort_order?: number;
@@ -54,7 +59,7 @@ export interface AdminProductRow {
   manufacturer?: string | null;
   price_cents: number;
   promo_price_cents: number | null;
-  cost_cents?: number;
+  cost_cents?: number | null;
   weight_grams: number;
   width_cm?: number;
   height_cm?: number;
@@ -74,7 +79,17 @@ export interface AdminProductRow {
   is_best_seller?: boolean;
   wholesale_enabled?: boolean;
   wholesale_group_variants?: boolean;
-  wholesale_tiers?: Array<{ min_qty: number; price_cents: number }> | null;
+  wholesale_tiers?: Array<{ min_qty: number; discount_percent?: number; price_cents?: number }> | null;
+  wholesale_condition?: {
+    has_wholesale: boolean;
+    rule_name?: string | null;
+    min_quantity?: number | null;
+    tiers?: Array<{
+      min_quantity: number;
+      discount_value?: number;
+      unit_price_cents: number;
+    }>;
+  } | null;
   brand?: { id: number; name: string } | null;
   categories?: { id: number; name: string }[];
   images?: {

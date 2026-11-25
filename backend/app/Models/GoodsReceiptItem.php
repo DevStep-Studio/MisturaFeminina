@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $discrepancy_reason
  * @property string|null $discrepancy_notes
  * @property int|null $unit_cost_cents
+ * @property bool $apply_cost_to_sku
  * @property string|null $lot_code
  * @property CarbonInterface|null $manufactured_at
  * @property CarbonInterface|null $expires_at
@@ -29,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'goods_receipt_id', 'product_id', 'product_variant_id', 'sku_snapshot',
     'expected_qty', 'received_qty', 'accepted_qty', 'rejected_qty',
-    'discrepancy_reason', 'discrepancy_notes', 'unit_cost_cents',
+    'discrepancy_reason', 'discrepancy_notes', 'unit_cost_cents', 'apply_cost_to_sku',
     'lot_code', 'manufactured_at', 'expires_at',
 ])]
 class GoodsReceiptItem extends Model
@@ -60,6 +61,7 @@ class GoodsReceiptItem extends Model
             'accepted_qty' => 'integer',
             'rejected_qty' => 'integer',
             'unit_cost_cents' => 'integer',
+            'apply_cost_to_sku' => 'boolean',
             'manufactured_at' => 'date',
             'expires_at' => 'date',
         ];

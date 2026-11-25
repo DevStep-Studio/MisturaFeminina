@@ -173,6 +173,14 @@ class ProductDocumentProcessor
             return [];
         }
 
+        // Do not confuse pasted Brazilian text containing decimal commas (e.g. "R$ 120,00") with a comma-delimited CSV
+        if ($delimiter === ',' && $origin === 'texto_colado') {
+            $nonDecimalFirstLine = (string) preg_replace('/\d,\d{1,3}/', '', $firstLine);
+            if (substr_count($nonDecimalFirstLine, ',') === 0) {
+                return [];
+            }
+        }
+
         $matrix = [];
         foreach ($lines as $line) {
             if (trim($line) === '') {
@@ -509,9 +517,11 @@ class ProductDocumentProcessor
                     str_contains($h, 'forn') && (str_contains($h, 'cod') || str_contains($h, 'ref')) => 'supplier_code',
                     str_contains($h, 'sku') || str_contains($h, 'referencia') || $h === 'ref' || str_contains($h, 'ref.') => 'sku',
                     str_contains($h, 'ean') || str_contains($h, 'gtin') || str_contains($h, 'barras') => 'gtin',
-                    str_contains($h, 'custo') => 'cost_price_cents',
+                    str_contains($h, 'custo') || $h === 'cost' || $h === 'cost_brl' => 'cost_price_cents',
+                    str_contains($h, 'sugerid') || str_contains($h, 'sugest') || $h === 'pmc' => 'suggested_retail_price_cents',
                     str_contains($h, 'promo') => 'promo_price_cents',
-                    str_contains($h, 'preco') || str_contains($h, 'valor') => 'sale_price_cents',
+                    str_contains($h, 'preco') => 'sale_price_cents',
+                    $h === 'valor' || $h === 'r$' => 'ambiguous_price_cents',
                     str_contains($h, 'estoq') || str_contains($h, 'qtd') || str_contains($h, 'quant') || str_contains($h, 'saldo') => 'stock_qty',
                     str_contains($h, 'marca') => 'brand',
                     str_contains($h, 'linha') => 'product_line',
@@ -551,6 +561,10 @@ class ProductDocumentProcessor
                 'power_watts' => null,
                 'shipping_weight_grams' => null,
                 'cost_price_cents' => null,
+                'suggested_retail_price_cents' => null,
+                'ambiguous_price_cents' => null,
+                'price_meaning' => null,
+                'cost_conversion' => null,
                 'sale_price_cents' => null,
                 'promo_price_cents' => null,
                 'stock_qty' => null,
@@ -571,8 +585,11 @@ class ProductDocumentProcessor
                     continue;
                 }
 
-                if ($field === 'sale_price_cents' || $field === 'cost_price_cents' || $field === 'promo_price_cents') {
-                    $item[$field] = $this->parseMoneyToCents($val);
+                if ($field === 'sale_price_cents' || $field === 'cost_price_cents' || $field === 'promo_price_cents' || $field === 'suggested_retail_price_cents' || $field === 'ambiguous_price_cents') {
+                    $item[$field] = $this->parseMoneyToCents($val, allowZero: $field === 'cost_price_cents');
+                    if ($field === 'ambiguous_price_cents' && $item[$field] !== null) {
+                        $item['price_meaning'] = 'ambiguous';
+                    }
                 } elseif ($field === 'stock_qty') {
                     $cleanInt = preg_replace('/[^\d-]/', '', $val) ?? '';
                     $item['stock_qty'] = $cleanInt !== '' ? (int) $cleanInt : -1;
@@ -621,7 +638,9 @@ class ProductDocumentProcessor
 
         // Check multi-line supplier/catalog pasted list (e.g. "- Gel 15 g - R$ 12,50 | SKU: GEL01")
         $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $text) ?: []), fn (string $l): bool => $l !== ''));
-        $isSupplierCostList = preg_match('/\b(lista\s+de\s+custo|tabela\s+(?:do\s+)?fornecedor|pre[cç]o\s+de\s+custo|custo\s+fornecedor|fornecedor)\b/iu', $text) === 1;
+        $isSupplierCostList = preg_match('/\b(lista\s+de\s+custo|tabela\s+(?:do\s+)?fornecedor|pre[cç]o\s+de\s+custo|custo\s+fornecedor|custo\s+de\s+aquisi[cç][aã]o|fornecedor)\b/iu', $text) === 1;
+        $isExplicitSaleList = preg_match('/\b(pre[cç]o\s+de\s+venda|venda\s+na\s+loja|valor\s+de\s+venda|todos\s+custam)\b/iu', $text) === 1;
+        $isSuggestedList = preg_match('/\b(pre[cç]o\s+sugerido|sugerido\s+pelo\s+fornecedor|pmc)\b/iu', $text) === 1;
 
         if (count($lines) >= 2 && preg_match('/(?:cores|tonalidades)\s*:/iu', $text) !== 1) {
             $multiRows = [];
@@ -630,8 +649,9 @@ class ProductDocumentProcessor
                 if ($cleanLine === '' || (count($lines) > 1 && $idx === 0 && preg_match('/\b(lista|tabela|fornecedor|custo)\b/iu', $cleanLine) === 1 && ! preg_match('/r\$\s*\d+/iu', $cleanLine))) {
                     continue;
                 }
+                $packConv = $this->parsePackCostConversion($cleanLine);
                 $linePrice = null;
-                if (preg_match('/r\$\s*(\d{1,5}(?:[.,]\d{2})?)/iu', $cleanLine, $pm)) {
+                if ($packConv === null && preg_match('/r\$\s*(\d{1,5}(?:[.,]\d{2})?)/iu', $cleanLine, $pm)) {
                     $linePrice = $this->parseMoneyToCents($pm[1]);
                 }
                 $lineVol = null;
@@ -653,6 +673,13 @@ class ProductDocumentProcessor
                     $watts = (int) $wm[1];
                 }
 
+                $costCents = $packConv !== null && ! empty($packConv['applied'])
+                    ? $packConv['proposed_unit_cost_cents']
+                    : ($isSupplierCostList ? $linePrice : null);
+                $suggestedCents = ($isSuggestedList && ! $isSupplierCostList) ? $linePrice : null;
+                $saleCents = ($isExplicitSaleList && ! $isSupplierCostList && ! $isSuggestedList) ? $linePrice : null;
+                $ambiguousCents = ($linePrice !== null && $costCents === null && $suggestedCents === null && $saleCents === null) ? $linePrice : null;
+
                 $multiRows[] = [
                     'row_index' => count($multiRows),
                     'origin_file' => $origin,
@@ -672,8 +699,12 @@ class ProductDocumentProcessor
                     'power_watts' => $watts,
                     'is_equipment' => $isEquip,
                     'shipping_weight_grams' => null,
-                    'cost_price_cents' => $isSupplierCostList ? $linePrice : null,
-                    'sale_price_cents' => $isSupplierCostList ? null : ($linePrice ?? ($defaults['sale_price_cents'] ?? null)),
+                    'cost_price_cents' => $costCents,
+                    'suggested_retail_price_cents' => $suggestedCents,
+                    'ambiguous_price_cents' => $ambiguousCents,
+                    'price_meaning' => $ambiguousCents !== null ? 'ambiguous' : ($costCents !== null ? 'cost' : ($suggestedCents !== null ? 'supplier_suggested' : ($saleCents !== null ? 'sale' : null))),
+                    'cost_conversion' => $packConv,
+                    'sale_price_cents' => $saleCents ?? ($defaults['sale_price_cents'] ?? null),
                     'promo_price_cents' => null,
                     'stock_qty' => $defaults['stock_qty'] ?? null,
                     'ingredients' => null,
@@ -683,7 +714,7 @@ class ProductDocumentProcessor
                     'evidence' => [
                         'product_name' => 'provided_text',
                         'raw_snippet' => $line,
-                        'price' => $isSupplierCostList ? 'supplier_cost_requires_retail_confirmation' : ($linePrice ? 'provided_text' : 'missing'),
+                        'price' => $ambiguousCents !== null ? 'ambiguous_requires_operator_classification' : ($isSupplierCostList ? 'supplier_cost_requires_retail_confirmation' : ($saleCents ? 'provided_text' : 'missing')),
                         'power_watts' => $watts ? 'provided_text' : ($isEquip ? 'missing_illegible' : 'not_applicable'),
                     ],
                 ];
@@ -705,7 +736,8 @@ class ProductDocumentProcessor
             }
         }
 
-        if ($shades === [] && $baseProduct === null) {
+        $isSinglePackConv = $this->parsePackCostConversion($text);
+        if ($shades === [] && $baseProduct === null && $isSinglePackConv === null) {
             return [];
         }
 
@@ -719,6 +751,12 @@ class ProductDocumentProcessor
             $watts = (int) $wm[1];
         }
 
+        $packConv = $defaults['cost_conversion'] ?? $isSinglePackConv;
+        $resolvedCost = ($packConv !== null && ! empty($packConv['applied']))
+            ? $packConv['proposed_unit_cost_cents']
+            : ($defaults['cost_price_cents'] ?? ($isSupplierCostList ? ($defaults['sale_price_cents'] ?? null) : null));
+        $resolvedSale = $isSupplierCostList ? null : ($defaults['sale_price_cents'] ?? null);
+
         $rows = [];
         foreach ($shades as $idx => $shade) {
             preg_match('/\b(\d{2,4})\b/', $shade, $codeMatch);
@@ -726,7 +764,7 @@ class ProductDocumentProcessor
                 'row_index' => $idx,
                 'origin_file' => $origin,
                 'origin_detail' => 'Texto descritivo',
-                'product_name' => $baseProduct ?: 'Produto para Revisão',
+                'product_name' => $baseProduct ?: ($defaults['fallback_name'] ?? 'Produto para Revisão'),
                 'product_line' => $defaults['product_line'] ?? null,
                 'brand' => $defaults['brand'] ?? null,
                 'category' => null,
@@ -741,8 +779,12 @@ class ProductDocumentProcessor
                 'power_watts' => $watts,
                 'is_equipment' => $isEquip,
                 'shipping_weight_grams' => null,
-                'cost_price_cents' => $isSupplierCostList ? ($defaults['cost_price_cents'] ?? null) : null,
-                'sale_price_cents' => $isSupplierCostList ? null : ($defaults['sale_price_cents'] ?? null),
+                'cost_price_cents' => $resolvedCost,
+                'suggested_retail_price_cents' => $defaults['suggested_retail_price_cents'] ?? null,
+                'ambiguous_price_cents' => $defaults['ambiguous_price_cents'] ?? null,
+                'price_meaning' => $defaults['price_meaning'] ?? null,
+                'cost_conversion' => $packConv,
+                'sale_price_cents' => $resolvedSale,
                 'promo_price_cents' => null,
                 'stock_qty' => $defaults['stock_qty'] ?? null,
                 'ingredients' => null,
@@ -776,14 +818,34 @@ class ProductDocumentProcessor
         if (preg_match('/\b(\d+(?:[.,]\d+)?\s*(?:ml|g|l|kg|un|w))\b/iu', $text, $m)) {
             $out['volume'] = preg_replace('/\s+/', ' ', strtolower(trim($m[1])));
         }
-        $isExplicitSupplierCost = preg_match('/\b(lista\s+de\s+custo|tabela\s+(?:do\s+)?fornecedor|pre[cç]o\s+de\s+custo|custo\s+fornecedor)\b/iu', $text) === 1;
-        if (preg_match('/(?:r\$|custam|pre[cç]o)\s*(?:r\$\s*)?(\d{1,4}(?:[.,]\d{2})?)/iu', $text, $m)) {
+        $packConv = $this->parsePackCostConversion($text);
+        if ($packConv !== null) {
+            $out['cost_conversion'] = $packConv;
+            if (! empty($packConv['applied'])) {
+                $out['cost_price_cents'] = $packConv['proposed_unit_cost_cents'];
+            }
+        }
+
+        $isExplicitSupplierCost = preg_match('/\b(lista\s+de\s+custo|tabela\s+(?:do\s+)?fornecedor|pre[cç]o\s+de\s+custo|custo\s+fornecedor|custo\s+de\s+aquisi[cç][aã]o|custo\s+unit[aá]rio)\b/iu', $text) === 1;
+        $isSuggestedRetail = preg_match('/\b(pre[cç]o\s+sugerido|sugerido\s+pelo\s+fornecedor|pmc)\b/iu', $text) === 1;
+        $isExplicitSale = preg_match('/\b(pre[cç]o\s+de\s+venda|todos\s+custam|vendid[oa]\s+a|valor\s+de\s+venda)\b/iu', $text) === 1;
+
+        if ($packConv === null && preg_match('/(?:r\$\s*|custam\s*(?:r\$\s*)?|pre[cç]o(?:\s+sugerido|\s+de\s+venda|\s+de\s+custo)?\s*(?:r\$\s*)?)(\d{1,4}(?:[.,]\d{2})?)/iu', $text, $m)) {
             $cents = $this->parseMoneyToCents($m[1]);
             if ($cents !== null && $cents > 0) {
                 if ($isExplicitSupplierCost) {
                     $out['cost_price_cents'] = $cents;
-                } else {
+                    $out['price_meaning'] = 'cost';
+                } elseif ($isSuggestedRetail) {
+                    $out['suggested_retail_price_cents'] = $cents;
+                    $out['price_meaning'] = 'supplier_suggested';
+                } elseif ($isExplicitSale) {
                     $out['sale_price_cents'] = $cents;
+                    $out['price_meaning'] = 'sale';
+                } else {
+                    // Standalone ambiguous currency like "R$ 15,00" — let operator indicate cost vs supplier suggested vs store sale
+                    $out['ambiguous_price_cents'] = $cents;
+                    $out['price_meaning'] = 'ambiguous';
                 }
             }
         }
@@ -791,10 +853,55 @@ class ProductDocumentProcessor
             $out['stock_qty'] = (int) $m[1];
         }
 
+        if (empty($out['product_line']) && preg_match('/^([A-Za-zÀ-ÿ0-9\s\-]{3,60}?)(?=\s*(?:—|-|\||caixa\b|r\$))/iu', trim($text), $fm)) {
+            $out['fallback_name'] = trim($fm[1]);
+        }
+
         return $out;
     }
 
-    public function parseMoneyToCents(string $raw): ?int
+    /** @return array<string, mixed>|null */
+    public function parsePackCostConversion(string $text): ?array
+    {
+        $pattern = '/\b(caixa|cx\.?|fardo|pacote|pct\.?|display|kit)\s+(?:com|de)\s+(\d+)\s*(unidades?|unid\.?|un\.?|pe[cç]as?|pcs?)\b[^\n\r]{0,40}?\b(?:por|a|de|:)?\s*r\$\s*(\d{1,6}(?:[.,]\d{2})?)/iu';
+        if (! preg_match($pattern, $text, $m)) {
+            $reversePattern = '/r\$\s*(\d{1,6}(?:[.,]\d{2})?)[^\n\r]{0,30}?\b(caixa|cx\.?|fardo|pacote|pct\.?|display|kit)\s+(?:com|de)\s+(\d+)\s*(unidades?|unid\.?|un\.?|pe[cç]as?|pcs?)\b/iu';
+            if (! preg_match($reversePattern, $text, $rm)) {
+                return null;
+            }
+            $packTotalCents = $this->parseMoneyToCents($rm[1]);
+            $packLabel = mb_strtolower(trim($rm[2]));
+            $packQty = (int) $rm[3];
+        } else {
+            $packLabel = mb_strtolower(trim($m[1]));
+            $packQty = (int) $m[2];
+            $packTotalCents = $this->parseMoneyToCents($m[4]);
+        }
+
+        if ($packQty < 2 || $packTotalCents === null || $packTotalCents <= 0) {
+            return null;
+        }
+
+        $unitCostCents = (int) round($packTotalCents / $packQty);
+        $sellsClosedBox = preg_match('/\b(vendid[oa]\s+por\s+(?:caixa|cx|pacote|fardo)|unidade\s+de\s+venda\s*[:\-]?\s*(?:caixa|cx|pacote))\b/iu', $text) === 1;
+        $sellingUnit = $sellsClosedBox ? $packLabel : 'unidade';
+
+        $packBrl = 'R$ '.number_format($packTotalCents / 100, 2, ',', '.');
+        $unitBrl = 'R$ '.number_format($unitCostCents / 100, 2, ',', '.');
+
+        return [
+            'pack_label' => $packLabel,
+            'pack_qty' => $packQty,
+            'pack_total_cents' => $packTotalCents,
+            'proposed_unit_cost_cents' => $unitCostCents,
+            'selling_unit' => $sellingUnit,
+            'requires_unit_confirmation' => $sellsClosedBox,
+            'applied' => ! $sellsClosedBox,
+            'formula' => "{$packBrl} ÷ {$packQty} unidades = {$unitBrl}/un.",
+        ];
+    }
+
+    public function parseMoneyToCents(string $raw, bool $allowZero = false): ?int
     {
         $clean = trim(str_ireplace('R$', '', $raw));
         $clean = preg_replace('/[^0-9,.-]/', '', $clean) ?? '';
@@ -811,7 +918,7 @@ class ProductDocumentProcessor
 
         $cents = (int) round(((float) $clean) * 100);
 
-        return $cents > 0 ? $cents : null;
+        return ($allowZero ? $cents >= 0 : $cents > 0) ? $cents : null;
     }
 
     private function excelColumnToIndex(string $cellRef): int

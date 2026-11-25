@@ -6,6 +6,10 @@ import Search from "lucide-solid/icons/search";
 import Trash2 from "lucide-solid/icons/trash";
 import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { ApiError, api } from "../../lib/api";
+import { formatCents } from "../../lib/format";
+import { hasPermission } from "../../security/permissions";
+import { session } from "../../security/session";
+import { parseBrlNullableCost } from "./profit-math";
 
 interface ReceiptItemDraft {
   product_variant_id: number;
@@ -17,6 +21,8 @@ interface ReceiptItemDraft {
   accepted_qty: number;
   discrepancy_reason: string;
   discrepancy_notes: string;
+  unit_cost_brl: string;
+  apply_cost_to_sku: boolean;
   lot_code: string;
   expires_at: string;
 }
@@ -41,6 +47,7 @@ interface ReceiptRow {
     accepted_qty: number;
     rejected_qty: number;
     discrepancy_reason: string | null;
+    unit_cost_cents?: number | null;
     lot_code: string | null;
     expires_at: string | null;
     product: { name: string } | null;
@@ -63,6 +70,10 @@ export function AdminGoodsReceiptsPanel(props: {
   initialSku?: string;
   onConfirmed?: () => Promise<void> | void;
 }) {
+  const canCostView = () =>
+    hasPermission(session.user()?.permissions ?? [], "catalog.cost.view");
+  const canCostWrite = () =>
+    hasPermission(session.user()?.permissions ?? [], "catalog.cost.write");
   const [filterTab, setFilterTab] = createSignal("all");
   const [formOpen, setFormOpen] = createSignal(false);
   const [supplierId, setSupplierId] = createSignal<string>("");
@@ -182,6 +193,8 @@ export function AdminGoodsReceiptsPanel(props: {
           accepted_qty: 10,
           discrepancy_reason: "",
           discrepancy_notes: "",
+          unit_cost_brl: "",
+          apply_cost_to_sku: true,
           lot_code: "",
           expires_at: "",
         },
@@ -202,6 +215,34 @@ export function AdminGoodsReceiptsPanel(props: {
 
   async function saveReceipt(confirmNow: boolean) {
     if (items().length === 0) return;
+    const mappedItems = [];
+    for (const item of items()) {
+      const parsedCost = parseBrlNullableCost(item.unit_cost_brl);
+      if (!parsedCost.valid) {
+        setFeedback({
+          type: "err",
+          text: `Custo inválido em ${item.sku}: use formato brasileiro (ex.: 12,00) ou deixe em branco.`,
+        });
+        return;
+      }
+      mappedItems.push({
+        product_variant_id: item.product_variant_id,
+        expected_qty: item.expected_qty,
+        received_qty: item.received_qty,
+        accepted_qty: item.accepted_qty,
+        discrepancy_reason: item.discrepancy_reason || undefined,
+        discrepancy_notes: item.discrepancy_notes || undefined,
+        ...(parsedCost.cents !== null
+          ? {
+              unit_cost_cents: parsedCost.cents,
+              apply_cost_to_sku: canCostWrite() ? item.apply_cost_to_sku : false,
+            }
+          : {}),
+        lot_code: item.lot_code || undefined,
+        expires_at: item.expires_at || undefined,
+      });
+    }
+
     setBusy(true);
     setFeedback(null);
     try {
@@ -213,16 +254,7 @@ export function AdminGoodsReceiptsPanel(props: {
           invoice_number: invoiceNumber().trim() || undefined,
           purchase_reference: purchaseRef().trim() || undefined,
           notes: notes().trim() || undefined,
-          items: items().map((i) => ({
-            product_variant_id: i.product_variant_id,
-            expected_qty: i.expected_qty,
-            received_qty: i.received_qty,
-            accepted_qty: i.accepted_qty,
-            discrepancy_reason: i.discrepancy_reason || undefined,
-            discrepancy_notes: i.discrepancy_notes || undefined,
-            lot_code: i.lot_code || undefined,
-            expires_at: i.expires_at || undefined,
-          })),
+          items: mappedItems,
         },
       });
 
@@ -439,6 +471,9 @@ export function AdminGoodsReceiptsPanel(props: {
                     <th class="p-2">Chegou</th>
                     <th class="p-2">Aceito (Vendável)</th>
                     <th class="p-2">Motivo divergência</th>
+                    <Show when={canCostView()}>
+                      <th class="p-2">Custo unit. (R$)</th>
+                    </Show>
                     <th class="p-2">Lote</th>
                     <th class="p-2">Validade</th>
                     <th class="p-2" aria-label="Remover item" />
@@ -521,6 +556,40 @@ export function AdminGoodsReceiptsPanel(props: {
                             </For>
                           </select>
                         </td>
+                        <Show when={canCostView()}>
+                          <td class="p-2 w-32">
+                            <input
+                              type="text"
+                              placeholder="Ex.: 12,00"
+                              value={item.unit_cost_brl}
+                              disabled={!canCostWrite()}
+                              onInput={(e) =>
+                                updateItem(
+                                  idx(),
+                                  "unit_cost_brl",
+                                  e.currentTarget.value,
+                                )
+                              }
+                              class="h-8 w-full rounded border border-zinc-300 px-2 text-xs disabled:bg-zinc-100"
+                            />
+                            <Show when={canCostWrite() && item.unit_cost_brl.trim() !== ""}>
+                              <label class="mt-1 flex items-center gap-1 text-[10px] text-zinc-600">
+                                <input
+                                  type="checkbox"
+                                  checked={item.apply_cost_to_sku}
+                                  onChange={(e) =>
+                                    updateItem(
+                                      idx(),
+                                      "apply_cost_to_sku",
+                                      e.currentTarget.checked,
+                                    )
+                                  }
+                                />
+                                Atualizar SKU
+                              </label>
+                            </Show>
+                          </td>
+                        </Show>
                         <td class="p-2 w-28">
                           <input
                             type="text"
@@ -769,6 +838,19 @@ export function AdminGoodsReceiptsPanel(props: {
                           <strong class="text-emerald-700">
                             +{item.accepted_qty}
                           </strong>
+                          <Show
+                            when={
+                              canCostView() &&
+                              item.unit_cost_cents !== null &&
+                              item.unit_cost_cents !== undefined
+                            }
+                          >
+                            {" "}
+                            • Custo unit.:{" "}
+                            <strong class="text-zinc-800">
+                              {formatCents(item.unit_cost_cents ?? 0)}
+                            </strong>
+                          </Show>
                           <Show when={item.rejected_qty > 0}>
                             {" "}
                             • Avariado/Recusado:{" "}

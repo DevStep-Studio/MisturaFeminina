@@ -32,4 +32,27 @@ enum OrderStatus: string
             self::Expired => 'Expirado',
         };
     }
+
+    /** @return list<string> */
+    public static function recognizedSaleValues(): array
+    {
+        return [
+            self::Paid->value,
+            self::Preparing->value,
+            self::Shipped->value,
+            self::Delivered->value,
+            self::PartiallyRefunded->value,
+        ];
+    }
+
+    public function isRecognizedSale(): bool
+    {
+        return in_array($this, [
+            self::Paid,
+            self::Preparing,
+            self::Shipped,
+            self::Delivered,
+            self::PartiallyRefunded,
+        ], true);
+    }
 }

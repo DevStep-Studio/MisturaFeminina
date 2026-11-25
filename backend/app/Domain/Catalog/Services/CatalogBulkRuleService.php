@@ -62,6 +62,15 @@ class CatalogBulkRuleService
         } elseif ($opFilter === 'out_of_stock_variants') {
             $query->where('is_active', true)
                 ->whereHas('variants', fn ($vq) => $vq->where('is_active', true)->whereRaw('(stock_qty - reserved_qty) <= 0'));
+        } elseif ($opFilter === 'missing_cost' || (string) ($filters['cost_status'] ?? '') === 'missing') {
+            $query->where(function (Builder $cq): void {
+                $cq->where(function (Builder $noVar): void {
+                    $noVar->whereDoesntHave('variants')->whereNull('cost_cents');
+                })->orWhereHas('variants', function (Builder $vq): void {
+                    $vq->whereNull('product_variants.cost_cents')
+                        ->whereHas('product', fn (Builder $pq) => $pq->whereNull('products.cost_cents'));
+                });
+            });
         }
 
         if ($status === 'active') {
@@ -166,11 +175,13 @@ class CatalogBulkRuleService
         $variantFilterIds = array_values(array_filter(array_map('intval', $selection['variant_ids'] ?? [])));
 
         $canPrice = $actor->hasPermission('catalog.pricing') || $actor->hasPermission('catalog.write');
+        $canCost = $actor->hasPermission('catalog.cost.write');
         $canStock = $actor->hasPermission('inventory.manage') || $actor->hasPermission('catalog.write');
         $canCatalog = $actor->hasPermission('catalog.write');
 
         $priceOp = (string) ($rules['price_op'] ?? 'keep'); // keep | set_fixed | adjust_percent
         $promoOp = (string) ($rules['promo_op'] ?? 'keep'); // keep | set_fixed | remove
+        $costOp = (string) ($rules['cost_op'] ?? 'keep'); // keep | set_fixed | adjust_percent | clear_to_null
         $stockOp = (string) ($rules['stock_op'] ?? 'keep'); // keep | set | add | subtract
         $brandOp = (string) ($rules['brand_op'] ?? 'keep'); // keep | set | clear
         $catOp = (string) ($rules['category_op'] ?? 'keep'); // keep | add | remove | replace
@@ -179,6 +190,9 @@ class CatalogBulkRuleService
 
         if (($priceOp !== 'keep' || $promoOp !== 'keep') && ! $canPrice) {
             throw ValidationException::withMessages(['permissions' => ['Você não possui permissão para alterar preços comerciais.']]);
+        }
+        if ($costOp !== 'keep' && ! $canCost) {
+            throw ValidationException::withMessages(['permissions' => ['Você não possui permissão para alterar custos de mercadoria.']]);
         }
         if ($stockOp !== 'keep' && ! $canStock) {
             throw ValidationException::withMessages(['permissions' => ['Você não possui permissão para ajustar saldos de estoque.']]);
@@ -307,6 +321,7 @@ class CatalogBulkRuleService
                 $sku = $variant ? $variant->sku : $product->sku;
                 $oldPrice = $variant ? $variant->price_cents : $product->price_cents;
                 $oldPromo = $variant ? $variant->promo_price_cents : $product->promo_price_cents;
+                $oldCost = $variant ? ($variant->cost_cents ?? $product->cost_cents) : $product->cost_cents;
                 $oldStock = $variant ? $variant->stock_qty : 0;
                 $reservedQty = $variant ? $variant->reserved_qty : 0;
 
@@ -324,10 +339,29 @@ class CatalogBulkRuleService
 
                 $newPrice = $oldPrice;
                 $newPromo = $oldPromo;
+                $newCost = $oldCost;
                 $newStock = $oldStock;
                 $errors = $productChanges !== [] || $idx === 0 ? $productLevelErrors : [];
                 $changes = $idx === 0 ? $productChanges : [];
                 $itemImpacts = [...$productImpacts];
+
+                if ($costOp === 'set_fixed') {
+                    $rawCost = $rules['cost_cents'] ?? null;
+                    if ($rawCost === null || (int) $rawCost < 0) {
+                        $errors[] = 'Informe um custo unitário válido (>= R$ 0,00).';
+                    } else {
+                        $newCost = (int) $rawCost;
+                    }
+                } elseif ($costOp === 'adjust_percent') {
+                    if ($oldCost === null) {
+                        $errors[] = 'SKU sem custo cadastrado para aplicar reajuste percentual.';
+                    } else {
+                        $pct = (float) ($rules['cost_percent'] ?? 0);
+                        $newCost = max(0, (int) round($oldCost * (1 + ($pct / 100))));
+                    }
+                } elseif ($costOp === 'clear_to_null') {
+                    $newCost = null;
+                }
 
                 if ($priceOp === 'set_fixed') {
                     $targetCents = (int) ($rules['price_cents'] ?? 0);
@@ -403,6 +437,14 @@ class CatalogBulkRuleService
                         'new_display' => $newPromo ? $this->brl($newPromo) : 'Removido',
                     ];
                 }
+                if ($costOp !== 'keep' && $newCost !== $oldCost) {
+                    $changes[] = [
+                        'field' => 'cost',
+                        'label' => 'Custo unitário',
+                        'old_display' => $oldCost !== null ? $this->brl($oldCost) : 'Não informado',
+                        'new_display' => $newCost !== null ? $this->brl($newCost) : 'Não informado',
+                    ];
+                }
                 if ($variant && $newStock !== $oldStock) {
                     $availAfter = max(0, $newStock - $reservedQty);
                     $changes[] = [
@@ -442,6 +484,8 @@ class CatalogBulkRuleService
                     'price_after_cents' => $newPrice,
                     'promo_before_cents' => $oldPromo,
                     'promo_after_cents' => $newPromo,
+                    'cost_before_cents' => $actor->hasPermission('catalog.cost.view') ? $oldCost : null,
+                    'cost_after_cents' => $actor->hasPermission('catalog.cost.view') ? $newCost : null,
                     'stock_before' => $oldStock,
                     'stock_after' => $newStock,
                     'reserved_qty' => $reservedQty,
@@ -599,6 +643,7 @@ class CatalogBulkRuleService
         $snapshotItems = is_array($previewSnapshot['items'] ?? null) ? $previewSnapshot['items'] : [];
         $priceOp = (string) ($rules['price_op'] ?? 'keep');
         $promoOp = (string) ($rules['promo_op'] ?? 'keep');
+        $costOp = (string) ($rules['cost_op'] ?? 'keep');
         $stockOp = (string) ($rules['stock_op'] ?? 'keep');
         $brandOp = (string) ($rules['brand_op'] ?? 'keep');
         $catOp = (string) ($rules['category_op'] ?? 'keep');
@@ -621,6 +666,7 @@ class CatalogBulkRuleService
             $snapshotItems,
             $priceOp,
             $promoOp,
+            $costOp,
             $stockOp,
             $brandOp,
             $catOp,
@@ -792,9 +838,10 @@ class CatalogBulkRuleService
                     $updatedProductIds[$product->id] = true;
                 }
 
-                // Apply Variant / Price / Promo / Stock operations
+                // Apply Variant / Price / Promo / Cost / Stock operations
                 $newPrice = (int) $row['price_after_cents'];
                 $newPromo = $row['promo_after_cents'];
+                $newCost = $row['cost_after_cents'] ?? null;
                 $newStock = (int) $row['stock_after'];
 
                 if ($variant) {
@@ -805,18 +852,24 @@ class CatalogBulkRuleService
                     if ($promoOp !== 'keep') {
                         $varUpdate['promo_price_cents'] = $newPromo;
                     }
+                    if ($costOp !== 'keep') {
+                        $varUpdate['cost_cents'] = $newCost;
+                    }
                     if ($varUpdate !== []) {
                         $variant->update($varUpdate);
                     }
 
-                    // Keep parent product base price synchronized when editing default variant or single-variant product
-                    if (($variant->is_default || $product->variants()->count() <= 1) && ($priceOp !== 'keep' || $promoOp !== 'keep')) {
+                    // Keep parent product base price/cost synchronized when editing default variant or single-variant product
+                    if (($variant->is_default || $product->variants()->count() <= 1) && ($priceOp !== 'keep' || $promoOp !== 'keep' || $costOp !== 'keep')) {
                         $productSync = [];
                         if ($priceOp !== 'keep') {
                             $productSync['price_cents'] = $newPrice;
                         }
                         if ($promoOp !== 'keep') {
                             $productSync['promo_price_cents'] = $newPromo;
+                        }
+                        if ($costOp !== 'keep') {
+                            $productSync['cost_cents'] = $newCost;
                         }
                         if ($productSync !== []) {
                             $product->update($productSync);
@@ -836,11 +889,18 @@ class CatalogBulkRuleService
                             );
                         }
                     }
-                } elseif ($priceOp !== 'keep' || $promoOp !== 'keep') {
-                    $product->update([
-                        'price_cents' => $newPrice,
-                        'promo_price_cents' => $newPromo,
-                    ]);
+                } elseif ($priceOp !== 'keep' || $promoOp !== 'keep' || $costOp !== 'keep') {
+                    $prodDirectUpdate = [];
+                    if ($priceOp !== 'keep') {
+                        $prodDirectUpdate['price_cents'] = $newPrice;
+                    }
+                    if ($promoOp !== 'keep') {
+                        $prodDirectUpdate['promo_price_cents'] = $newPromo;
+                    }
+                    if ($costOp !== 'keep') {
+                        $prodDirectUpdate['cost_cents'] = $newCost;
+                    }
+                    $product->update($prodDirectUpdate);
                 }
 
                 $completedCount++;
@@ -1022,6 +1082,9 @@ class CatalogBulkRuleService
         }
         if (($rules['promo_op'] ?? 'keep') !== 'keep') {
             $parts[] = 'promocional';
+        }
+        if (($rules['cost_op'] ?? 'keep') !== 'keep') {
+            $parts[] = 'custo';
         }
         if (($rules['stock_op'] ?? 'keep') !== 'keep') {
             $parts[] = 'estoque';

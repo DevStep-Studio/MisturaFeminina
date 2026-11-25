@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Domain\Admin\Services\TodayWorkService;
 use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Orders\Services\OrderAfterSalesService;
+use App\Domain\Orders\Services\OrderCostService;
+use App\Domain\Orders\Services\ProfitAndCostAnalyticsService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Shared\Enums\OrderStatus;
@@ -14,6 +16,8 @@ use App\Domain\Shared\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Mail\OrderStatusMail;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OrderReturn;
 use App\Models\OrderStatusHistory;
 use App\Models\Refund;
 use App\Models\Shipment;
@@ -32,6 +36,8 @@ class AdminOrderController extends Controller
         private readonly AuditLogger $audit,
         private readonly TodayWorkService $todayWork,
         private readonly OrderAfterSalesService $afterSales,
+        private readonly OrderCostService $orderCost,
+        private readonly ProfitAndCostAnalyticsService $profitAnalytics,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -87,7 +93,17 @@ class AdminOrderController extends Controller
             $request->query('timeline_category') ? (string) $request->query('timeline_category') : null
         ));
 
-        return response()->json(['data' => $order]);
+        $canViewCostProfit = $request->user()?->hasPermission('reports.profit.view') ?? false;
+        $orderSummary = $this->profitAnalytics->summarizeOrder($order, $canViewCostProfit);
+
+        $payload = $order->toArray();
+        $payload['items'] = $orderSummary['items'];
+        $payload['returns'] = $orderSummary['returns'];
+        if ($canViewCostProfit) {
+            $payload['financial_summary'] = $orderSummary['financial_summary'];
+        }
+
+        return response()->json(['data' => $payload]);
     }
 
     public function updateStatus(Request $request, int $id): JsonResponse
@@ -111,7 +127,16 @@ class AdminOrderController extends Controller
                 $updates['cancelled_at'] = now();
             }
 
+            if ($newStatus->isRecognizedSale() && $order->paid_at === null) {
+                $updates['paid_at'] = now();
+            }
+
             $order->update($updates);
+
+            if ($newStatus->isRecognizedSale() && ! $oldStatus->isRecognizedSale()) {
+                $this->inventory->confirmDeduction($order);
+                $this->orderCost->captureCostSnapshotForOrder($order);
+            }
 
             if ($oldStatus !== $newStatus) {
                 OrderStatusHistory::query()->create([
@@ -126,8 +151,14 @@ class AdminOrderController extends Controller
             if ($newStatus === OrderStatus::Cancelled) {
                 if ($oldStatus === OrderStatus::PendingPayment || $oldStatus === OrderStatus::PaymentFailed) {
                     $this->inventory->releaseReservation($order, 'Pedido cancelado pelo admin');
-                } elseif (in_array($oldStatus, [OrderStatus::Paid, OrderStatus::Preparing], true)) {
-                    $this->inventory->restockConsumedOrder($order, $request->user(), 'Estorno de estoque por cancelamento administrativo');
+                } elseif ($order->paid_at !== null || in_array($oldStatus, [OrderStatus::Paid, OrderStatus::Preparing, OrderStatus::Shipped, OrderStatus::Delivered, OrderStatus::PartiallyRefunded], true)) {
+                    $this->orderCost->processReturnOrRefund($order, [
+                        'idempotency_key' => "admin_cancel:order:{$order->id}",
+                        'return_type' => 'cancellation',
+                        'restock_items' => in_array($oldStatus, [OrderStatus::Paid, OrderStatus::Preparing], true),
+                        'financial_refund_cents' => 0,
+                        'reason' => $validated['note'] ?? 'Cancelamento administrativo',
+                    ], $request->user());
                 }
             }
         });
@@ -238,56 +269,117 @@ class AdminOrderController extends Controller
     public function refund(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
-            'amount_cents' => ['nullable', 'integer', 'min:1'],
+            'amount_cents' => ['nullable', 'integer', 'min:0'],
             'reason' => ['required', 'string', 'min:3', 'max:255'],
             'restock_items' => ['boolean'],
+            'manual_confirmation' => ['boolean'],
+            'idempotency_key' => ['nullable', 'string', 'max:120'],
+            'items' => ['nullable', 'array'],
+            'items.*.order_item_id' => ['required_with:items', 'integer'],
+            'items.*.quantity' => ['required_with:items', 'integer', 'min:1'],
+            'items.*.restock' => ['nullable', 'boolean'],
         ]);
 
-        $order = Order::query()->with('latestPayment')->findOrFail($id);
+        $order = Order::query()->with(['latestPayment', 'items'])->findOrFail($id);
         $payment = $order->latestPayment;
 
         if (! $payment || ! in_array($payment->status, [PaymentStatus::Approved, PaymentStatus::PartiallyRefunded], true)) {
             return response()->json(['message' => 'Este pedido não possui pagamento aprovado elegível para reembolso.'], 422);
         }
 
-        $amountCents = (int) ($validated['amount_cents'] ?? $payment->gross_amount_cents);
-        if ($amountCents > $payment->gross_amount_cents) {
-            return response()->json(['message' => 'O valor do reembolso não pode ultrapassar o valor pago.'], 422);
+        $idempotencyKey = trim((string) ($validated['idempotency_key'] ?? $request->header('X-Idempotency-Key') ?? ''));
+        if ($idempotencyKey !== '') {
+            $existingReturn = OrderReturn::query()->where('idempotency_key', $idempotencyKey)->first();
+            if ($existingReturn && (int) $existingReturn->order_id === (int) $order->id) {
+                return response()->json([
+                    'data' => $order->fresh(['payments', 'refunds', 'statusHistories', 'returns.items']),
+                    'idempotent_replay' => true,
+                ]);
+            }
         }
 
-        $externalRefundId = $this->payments->refundPayment($payment, $amountCents);
-        $isFull = $amountCents >= $payment->gross_amount_cents;
+        $returnItemsInput = is_array($validated['items'] ?? null) ? $validated['items'] : [];
+        $alreadyRefunded = (int) $order->refunds()->where('status', 'completed')->sum('amount_cents');
+        $remainingRefundable = max(0, $payment->gross_amount_cents - $alreadyRefunded);
 
-        DB::transaction(function () use ($request, $order, $payment, $amountCents, $validated, $externalRefundId, $isFull): void {
-            Refund::query()->create([
-                'order_id' => $order->id,
-                'payment_id' => $payment->id,
-                'user_id' => $request->user()?->id,
-                'external_refund_id' => $externalRefundId,
-                'amount_cents' => $amountCents,
-                'reason' => $validated['reason'],
-                'status' => 'completed',
+        if (array_key_exists('amount_cents', $validated) && $validated['amount_cents'] !== null) {
+            $amountCents = (int) $validated['amount_cents'];
+        } elseif ($returnItemsInput !== []) {
+            $itemsMap = $order->items->keyBy('id');
+            $estimatedAmount = 0;
+            foreach ($returnItemsInput as $entry) {
+                /** @var OrderItem|null $oi */
+                $oi = $itemsMap->get((int) $entry['order_item_id']);
+                if ($oi && (int) $oi->quantity > 0) {
+                    $availQty = max(0, (int) $oi->quantity - (int) $oi->returned_qty);
+                    $qty = min($availQty, (int) $entry['quantity']);
+                    $netTotal = $oi->effectiveNetRevenueCents();
+                    $remainingRev = max(0, $netTotal - (int) $oi->returned_revenue_cents);
+                    $estimatedAmount += $qty === $availQty
+                        ? $remainingRev
+                        : min($remainingRev, (int) round(($netTotal * $qty) / (int) $oi->quantity));
+                }
+            }
+            $amountCents = min($remainingRefundable, $estimatedAmount);
+        } else {
+            $amountCents = $remainingRefundable;
+        }
+
+        if ($amountCents > $remainingRefundable) {
+            return response()->json(['message' => 'O valor do reembolso não pode ultrapassar o saldo ainda passível de estorno.'], 422);
+        }
+
+        $manualConfirmation = (bool) ($validated['manual_confirmation'] ?? false);
+        $externalRefundId = ($amountCents > 0 && ! $manualConfirmation)
+            ? $this->payments->refundPayment($payment, $amountCents)
+            : ($manualConfirmation ? 'manual_erp_reconciled' : null);
+        $isFull = ($alreadyRefunded + $amountCents) >= $payment->gross_amount_cents && $returnItemsInput === [];
+
+        DB::transaction(function () use ($request, $order, $payment, $amountCents, $alreadyRefunded, $validated, $externalRefundId, $isFull, $returnItemsInput, $idempotencyKey): void {
+            $refund = null;
+            if ($amountCents > 0) {
+                $refund = Refund::query()->create([
+                    'order_id' => $order->id,
+                    'payment_id' => $payment->id,
+                    'user_id' => $request->user()?->id,
+                    'external_refund_id' => $externalRefundId,
+                    'amount_cents' => $amountCents,
+                    'reason' => $validated['reason'],
+                    'status' => 'completed',
+                    'restock_items' => (bool) ($validated['restock_items'] ?? false),
+                ]);
+
+                $payment->update([
+                    'status' => ($alreadyRefunded + $amountCents) >= $payment->gross_amount_cents
+                        ? PaymentStatus::Refunded
+                        : PaymentStatus::PartiallyRefunded,
+                ]);
+            }
+
+            $oldStatus = $order->status;
+            $returnType = $returnItemsInput !== []
+                ? 'partial_return'
+                : ($isFull ? 'full_return' : 'financial_refund');
+
+            $this->orderCost->processReturnOrRefund($order, [
+                'idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey : null,
+                'return_type' => $returnType,
                 'restock_items' => (bool) ($validated['restock_items'] ?? false),
-            ]);
+                'financial_refund_cents' => $amountCents,
+                'reason' => $validated['reason'],
+                'refund_id' => $refund?->id,
+                'items' => $returnItemsInput,
+            ], $request->user());
 
-            $payment->update([
-                'status' => $isFull ? PaymentStatus::Refunded : PaymentStatus::PartiallyRefunded,
-            ]);
-
-            if ($isFull) {
-                $oldStatus = $order->status;
-                $order->update(['status' => OrderStatus::Refunded]);
+            $updatedStatus = $order->fresh()?->status ?? $oldStatus;
+            if ($updatedStatus !== $oldStatus) {
                 OrderStatusHistory::query()->create([
                     'order_id' => $order->id,
                     'user_id' => $request->user()?->id,
                     'from_status' => $oldStatus->value,
-                    'to_status' => OrderStatus::Refunded->value,
-                    'note' => 'Reembolso processado: '.$validated['reason'],
+                    'to_status' => $updatedStatus->value,
+                    'note' => 'Reembolso/devolução processado: '.$validated['reason'],
                 ]);
-            }
-
-            if (! empty($validated['restock_items'])) {
-                $this->inventory->restockConsumedOrder($order, $request->user(), 'Estorno por reembolso: '.$validated['reason']);
             }
         });
 
@@ -295,9 +387,37 @@ class AdminOrderController extends Controller
             'amount_cents' => $amountCents,
             'reason' => $validated['reason'],
             'external_refund_id' => $externalRefundId,
+            'items_count' => count($returnItemsInput),
         ], $request);
 
-        return response()->json(['data' => $order->fresh(['payments', 'refunds', 'statusHistories'])]);
+        return response()->json(['data' => $order->fresh(['payments', 'refunds', 'statusHistories', 'returns.items'])]);
+    }
+
+    public function backfillItemCost(Request $request, int $orderItemId): JsonResponse
+    {
+        $validated = $request->validate([
+            'unit_cost_cents' => ['required', 'integer', 'min:0'],
+            'reason' => ['required', 'string', 'min:3', 'max:255'],
+        ]);
+
+        /** @var OrderItem $item */
+        $item = OrderItem::query()->findOrFail($orderItemId);
+        $updated = $this->orderCost->backfillOrderItemCost(
+            $item,
+            (int) $validated['unit_cost_cents'],
+            (string) $validated['reason'],
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => [
+                'order_item_id' => $updated->id,
+                'order_id' => $updated->order_id,
+                'unit_cost_cents_snapshot' => $updated->unit_cost_cents_snapshot,
+                'cost_source' => $updated->cost_source,
+                'cost_backfilled_at' => $updated->cost_backfilled_at?->toIso8601String(),
+            ],
+        ]);
     }
 
     public function packingList(int $id): JsonResponse

@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Domain\Shared\Enums\ProductType;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property ProductType $product_type
+ * @property int|null $cost_cents
  * @property int $price_cents
  * @property int|null $promo_price_cents
  * @property CarbonInterface|null $promo_starts_at
@@ -39,6 +41,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'wholesale_enabled', 'wholesale_group_variants', 'wholesale_tiers', 'sales_count',
     'seo_title', 'seo_description',
 ])]
+#[Hidden(['cost_cents'])]
 class Product extends Model
 {
     use SoftDeletes;

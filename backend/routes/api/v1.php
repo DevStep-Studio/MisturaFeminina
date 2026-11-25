@@ -133,6 +133,8 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     // Admin Backoffice (RBAC Permission Middleware)
     Route::prefix('admin')->group(function (): void {
         Route::get('dashboard', [DashboardController::class, 'summary'])->middleware('permission:dashboard.view');
+        Route::get('profit/items', [DashboardController::class, 'profitItems'])->middleware('permission:reports.profit.view');
+        Route::get('inventory/valuation', [DashboardController::class, 'inventoryValuation'])->middleware('permission:reports.profit.view');
 
         // Orders & Fulfillment & Refunds
         Route::get('orders', [AdminOrderController::class, 'index'])->middleware('permission:orders.view');
@@ -141,6 +143,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::patch('orders/{id}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
         Route::patch('orders/{id}/shipment', [AdminOrderController::class, 'updateShipment'])->middleware('permission:orders.manage');
         Route::post('orders/{id}/refund', [AdminOrderController::class, 'refund'])->middleware('permission:orders.refund');
+        Route::post('orders/items/{orderItemId}/backfill-cost', [AdminOrderController::class, 'backfillItemCost'])->middleware('permission:orders.cost.backfill');
 
         // Catalog & Inventory & CSV & Reviews & Restock
         Route::get('products', [AdminCatalogController::class, 'indexProducts'])->middleware('permission:catalog.view');
@@ -224,6 +227,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         // Reports
         Route::get('reports', [AdminReportsController::class, 'index'])->middleware('permission:reports.view');
         Route::get('reports/export-csv', [AdminReportsController::class, 'exportCsv'])->middleware('permission:reports.export');
+        Route::get('reports/profit-export-csv', [AdminReportsController::class, 'exportProfitCsv'])->middleware('permission:reports.profit.export');
 
         // Store Settings & Integrations
         Route::get('settings/store', [AdminSettingsController::class, 'showStore'])->middleware('permission:settings.view');

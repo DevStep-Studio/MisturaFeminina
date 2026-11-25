@@ -15,6 +15,7 @@ use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Shared\Enums\InventoryMovementType;
 use App\Domain\Shared\Enums\ProductType;
+use App\Domain\Wholesale\Services\WholesalePricingService;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SeoController;
 use App\Models\Attribute;
@@ -61,6 +62,7 @@ class AdminCatalogController extends Controller
             'category_id' => $request->query('category_id'),
             'status' => $request->query('status', 'all'),
             'availability' => $request->query('availability', 'all'),
+            'cost_status' => $request->query('cost_status'),
             'is_active' => $request->query('is_active'),
         ];
 
@@ -105,9 +107,10 @@ class AdminCatalogController extends Controller
         };
 
         $perPage = min(100, max(10, (int) $request->query('per_page', 25)));
+        $canViewCost = $request->user()?->hasPermission('catalog.cost.view') ?? false;
         $paginator = $query->paginate($perPage);
 
-        $paginator->through(function (Product $product): array {
+        $paginator->through(function (Product $product) use ($canViewCost): array {
             $variants = $product->variants;
             $prices = $variants->isNotEmpty()
                 ? $variants->pluck('price_cents')->all()
@@ -125,9 +128,15 @@ class AdminCatalogController extends Controller
             $totalAvailable = (int) $variants->sum(fn (ProductVariant $v): int => max(0, $v->stock_qty - $v->reserved_qty));
             $outOfStockCount = (int) $variants->filter(fn (ProductVariant $v): bool => ($v->stock_qty - $v->reserved_qty) <= 0)->count();
 
+            if ($canViewCost) {
+                $product->makeVisible('cost_cents');
+                $variants->each(fn (ProductVariant $v) => $v->makeVisible('cost_cents'));
+            }
+
             $payload = $product->toArray();
             $payload['is_archived'] = $product->trashed();
-            $payload['variants_summary'] = [
+
+            $variantSummary = [
                 'count' => $variants->count(),
                 'is_multi_variant' => $variants->count() > 1,
                 'price_min_cents' => $prices !== [] ? min($prices) : $product->price_cents,
@@ -142,13 +151,34 @@ class AdminCatalogController extends Controller
                     || ($product->promo_price_cents !== null && $product->promo_price_cents > 0 && $product->promo_price_cents < $product->price_cents),
             ];
 
+            if ($canViewCost) {
+                $resolvedCosts = $variants->isNotEmpty()
+                    ? $variants->map(fn (ProductVariant $v): ?int => $v->cost_cents ?? $product->cost_cents)->filter(fn (?int $c): bool => $c !== null)->values()->all()
+                    : ($product->cost_cents !== null ? [$product->cost_cents] : []);
+                $missingCostCount = $variants->isNotEmpty()
+                    ? $variants->filter(fn (ProductVariant $v): bool => ($v->cost_cents ?? $product->cost_cents) === null)->count()
+                    : ($product->cost_cents === null ? 1 : 0);
+                $variantSummary['missing_cost_count'] = $missingCostCount;
+                $variantSummary['cost_min_cents'] = $resolvedCosts !== [] ? min($resolvedCosts) : null;
+                $variantSummary['cost_max_cents'] = $resolvedCosts !== [] ? max($resolvedCosts) : null;
+
+                foreach ($payload['variants'] as $idx => $vp) {
+                    $vModel = $variants->get($idx);
+                    if ($vModel) {
+                        $payload['variants'][$idx]['effective_cost_cents'] = $vModel->cost_cents ?? $product->cost_cents;
+                    }
+                }
+            }
+
+            $payload['variants_summary'] = $variantSummary;
+
             return $payload;
         });
 
         return response()->json($paginator);
     }
 
-    public function showProduct(int $id): JsonResponse
+    public function showProduct(Request $request, int $id): JsonResponse
     {
         $product = Product::withTrashed()
             ->with([
@@ -162,9 +192,21 @@ class AdminCatalogController extends Controller
             ])
             ->findOrFail($id);
 
+        $canViewCost = $request->user()?->hasPermission('catalog.cost.view') ?? false;
+        if ($canViewCost) {
+            $product->makeVisible('cost_cents');
+            $product->variants->each(fn (ProductVariant $v) => $v->makeVisible('cost_cents'));
+        }
+
         $payload = $product->toArray();
+        if ($canViewCost && isset($payload['variants'])) {
+            foreach ($product->variants->values() as $idx => $v) {
+                $payload['variants'][$idx]['effective_cost_cents'] = $v->effectiveCostCents();
+            }
+        }
         $payload['is_archived'] = $product->trashed();
         $payload['links'] = $this->lifecycle->inspectLinks($product);
+        $payload['wholesale_condition'] = app(WholesalePricingService::class)->calculateForProduct($product);
 
         return response()->json(['data' => $payload]);
     }
@@ -173,7 +215,15 @@ class AdminCatalogController extends Controller
     {
         $validated = $this->validateProduct($request);
         $actor = $request->user();
-        $product = DB::transaction(function () use ($validated, $actor): Product {
+        $canWriteCost = $actor?->hasPermission('catalog.cost.write') ?? false;
+        if (! $canWriteCost && (
+            (array_key_exists('cost_cents', $validated) && $validated['cost_cents'] !== null)
+            || collect($validated['variants'] ?? [])->contains(fn (array $v): bool => array_key_exists('cost_cents', $v) && $v['cost_cents'] !== null)
+        )) {
+            return response()->json(['message' => 'Você não possui permissão para definir custos de mercadoria.'], 403);
+        }
+
+        $product = DB::transaction(function () use ($validated, $actor, $canWriteCost): Product {
             $slug = Str::slug((string) ($validated['slug'] ?? $validated['name']));
             if (Product::withTrashed()->where('slug', $slug)->exists()) {
                 $slug .= '-'.strtolower(Str::random(4));
@@ -193,7 +243,7 @@ class AdminCatalogController extends Controller
                 'ingredients' => $validated['ingredients'] ?? null,
                 'usage_instructions' => $validated['usage_instructions'] ?? null,
                 'product_type' => $validated['product_type'] ?? ProductType::Simple->value,
-                'cost_cents' => $validated['cost_cents'] ?? 0,
+                'cost_cents' => ($canWriteCost && array_key_exists('cost_cents', $validated)) ? $validated['cost_cents'] : null,
                 'price_cents' => $validated['price_cents'],
                 'promo_price_cents' => $validated['promo_price_cents'] ?? null,
                 'promo_starts_at' => $validated['promo_starts_at'] ?? null,
@@ -232,19 +282,38 @@ class AdminCatalogController extends Controller
         $this->audit->record('catalog.product_created', $request->user(), 'product', $product->id, null, ['sku' => $product->sku, 'name' => $product->name], $request);
         $this->bulkRules->flushStorefrontCaches();
 
-        return response()->json(['data' => $product->fresh(['brand', 'categories', 'images', 'attributeValues.attribute', 'variants'])], 201);
+        $fresh = $product->fresh(['brand', 'categories', 'images', 'attributeValues.attribute', 'variants']);
+        if ($fresh && $canWriteCost) {
+            $fresh->makeVisible('cost_cents');
+            $fresh->variants->each(fn (ProductVariant $v) => $v->makeVisible('cost_cents'));
+        }
+
+        return response()->json(['data' => $fresh], 201);
     }
 
     public function updateProduct(Request $request, int $id): JsonResponse
     {
-        $product = Product::withTrashed()->findOrFail($id);
+        $product = Product::withTrashed()->with('variants')->findOrFail($id);
         $validated = $this->validateProduct($request, $product->id);
 
         $oldSlug = $product->slug;
         $newSlug = ! empty($validated['slug']) ? Str::slug((string) $validated['slug']) : $oldSlug;
         $actor = $request->user();
+        $canWriteCost = $actor?->hasPermission('catalog.cost.write') ?? false;
+        $variantsById = $product->variants->keyBy('id');
+        $attemptedVariantCostChange = collect($validated['variants'] ?? [])->contains(function (array $v) use ($variantsById): bool {
+            if (! array_key_exists('cost_cents', $v)) {
+                return false;
+            }
+            $existing = ! empty($v['id']) ? $variantsById->get((int) $v['id']) : null;
 
-        DB::transaction(function () use ($product, $validated, $oldSlug, $newSlug, $actor): void {
+            return $existing ? $v['cost_cents'] !== $existing->cost_cents : $v['cost_cents'] !== null;
+        });
+        if (! $canWriteCost && ((array_key_exists('cost_cents', $validated) && $validated['cost_cents'] !== $product->cost_cents) || $attemptedVariantCostChange)) {
+            return response()->json(['message' => 'Você não possui permissão para alterar custos de mercadoria.'], 403);
+        }
+
+        DB::transaction(function () use ($product, $validated, $oldSlug, $newSlug, $actor, $canWriteCost): void {
             if ($newSlug !== $oldSlug && ! Product::query()->where('slug', $newSlug)->where('id', '!=', $product->id)->exists()) {
                 SlugRedirect::query()->updateOrCreate(
                     ['entity_type' => 'product', 'old_slug' => $oldSlug],
@@ -268,7 +337,7 @@ class AdminCatalogController extends Controller
                 'ingredients' => $validated['ingredients'] ?? null,
                 'usage_instructions' => $validated['usage_instructions'] ?? null,
                 'product_type' => $validated['product_type'] ?? $product->product_type->value,
-                'cost_cents' => $validated['cost_cents'] ?? $product->cost_cents,
+                'cost_cents' => ($canWriteCost && array_key_exists('cost_cents', $validated)) ? $validated['cost_cents'] : $product->cost_cents,
                 'price_cents' => $validated['price_cents'],
                 'promo_price_cents' => $validated['promo_price_cents'] ?? null,
                 'promo_starts_at' => $validated['promo_starts_at'] ?? null,
@@ -307,7 +376,13 @@ class AdminCatalogController extends Controller
         $this->audit->record('catalog.product_updated', $request->user(), 'product', $product->id, null, ['name' => $product->name], $request);
         $this->bulkRules->flushStorefrontCaches();
 
-        return response()->json(['data' => $product->fresh(['brand', 'categories', 'images', 'attributeValues.attribute', 'variants'])]);
+        $fresh = $product->fresh(['brand', 'categories', 'images', 'attributeValues.attribute', 'variants']);
+        if ($fresh && $actor?->hasPermission('catalog.cost.view')) {
+            $fresh->makeVisible('cost_cents');
+            $fresh->variants->each(fn (ProductVariant $v) => $v->makeVisible('cost_cents'));
+        }
+
+        return response()->json(['data' => $fresh]);
     }
 
     public function destroyProduct(Request $request, int $id): JsonResponse
@@ -995,9 +1070,10 @@ class AdminCatalogController extends Controller
         }
     }
 
-    public function exportCsv(): Response
+    public function exportCsv(Request $request): Response
     {
-        $csv = $this->csv->exportCsv();
+        $canViewCost = $request->user()?->hasPermission('catalog.cost.view') ?? false;
+        $csv = $this->csv->exportCsv($canViewCost);
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -1109,6 +1185,7 @@ class AdminCatalogController extends Controller
             'cost_cents' => ['nullable', 'integer', 'min:0'],
             'price_cents' => ['required', 'integer', 'min:1'],
             'promo_price_cents' => ['nullable', 'integer', 'min:1'],
+            'stock_qty' => ['nullable', 'integer', 'min:0'],
             'promo_starts_at' => ['nullable', 'date'],
             'promo_ends_at' => ['nullable', 'date'],
             'unit_label' => ['nullable', 'string', 'max:40'],
@@ -1150,6 +1227,7 @@ class AdminCatalogController extends Controller
             'variants.*.sort_order' => ['nullable', 'integer', 'min:0'],
             'variants.*.price_cents' => ['required_with:variants', 'integer', 'min:1'],
             'variants.*.promo_price_cents' => ['nullable', 'integer', 'min:1'],
+            'variants.*.cost_cents' => ['nullable', 'integer', 'min:0'],
             'variants.*.stock_qty' => ['required_with:variants', 'integer', 'min:0'],
             'variants.*.min_stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.is_default' => ['boolean'],
@@ -1221,6 +1299,9 @@ class AdminCatalogController extends Controller
                     'sort_order' => (int) ($vData['sort_order'] ?? $idx),
                     'price_cents' => (int) $vData['price_cents'],
                     'promo_price_cents' => $vData['promo_price_cents'] ?? null,
+                    'cost_cents' => ($actor?->hasPermission('catalog.cost.write') && array_key_exists('cost_cents', $vData))
+                        ? $vData['cost_cents']
+                        : $variant?->cost_cents,
                     'min_stock_alert' => (int) ($vData['min_stock_alert'] ?? 5),
                     'is_default' => ! empty($vData['is_default']) || $idx === 0,
                     'is_active' => (bool) ($vData['is_active'] ?? true),
@@ -1261,19 +1342,30 @@ class AdminCatalogController extends Controller
                 }
             }
         } elseif (! $updating || ! $product->variants()->exists()) {
-            ProductVariant::query()->create([
+            $defaultVariant = ProductVariant::query()->create([
                 'product_id' => $product->id,
                 'sku' => $product->sku,
                 'supplier_code' => $product->supplier_code,
                 'name' => 'Padrão',
                 'price_cents' => $product->price_cents,
                 'promo_price_cents' => $product->promo_price_cents,
+                'cost_cents' => $product->cost_cents,
                 'stock_qty' => 0,
                 'reserved_qty' => 0,
                 'min_stock_alert' => 5,
                 'is_default' => true,
                 'is_active' => true,
             ]);
+            $initialStock = (int) ($validated['stock_qty'] ?? 0);
+            if ($initialStock > 0) {
+                $this->inventory->adjustStock(
+                    $defaultVariant,
+                    $initialStock,
+                    InventoryMovementType::In,
+                    $actor,
+                    'Saldo inicial do produto'
+                );
+            }
         }
     }
 }

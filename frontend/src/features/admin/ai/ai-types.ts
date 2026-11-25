@@ -81,6 +81,19 @@ export interface AiProductImportItemRow {
     sku: string;
     gtin?: string | null;
     cost_price_cents?: number | null;
+    suggested_retail_price_cents?: number | null;
+    ambiguous_price_cents?: number | null;
+    price_meaning?: "cost" | "supplier_suggested" | "sale" | "ambiguous" | null;
+    cost_conversion?: {
+      pack_label: string;
+      pack_qty: number;
+      pack_total_cents: number;
+      proposed_unit_cost_cents: number;
+      selling_unit: string;
+      requires_unit_confirmation: boolean;
+      applied: boolean;
+      formula: string;
+    } | null;
     price_cents: number;
     suggested_price_cents?: number | null;
     promo_price_cents?: number | null;

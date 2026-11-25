@@ -26,9 +26,6 @@ class ProductImportValidator
      */
     public function analyzeAndBuildDraftItems(array $rawRows): array
     {
-        $cfg = $this->provider->getConfig();
-        $marginPct = max(0.0, (float) ($cfg['default_margin_pct'] ?? 100.0));
-
         $brands = Brand::query()->where('is_active', true)->get();
         $categories = Category::query()->where('is_active', true)->get();
         $existingProducts = Product::query()->with(['brand:id,name', 'variants:id,product_id,sku,gtin,name'])->get();
@@ -72,16 +69,24 @@ class ProductImportValidator
                 || preg_match('/\b(cabine|luminaria|luminária|motor|micromotor|secador|estufa|aspirador)\b/iu', "{$rawName} {$standardizedProductName}") === 1;
             $groupKey = Str::slug("{$standardizedProductName}|".($matchedBrand->slug ?? $brandNameRaw ?? ''));
 
-            // Determine price vs supplier cost carefully — never turn a supplier cost into retail price without operator confirmation
+            // Differentiate acquisition cost, supplier-suggested price, and store selling price; never invent missing prices/margins
             $salePriceCents = isset($row['sale_price_cents']) ? (int) $row['sale_price_cents'] : null;
-            $costPriceCents = isset($row['cost_price_cents']) ? (int) $row['cost_price_cents'] : null;
-            $suggestedPriceCents = null;
+            $costPriceCents = array_key_exists('cost_price_cents', $row) && $row['cost_price_cents'] !== null
+                ? (int) $row['cost_price_cents']
+                : null;
+            $suggestedRetailPriceCents = isset($row['suggested_retail_price_cents']) ? (int) $row['suggested_retail_price_cents'] : null;
+            $ambiguousPriceCents = isset($row['ambiguous_price_cents']) ? (int) $row['ambiguous_price_cents'] : null;
+            $priceMeaning = isset($row['price_meaning']) ? (string) $row['price_meaning'] : null;
+            $costConversion = is_array($row['cost_conversion'] ?? null) ? $row['cost_conversion'] : null;
             $priceOrigin = 'missing';
 
             if ($salePriceCents !== null && $salePriceCents > 0) {
                 $priceOrigin = 'provided';
-            } elseif ($costPriceCents !== null && $costPriceCents > 0) {
-                $suggestedPriceCents = (int) round($costPriceCents * (1 + ($marginPct / 100)));
+            } elseif ($ambiguousPriceCents !== null && $ambiguousPriceCents > 0) {
+                $priceOrigin = 'ambiguous_requires_operator_classification';
+            } elseif ($suggestedRetailPriceCents !== null && $suggestedRetailPriceCents > 0) {
+                $priceOrigin = 'supplier_suggested_requires_confirmation';
+            } elseif ($costPriceCents !== null) {
                 $priceOrigin = 'supplier_cost_requires_retail_confirmation';
             }
 
@@ -101,9 +106,20 @@ class ProductImportValidator
             }
             if ($priceOrigin === 'missing') {
                 $warnings[] = 'Preço de venda não informado na fonte.';
+            } elseif ($priceOrigin === 'ambiguous_requires_operator_classification') {
+                $ambBrl = 'R$ '.number_format($ambiguousPriceCents / 100, 2, ',', '.');
+                $warnings[] = "Valor ({$ambBrl}) sem indicação clara — informe se é custo de aquisição, preço sugerido pelo fornecedor ou preço de venda da loja.";
+            } elseif ($priceOrigin === 'supplier_suggested_requires_confirmation') {
+                $sugBrl = 'R$ '.number_format($suggestedRetailPriceCents / 100, 2, ',', '.');
+                $warnings[] = "Preço sugerido pelo fornecedor ({$sugBrl}) — confirme o preço de venda final da loja.";
             } elseif ($priceOrigin === 'supplier_cost_requires_retail_confirmation') {
                 $costBrl = 'R$ '.number_format($costPriceCents / 100, 2, ',', '.');
-                $warnings[] = "Valor ({$costBrl}) identificado como custo/lista de fornecedor — confirme o preço de venda antes de publicar.";
+                $warnings[] = "Valor ({$costBrl}) identificado como custo de aquisição — confirme o preço de venda antes de publicar.";
+            }
+            if ($costConversion !== null) {
+                $warnings[] = ! empty($costConversion['applied'])
+                    ? "Conversão proposta da embalagem ({$costConversion['formula']}) — confira a unidade de venda ({$costConversion['selling_unit']})."
+                    : "Embalagem detectada ({$costConversion['formula']}) com venda em \"{$costConversion['selling_unit']}\" — confirme a unidade de venda antes de converter para unitário.";
             }
             if ($isEquipment && $powerWatts === null) {
                 $errors[] = 'Equipamento elétrico sem potência (W) legível — informe manualmente antes de cadastrar.';
@@ -258,8 +274,12 @@ class ProductImportValidator
                     'sku' => $sku,
                     'gtin' => $gtin,
                     'cost_price_cents' => $costPriceCents,
+                    'suggested_retail_price_cents' => $suggestedRetailPriceCents,
+                    'ambiguous_price_cents' => $ambiguousPriceCents,
+                    'price_meaning' => $priceMeaning,
+                    'cost_conversion' => $costConversion,
                     'price_cents' => $effectivePriceForDraft,
-                    'suggested_price_cents' => $suggestedPriceCents,
+                    'suggested_price_cents' => $suggestedRetailPriceCents,
                     'promo_price_cents' => $row['promo_price_cents'] ?? null,
                     'stock_qty' => $stockQty !== null ? max(0, $stockQty) : 0,
                     'short_description' => $shortDesc,

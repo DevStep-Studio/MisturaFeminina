@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Catalog\Services\ReplenishmentService;
 use App\Domain\Catalog\Services\RestockNotificationService;
+use App\Domain\Orders\Services\ProfitAndCostAnalyticsService;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AnalyticsEvent;
@@ -14,6 +15,7 @@ use App\Models\ProductVariant;
 use App\Models\RestockRequest;
 use App\Models\Review;
 use App\Models\SharedCart;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ class DashboardController extends Controller
     public function __construct(
         private readonly RestockNotificationService $restock,
         private readonly ReplenishmentService $replenishment,
+        private readonly ProfitAndCostAnalyticsService $profitAnalytics,
     ) {}
 
     public function summary(Request $request): JsonResponse
@@ -172,41 +175,85 @@ class DashboardController extends Controller
         $restockDemand = $this->restock->demandSummary();
         $replenishmentInsights = $this->replenishment->adminInsights();
 
-        return response()->json([
-            'data' => [
-                'kpis' => [
-                    'sales_today_cents' => $salesTodayCents,
-                    'sales_7d_cents' => $sales7dCents,
-                    'sales_30d_cents' => $sales30dCents,
-                    'growth_7d_pct' => $growth7dPct,
-                    'paid_orders_30d' => $paidOrders30dCount,
-                    'avg_ticket_cents' => $avgTicketCents,
-                    'pending_payment_count' => (int) ($ordersByStatus[OrderStatus::PendingPayment->value]['count'] ?? 0),
-                    'to_pack_count' => (int) ($ordersByStatus[OrderStatus::Paid->value]['count'] ?? 0) + (int) ($ordersByStatus[OrderStatus::Preparing->value]['count'] ?? 0),
-                    'low_stock_count' => count($lowStockVariants),
-                    'pending_reviews_count' => Review::query()->where('status', 'pending')->count(),
-                    'pending_restock_count' => RestockRequest::query()->where('status', 'pending')->count(),
-                    'replenishment_lists_count' => $replenishmentInsights['lists_total'],
-                    'multi_shade_add_count' => (int) ($funnelEvents['multi_shade_bulk_add'] ?? 0),
-                    'shared_carts_created_count' => SharedCart::query()->count(),
-                    'shared_carts_imported_count' => (int) SharedCart::query()->sum('imports_count'),
-                ],
-                'daily_sales_30d' => $dailySales30d,
-                'top_products' => $topProducts,
-                'payment_methods' => $paymentMethods,
-                'orders_by_status' => $ordersByStatus,
-                'low_stock_variants' => $lowStockVariants,
-                'recent_orders' => $recentOrders,
-                'top_demanded_variants' => array_slice($restockDemand['demand_ranking'], 0, 10),
-                'top_replenishment_variants' => array_slice($replenishmentInsights['top_variants'], 0, 10),
-                'funnel_30d' => [
-                    'page_view' => (int) ($funnelEvents['page_view'] ?? 0),
-                    'add_to_cart' => (int) ($funnelEvents['add_to_cart'] ?? 0),
-                    'begin_checkout' => (int) ($funnelEvents['begin_checkout'] ?? 0),
-                    'purchase_created' => (int) ($funnelEvents['purchase_created'] ?? 0),
-                    'purchase_paid' => $paidOrders30dCount,
-                ],
+        $canViewProfit = $request->user()?->hasPermission('reports.profit.view') ?? false;
+        $from = $request->filled('from')
+            ? CarbonImmutable::parse((string) $request->query('from'))->startOfDay()
+            : now()->subDays(29)->startOfDay()->toImmutable();
+        $to = $request->filled('to')
+            ? CarbonImmutable::parse((string) $request->query('to'))->endOfDay()
+            : now()->endOfDay()->toImmutable();
+        $stockAsOf = $request->filled('stock_as_of')
+            ? CarbonImmutable::parse((string) $request->query('stock_as_of'))
+            : null;
+
+        $data = [
+            'kpis' => [
+                'sales_today_cents' => $salesTodayCents,
+                'sales_7d_cents' => $sales7dCents,
+                'sales_30d_cents' => $sales30dCents,
+                'growth_7d_pct' => $growth7dPct,
+                'paid_orders_30d' => $paidOrders30dCount,
+                'avg_ticket_cents' => $avgTicketCents,
+                'pending_payment_count' => (int) ($ordersByStatus[OrderStatus::PendingPayment->value]['count'] ?? 0),
+                'to_pack_count' => (int) ($ordersByStatus[OrderStatus::Paid->value]['count'] ?? 0) + (int) ($ordersByStatus[OrderStatus::Preparing->value]['count'] ?? 0),
+                'low_stock_count' => count($lowStockVariants),
+                'pending_reviews_count' => Review::query()->where('status', 'pending')->count(),
+                'pending_restock_count' => RestockRequest::query()->where('status', 'pending')->count(),
+                'replenishment_lists_count' => $replenishmentInsights['lists_total'],
+                'multi_shade_add_count' => (int) ($funnelEvents['multi_shade_bulk_add'] ?? 0),
+                'shared_carts_created_count' => SharedCart::query()->count(),
+                'shared_carts_imported_count' => (int) SharedCart::query()->sum('imports_count'),
             ],
+            'daily_sales_30d' => $dailySales30d,
+            'top_products' => $topProducts,
+            'payment_methods' => $paymentMethods,
+            'orders_by_status' => $ordersByStatus,
+            'low_stock_variants' => $lowStockVariants,
+            'recent_orders' => $recentOrders,
+            'top_demanded_variants' => array_slice($restockDemand['demand_ranking'], 0, 10),
+            'top_replenishment_variants' => array_slice($replenishmentInsights['top_variants'], 0, 10),
+            'funnel_30d' => [
+                'page_view' => (int) ($funnelEvents['page_view'] ?? 0),
+                'add_to_cart' => (int) ($funnelEvents['add_to_cart'] ?? 0),
+                'begin_checkout' => (int) ($funnelEvents['begin_checkout'] ?? 0),
+                'purchase_created' => (int) ($funnelEvents['purchase_created'] ?? 0),
+                'purchase_paid' => $paidOrders30dCount,
+            ],
+        ];
+
+        if ($canViewProfit) {
+            $data['financial_summary'] = $this->profitAnalytics->periodProfitSummary($from, $to);
+            $data['inventory_valuation'] = $this->profitAnalytics->inventoryCostValuation($stockAsOf);
+        }
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function profitItems(Request $request): JsonResponse
+    {
+        $from = $request->filled('from')
+            ? CarbonImmutable::parse((string) $request->query('from'))->startOfDay()
+            : now()->subDays(29)->startOfDay()->toImmutable();
+        $to = $request->filled('to')
+            ? CarbonImmutable::parse((string) $request->query('to'))->endOfDay()
+            : now()->endOfDay()->toImmutable();
+        $filter = $request->query('filter')
+            ? (string) $request->query('filter')
+            : ($request->boolean('missing_cost') ? 'missing_cost' : null);
+
+        return response()->json([
+            'data' => $this->profitAnalytics->periodItemBreakdown($from, $to, $filter),
+        ]);
+    }
+
+    public function inventoryValuation(Request $request): JsonResponse
+    {
+        $asOf = $request->filled('as_of')
+            ? CarbonImmutable::parse((string) $request->query('as_of'))
+            : null;
+
+        return response()->json([
+            'data' => $this->profitAnalytics->inventoryCostValuation($asOf),
         ]);
     }
 }

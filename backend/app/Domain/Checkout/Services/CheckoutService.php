@@ -6,6 +6,7 @@ namespace App\Domain\Checkout\Services;
 
 use App\Domain\Cart\Services\CartService;
 use App\Domain\Catalog\Services\InventoryService;
+use App\Domain\Orders\Services\OrderCostService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Payments\Services\WebhookProcessorService;
@@ -39,6 +40,7 @@ class CheckoutService
         private readonly ShippingQuoteService $shipping,
         private readonly PaymentService $payments,
         private readonly WebhookProcessorService $webhooks,
+        private readonly OrderCostService $orderCost,
     ) {}
 
     /**
@@ -148,8 +150,13 @@ class CheckoutService
                 'stock_reserved_until' => now()->addMinutes(15),
             ]);
 
-            foreach ($summary['items'] as $line) {
+            $lineTotals = array_map(static fn (array $line): int => max(0, (int) $line['line_total_cents']), $summary['items']);
+            $discountAllocations = $this->orderCost->allocateOrderDiscounts($lineTotals, $discountCents);
+
+            foreach ($summary['items'] as $idx => $line) {
                 $wholesaleDiscountCents = (int) ($line['wholesale_discount_cents'] ?? 0);
+                $lineTotalCents = (int) $line['line_total_cents'];
+                $allocOrderDiscount = $discountAllocations[$idx] ?? 0;
                 OrderItem::query()->create([
                     'order_id' => $order->id,
                     'product_id' => $line['product_id'],
@@ -160,7 +167,9 @@ class CheckoutService
                     'quantity' => $line['quantity'],
                     'unit_price_cents' => $line['unit_price_cents'],
                     'discount_cents' => $wholesaleDiscountCents * $line['quantity'],
-                    'total_cents' => $line['line_total_cents'],
+                    'order_discount_allocated_cents' => $allocOrderDiscount,
+                    'total_cents' => $lineTotalCents,
+                    'net_revenue_cents' => max(0, $lineTotalCents - $allocOrderDiscount),
                     'weight_grams_snapshot' => 200,
                     'wholesale_rule_id' => $line['wholesale_rule_id'] ?? null,
                     'wholesale_rule_name' => $line['wholesale_rule_name'] ?? null,

@@ -6,6 +6,7 @@ import {
   For,
   Show,
   createEffect,
+  createMemo,
   createResource,
   createSignal,
 } from "solid-js";
@@ -17,6 +18,11 @@ import {
   type OrderOccurrenceRow,
   type TimelineEventItem,
 } from "../../../features/admin/AdminOrderTimelineAndAfterSales";
+import {
+  formatBrlSigned,
+  formatMarginPercentage,
+  parseBrlNullableCost,
+} from "../../../features/admin/profit-math";
 import { ApiError, api } from "../../../lib/api";
 import {
   formatCents,
@@ -24,6 +30,8 @@ import {
   paymentStatusLabel,
 } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
+import { hasPermission } from "../../../security/permissions";
+import { session } from "../../../security/session";
 
 export const Route = createFileRoute("/_authenticated/admin/pedidos")({
   validateSearch: (raw: Record<string, unknown>): Record<string, string> => {
@@ -80,12 +88,53 @@ interface OrderDetailPayload {
     variant_name_snapshot: string;
     sku_snapshot: string;
     quantity: number;
+    returned_qty?: number;
+    restocked_qty?: number;
+    remaining_qty?: number;
+    unit_price_cents?: number;
+    order_discount_allocated_cents?: number;
     total_cents: number;
+    net_revenue_cents?: number;
+    returned_revenue_cents?: number;
+    unit_cost_cents_snapshot?: number | null;
+    has_cost?: boolean;
+    cost_source?: string;
+    cost_recorded_at?: string | null;
+    cost_backfilled_at?: string | null;
+    cmv_cents?: number | null;
+    gross_profit_cents?: number | null;
+    gross_margin_pct?: number | null;
     wholesale_rule_id?: number | null;
     wholesale_rule_name?: string | null;
     wholesale_tier_min_qty?: number | null;
     wholesale_discount_cents?: number;
   }[];
+  financial_summary?: {
+    is_recognized_sale: boolean;
+    products_revenue_cents: number;
+    covered_revenue_cents: number;
+    cmv_cents: number;
+    gross_profit_cents: number;
+    gross_margin_pct: number | null;
+    is_partial: boolean;
+    missing_cost_items_count: number;
+    coverage_label: string;
+  } | null;
+  returns?: Array<{
+    id: number;
+    return_type: string;
+    restock_items: boolean;
+    financial_refund_cents: number;
+    reason: string;
+    occurred_at: string;
+    items: Array<{
+      order_item_id: number;
+      returned_qty: number;
+      restocked_qty: number;
+      revenue_reversed_cents: number;
+      cogs_reversed_cents: number | null;
+    }>;
+  }>;
   shipment: {
     carrier: string | null;
     service_name: string | null;
@@ -104,6 +153,12 @@ interface OrderDetailPayload {
 
 function AdminOrdersPage() {
   const routeSearch = Route.useSearch();
+  const canViewProfit = createMemo(() =>
+    hasPermission(session.user()?.permissions ?? [], "reports.profit.view"),
+  );
+  const canBackfillCost = createMemo(() =>
+    hasPermission(session.user()?.permissions ?? [], "orders.cost.backfill"),
+  );
   const [statusFilter, setStatusFilter] = createSignal("");
   const [opFilter, setOpFilter] = createSignal("");
   const [assistedOpen, setAssistedOpen] = createSignal(false);
@@ -115,6 +170,24 @@ function AdminOrdersPage() {
   const [trackingCode, setTrackingCode] = createSignal("");
   const [trackingUrl, setTrackingUrl] = createSignal("");
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [backfillTarget, setBackfillTarget] = createSignal<{
+    itemId: number;
+    label: string;
+  } | null>(null);
+  const [backfillCostInput, setBackfillCostInput] = createSignal("");
+  const [backfillReason, setBackfillReason] = createSignal(
+    "Preenchimento histórico autorizado pela conferência de nota fiscal",
+  );
+  const [backfillSaving, setBackfillSaving] = createSignal(false);
+  const [returnOpen, setReturnOpen] = createSignal(false);
+  const [returnQtyByItem, setReturnQtyByItem] = createSignal<
+    Record<number, number>
+  >({});
+  const [returnRestock, setReturnRestock] = createSignal(true);
+  const [returnReason, setReturnReason] = createSignal(
+    "Devolução parcial / estorno administrativo",
+  );
+  const [refundSaving, setRefundSaving] = createSignal(false);
 
   createEffect(() => {
     const s = routeSearch();
@@ -234,19 +307,98 @@ function AdminOrdersPage() {
     w.document.close();
   }
 
-  async function requestRefund(id: number) {
+  function openReturnPanel(order: OrderDetailPayload) {
+    const initialQty: Record<number, number> = {};
+    for (const item of order.items) {
+      initialQty[item.id] = 0;
+    }
+    setReturnQtyByItem(initialQty);
+    setReturnRestock(true);
+    setReturnReason("Devolução parcial / estorno administrativo");
+    setReturnOpen(true);
+  }
+
+  async function submitPartialOrFullReturn(id: number, fullRefund = false) {
+    const order = detail();
+    if (!order || refundSaving()) return;
     setFeedback(null);
+    setRefundSaving(true);
     try {
+      const selectedItems = fullRefund
+        ? []
+        : Object.entries(returnQtyByItem())
+            .filter(([, qty]) => qty > 0)
+            .map(([orderItemId, quantity]) => ({
+              order_item_id: Number(orderItemId),
+              quantity,
+              restock: returnRestock(),
+            }));
+
+      if (!fullRefund && selectedItems.length === 0) {
+        setFeedback("Informe ao menos 1 unidade para devolução parcial.");
+        setRefundSaving(false);
+        return;
+      }
+
+      const reason = returnReason().trim() || "Reembolso administrativo";
+      const idempotencyKey = `admin-ui:${id}:${Date.now()}`;
       await api(`/admin/orders/${id}/refund`, {
         method: "POST",
-        body: { reason: "Reembolso administrativo" },
+        body: {
+          reason,
+          restock_items: returnRestock(),
+          manual_confirmation: true,
+          idempotency_key: idempotencyKey,
+          ...(selectedItems.length > 0 ? { items: selectedItems } : {}),
+        },
       });
+      setReturnOpen(false);
       await Promise.all([refetch(), refetchDetail()]);
-      setFeedback("Reembolso registrado e estoque estornado quando aplicável.");
+      setFeedback(
+        selectedItems.length > 0
+          ? "Devolução parcial registrada e lucro bruto recalculado."
+          : "Reembolso registrado e estoque estornado quando aplicável.",
+      );
     } catch (err) {
       setFeedback(
         err instanceof ApiError ? err.message : "Não foi possível reembolsar.",
       );
+    } finally {
+      setRefundSaving(false);
+    }
+  }
+
+  async function submitBackfillCost(e: Event) {
+    e.preventDefault();
+    const target = backfillTarget();
+    if (!target || backfillSaving()) return;
+    const parsed = parseBrlNullableCost(backfillCostInput());
+    if (!parsed.valid || parsed.cents === null) {
+      setFeedback("Informe um custo histórico válido (ex.: 12,00 ou 0,00).");
+      return;
+    }
+    setBackfillSaving(true);
+    setFeedback(null);
+    try {
+      await api(`/admin/orders/items/${target.itemId}/backfill-cost`, {
+        method: "POST",
+        body: {
+          unit_cost_cents: parsed.cents,
+          reason: backfillReason().trim(),
+        },
+      });
+      setBackfillTarget(null);
+      setBackfillCostInput("");
+      await Promise.all([refetch(), refetchDetail()]);
+      setFeedback("Custo histórico registrado e lucro do pedido atualizado.");
+    } catch (err) {
+      setFeedback(
+        err instanceof ApiError
+          ? err.message
+          : "Não foi possível registrar custo histórico.",
+      );
+    } finally {
+      setBackfillSaving(false);
     }
   }
 
@@ -483,35 +635,224 @@ function AdminOrdersPage() {
                   </p>
                 </div>
 
+                <Show when={canViewProfit() && d().financial_summary}>
+                  {(summary) => (
+                    <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="font-bold text-zinc-900">
+                          Apuração de lucro bruto (pedido)
+                        </span>
+                        <span
+                          class={`rounded px-2 py-0.5 text-[10px] font-semibold ${
+                            summary().is_partial
+                              ? "bg-amber-100 text-amber-900"
+                              : summary().is_recognized_sale
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-zinc-200 text-zinc-700"
+                          }`}
+                        >
+                          {summary().is_recognized_sale
+                            ? summary().coverage_label
+                            : "Pedido pendente — fora dos totais do painel"}
+                        </span>
+                      </div>
+                      <dl class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div>
+                          <dt class="text-[11px] text-zinc-500">Receita produtos</dt>
+                          <dd class="font-semibold text-zinc-900">
+                            {formatCents(summary().products_revenue_cents)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt class="text-[11px] text-zinc-500">CMV histórico</dt>
+                          <dd class="font-semibold text-zinc-900">
+                            {formatCents(summary().cmv_cents)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt class="text-[11px] text-zinc-500">Lucro bruto</dt>
+                          <dd
+                            class={`font-bold ${
+                              summary().gross_profit_cents < 0
+                                ? "text-red-700"
+                                : "text-emerald-700"
+                            }`}
+                          >
+                            {formatBrlSigned(summary().gross_profit_cents)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt class="text-[11px] text-zinc-500">Margem bruta</dt>
+                          <dd class="font-semibold text-zinc-900">
+                            {formatMarginPercentage(summary().gross_margin_pct)}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  )}
+                </Show>
+
                 <div>
                   <h3 class="mb-2 text-xs font-bold uppercase text-zinc-500">
                     Itens
                   </h3>
-                  <ul class="space-y-1.5 text-xs">
+                  <ul class="space-y-2 text-xs">
                     <For each={d().items}>
                       {(item) => (
-                        <li class="flex items-center justify-between">
-                          <div>
-                            <span>
-                              {item.quantity}x {item.product_name_snapshot} (
-                              {item.variant_name_snapshot})
-                            </span>
-                            <Show when={item.wholesale_rule_name}>
-                              <span class="ml-2 inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784]">
-                                Atacado ({item.wholesale_tier_min_qty}+ un.)
+                        <li class="rounded-md border border-zinc-100 bg-zinc-50/70 px-2.5 py-2">
+                          <div class="flex items-center justify-between gap-2">
+                            <div>
+                              <span class="font-medium text-zinc-900">
+                                {item.quantity}x {item.product_name_snapshot} (
+                                {item.variant_name_snapshot})
                               </span>
-                            </Show>
+                              <span class="ml-1.5 font-mono text-[10px] text-zinc-500">
+                                {item.sku_snapshot}
+                              </span>
+                              <Show when={item.wholesale_rule_name}>
+                                <span class="ml-2 inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784]">
+                                  Atacado ({item.wholesale_tier_min_qty}+ un.)
+                                </span>
+                              </Show>
+                              <Show when={(item.returned_qty ?? 0) > 0}>
+                                <span class="ml-2 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                                  Devolvido: {item.returned_qty} un. (Estocado:{" "}
+                                  {item.restocked_qty ?? 0})
+                                </span>
+                              </Show>
+                            </div>
+                            <span class="font-semibold text-zinc-900">
+                              {formatCents(
+                                item.net_revenue_cents ?? item.total_cents,
+                              )}
+                            </span>
                           </div>
-                          <span class="font-semibold">
-                            {formatCents(item.total_cents)}
-                          </span>
+
+                          <Show when={canViewProfit()}>
+                            <div class="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200/70 pt-1 text-[11px]">
+                              <Show
+                                when={
+                                  item.has_cost &&
+                                  item.unit_cost_cents_snapshot !== null &&
+                                  item.unit_cost_cents_snapshot !== undefined
+                                }
+                                fallback={
+                                  <span class="font-medium text-amber-700">
+                                    Custo histórico: Custo não informado
+                                  </span>
+                                }
+                              >
+                                <span class="text-zinc-600">
+                                  Custo unit. histórico:{" "}
+                                  <strong class="text-zinc-800">
+                                    {formatCents(
+                                      item.unit_cost_cents_snapshot ?? 0,
+                                    )}
+                                  </strong>{" "}
+                                  • Lucro:{" "}
+                                  <strong
+                                    class={
+                                      (item.gross_profit_cents ?? 0) < 0
+                                        ? "text-red-700"
+                                        : "text-emerald-700"
+                                    }
+                                  >
+                                    {formatBrlSigned(
+                                      item.gross_profit_cents ?? 0,
+                                    )}
+                                  </strong>{" "}
+                                  ({formatMarginPercentage(item.gross_margin_pct)})
+                                  <Show when={item.cost_backfilled_at}>
+                                    <span class="ml-1 text-zinc-500">
+                                      · preenchido manualmente
+                                    </span>
+                                  </Show>
+                                </span>
+                              </Show>
+
+                              <Show
+                                when={!item.has_cost && canBackfillCost()}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBackfillTarget({
+                                      itemId: item.id,
+                                      label: `${item.product_name_snapshot} (${item.sku_snapshot})`,
+                                    });
+                                    setBackfillCostInput("");
+                                  }}
+                                  class="rounded border border-[#93509e]/40 px-2 py-0.5 text-[11px] font-semibold text-[#7C2784] hover:bg-purple-50"
+                                >
+                                  Preencher custo histórico
+                                </button>
+                              </Show>
+                            </div>
+                          </Show>
                         </li>
                       )}
                     </For>
                   </ul>
                 </div>
 
-                <Show when={d().payments[0]}>
+                <Show when={backfillTarget()}>
+                  {(target) => (
+                    <form
+                      onSubmit={(e) => void submitBackfillCost(e)}
+                      class="space-y-2 rounded-lg border border-[#93509e]/30 bg-purple-50/40 p-3 text-xs"
+                    >
+                      <div class="flex items-center justify-between">
+                        <strong class="text-zinc-900">
+                          Preenchimento histórico — {target().label}
+                        </strong>
+                        <button
+                          type="button"
+                          onClick={() => setBackfillTarget(null)}
+                          class="text-zinc-500 hover:text-zinc-900"
+                        >
+                          Fechar
+                        </button>
+                      </div>
+                      <p class="text-[11px] text-zinc-600">
+                        Grava exclusivamente no histórico deste item do pedido
+                        sem alterar o cadastro atual do produto.
+                      </p>
+                      <div class="grid gap-2 sm:grid-cols-3">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Custo unit. (R$) ex: 12,00"
+                          value={backfillCostInput()}
+                          onInput={(e) =>
+                            setBackfillCostInput(e.currentTarget.value)
+                          }
+                          class="h-8 rounded border border-zinc-300 bg-white px-2 text-xs"
+                        />
+                        <input
+                          type="text"
+                          required
+                          placeholder="Motivo auditado"
+                          value={backfillReason()}
+                          onInput={(e) =>
+                            setBackfillReason(e.currentTarget.value)
+                          }
+                          class="h-8 rounded border border-zinc-300 bg-white px-2 text-xs sm:col-span-2"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={backfillSaving()}
+                        class="rounded bg-[#93509e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#7c3f87] disabled:opacity-50"
+                      >
+                        {backfillSaving()
+                          ? "Salvando..."
+                          : "Registrar custo histórico auditado"}
+                      </button>
+                    </form>
+                  )}
+                </Show>
+
+                <Show when={d().payments?.[0]}>
                   {(pay) => (
                     <div class="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-xs">
                       <span>
@@ -600,14 +941,142 @@ function AdminOrdersPage() {
                   </button>
                 </form>
 
-                <div class="border-t border-zinc-200 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => void requestRefund(d().id)}
-                    class="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
-                  >
-                    Reembolsar / Estornar pedido
-                  </button>
+                <Show when={(d().returns?.length ?? 0) > 0}>
+                  <div class="border-t border-zinc-200 pt-3">
+                    <h4 class="mb-1.5 text-[11px] font-bold uppercase text-zinc-500">
+                      Histórico de devoluções e estornos
+                    </h4>
+                    <ul class="space-y-1.5 text-[11px]">
+                      <For each={d().returns ?? []}>
+                        {(ret) => (
+                          <li class="rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1.5">
+                            <div class="flex flex-wrap justify-between gap-2 font-medium text-zinc-800">
+                              <span>
+                                {ret.reason} • Estorno financeiro:{" "}
+                                {formatCents(ret.financial_refund_cents)}
+                              </span>
+                              <span class="text-zinc-500">
+                                {ret.restock_items
+                                  ? "Com retorno ao estoque físico"
+                                  : "Somente financeiro (sem retorno ao estoque)"}
+                              </span>
+                            </div>
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </div>
+                </Show>
+
+                <div class="border-t border-zinc-200 pt-4 space-y-3">
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openReturnPanel(d())}
+                      class="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+                    >
+                      Devolução parcial / Estorno
+                    </button>
+                  </div>
+
+                  <Show when={returnOpen()}>
+                    <div class="space-y-2.5 rounded-lg border border-red-200 bg-red-50/40 p-3 text-xs">
+                      <div class="flex items-center justify-between">
+                        <strong class="text-zinc-900">
+                          Registrar devolução ou reembolso
+                        </strong>
+                        <button
+                          type="button"
+                          onClick={() => setReturnOpen(false)}
+                          class="text-zinc-500 hover:text-zinc-900"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                      <div class="space-y-1.5">
+                        <For each={d().items}>
+                          {(item) => {
+                            const maxQty = Math.max(
+                              0,
+                              item.remaining_qty ??
+                                item.quantity - (item.returned_qty ?? 0),
+                            );
+                            return (
+                              <div class="flex items-center justify-between gap-2 rounded border border-zinc-200 bg-white px-2 py-1.5">
+                                <span class="text-zinc-800">
+                                  {item.product_name_snapshot} (
+                                  {item.variant_name_snapshot}) · disp.:{" "}
+                                  {maxQty}
+                                </span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={maxQty}
+                                  value={returnQtyByItem()[item.id] ?? 0}
+                                  onInput={(e) => {
+                                    const next = Math.min(
+                                      maxQty,
+                                      Math.max(
+                                        0,
+                                        Number(e.currentTarget.value || 0),
+                                      ),
+                                    );
+                                    setReturnQtyByItem((prev) => ({
+                                      ...prev,
+                                      [item.id]: next,
+                                    }));
+                                  }}
+                                  class="h-7 w-16 rounded border border-zinc-300 px-1.5 text-center"
+                                />
+                              </div>
+                            );
+                          }}
+                        </For>
+                      </div>
+                      <label class="flex items-center gap-2 text-zinc-700">
+                        <input
+                          type="checkbox"
+                          checked={returnRestock()}
+                          onChange={(e) =>
+                            setReturnRestock(e.currentTarget.checked)
+                          }
+                        />
+                        Devolver fisicamente ao estoque (desmarque para perda /
+                        reembolso apenas financeiro)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Motivo da devolução/estorno"
+                        value={returnReason()}
+                        onInput={(e) => setReturnReason(e.currentTarget.value)}
+                        class="h-8 w-full rounded border border-zinc-300 bg-white px-2 text-xs"
+                      />
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={refundSaving()}
+                          onClick={() =>
+                            void submitPartialOrFullReturn(d().id, false)
+                          }
+                          class="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                        >
+                          {refundSaving()
+                            ? "Processando..."
+                            : "Confirmar devolução selecionada"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={refundSaving()}
+                          onClick={() =>
+                            void submitPartialOrFullReturn(d().id, true)
+                          }
+                          class="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Estornar pedido integralmente
+                        </button>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
 
                 <div class="border-t border-zinc-200 pt-4">
