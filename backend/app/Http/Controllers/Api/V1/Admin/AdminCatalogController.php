@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Admin\Services\TodayWorkService;
-use App\Domain\Catalog\Events\VariantRestocked;
 use App\Domain\Catalog\Services\CatalogBulkRuleService;
 use App\Domain\Catalog\Services\CatalogCsvService;
 use App\Domain\Catalog\Services\CatalogLifecycleService;
@@ -213,8 +212,29 @@ class AdminCatalogController extends Controller
 
     public function storeProduct(Request $request): JsonResponse
     {
-        $validated = $this->validateProduct($request);
         $actor = $request->user();
+        $idempotencyKey = trim((string) ($request->header('X-Idempotency-Key') ?: $request->input('idempotency_key', '')));
+        $idemCacheKey = $idempotencyKey !== '' && $actor
+            ? 'mf:catalog:store:idem:'.$actor->id.':'.sha1($idempotencyKey)
+            : null;
+        if ($idemCacheKey !== null) {
+            $existingId = Cache::get($idemCacheKey);
+            if (is_int($existingId)) {
+                $existingProd = Product::withTrashed()
+                    ->with(['brand', 'categories', 'images', 'attributeValues.attribute', 'variants'])
+                    ->find($existingId);
+                if ($existingProd) {
+                    if ($actor->hasPermission('catalog.cost.write')) {
+                        $existingProd->makeVisible('cost_cents');
+                        $existingProd->variants->each(fn (ProductVariant $v) => $v->makeVisible('cost_cents'));
+                    }
+
+                    return response()->json(['data' => $existingProd, 'idempotent_replay' => true], 200);
+                }
+            }
+        }
+
+        $validated = $this->validateProduct($request);
         $canWriteCost = $actor?->hasPermission('catalog.cost.write') ?? false;
         if (! $canWriteCost && (
             (array_key_exists('cost_cents', $validated) && $validated['cost_cents'] !== null)
@@ -286,6 +306,9 @@ class AdminCatalogController extends Controller
         if ($fresh && $canWriteCost) {
             $fresh->makeVisible('cost_cents');
             $fresh->variants->each(fn (ProductVariant $v) => $v->makeVisible('cost_cents'));
+        }
+        if ($idemCacheKey !== null) {
+            Cache::put($idemCacheKey, $product->id, 600);
         }
 
         return response()->json(['data' => $fresh], 201);

@@ -8,8 +8,11 @@ use App\Domain\Admin\Services\IntelligentReportsService;
 use App\Domain\AI\Services\AIProviderService;
 use App\Domain\AI\Services\AIUsageTracker;
 use App\Domain\AI\Services\CustomerSupportAgent;
+use App\Domain\AI\Services\GoogleProductSearchService;
 use App\Domain\AI\Services\InventoryReplenishmentAgent;
 use App\Domain\AI\Services\ProductCatalogAgent;
+use App\Domain\AI\Services\ProductWebLookupService;
+use App\Domain\Media\Services\MediaUploadService;
 use App\Http\Controllers\Controller;
 use App\Jobs\RunAiReplenishmentAnalysisJob;
 use App\Models\AiAgent;
@@ -35,6 +38,9 @@ class AdminAiAgentController extends Controller
         private readonly AIUsageTracker $tracker,
         private readonly CustomerSupportAgent $supportAgent,
         private readonly ProductCatalogAgent $catalogAgent,
+        private readonly ProductWebLookupService $webLookup,
+        private readonly GoogleProductSearchService $googleSearch,
+        private readonly MediaUploadService $media,
         private readonly InventoryReplenishmentAgent $replenishmentAgent,
         private readonly IntelligentReportsService $reports,
     ) {}
@@ -106,6 +112,7 @@ class AdminAiAgentController extends Controller
             'data' => [
                 'config' => $this->provider->getConfig(),
                 'connection' => $this->provider->connectionStatus(),
+                'search_connection' => $this->googleSearch->connectionStatus(),
                 'agents' => AiAgent::query()->orderBy('id')->get(),
             ],
         ]);
@@ -379,6 +386,106 @@ class AdminAiAgentController extends Controller
 
         return response()->json([
             'data' => $this->catalogAgent->assistSingleProduct($product, $actor, (string) $validated['action']),
+        ]);
+    }
+
+    public function testSearchConnection(): JsonResponse
+    {
+        return response()->json(['data' => $this->googleSearch->testConnection()]);
+    }
+
+    public function lookupProductByName(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'query' => ['nullable', 'string', 'max:220'],
+            'brand' => ['nullable', 'string', 'max:120'],
+            'source_url' => ['nullable', 'url', 'max:500'],
+            'barcode' => ['nullable', 'string', 'max:40'],
+            'manufacturer_code' => ['nullable', 'string', 'max:80'],
+            'internal_sku' => ['nullable', 'string', 'max:80'],
+            'refresh' => ['nullable', 'boolean'],
+            'force_web_search' => ['nullable', 'boolean'],
+        ]);
+
+        if (
+            trim((string) ($validated['query'] ?? '')) === '' &&
+            trim((string) ($validated['source_url'] ?? '')) === '' &&
+            trim((string) ($validated['barcode'] ?? '')) === ''
+        ) {
+            return response()->json([
+                'message' => 'Digite o nome do produto, informe um link de referência ou um código de barras.',
+            ], 422);
+        }
+
+        /** @var User $actor */
+        $actor = $request->user();
+
+        return response()->json([
+            'data' => $this->webLookup->lookup($actor, $validated),
+        ]);
+    }
+
+    public function importCatalogImageFromUrl(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'url', 'max:1000'],
+            'title' => ['nullable', 'string', 'max:180'],
+            'alt_text' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        /** @var User $actor */
+        $actor = $request->user();
+        $result = $this->media->importFromExternalUrl(
+            (string) $validated['url'],
+            $actor,
+            $validated['title'] ?? null,
+            $validated['alt_text'] ?? null,
+            'catalog'
+        );
+
+        return response()->json([
+            'data' => [
+                'id' => $result['asset']->id,
+                'path' => $result['path'],
+                'thumb_path' => $result['thumb_path'],
+                'width' => $result['width'],
+                'height' => $result['height'],
+                'mime_type' => $result['mime_type'],
+                'size_bytes' => $result['size_bytes'],
+                'source_url' => $result['source_url'],
+            ],
+        ], 201);
+    }
+
+    public function uploadCatalogImageFile(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'max:5120'],
+            'title' => ['nullable', 'string', 'max:180'],
+            'alt_text' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $asset = $this->media->uploadImage(
+            $request->file('file'),
+            $request->user(),
+            $validated['title'] ?? null,
+            $validated['alt_text'] ?? null,
+            'catalog'
+        );
+
+        return response()->json(['data' => $asset], 201);
+    }
+
+    public function checkCatalogDuplicates(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'sku' => ['nullable', 'string', 'max:80'],
+            'gtin' => ['nullable', 'string', 'max:40'],
+            'name' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        return response()->json([
+            'data' => $this->webLookup->checkDuplicates($validated),
         ]);
     }
 

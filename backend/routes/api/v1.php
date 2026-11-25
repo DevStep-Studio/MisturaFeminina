@@ -308,6 +308,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             Route::get('settings', [AdminAiAgentController::class, 'getSettings'])->middleware('permission:ai.settings');
             Route::put('settings', [AdminAiAgentController::class, 'updateSettings'])->middleware('permission:ai.settings');
             Route::post('settings/test-connection', [AdminAiAgentController::class, 'testConnection'])->middleware('permission:ai.settings');
+            Route::post('settings/test-search-connection', [AdminAiAgentController::class, 'testSearchConnection'])->middleware('permission:ai.settings');
 
             // Agente 01: Atendimento em Pedidos
             Route::post('support/orders/{orderId}/reply', [AdminAiAgentController::class, 'prepareOrderReply'])->middleware('permission:ai.support');
@@ -315,6 +316,10 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             Route::post('support/orders/{orderId}/analyze-occurrences', [AdminAiAgentController::class, 'analyzeOrderOccurrences'])->middleware('permission:ai.support');
 
             // Agente 02: Cadastro Inteligente de Produtos
+            Route::post('catalog/lookup', [AdminAiAgentController::class, 'lookupProductByName'])->middleware('permission:ai.catalog');
+            Route::post('catalog/import-image', [AdminAiAgentController::class, 'importCatalogImageFromUrl'])->middleware('permission:ai.catalog');
+            Route::post('catalog/upload-image', [AdminAiAgentController::class, 'uploadCatalogImageFile'])->middleware('permission:ai.catalog');
+            Route::post('catalog/check-duplicates', [AdminAiAgentController::class, 'checkCatalogDuplicates'])->middleware('permission:ai.catalog');
             Route::get('catalog/imports', [AdminAiAgentController::class, 'listCatalogImports'])->middleware('permission:ai.catalog');
             Route::post('catalog/imports', [AdminAiAgentController::class, 'createCatalogImport'])->middleware('permission:ai.catalog');
             Route::get('catalog/imports/{id}', [AdminAiAgentController::class, 'showCatalogImport'])->middleware('permission:ai.catalog');

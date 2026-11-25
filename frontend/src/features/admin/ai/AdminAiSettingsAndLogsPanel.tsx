@@ -1,15 +1,25 @@
 import CheckCircle2 from "lucide-solid/icons/circle-check";
+import Globe from "lucide-solid/icons/globe";
 import RefreshCw from "lucide-solid/icons/refresh-cw";
 import Settings from "lucide-solid/icons/settings";
 import ShieldCheck from "lucide-solid/icons/shield-check";
 import { For, Show, createResource, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
-import { type AiAgentSummary, type AiProviderStatus } from "./ai-types";
+import {
+  type AiAgentSummary,
+  type AiProviderStatus,
+  type AiSearchConnectionStatus,
+} from "./ai-types";
 
 export function AdminAiSettingsAndLogsPanel(props: {
   mode: "settings" | "logs";
 }) {
   const [apiKeyInput, setApiKeyInput] = createSignal("");
+  const [searchDriver, setSearchDriver] = createSignal<
+    "serper" | "google_custom_search"
+  >("serper");
+  const [searchApiKeyInput, setSearchApiKeyInput] = createSignal("");
+  const [searchEngineIdInput, setSearchEngineIdInput] = createSignal("");
   const [supportModel, setSupportModel] = createSignal("gpt-4o-mini");
   const [catalogModel, setCatalogModel] = createSignal("gpt-4o-mini");
   const [replModel, setReplModel] = createSignal("gpt-4o-mini");
@@ -31,6 +41,7 @@ export function AdminAiSettingsAndLogsPanel(props: {
         data: {
           config: Record<string, unknown>;
           connection: AiProviderStatus;
+          search_connection?: AiSearchConnectionStatus;
           agents: AiAgentSummary[];
         };
       }>("/admin/ai/settings");
@@ -42,6 +53,14 @@ export function AdminAiSettingsAndLogsPanel(props: {
       setDailyBudget(Number(c.daily_budget_usd ?? 15));
       setMarginPct(Number(c.default_margin_pct ?? 100));
       setSchedule(String(c.auto_replenishment_schedule ?? "daily"));
+      if (res.data.search_connection) {
+        setSearchDriver(
+          res.data.search_connection.driver === "google_custom_search"
+            ? "google_custom_search"
+            : "serper",
+        );
+        setSearchEngineIdInput(res.data.search_connection.engine_id ?? "");
+      }
       const map: Record<string, boolean> = {};
       for (const a of res.data.agents) {
         map[a.slug] = a.enabled;
@@ -102,6 +121,34 @@ export function AdminAiSettingsAndLogsPanel(props: {
         setApiKeyInput("");
       }
 
+      if (
+        searchApiKeyInput().trim() !== "" ||
+        searchEngineIdInput().trim() !== ""
+      ) {
+        const creds =
+          searchApiKeyInput().trim() !== ""
+            ? searchDriver() === "google_custom_search"
+              ? { api_key: searchApiKeyInput().trim() }
+              : { serper_api_key: searchApiKeyInput().trim() }
+            : {};
+
+        await api("/admin/settings/integrations/google_search", {
+          method: "PUT",
+          body: {
+            environment: "production",
+            is_active: true,
+            public_config: {
+              driver: searchDriver(),
+              ...(searchEngineIdInput().trim() !== ""
+                ? { engine_id: searchEngineIdInput().trim() }
+                : {}),
+            },
+            credentials: creds,
+          },
+        });
+        setSearchApiKeyInput("");
+      }
+
       const agentsPayload = Object.entries(agentStates()).map(
         ([slug, enabled]) => ({ slug, enabled }),
       );
@@ -121,7 +168,7 @@ export function AdminAiSettingsAndLogsPanel(props: {
           agents: agentsPayload,
         },
       });
-      setFeedback("Configurações de IA salvas com segurança.");
+      setFeedback("Configurações de IA e busca salvas com segurança.");
       await refetchSettings();
     } catch (err) {
       setFeedback(
@@ -141,6 +188,20 @@ export function AdminAiSettingsAndLogsPanel(props: {
       const res = await api<{
         data: { status: string; message: string; latency_ms: number };
       }>("/admin/ai/settings/test-connection", { method: "POST" });
+      setFeedback(`${res.data.message} (${res.data.latency_ms} ms)`);
+      await refetchSettings();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function testSearchConnection() {
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const res = await api<{
+        data: { status: string; message: string; latency_ms: number };
+      }>("/admin/ai/settings/test-search-connection", { method: "POST" });
       setFeedback(`${res.data.message} (${res.data.latency_ms} ms)`);
       await refetchSettings();
     } finally {
@@ -299,6 +360,100 @@ export function AdminAiSettingsAndLogsPanel(props: {
                     <option value="manual">Somente manual</option>
                   </select>
                 </div>
+              </div>
+            </section>
+
+            {/* Google Web & Image Search Provider Section */}
+            <section class="rounded-xl border border-zinc-200 bg-white p-5">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-3">
+                <div>
+                  <h3 class="flex items-center gap-2 text-sm font-bold text-zinc-900">
+                    <Globe class="size-4 text-[#93509e]" />
+                    Busca Google Web e Imagens (Cadastro por Nome)
+                  </h3>
+                  <p class="text-xs text-zinc-500">
+                    Integração oficial em servidor para localizar produtos e fotos reais sem raspar HTML do Google.
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span
+                    class={`rounded-full px-3 py-1 text-xs font-bold ${
+                      s().search_connection?.status === "connected"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : s().search_connection?.has_credentials
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-zinc-100 text-zinc-700"
+                    }`}
+                  >
+                    {s().search_connection?.label ?? "Configuração necessária"}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy()}
+                    onClick={() => void testSearchConnection()}
+                    class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Testar busca Google
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-xs">
+                <div>
+                  <label class="block font-semibold text-zinc-700">
+                    Provedor de Busca Google
+                  </label>
+                  <select
+                    value={searchDriver()}
+                    onChange={(e) =>
+                      setSearchDriver(
+                        e.currentTarget.value === "google_custom_search"
+                          ? "google_custom_search"
+                          : "serper",
+                      )
+                    }
+                    class="mt-1 h-9 w-full rounded-lg border border-zinc-300 bg-white px-2.5"
+                  >
+                    <option value="serper">
+                      Serper — Google Web &amp; Imagens (recomendado)
+                    </option>
+                    <option value="google_custom_search">
+                      Google Custom Search JSON API (projetos existentes com CX)
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block font-semibold text-zinc-700">
+                    {searchDriver() === "google_custom_search"
+                      ? "GOOGLE_SEARCH_API_KEY"
+                      : "SERPER_API_KEY"}{" "}
+                    — mascarada:{" "}
+                    {s().search_connection?.masked_key || "Nenhuma cadastrada"}
+                  </label>
+                  <input
+                    type="password"
+                    value={searchApiKeyInput()}
+                    onInput={(e) => setSearchApiKeyInput(e.currentTarget.value)}
+                    placeholder="Preencha apenas para alterar a chave..."
+                    class="mt-1 h-9 w-full rounded-lg border border-zinc-300 px-3"
+                  />
+                </div>
+                <Show when={searchDriver() === "google_custom_search"}>
+                  <div>
+                    <label class="block font-semibold text-zinc-700">
+                      GOOGLE_SEARCH_ENGINE_ID (CX)
+                    </label>
+                    <input
+                      type="text"
+                      value={searchEngineIdInput()}
+                      onInput={(e) =>
+                        setSearchEngineIdInput(e.currentTarget.value)
+                      }
+                      placeholder="Ex.: a1b2c3d4e5f6..."
+                      class="mt-1 h-9 w-full rounded-lg border border-zinc-300 px-3 font-mono"
+                    />
+                  </div>
+                </Show>
               </div>
             </section>
 

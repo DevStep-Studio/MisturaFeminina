@@ -645,6 +645,7 @@ test.describe("Admin Redesign Mistura Feminina — Critérios de Aceite Completo
     const catCombo = page.getByRole("combobox", { name: /Categorias/i });
     await catCombo.focus();
     await page.keyboard.press("Enter");
+    await expect(page.getByPlaceholder("Filtrar por nome...")).toBeFocused();
     await page.keyboard.type("Esmaltes");
     await page.keyboard.press("Enter");
     await page.keyboard.press("Escape");

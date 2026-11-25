@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Domain\AI\Services\GoogleProductSearchService;
 use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Settings\Services\StoreSettingsService;
@@ -45,21 +46,31 @@ class AdminSettingsController extends Controller
 
     public function listIntegrations(): JsonResponse
     {
-        $providers = ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai'];
+        $providers = ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai', 'google_search'];
         $existing = IntegrationSetting::query()->get()->keyBy('provider');
 
         $settings = app(PaymentSettings::class);
         $list = array_map(function (string $provider) use ($existing, $settings): array {
             /** @var IntegrationSetting|null $row */
             $row = $existing->get($provider);
+            $hasCreds = is_array($row?->encrypted_credentials) && count(array_filter($row->encrypted_credentials)) > 0;
+            $credKeys = is_array($row?->encrypted_credentials) ? array_keys(array_filter($row->encrypted_credentials)) : [];
+
+            if ($provider === 'google_search') {
+                $gs = app(GoogleProductSearchService::class)->connectionStatus();
+                $hasCreds = (bool) $gs['has_credentials'];
+                if ($hasCreds && $credKeys === []) {
+                    $credKeys = ['env'];
+                }
+            }
 
             return [
                 'provider' => $provider,
                 'environment' => $settings->get($provider, 'environment', 'sandbox'),
                 'public_config' => $row ? $row->public_config : [],
-                'is_active' => (bool) $settings->get($provider, 'enabled', false),
-                'has_credentials' => is_array($row?->encrypted_credentials) && count(array_filter($row->encrypted_credentials)) > 0,
-                'credential_keys' => is_array($row?->encrypted_credentials) ? array_keys(array_filter($row->encrypted_credentials)) : [],
+                'is_active' => (bool) $settings->get($provider, 'enabled', $hasCreds),
+                'has_credentials' => $hasCreds,
+                'credential_keys' => $credKeys,
                 'last_healthcheck_at' => $row?->last_healthcheck_at?->toIso8601String(),
                 'last_healthcheck_status' => $row?->last_healthcheck_status,
             ];
@@ -70,7 +81,7 @@ class AdminSettingsController extends Controller
 
     public function updateIntegration(Request $request, string $provider): JsonResponse
     {
-        if (! in_array($provider, ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai'], true)) {
+        if (! in_array($provider, ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai', 'google_search'], true)) {
             return response()->json(['message' => 'Provedor inválido.'], 404);
         }
 
@@ -85,6 +96,7 @@ class AdminSettingsController extends Controller
             'correios' => ['origin_zip', 'services'],
             'mercadopago' => ['public_key'],
             'openai' => ['base_url', 'support_model', 'catalog_model', 'replenishment_model'],
+            'google_search' => ['driver', 'engine_id', 'serper_base_url'],
             default => [],
         };
         $secretKeys = match ($provider) {
@@ -92,6 +104,7 @@ class AdminSettingsController extends Controller
             'asaas' => ['api_key', 'webhook_token'],
             'correios' => ['username', 'password', 'card', 'contract', 'regional'],
             'openai' => ['api_key', 'organization'],
+            'google_search' => ['serper_api_key', 'api_key', 'engine_id'],
             default => ['token', 'access_token'],
         };
         abort_if(array_diff(array_keys($validated['public_config'] ?? []), $publicKeys) !== [] || array_diff(array_keys($validated['credentials'] ?? []), $secretKeys) !== [], 422, 'Campos de integração inválidos.');
@@ -170,6 +183,17 @@ class AdminSettingsController extends Controller
                 $resp = Http::timeout(6)->withToken($token)->acceptJson()->get($baseUrl.'/models');
                 $status = $resp->successful() ? 'connected' : 'error_http_'.$resp->status();
             }
+        } elseif ($provider === 'google_search') {
+            $gs = app(GoogleProductSearchService::class)->testConnection();
+
+            return response()->json([
+                'data' => [
+                    'provider' => $provider,
+                    'status' => $gs['status'],
+                    'message' => $gs['message'],
+                    'checked_at' => now()->toIso8601String(),
+                ],
+            ]);
         } elseif ($setting && $setting->is_active) {
             $status = 'configured';
         }

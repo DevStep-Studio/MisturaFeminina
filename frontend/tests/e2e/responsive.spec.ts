@@ -72,4 +72,111 @@ test.describe("Storefront Professional Responsive Verification", () => {
       expect(modalBox.width).toBeLessThanOrEqual(390);
     }
   });
+
+  test("whatsapp buttons display concise WhatsApp label on mobile 390px cards", async ({
+    page,
+  }) => {
+    const sampleProducts = [
+      {
+        id: 1,
+        name: "Esmalte Gel Studio 15ml",
+        slug: "esmalte-gel-studio-15ml",
+        sku: "MF-ESM-001",
+        product_type: "simple",
+        price_cents: 8990,
+        effective_price_cents: 6490,
+        discount_percent: 28,
+        installments_count: 3,
+        installment_cents: 2163,
+        is_new_arrival: false,
+        is_featured: true,
+        in_stock: true,
+        available_stock: 20,
+        default_variant_id: 11,
+        has_multiple_variants: false,
+        primary_image: "/logo-mf.png",
+        primary_image_alt: "Esmalte Gel Studio 15ml",
+        brand: { id: 1, name: "Mistura Studio", slug: "mistura-studio" },
+        specs: [{ value: "30ml" }, { value: "60ml" }],
+        wholesale_condition: {
+          has_wholesale: true,
+          min_quantity: 5,
+          starting_price_cents: 5192,
+          starting_price_formatted: "R$ 51,92",
+          tiers: [
+            {
+              min_quantity: 5,
+              discount_type: "fixed_price",
+              discount_value: 5192,
+              unit_price_cents: 5192,
+            },
+          ],
+        },
+      },
+    ];
+
+    await page.route("**/api/v1/storefront/bootstrap", (r) =>
+      r.fulfill({
+        json: {
+          data: {
+            settings: {
+              store_name: "Mistura Feminina Cosméticos",
+              whatsapp_number: "5511999998888",
+              whatsapp_default_message: "Olá!",
+              primary_color: "#93509e",
+              max_installments: 5,
+              benefits_ticker: [],
+              benefits_row: [],
+            },
+            menu_categories: [],
+            promo_products: sampleProducts,
+            recommended_products: [],
+            brands: [],
+            footer_pages: [],
+          },
+        },
+      }),
+    );
+
+    await page.route("**/api/v1/storefront/home", (r) =>
+      r.fulfill({
+        json: {
+          data: {
+            sections: [
+              {
+                id: 1,
+                type: "product_showcase",
+                title: "Ofertas da Semana",
+                subtitle: "Seleção especial",
+                data: sampleProducts,
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.getByText("Esmalte Gel Studio 15ml").first()).toBeVisible();
+
+    const hasOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    expect(hasOverflow).toBe(false);
+
+    const whatsButtons = page.locator("a.mf-btn-whats");
+    const count = await whatsButtons.count();
+    expect(count).toBeGreaterThan(0);
+
+    for (let i = 0; i < Math.min(count, 4); i++) {
+      const btn = whatsButtons.nth(i);
+      if (await btn.isVisible()) {
+        const visibleText = await btn.evaluate((el) =>
+          (el as HTMLElement).innerText.trim(),
+        );
+        expect(visibleText).toBe("WhatsApp");
+      }
+    }
+  });
 });

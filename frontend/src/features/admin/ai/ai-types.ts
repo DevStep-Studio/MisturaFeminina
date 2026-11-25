@@ -208,6 +208,136 @@ export interface AiReplenishmentAnalysisDetail {
   suggestions: AiReplenishmentSuggestionRow[];
 }
 
+export interface AiSearchConnectionStatus {
+  provider: "google_search" | string;
+  driver: "serper" | "google_custom_search" | string;
+  driver_label: string;
+  status: "connected" | "configured" | "not_configured" | string;
+  label: string;
+  has_credentials: boolean;
+  has_api_key: boolean;
+  masked_key: string | null;
+  engine_id?: string | null;
+  last_healthcheck_at: string | null;
+  last_healthcheck_status: string | null;
+  env_vars_hint?: string[];
+}
+
+export interface ProductLookupImageCandidate {
+  image_url: string;
+  thumb_url: string;
+  source_page_url?: string;
+  domain?: string;
+  title?: string;
+  width?: number | null;
+  height?: number | null;
+  is_collection_context?: boolean;
+  shade_verified?: boolean;
+}
+
+export interface ProductLookupSource {
+  title: string;
+  url: string;
+  domain: string;
+  snippet?: string;
+}
+
+export interface ProductLookupDraft {
+  name: string;
+  sku: string;
+  gtin: string;
+  supplier_code?: string;
+  power_watts?: number | null;
+  brand_id: number | null;
+  suggested_new_brand_name?: string | null;
+  category_ids: number[];
+  suggested_new_category_name?: string | null;
+  short_description: string;
+  description: string;
+  seo_title?: string;
+  seo_description?: string;
+  image_url: string | null;
+  image_path: string;
+  price_cents: number | null;
+  cost_cents: number | null;
+  stock_qty: number | null;
+}
+
+export interface ProductLookupCandidate {
+  id: string;
+  title: string;
+  diff_badge: string;
+  source_domain: string;
+  thumbnail_url: string | null;
+  image_status: "candidate_ready" | "uncertain_collection" | "unavailable" | string;
+  requires_image_review: boolean;
+  image_warning: string | null;
+  image_candidates: ProductLookupImageCandidate[];
+  source: ProductLookupSource;
+  draft: ProductLookupDraft;
+}
+
+export interface ProductLookupLocalMatch {
+  id: number;
+  name: string;
+  sku: string;
+  gtin?: string | null;
+  supplier_code?: string | null;
+  power_watts?: number | null;
+  brand_name?: string | null;
+  price_cents: number;
+  cost_cents?: number | null;
+  stock_qty: number;
+  primary_image_path?: string | null;
+  reason: string;
+  is_exact_identifier: boolean;
+}
+
+export interface ProductLookupResponse {
+  state:
+    | "duplicate_found"
+    | "multiple_candidates"
+    | "draft_ready"
+    | "not_found"
+    | "search_unavailable";
+  execution_id?: number;
+  search_status?: AiSearchConnectionStatus;
+  query: string;
+  cached?: boolean;
+  credentials_missing?: boolean;
+  message: string;
+  local_matches: ProductLookupLocalMatch[];
+  candidates: ProductLookupCandidate[];
+  draft: ProductLookupDraft | null;
+  image_status:
+    | "candidate_ready"
+    | "uncertain_collection"
+    | "unavailable"
+    | "multiple"
+    | string;
+  requires_image_review: boolean;
+  image_warning: string | null;
+  image_candidates: ProductLookupImageCandidate[];
+  source: ProductLookupSource | null;
+  registered_brands?: Array<{ id: number; name: string; slug: string }>;
+  registered_categories?: Array<{ id: number; name: string; slug: string }>;
+}
+
+export interface CatalogDuplicateConflict {
+  id: number;
+  name: string;
+  sku: string;
+  gtin?: string | null;
+  price_cents: number;
+  reason: string;
+}
+
+export interface CatalogDuplicateCheckResponse {
+  has_exact_conflict: boolean;
+  exact_conflicts: CatalogDuplicateConflict[];
+  similar_products: ProductLookupLocalMatch[];
+}
+
 export function aiExecutionStatusLabel(status: string): string {
   const map: Record<string, string> = {
     queued: "Na fila",

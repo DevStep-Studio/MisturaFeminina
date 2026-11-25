@@ -1206,7 +1206,21 @@ function AdminProductsPage() {
 
       {/* VIEW: UNIFIED AI REGISTRATION */}
       <Show when={currentView() === "ia"}>
-        <AdminAiCatalogAgentPanel onCommitted={() => triggerReloadCatalog()} />
+        <AdminAiCatalogAgentPanel
+          brands={brands() ?? []}
+          categories={categories() ?? []}
+          canCostWrite={canCostWrite()}
+          onCommitted={() => triggerReloadCatalog()}
+          onOpenExistingProduct={(id) => openEditProduct(id)}
+          onProductSaved={(savedId, productName, stayForNext) => {
+            void refetchProducts();
+            if (!stayForNext) {
+              setFeedback(`Produto "${productName}" cadastrado com sucesso.`);
+              returnToCatalog();
+              highlightSavedRow(savedId);
+            }
+          }}
+        />
       </Show>
 
       {/* VIEW: GOODS RECEIPTS */}

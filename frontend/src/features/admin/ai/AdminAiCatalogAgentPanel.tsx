@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/solid-router";
 import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
 import CheckCircle2 from "lucide-solid/icons/circle-check";
 import ClipboardText from "lucide-solid/icons/clipboard-list";
@@ -5,6 +6,7 @@ import FilePlus from "lucide-solid/icons/file-plus";
 import FileSpreadsheet from "lucide-solid/icons/file-spreadsheet";
 import ImageIcon from "lucide-solid/icons/image";
 import Link2 from "lucide-solid/icons/link-2";
+import Search from "lucide-solid/icons/search";
 import Sparkles from "lucide-solid/icons/sparkles";
 import Unlink from "lucide-solid/icons/unlink";
 import { For, Show, createMemo, createResource, createSignal } from "solid-js";
@@ -16,19 +18,38 @@ import {
   parseBrazilianCostToCents,
   parseBrazilianPriceToCents,
 } from "../admin-helpers";
-import { makeIdempotencyKey } from "../products/types";
+import {
+  type BrandOption,
+  type CategoryOption,
+  makeIdempotencyKey,
+} from "../products/types";
+import { AdminAiSingleProductLookup } from "./AdminAiSingleProductLookup";
 import {
   type AiProductImportDetail,
   aiActionTypeLabel,
 } from "./ai-types";
 
+type PanelMode = "lookup" | "batch";
 type EntryMode = "text" | "photo" | "spreadsheet";
 type ReviewFilter = "all" | "ready" | "duplicates" | "review";
 
 export function AdminAiCatalogAgentPanel(props: {
   initialImportId?: number | null;
+  brands?: BrandOption[];
+  categories?: CategoryOption[];
+  canCostWrite?: boolean;
   onCommitted?: () => Promise<void> | void;
+  onOpenExistingProduct?: (productId: number) => void;
+  onProductSaved?: (
+    savedProductId: number,
+    productName: string,
+    stayForNext: boolean,
+  ) => Promise<void> | void;
 }) {
+  const navigate = useNavigate();
+  const [panelMode, setPanelMode] = createSignal<PanelMode>(
+    props.initialImportId ? "batch" : "lookup",
+  );
   const [entryMode, setEntryMode] = createSignal<EntryMode>("spreadsheet");
   const [instruction, setInstruction] = createSignal("");
   const [rawText, setRawText] = createSignal("");
@@ -48,19 +69,26 @@ export function AdminAiCatalogAgentPanel(props: {
     text: string;
   } | null>(null);
 
-  const [brands] = createResource(async () => {
-    const res = await api<{ data: Array<{ id: number; name: string }> }>(
-      "/admin/brands",
-    );
-    return res.data ?? [];
-  });
+  const [fetchedBrands] = createResource(
+    () => !props.brands,
+    async (needFetch) => {
+      if (!needFetch) return [] as BrandOption[];
+      const res = await api<{ data: BrandOption[] }>("/admin/brands");
+      return res.data ?? [];
+    },
+  );
 
-  const [categories] = createResource(async () => {
-    const res = await api<{ data: Array<{ id: number; name: string }> }>(
-      "/admin/categories",
-    );
-    return res.data ?? [];
-  });
+  const [fetchedCategories] = createResource(
+    () => !props.categories,
+    async (needFetch) => {
+      if (!needFetch) return [] as CategoryOption[];
+      const res = await api<{ data: CategoryOption[] }>("/admin/categories");
+      return res.data ?? [];
+    },
+  );
+
+  const brands = () => props.brands ?? fetchedBrands() ?? [];
+  const categories = () => props.categories ?? fetchedCategories() ?? [];
 
   const [importsList, { refetch: refetchList }] = createResource(async () => {
     const res = await api<{ data: AiProductImportDetail[] }>(
@@ -299,23 +327,34 @@ export function AdminAiCatalogAgentPanel(props: {
         )}
       </Show>
 
-      {/* Unified 3-entry intake flow (visible when creating or refining a batch) */}
+      {/* Single-Product Lookup (Default) & Batch Import Intake */}
       <Show when={!importDetail()}>
-        <form
-          onSubmit={(e) => void processWithAi(e)}
-          class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5"
-        >
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 class="flex items-center gap-2 text-base font-bold text-zinc-900">
-                <Sparkles class="h-4 w-4 text-[#93509e]" />
-                Cadastrar com IA — escolha como começar
-              </h2>
-              <p class="text-xs text-zinc-500">
-                Todas as entradas levam à mesma grade de revisão. Especificações ilegíveis (como potência W) nunca são inventadas.
-              </p>
-            </div>
-          </div>
+        <Show
+          when={panelMode() === "lookup"}
+          fallback={
+            <form
+              onSubmit={(e) => void processWithAi(e)}
+              class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 class="flex items-center gap-2 text-base font-bold text-zinc-900">
+                    <Sparkles class="h-4 w-4 text-[#93509e]" />
+                    Importar em lote — escolha como começar
+                  </h2>
+                  <p class="text-xs text-zinc-500">
+                    Todas as entradas levam à mesma grade de revisão. Especificações ilegíveis (como potência W) nunca são inventadas.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPanelMode("lookup")}
+                  class="inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                >
+                  <Search class="h-3.5 w-3.5 text-[#93509e]" />
+                  Voltar para busca por nome
+                </button>
+              </div>
 
           <div class="grid gap-2 sm:grid-cols-3 text-xs">
             <button
@@ -443,7 +482,70 @@ export function AdminAiCatalogAgentPanel(props: {
               {busy() ? "Extraindo..." : "Preparar rascunho para revisão"}
             </button>
           </div>
-        </form>
+            </form>
+          }
+        >
+          <div class="space-y-4">
+            <AdminAiSingleProductLookup
+              brands={brands()}
+              categories={categories()}
+              canCostWrite={props.canCostWrite ?? true}
+              onSwitchToBatch={() => setPanelMode("batch")}
+              onOpenExistingProduct={(prodId) => {
+                if (props.onOpenExistingProduct) {
+                  props.onOpenExistingProduct(prodId);
+                } else {
+                  void navigate({
+                    to: "/admin/produtos",
+                    search: { view: "editar", editId: String(prodId) } as never,
+                  });
+                }
+              }}
+              onProductSaved={(savedId, productName, stayForNext) => {
+                void (async () => {
+                  await props.onCommitted?.();
+                  if (props.onProductSaved) {
+                    await props.onProductSaved(
+                      savedId,
+                      productName,
+                      stayForNext,
+                    );
+                  } else if (!stayForNext) {
+                    setFeedback({
+                      type: "ok",
+                      text: `Produto "${productName}" cadastrado no catálogo (#${savedId}).`,
+                    });
+                  }
+                })();
+              }}
+            />
+
+            <Show when={(importsList() ?? []).length > 0}>
+              <div class="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-zinc-200 bg-white px-4 py-3 text-xs">
+                <span class="font-medium text-zinc-600">
+                  Rascunhos recentes em lote:
+                </span>
+                <div class="flex flex-wrap gap-2">
+                  <For each={(importsList() ?? []).slice(0, 4)}>
+                    {(imp) => (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPanelMode("batch");
+                          setActiveImportId(imp.id);
+                          setFocusedItemId(null);
+                        }}
+                        class="rounded border border-zinc-200 px-2.5 py-1 font-medium text-zinc-700 hover:bg-zinc-50"
+                      >
+                        Retomar rascunho #{imp.id} ({imp.total_records} itens)
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </div>
+            </Show>
+          </div>
+        </Show>
       </Show>
 
       {/* Unified Review Stage */}

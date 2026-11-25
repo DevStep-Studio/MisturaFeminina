@@ -37,4 +37,11 @@ return [
         'organization' => env('OPENAI_ORGANIZATION'),
         'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
     ],
+    'google_search' => [
+        'driver' => env('GOOGLE_SEARCH_PROVIDER', 'serper'),
+        'serper_api_key' => env('SERPER_API_KEY'),
+        'serper_base_url' => env('SERPER_BASE_URL', 'https://google.serper.dev'),
+        'api_key' => env('GOOGLE_SEARCH_API_KEY'),
+        'engine_id' => env('GOOGLE_SEARCH_ENGINE_ID'),
+    ],
 ];

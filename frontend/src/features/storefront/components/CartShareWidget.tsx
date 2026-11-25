@@ -143,7 +143,10 @@ export function CartShareWidget() {
               class="mf-btn-whats inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg text-[11px] font-bold"
             >
               <MessageCircle class="h-3.5 w-3.5" />
-              Enviar pelo WhatsApp
+              <span class="whitespace-nowrap">
+                <span class="hidden sm:inline">Enviar pelo </span>
+                <span>WhatsApp</span>
+              </span>
             </a>
           </div>
         )}
