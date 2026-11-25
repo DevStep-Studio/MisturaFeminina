@@ -111,21 +111,21 @@ function createRealXlsxTempFile(array $rows): string
     return $tmp;
 }
 
-test('seeder oficial cadastra todas as 98 categorias em 3 niveis respeitando ordem e preservando edicoes admin na reexecucao', function (): void {
+test('seeder oficial cadastra todas as 101 categorias em 3 niveis respeitando ordem da Jack Cosmeticos e preservando edicoes admin na reexecucao', function (): void {
     Category::query()->delete();
 
     $this->seed(OfficialCategoriesSeeder::class);
 
-    expect(Category::query()->count())->toBe(98);
+    expect(Category::query()->count())->toBe(101);
 
     $roots = Category::query()->whereNull('parent_id')->orderBy('sort_order')->pluck('name')->all();
     expect($roots)->toBe([
-        'Alongamento Unhas',
         'Acessórios',
+        'Alongamento Unhas',
         'Cuidados Unhas',
         'Decoração',
-        'Esmalte em Gel',
         'Esmalte',
+        'Esmalte em Gel',
         'Kits',
         'Maquinários',
         'Cílios e Sobrancelhas',
@@ -134,7 +134,17 @@ test('seeder oficial cadastra todas as 98 categorias em 3 niveis respeitando ord
         'Higiene e Esterilização',
     ]);
 
-    $brocas = Category::query()->where('name', 'Brocas')->firstOrFail();
+    $alongamento = Category::query()->whereNull('parent_id')->where('name', 'Alongamento Unhas')->firstOrFail();
+    $alongamentoChildren = Category::query()->where('parent_id', $alongamento->id)->orderBy('sort_order')->pluck('name')->all();
+    expect($alongamentoChildren)->toContain('Magic Remover', 'Soft Gel', 'Base Coat');
+    expect(array_slice($alongamentoChildren, -3))->toBe([
+        'Magic Remover',
+        'Soft Gel',
+        'Base Coat',
+    ]);
+
+    $acessorios = Category::query()->whereNull('parent_id')->where('name', 'Acessórios')->firstOrFail();
+    $brocas = Category::query()->where('parent_id', $acessorios->id)->where('name', 'Brocas')->firstOrFail();
     $brocaChildren = Category::query()->where('parent_id', $brocas->id)->orderBy('sort_order')->pluck('name')->all();
     expect($brocaChildren)->toBe([
         'Broca de Cerâmica',
@@ -163,7 +173,7 @@ test('seeder oficial cadastra todas as 98 categorias em 3 niveis respeitando ord
 
     $this->artisan('catalog:seed-categories')->assertExitCode(0);
 
-    expect(Category::query()->count())->toBe(98);
+    expect(Category::query()->count())->toBe(101);
     expect($brocas->fresh()->description)->toBe('Descrição customizada pelo admin');
     expect($brocas->fresh()->seo_title)->toBe('Brocas Profissionais | Mistura Feminina');
 
@@ -174,8 +184,144 @@ test('seeder oficial cadastra todas as 98 categorias em 3 niveis respeitando ord
         ->assertOk()
         ->json('data');
     expect($syncRes['created'])->toBe(0);
-    expect($syncRes['reused'])->toBe(98);
+    expect($syncRes['reused'])->toBe(101);
     expect($syncRes['backup_output'])->toContain('Backup criado em:');
+});
+
+test('seeder oficial reconcilia categorias divergentes de producao corrigindo slugs, parent_id e redirecionamentos 301 sem perder IDs ou produtos vinculados', function (): void {
+    Category::query()->delete();
+
+    $acessoriosLegacy = Category::query()->create([
+        'parent_id' => null,
+        'name' => 'Acessórios',
+        'slug' => 'unhas-e-esmalteria',
+        'sort_order' => 1,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $alicatesLegacy = Category::query()->create([
+        'parent_id' => $acessoriosLegacy->id,
+        'name' => 'Alicates e Cortadores',
+        'slug' => 'esmaltes-em-gel',
+        'sort_order' => 1,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $topCoatMisplaced = Category::query()->create([
+        'parent_id' => $acessoriosLegacy->id,
+        'name' => 'Top Coat',
+        'slug' => 'top-coat',
+        'sort_order' => 5,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $kitsMisplaced = Category::query()->create([
+        'parent_id' => $acessoriosLegacy->id,
+        'name' => 'Kits',
+        'slug' => 'kits',
+        'sort_order' => 6,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $gelMisplaced = Category::query()->create([
+        'parent_id' => $acessoriosLegacy->id,
+        'name' => 'Gel',
+        'slug' => 'gel',
+        'sort_order' => 7,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $maquiagemEmpty = Category::query()->create([
+        'parent_id' => null,
+        'name' => 'Maquiagem',
+        'slug' => 'maquiagem',
+        'sort_order' => 2,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $acessoriosProLegacy = Category::query()->create([
+        'parent_id' => null,
+        'name' => 'Acessórios Profissionais',
+        'slug' => 'acessorios-pro',
+        'sort_order' => 6,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $brocasMisplaced = Category::query()->create([
+        'parent_id' => $acessoriosProLegacy->id,
+        'name' => 'Brocas',
+        'slug' => 'brocas',
+        'sort_order' => 4,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+    $cabinesLegacy = Category::query()->create([
+        'parent_id' => $acessoriosProLegacy->id,
+        'name' => 'Cabines',
+        'slug' => 'cabines',
+        'sort_order' => 5,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+
+    $prodGel = Product::query()->create([
+        'name' => 'Gel Construtor Nude',
+        'slug' => 'gel-construtor-nude-rec',
+        'sku' => 'REC-GEL-01',
+        'product_type' => ProductType::Simple,
+        'price_cents' => 3990,
+        'weight_grams' => 80,
+        'is_active' => false,
+    ]);
+    $prodGel->categories()->sync([
+        $acessoriosLegacy->id => ['is_primary' => false],
+        $alicatesLegacy->id => ['is_primary' => false],
+        $gelMisplaced->id => ['is_primary' => true],
+    ]);
+
+    $stats = (new OfficialCategoriesSeeder)->seedOfficialCategories();
+    expect($stats['total_official'])->toBe(101);
+    expect($stats['reused'])->toBe(8);
+    expect($stats['created'])->toBe(93);
+
+    // IDs and product links preserved
+    expect($acessoriosLegacy->fresh()->slug)->toBe('acessorios');
+    expect($alicatesLegacy->fresh()->slug)->toBe('alicates-e-cortadores');
+    expect($brocasMisplaced->fresh()->parent_id)->toBe($acessoriosLegacy->id);
+    expect(Category::query()->where('parent_id', $brocasMisplaced->id)->count())->toBe(5);
+
+    $alongamento = Category::query()->whereNull('parent_id')->where('slug', 'alongamento-unhas')->firstOrFail();
+    expect($gelMisplaced->fresh()->parent_id)->toBe($alongamento->id);
+    expect($topCoatMisplaced->fresh()->parent_id)->toBe($alongamento->id);
+    expect($kitsMisplaced->fresh()->parent_id)->toBeNull();
+
+    expect($acessoriosProLegacy->fresh()->name)->toBe('Maquinários');
+    expect($acessoriosProLegacy->fresh()->slug)->toBe('maquinarios');
+    expect($cabinesLegacy->fresh()->name)->toBe('Cabines e Estufas');
+    expect($cabinesLegacy->fresh()->slug)->toBe('cabines-e-estufas');
+    expect($cabinesLegacy->fresh()->parent_id)->toBe($acessoriosProLegacy->id);
+
+    // Freed slug esmalte-em-gel assigned cleanly to official Esmalte em Gel
+    $esmalteEmGel = Category::query()->whereNull('parent_id')->where('name', 'Esmalte em Gel')->firstOrFail();
+    expect($esmalteEmGel->slug)->toBe('esmalte-em-gel');
+
+    // Product links intact
+    expect($prodGel->fresh('categories')->categories->pluck('id')->all())
+        ->toContain($acessoriosLegacy->id, $alicatesLegacy->id, $gelMisplaced->id);
+
+    // 301 SlugRedirect works for old divergent URLs
+    $this->getJson('/api/v1/catalog/categories/unhas-e-esmalteria')
+        ->assertStatus(301)
+        ->assertJsonPath('redirect_to', '/categoria/acessorios');
+
+    // Unused empty demo category deactivated without deleting ID
+    expect($maquiagemEmpty->fresh())->not->toBeNull();
+    expect($maquiagemEmpty->fresh()->is_active)->toBeFalse();
+
+    // Second run creates zero duplicates
+    $second = (new OfficialCategoriesSeeder)->seedOfficialCategories();
+    expect($second['created'])->toBe(0);
+    expect($second['reused'])->toBe(101);
 });
 
 test('admin CRUD protege contra duplicata no mesmo nivel, ciclos hierarquicos e exclusao com transferencia segura', function (): void {
@@ -367,7 +513,7 @@ test('importacao de planilha xlsx e csv resolve caminhos hierarquicos, normaliza
         expect($imported->categories()->pluck('categories.id')->all())->toContain($diamantadas->id);
 
         // Confirm no duplicate categories were auto-created during import
-        expect(Category::query()->count())->toBe(98);
+        expect(Category::query()->count())->toBe(101);
     } finally {
         @unlink($xlsxPath);
     }

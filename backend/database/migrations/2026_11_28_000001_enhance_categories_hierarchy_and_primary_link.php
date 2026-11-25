@@ -14,7 +14,7 @@ return new class extends Migration
             });
         }
 
-        if (Schema::hasTable('categories')) {
+        if (Schema::hasTable('categories') && ! Schema::hasIndex('categories', 'categories_menu_tree_idx')) {
             Schema::table('categories', function (Blueprint $table): void {
                 $table->index(['is_active', 'show_in_menu', 'parent_id', 'sort_order'], 'categories_menu_tree_idx');
             });
@@ -23,7 +23,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (Schema::hasTable('categories')) {
+        if (Schema::hasTable('categories') && Schema::hasIndex('categories', 'categories_menu_tree_idx')) {
             Schema::table('categories', function (Blueprint $table): void {
                 $table->dropIndex('categories_menu_tree_idx');
             });

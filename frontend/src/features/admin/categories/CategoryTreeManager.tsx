@@ -1225,18 +1225,41 @@ export function CategoryTreeManager(props: {
             hint="Gerado automaticamente a partir do nome; pode ser editado."
             error={firstError(fieldErrors(), ["slug"])}
           >
-            <AdminInput
-              id="cat-slug-input"
-              type="text"
-              mono
-              placeholder="brocas-diamantadas"
-              value={formSlug()}
-              hasError={Boolean(firstError(fieldErrors(), ["slug"]))}
-              onInput={(e) => {
-                setSlugTouched(true);
-                setFormSlug(e.currentTarget.value);
-              }}
-            />
+            <div class="flex gap-2">
+              <div class="min-w-0 flex-1">
+                <AdminInput
+                  id="cat-slug-input"
+                  type="text"
+                  mono
+                  placeholder="brocas-diamantadas"
+                  value={formSlug()}
+                  hasError={Boolean(firstError(fieldErrors(), ["slug"]))}
+                  onInput={(e) => {
+                    setSlugTouched(true);
+                    setFormSlug(e.currentTarget.value);
+                  }}
+                />
+              </div>
+              <Show
+                when={
+                  formName().trim() &&
+                  formSlug().trim() !== slugifyCategoryName(formName())
+                }
+              >
+                <AdminButton
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setSlugTouched(true);
+                    setFormSlug(slugifyCategoryName(formName()));
+                  }}
+                  class="shrink-0 text-xs"
+                >
+                  Gerar pelo nome
+                </AdminButton>
+              </Show>
+            </div>
           </AdminField>
 
           <div class="grid grid-cols-2 gap-3">

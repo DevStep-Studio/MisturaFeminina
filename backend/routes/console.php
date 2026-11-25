@@ -150,22 +150,115 @@ Artisan::command('mistura:backup', function (): int {
 
     $cfg = config("database.connections.{$driver}");
     $target = "{$dir}/backup_{$driver}_{$stamp}.sql";
-    $cmd = sprintf(
-        'mysqldump -h %s -P %s -u %s %s %s > %s',
-        escapeshellarg((string) $cfg['host']),
-        escapeshellarg((string) $cfg['port']),
-        escapeshellarg((string) $cfg['username']),
-        ! empty($cfg['password']) ? '-p'.escapeshellarg((string) $cfg['password']) : '',
-        escapeshellarg((string) $cfg['database']),
-        escapeshellarg($target)
-    );
-    $code = 0;
-    system($cmd, $code);
-    if ($code !== 0) {
-        $this->error('Falha ao executar mysqldump.');
+    $dumpedViaCli = false;
+
+    $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+    if (function_exists('system') && ! in_array('system', $disabled, true)) {
+        $bin = is_executable('/usr/bin/mysqldump') ? '/usr/bin/mysqldump' : 'mysqldump';
+        $cmd = sprintf(
+            '%s --single-transaction --routines --triggers -h %s -P %s -u %s %s %s > %s 2>/dev/null',
+            $bin,
+            escapeshellarg((string) ($cfg['host'] ?? '127.0.0.1')),
+            escapeshellarg((string) ($cfg['port'] ?? '3306')),
+            escapeshellarg((string) ($cfg['username'] ?? '')),
+            ! empty($cfg['password']) ? '-p'.escapeshellarg((string) $cfg['password']) : '',
+            escapeshellarg((string) ($cfg['database'] ?? '')),
+            escapeshellarg($target)
+        );
+        $code = 1;
+        @system($cmd, $code);
+        if ($code === 0 && is_file($target) && filesize($target) > 512) {
+            $dumpedViaCli = true;
+        }
+    }
+
+    if (! $dumpedViaCli) {
+        try {
+            $pdo = DB::connection($driver)->getPdo();
+            $fh = fopen($target, 'wb');
+            if ($fh === false) {
+                $this->error('Não foi possível abrir arquivo de backup para escrita.');
+
+                return 1;
+            }
+
+            $dbName = (string) ($cfg['database'] ?? '');
+            fwrite($fh, "-- Mistura Feminina MySQL PDO Backup\n");
+            fwrite($fh, '-- Generated at: '.now()->toIso8601String()."\n");
+            fwrite($fh, "-- Database: {$dbName}\n\n");
+            fwrite($fh, "SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+
+            $tablesRows = DB::connection($driver)->select("SHOW FULL TABLES WHERE Table_type = 'BASE TABLE'");
+            foreach ($tablesRows as $tRow) {
+                $vals = array_values((array) $tRow);
+                $table = (string) ($vals[0] ?? '');
+                if ($table === '') {
+                    continue;
+                }
+                $quotedTable = '`'.str_replace('`', '``', $table).'`';
+                $createRow = (array) (DB::connection($driver)->selectOne("SHOW CREATE TABLE {$quotedTable}") ?? []);
+                $createVals = array_values($createRow);
+                $createSql = (string) ($createVals[1] ?? '');
+
+                fwrite($fh, "-- Table {$quotedTable}\n");
+                fwrite($fh, "DROP TABLE IF EXISTS {$quotedTable};\n");
+                if ($createSql !== '') {
+                    fwrite($fh, $createSql.";\n\n");
+                }
+
+                $stmt = $pdo->query("SELECT * FROM {$quotedTable}");
+                if ($stmt === false) {
+                    continue;
+                }
+                $batch = [];
+                $colsHeader = null;
+                while (($row = $stmt->fetch(\PDO::FETCH_ASSOC)) !== false) {
+                    if ($colsHeader === null) {
+                        $colsHeader = implode(', ', array_map(
+                            static fn (string $c): string => '`'.str_replace('`', '``', $c).'`',
+                            array_keys($row)
+                        ));
+                    }
+                    $escapedVals = [];
+                    foreach ($row as $val) {
+                        if ($val === null) {
+                            $escapedVals[] = 'NULL';
+                        } elseif (is_int($val) || is_float($val)) {
+                            $escapedVals[] = (string) $val;
+                        } elseif (is_bool($val)) {
+                            $escapedVals[] = $val ? '1' : '0';
+                        } else {
+                            $escapedVals[] = $pdo->quote((string) $val);
+                        }
+                    }
+                    $batch[] = '('.implode(', ', $escapedVals).')';
+                    if (count($batch) >= 100) {
+                        fwrite($fh, "INSERT INTO {$quotedTable} ({$colsHeader}) VALUES\n".implode(",\n", $batch).";\n");
+                        $batch = [];
+                    }
+                }
+                if ($batch !== [] && $colsHeader !== null) {
+                    fwrite($fh, "INSERT INTO {$quotedTable} ({$colsHeader}) VALUES\n".implode(",\n", $batch).";\n");
+                }
+                fwrite($fh, "\n");
+            }
+
+            fwrite($fh, "SET FOREIGN_KEY_CHECKS=1;\n");
+            fclose($fh);
+        } catch (Throwable $e) {
+            report($e);
+            $this->error('Falha ao gerar backup MySQL: '.$e->getMessage());
+
+            return 1;
+        }
+    }
+
+    if (! is_file($target) || filesize($target) < 128) {
+        $this->error('Arquivo de backup MySQL vazio ou inválido.');
 
         return 1;
     }
+
     $this->info("Backup MySQL criado em: {$target}");
 
     return 0;

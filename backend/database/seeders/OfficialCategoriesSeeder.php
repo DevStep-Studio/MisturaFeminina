@@ -6,6 +6,7 @@ namespace Database\Seeders;
 
 use App\Domain\Catalog\Services\CategoryHierarchyService;
 use App\Models\Category;
+use App\Models\SlugRedirect;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,13 +14,83 @@ use Illuminate\Support\Str;
 class OfficialCategoriesSeeder extends Seeder
 {
     /**
-     * Official category hierarchy for Mistura Feminina (Sections 1 & 2).
+     * Legacy slugs from initial DemoStoreSeeder / manual transitions whose slug or name
+     * diverged from the official Jack Cosméticos + Mistura Feminina catalog.
+     *
+     * @var array<string, list<string>>
+     */
+    private const LEGACY_NODE_SLUGS = [
+        'acessorios' => ['unhas-e-esmalteria'],
+        'alicates-e-cortadores' => ['esmaltes-em-gel'],
+        'maquinarios' => ['acessorios-pro'],
+        'aspiradores-sugadores' => ['aspiradores'],
+        'cabines-e-estufas' => ['cabines', 'maquinarios-cabines-e-estufas'],
+        'motores-lixadeiras' => ['motores'],
+        'luminarias-e-lampadas' => ['luminarias'],
+        'esmalte-em-gel-anylovy' => ['esmalte-em-gel-anylovi'],
+    ];
+
+    /**
+     * Slugs where a legacy DemoStoreSeeder placeholder name should be updated to the official name.
+     *
+     * @var list<string>
+     */
+    private const LEGACY_RENAME_SLUGS = [
+        'acessorios-pro',
+        'aspiradores',
+        'cabines',
+        'motores',
+        'luminarias',
+    ];
+
+    /**
+     * Untouched DemoStoreSeeder categories outside Mistura Feminina's catalog that should be
+     * deactivated when empty (0 products and 0 subcategories), preserving IDs without cluttering menus.
+     *
+     * @var list<string>
+     */
+    private const UNUSED_DEMO_SLUGS = [
+        'maquiagem',
+        'skincare',
+        'cabelos',
+        'corpo-e-banho',
+        'cilios-e-design',
+    ];
+
+    /**
+     * Official category hierarchy for Mistura Feminina aligned with Jack Cosméticos public menu
+     * (names, order and up to 3 levels, including Magic Remover, Soft Gel and Base Coat)
+     * plus complementary Mistura Feminina departments.
      *
      * @return list<array{name: string, slug: string, children?: list<array<string, mixed>>}>
      */
     public static function officialTree(): array
     {
         return [
+            [
+                'name' => 'Acessórios',
+                'slug' => 'acessorios',
+                'children' => [
+                    ['name' => 'Alicates e Cortadores', 'slug' => 'alicates-e-cortadores'],
+                    [
+                        'name' => 'Brocas',
+                        'slug' => 'brocas',
+                        'children' => [
+                            ['name' => 'Broca de Cerâmica', 'slug' => 'broca-de-ceramica'],
+                            ['name' => 'Brocas Diamantadas', 'slug' => 'brocas-diamantadas'],
+                            ['name' => 'Brocas Tungstênio', 'slug' => 'brocas-tungstenio'],
+                            ['name' => 'Refil para lixadeiras', 'slug' => 'refil-para-lixadeiras'],
+                            ['name' => 'Broca de Limpeza', 'slug' => 'broca-de-limpeza'],
+                        ],
+                    ],
+                    ['name' => 'Bisturi / Espátulas', 'slug' => 'bisturi-espatulas'],
+                    ['name' => 'Expositores e Mostruários', 'slug' => 'expositores-e-mostruarios'],
+                    ['name' => 'Lixas', 'slug' => 'lixas'],
+                    ['name' => 'Pincéis', 'slug' => 'pinceis'],
+                    ['name' => 'Pinças e Presilhas', 'slug' => 'pincas-e-presilhas'],
+                    ['name' => 'Outros', 'slug' => 'acessorios-outros'],
+                ],
+            ],
             [
                 'name' => 'Alongamento Unhas',
                 'slug' => 'alongamento-unhas',
@@ -44,30 +115,9 @@ class OfficialCategoriesSeeder extends Seeder
                     ['name' => 'Top Coat', 'slug' => 'top-coat'],
                     ['name' => 'Ultra Bond', 'slug' => 'ultra-bond'],
                     ['name' => 'Unhas', 'slug' => 'unhas'],
-                ],
-            ],
-            [
-                'name' => 'Acessórios',
-                'slug' => 'acessorios',
-                'children' => [
-                    ['name' => 'Alicates e Cortadores', 'slug' => 'alicates-e-cortadores'],
-                    [
-                        'name' => 'Brocas',
-                        'slug' => 'brocas',
-                        'children' => [
-                            ['name' => 'Broca de Cerâmica', 'slug' => 'broca-de-ceramica'],
-                            ['name' => 'Brocas Diamantadas', 'slug' => 'brocas-diamantadas'],
-                            ['name' => 'Brocas Tungstênio', 'slug' => 'brocas-tungstenio'],
-                            ['name' => 'Refil para lixadeiras', 'slug' => 'refil-para-lixadeiras'],
-                            ['name' => 'Broca de Limpeza', 'slug' => 'broca-de-limpeza'],
-                        ],
-                    ],
-                    ['name' => 'Bisturi / Espátulas', 'slug' => 'bisturi-espatulas'],
-                    ['name' => 'Expositores e Mostruários', 'slug' => 'expositores-e-mostruarios'],
-                    ['name' => 'Lixas', 'slug' => 'lixas'],
-                    ['name' => 'Pincéis', 'slug' => 'pinceis'],
-                    ['name' => 'Pinças e Presilhas', 'slug' => 'pincas-e-presilhas'],
-                    ['name' => 'Outros', 'slug' => 'acessorios-outros'],
+                    ['name' => 'Magic Remover', 'slug' => 'magic-remover'],
+                    ['name' => 'Soft Gel', 'slug' => 'soft-gel'],
+                    ['name' => 'Base Coat', 'slug' => 'base-coat'],
                 ],
             ],
             [
@@ -98,6 +148,10 @@ class OfficialCategoriesSeeder extends Seeder
                 ],
             ],
             [
+                'name' => 'Esmalte',
+                'slug' => 'esmalte',
+            ],
+            [
                 'name' => 'Esmalte em Gel',
                 'slug' => 'esmalte-em-gel',
                 'children' => [
@@ -107,16 +161,12 @@ class OfficialCategoriesSeeder extends Seeder
                     ['name' => 'Siôux', 'slug' => 'esmalte-em-gel-sioux'],
                     ['name' => 'X&D', 'slug' => 'esmalte-em-gel-xd'],
                     ['name' => 'Zem', 'slug' => 'esmalte-em-gel-zem'],
-                    ['name' => 'AnyLovy', 'slug' => 'esmalte-em-gel-anylovi'],
+                    ['name' => 'AnyLovy', 'slug' => 'esmalte-em-gel-anylovy'],
                     ['name' => 'Bella Rosa', 'slug' => 'esmalte-em-gel-bella-rosa'],
                     ['name' => 'Top Lirio', 'slug' => 'esmalte-em-gel-top-lirio'],
                     ['name' => 'Vênus', 'slug' => 'esmalte-em-gel-venus'],
                     ['name' => 'Real Love', 'slug' => 'esmalte-em-gel-real-love'],
                 ],
-            ],
-            [
-                'name' => 'Esmalte',
-                'slug' => 'esmalte',
             ],
             [
                 'name' => 'Kits',
@@ -132,12 +182,12 @@ class OfficialCategoriesSeeder extends Seeder
                 'slug' => 'maquinarios',
                 'children' => [
                     ['name' => 'Aspiradores / Sugadores', 'slug' => 'aspiradores-sugadores'],
-                    ['name' => 'Cabines e Estufas', 'slug' => 'maquinarios-cabines-e-estufas'],
+                    ['name' => 'Cabines e Estufas', 'slug' => 'cabines-e-estufas'],
                     ['name' => 'Motores/Lixadeiras', 'slug' => 'motores-lixadeiras'],
                     ['name' => 'Luminárias e Lâmpadas', 'slug' => 'luminarias-e-lampadas'],
                 ],
             ],
-            // Complementary categories (Section 2)
+            // Categorias complementares da Mistura Feminina
             [
                 'name' => 'Cílios e Sobrancelhas',
                 'slug' => 'cilios-e-sobrancelhas',
@@ -191,18 +241,30 @@ class OfficialCategoriesSeeder extends Seeder
     }
 
     /**
-     * Runs idempotently: creates missing official categories in exact hierarchy/order
-     * without duplicating siblings or overwriting existing admin customizations.
+     * Runs idempotently: reconciles divergent/misplaced categories while preserving IDs and
+     * category_product links, creates missing official categories in exact hierarchy/order,
+     * registers 301 SlugRedirects for updated legacy slugs, and preserves admin customizations.
      *
-     * @return array{created: int, reused: int, total_official: int}
+     * @return array{created: int, reused: int, reconciled: int, deactivated_legacy: int, total_official: int}
      */
     public function seedOfficialCategories(): array
     {
-        $stats = ['created' => 0, 'reused' => 0, 'total_official' => 0];
+        $stats = [
+            'created' => 0,
+            'reused' => 0,
+            'reconciled' => 0,
+            'deactivated_legacy' => 0,
+            'total_official' => 0,
+        ];
 
         DB::transaction(function () use (&$stats): void {
             $tree = self::officialTree();
-            $this->seedNodes($tree, null, $stats);
+            $nameFrequency = [];
+            $this->collectNameFrequency($tree, $nameFrequency);
+            $claimedIds = [];
+
+            $this->seedNodes($tree, null, $stats, $claimedIds, $nameFrequency);
+            $this->deactivateEmptyLegacyDemoCategories($claimedIds, $stats);
         });
 
         app(CategoryHierarchyService::class)->clearCaches();
@@ -215,27 +277,73 @@ class OfficialCategoriesSeeder extends Seeder
         $stats = $this->seedOfficialCategories();
         if ($this->command) {
             $this->command->info(
-                "OfficialCategoriesSeeder: {$stats['created']} criada(s), {$stats['reused']} reaproveitada(s) (total oficial: {$stats['total_official']})."
+                "OfficialCategoriesSeeder: {$stats['created']} criada(s), {$stats['reused']} reaproveitada(s), {$stats['reconciled']} reconciliada(s) (total oficial: {$stats['total_official']})."
             );
         }
     }
 
     /**
      * @param  list<array<string, mixed>>  $nodes
-     * @param  array{created: int, reused: int, total_official: int}  $stats
+     * @param  array<string, int>  $freq
      */
-    private function seedNodes(array $nodes, ?int $parentId, array &$stats): void
+    private function collectNameFrequency(array $nodes, array &$freq): void
     {
+        foreach ($nodes as $node) {
+            $norm = CategoryHierarchyService::normalizeName((string) $node['name']);
+            $freq[$norm] = ($freq[$norm] ?? 0) + 1;
+            if (! empty($node['children']) && is_array($node['children'])) {
+                $this->collectNameFrequency($node['children'], $freq);
+            }
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $nodes
+     * @param  array{created: int, reused: int, reconciled: int, deactivated_legacy: int, total_official: int}  $stats
+     * @param  array<int, bool>  $claimedIds
+     * @param  array<string, int>  $nameFrequency
+     */
+    private function seedNodes(
+        array $nodes,
+        ?int $parentId,
+        array &$stats,
+        array &$claimedIds,
+        array $nameFrequency,
+    ): void {
+        $branchOrderedIds = [];
+        $branchChangedStructure = false;
+
         foreach ($nodes as $index => $node) {
             $stats['total_official']++;
             $name = (string) $node['name'];
             $preferredSlug = (string) $node['slug'];
             $sortOrder = $index + 1;
+            $legacySlugs = self::LEGACY_NODE_SLUGS[$preferredSlug] ?? [];
 
-            $existing = $this->findExistingSibling($name, $preferredSlug, $parentId);
+            $existing = $this->findExistingCategory(
+                $name,
+                $preferredSlug,
+                $parentId,
+                $legacySlugs,
+                $claimedIds,
+                $nameFrequency,
+            );
 
             if ($existing) {
                 $stats['reused']++;
+                $claimedIds[(int) $existing->id] = true;
+                $wasReconciled = $this->reconcileExistingCategory(
+                    $existing,
+                    $name,
+                    $preferredSlug,
+                    $parentId,
+                    $sortOrder,
+                    $legacySlugs,
+                );
+                if ($wasReconciled) {
+                    $stats['reconciled']++;
+                    $branchChangedStructure = true;
+                }
                 $category = $existing;
             } else {
                 $slug = $this->resolveAvailableSlug($preferredSlug, $parentId);
@@ -247,19 +355,57 @@ class OfficialCategoriesSeeder extends Seeder
                     'show_in_menu' => true,
                     'is_active' => true,
                 ]);
+                $claimedIds[(int) $category->id] = true;
                 $stats['created']++;
+                $branchChangedStructure = true;
             }
 
+            $branchOrderedIds[] = (int) $category->id;
+
             if (! empty($node['children']) && is_array($node['children'])) {
-                $this->seedNodes($node['children'], (int) $category->id, $stats);
+                $this->seedNodes($node['children'], (int) $category->id, $stats, $claimedIds, $nameFrequency);
+            }
+        }
+
+        // Align sibling sort_order to reference sequence whenever new/reconciled items entered this level
+        // or if duplicate sort_order values exist among the official siblings; otherwise preserve manual admin order.
+        if ($branchOrderedIds !== []) {
+            $currentOrders = Category::query()
+                ->whereIn('id', $branchOrderedIds)
+                ->pluck('sort_order', 'id')
+                ->map(fn ($v): int => (int) $v)
+                ->all();
+
+            $hasOrderCollision = count(array_unique(array_values($currentOrders))) < count($currentOrders);
+            if ($branchChangedStructure || $hasOrderCollision) {
+                foreach ($branchOrderedIds as $idx => $catId) {
+                    $desired = $idx + 1;
+                    if (($currentOrders[$catId] ?? null) !== $desired) {
+                        Category::query()->where('id', $catId)->update(['sort_order' => $desired]);
+                    }
+                }
             }
         }
     }
 
-    private function findExistingSibling(string $name, string $preferredSlug, ?int $parentId): ?Category
-    {
+    /**
+     * @param  list<string>  $legacySlugs
+     * @param  array<int, bool>  $claimedIds
+     * @param  array<string, int>  $nameFrequency
+     */
+    private function findExistingCategory(
+        string $name,
+        string $preferredSlug,
+        ?int $parentId,
+        array $legacySlugs,
+        array $claimedIds,
+        array $nameFrequency,
+    ): ?Category {
         $normTarget = CategoryHierarchyService::normalizeName($name);
+        $excludedIds = array_keys($claimedIds);
+
         $siblings = Category::query()
+            ->when($excludedIds !== [], fn ($q) => $q->whereNotIn('id', $excludedIds))
             ->when(
                 $parentId === null,
                 fn ($q) => $q->whereNull('parent_id'),
@@ -267,25 +413,140 @@ class OfficialCategoriesSeeder extends Seeder
             )
             ->get();
 
+        // 1. Exact normalized name match at target parent
         foreach ($siblings as $sib) {
             if (CategoryHierarchyService::normalizeName($sib->name) === $normTarget) {
                 return $sib;
             }
         }
 
-        // Also match if canonical slug was already created under this exact parent_id (e.g. admin renamed display name)
-        $bySlug = Category::query()->where('slug', $preferredSlug)->first();
-        if ($bySlug && ($bySlug->parent_id === $parentId || ($bySlug->parent_id === null && $parentId === null))) {
-            return $bySlug;
+        // 2. Canonical or legacy slug already sitting at target parent (e.g. admin customized display name)
+        $slugCandidates = array_values(array_unique(array_merge([$preferredSlug], $legacySlugs)));
+        foreach ($siblings as $sib) {
+            if (in_array($sib->slug, $slugCandidates, true)) {
+                return $sib;
+            }
+        }
+
+        // 3. Globally unique canonical or legacy slug sitting under a misplaced parent (preserves ID + product links)
+        $bySlugAnywhere = Category::query()
+            ->when($excludedIds !== [], fn ($q) => $q->whereNotIn('id', $excludedIds))
+            ->whereIn('slug', $slugCandidates)
+            ->orderByRaw('CASE WHEN slug = ? THEN 0 ELSE 1 END', [$preferredSlug])
+            ->first();
+        if ($bySlugAnywhere) {
+            return $bySlugAnywhere;
+        }
+
+        // 4. Globally unique official name sitting under a misplaced parent (e.g. Brocas, Top Coat, Gel)
+        if (($nameFrequency[$normTarget] ?? 0) === 1) {
+            $allUnclaimed = Category::query()
+                ->when($excludedIds !== [], fn ($q) => $q->whereNotIn('id', $excludedIds))
+                ->get();
+            foreach ($allUnclaimed as $candidate) {
+                if (CategoryHierarchyService::normalizeName($candidate->name) === $normTarget) {
+                    return $candidate;
+                }
+            }
         }
 
         return null;
     }
 
-    private function resolveAvailableSlug(string $preferredSlug, ?int $parentId): string
+    /**
+     * Reconciles misplaced parent_id and legacy DemoStoreSeeder slugs/names while preserving
+     * category ID, product links (category_product), images, descriptions, and SEO fields.
+     *
+     * @param  list<string>  $legacySlugs
+     */
+    private function reconcileExistingCategory(
+        Category $category,
+        string $officialName,
+        string $preferredSlug,
+        ?int $targetParentId,
+        int $targetSortOrder,
+        array $legacySlugs,
+    ): bool {
+        $changed = false;
+        $oldSlug = (string) $category->slug;
+        $currentParentId = $category->parent_id !== null ? (int) $category->parent_id : null;
+
+        if ($currentParentId !== $targetParentId) {
+            // Guard against circular hierarchy before moving
+            if ($targetParentId === null || ! app(CategoryHierarchyService::class)->wouldCreateCycle((int) $category->id, $targetParentId)) {
+                $category->parent_id = $targetParentId;
+                $category->sort_order = $targetSortOrder;
+                $changed = true;
+            }
+        }
+
+        if (in_array($oldSlug, self::LEGACY_RENAME_SLUGS, true) && $category->name !== $officialName) {
+            $category->name = $officialName;
+            $changed = true;
+        }
+
+        // Fix divergent legacy slug (e.g. Acessórios -> /unhas-e-esmalteria, Alicates e Cortadores -> /esmaltes-em-gel)
+        if ($oldSlug !== $preferredSlug && in_array($oldSlug, $legacySlugs, true)) {
+            $newSlug = $this->resolveAvailableSlug($preferredSlug, $targetParentId, (int) $category->id);
+            if ($newSlug !== $oldSlug) {
+                $category->slug = $newSlug;
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $category->save();
+
+            if ($category->slug !== $oldSlug) {
+                SlugRedirect::query()->updateOrCreate(
+                    ['entity_type' => 'category', 'old_slug' => $oldSlug],
+                    ['new_slug' => (string) $category->slug],
+                );
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Deactivates untouched DemoStoreSeeder categories outside Mistura Feminina's catalog ONLY
+     * when they have 0 linked products and 0 child categories (preserving IDs in database).
+     *
+     * @param  array<int, bool>  $claimedIds
+     * @param  array{created: int, reused: int, reconciled: int, deactivated_legacy: int, total_official: int}  $stats
+     */
+    private function deactivateEmptyLegacyDemoCategories(array $claimedIds, array &$stats): void
+    {
+        $excludedIds = array_keys($claimedIds);
+        $candidates = Category::query()
+            ->when($excludedIds !== [], fn ($q) => $q->whereNotIn('id', $excludedIds))
+            ->whereIn('slug', self::UNUSED_DEMO_SLUGS)
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($candidates as $legacy) {
+            $hasProducts = DB::table('category_product')->where('category_id', $legacy->id)->exists();
+            $hasChildren = Category::query()->where('parent_id', $legacy->id)->exists();
+            if (! $hasProducts && ! $hasChildren) {
+                $legacy->update([
+                    'is_active' => false,
+                    'show_in_menu' => false,
+                    'sort_order' => 900 + (int) $legacy->id,
+                ]);
+                $stats['deactivated_legacy']++;
+            }
+        }
+    }
+
+    private function resolveAvailableSlug(string $preferredSlug, ?int $parentId, ?int $ignoreId = null): string
     {
         $base = Str::slug($preferredSlug) ?: 'categoria';
-        if (! Category::query()->where('slug', $base)->exists()) {
+        $existsQuery = fn (string $candidate): bool => Category::query()
+            ->where('slug', $candidate)
+            ->when($ignoreId !== null, fn ($q) => $q->where('id', '!=', $ignoreId))
+            ->exists();
+
+        if (! $existsQuery($base)) {
             return $base;
         }
 
@@ -293,7 +554,7 @@ class OfficialCategoriesSeeder extends Seeder
             $parentSlug = Category::query()->where('id', $parentId)->value('slug');
             if (is_string($parentSlug) && $parentSlug !== '') {
                 $scoped = Str::slug("{$parentSlug}-{$base}");
-                if ($scoped !== '' && ! Category::query()->where('slug', $scoped)->exists()) {
+                if ($scoped !== '' && ! $existsQuery($scoped)) {
                     return $scoped;
                 }
                 $base = $scoped ?: $base;
@@ -301,7 +562,7 @@ class OfficialCategoriesSeeder extends Seeder
         }
 
         $suffix = 2;
-        while (Category::query()->where('slug', "{$base}-{$suffix}")->exists()) {
+        while ($existsQuery("{$base}-{$suffix}")) {
             $suffix++;
         }
 

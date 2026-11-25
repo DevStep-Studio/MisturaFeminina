@@ -870,7 +870,7 @@ class AdminCatalogController extends Controller
         ]), $request);
 
         return response()->json([
-            'message' => "Estrutura oficial sincronizada: {$stats['created']} criada(s), {$stats['reused']} preservada(s).",
+            'message' => "Estrutura oficial sincronizada: {$stats['created']} criada(s), {$stats['reused']} preservada(s), {$stats['reconciled']} reconciliada(s).",
             'data' => array_merge($stats, [
                 'migrated' => $migrated,
                 'backup_output' => $backupOutput,
