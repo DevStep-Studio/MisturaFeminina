@@ -2,10 +2,8 @@ import ArrowLeft from "lucide-solid/icons/arrow-left";
 import CopyPlus from "lucide-solid/icons/copy-plus";
 import Plus from "lucide-solid/icons/plus";
 import Sparkles from "lucide-solid/icons/sparkles";
-import X from "lucide-solid/icons/x";
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
-import { assetUrl } from "../../../lib/format";
 import {
   calculateUnitMarginPreview,
   calculateWholesaleTierEstimates,
@@ -14,6 +12,14 @@ import {
   formatNullableCostInput,
   parseBrlNullableCost,
 } from "../profit-math";
+import {
+  AdminButton,
+  AdminCombobox,
+  AdminField,
+  AdminImageUpload,
+  AdminInput,
+  AdminMultiCombobox,
+} from "../ui";
 import {
   AdminVariantsEditor,
   type AdminVariantDraft,
@@ -42,7 +48,11 @@ export function ProductFormScreen(props: {
   canCostView?: boolean;
   canCostWrite?: boolean;
   onCancel: () => void;
-  onSaved: (message: string, stayAndReset?: boolean) => Promise<void> | void;
+  onSaved: (
+    message: string,
+    stayAndReset?: boolean,
+    savedId?: number,
+  ) => Promise<void> | void;
   onDuplicateRequest?: (product: AdminProductRow) => void;
   onArchiveOrDelete?: (
     productId: number,
@@ -57,7 +67,6 @@ export function ProductFormScreen(props: {
   const [powerWatts, setPowerWatts] = createSignal("");
   const [brandId, setBrandId] = createSignal("");
   const [selectedCats, setSelectedCats] = createSignal<number[]>([]);
-  const [catQuery, setCatQuery] = createSignal("");
   const [priceBrl, setPriceBrl] = createSignal("29,90");
   const [promoBrl, setPromoBrl] = createSignal("");
   const [costBrl, setCostBrl] = createSignal("");
@@ -82,8 +91,10 @@ export function ProductFormScreen(props: {
   );
 
   const [busy, setBusy] = createSignal(false);
-  const [uploading, setUploading] = createSignal(false);
   const [errorMsg, setErrorMsg] = createSignal<string | null>(null);
+  const [fieldErrors, setFieldErrors] = createSignal<Record<string, string[]>>(
+    {},
+  );
   const [aiBusy, setAiBusy] = createSignal(false);
   const [aiAssist, setAiAssist] = createSignal<{
     issues: string[];
@@ -187,7 +198,6 @@ export function ProductFormScreen(props: {
     setPowerWatts("");
     setBrandId("");
     setSelectedCats([]);
-    setCatQuery("");
     setPriceBrl("29,90");
     setPromoBrl("");
     setCostBrl("");
@@ -256,12 +266,6 @@ export function ProductFormScreen(props: {
     return { pct, diff: ((regular - promo) / 100).toFixed(2).replace(".", ",") };
   });
 
-  const filteredCategories = createMemo(() => {
-    const q = catQuery().trim().toLowerCase();
-    if (!q) return props.categories;
-    return props.categories.filter((c) => c.name.toLowerCase().includes(q));
-  });
-
   function toggleCategory(id: number) {
     setSelectedCats((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -272,25 +276,6 @@ export function ProductFormScreen(props: {
     setSelectedAttrValueIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
-  }
-
-  async function uploadImage(file: File) {
-    setUploading(true);
-    setErrorMsg(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("folder", "products");
-      const res = await api<{ data: { path: string } }>("/admin/media/upload", {
-        method: "POST",
-        body: fd,
-      });
-      setImagePath(res.data.path);
-    } catch (err) {
-      setErrorMsg(err instanceof ApiError ? err.message : "Erro ao enviar imagem.");
-    } finally {
-      setUploading(false);
-    }
   }
 
   async function runAiAssist(
@@ -407,6 +392,7 @@ export function ProductFormScreen(props: {
             ],
     };
 
+    setFieldErrors({});
     setBusy(true);
     try {
       if (props.mode === "edit" && props.product) {
@@ -414,18 +400,32 @@ export function ProductFormScreen(props: {
           method: "PUT",
           body: payload,
         });
-        await props.onSaved(`Produto "${name().trim()}" atualizado com sucesso.`, stayAndNext);
+        await props.onSaved(
+          `Produto "${name().trim()}" atualizado com sucesso.`,
+          stayAndNext,
+          props.product.id,
+        );
       } else {
-        await api("/admin/products", { method: "POST", body: payload });
+        const res = await api<{ data?: { id?: number } }>("/admin/products", {
+          method: "POST",
+          body: payload,
+        });
         if (stayAndNext) {
           resetBlankForm();
         }
-        await props.onSaved(`Produto "${name().trim()}" cadastrado com sucesso.`, stayAndNext);
+        await props.onSaved(
+          `Produto "${name().trim()}" cadastrado com sucesso.`,
+          stayAndNext,
+          res.data?.id,
+        );
       }
     } catch (err) {
-      setErrorMsg(
-        err instanceof ApiError ? err.message : "Não foi possível salvar o produto.",
-      );
+      if (err instanceof ApiError) {
+        setFieldErrors(err.validation ?? {});
+        setErrorMsg(err.message);
+      } else {
+        setErrorMsg("Não foi possível salvar o produto.");
+      }
     } finally {
       setBusy(false);
     }
@@ -511,124 +511,106 @@ export function ProductFormScreen(props: {
       </Show>
 
       {/* Section 1: Identification */}
-      <section class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
+      <section class="space-y-4 rounded-[12px] border border-zinc-200/90 bg-white p-5">
         <h3 class="text-sm font-bold text-zinc-900">1. Identificação e Categorias</h3>
         <div class="grid gap-3 sm:grid-cols-2">
-          <div class="sm:col-span-2">
-            <label class="block text-xs font-semibold text-zinc-700">Nome comercial *</label>
-            <input
+          <AdminField
+            label="Nome comercial"
+            forId="pf-name-input"
+            required
+            error={fieldErrors().name?.[0]}
+            class="sm:col-span-2"
+          >
+            <AdminInput
+              id="pf-name-input"
               type="text"
               required
               value={name()}
+              hasError={Boolean(fieldErrors().name?.[0])}
               onInput={(e) => setName(e.currentTarget.value)}
-              class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-sm focus:border-[#93509e] focus:outline-none"
             />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700">SKU principal *</label>
-            <input
+          </AdminField>
+
+          <AdminField
+            label="SKU principal"
+            forId="pf-sku-input"
+            required
+            error={fieldErrors().sku?.[0]}
+          >
+            <AdminInput
+              id="pf-sku-input"
               type="text"
+              mono
               required
               value={sku()}
+              hasError={Boolean(fieldErrors().sku?.[0])}
               onInput={(e) => setSku(e.currentTarget.value.toUpperCase())}
-              class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 font-mono text-sm uppercase focus:border-[#93509e] focus:outline-none"
+              class="uppercase"
             />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700">Marca</label>
-            <select
-              value={brandId()}
-              onChange={(e) => setBrandId(e.currentTarget.value)}
-              class="mt-1 h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-sm focus:border-[#93509e] focus:outline-none"
-            >
-              <option value="">Sem marca vinculada</option>
-              <For each={props.brands}>
-                {(b) => <option value={b.id}>{b.name}</option>}
-              </For>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700">
-              Código de barras (GTIN/EAN)
-            </label>
-            <input
+          </AdminField>
+
+          <AdminCombobox
+            label="Marca"
+            placeholder="Sem marca vinculada"
+            searchPlaceholder="Buscar marca pelo nome..."
+            value={brandId()}
+            options={props.brands.map((b) => ({
+              value: String(b.id),
+              label: b.name,
+            }))}
+            onChange={(val) => setBrandId(val)}
+            error={fieldErrors().brand_id?.[0]}
+          />
+
+          <AdminField
+            label="Código de barras (GTIN/EAN)"
+            forId="pf-gtin-input"
+            error={fieldErrors().gtin?.[0]}
+          >
+            <AdminInput
+              id="pf-gtin-input"
               type="text"
+              mono
               value={gtin()}
-              onInput={(e) => setGtin(e.currentTarget.value)}
               placeholder="Zeros à esquerda são preservados"
-              class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 font-mono text-sm focus:border-[#93509e] focus:outline-none"
+              onInput={(e) => setGtin(e.currentTarget.value)}
             />
-          </div>
+          </AdminField>
+
           <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-xs font-semibold text-zinc-700">Cód. fornecedor</label>
-              <input
+            <AdminField label="Cód. fornecedor" forId="pf-sup-input">
+              <AdminInput
+                id="pf-sup-input"
                 type="text"
                 value={supplierCode()}
                 onInput={(e) => setSupplierCode(e.currentTarget.value)}
-                class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-2.5 text-sm focus:border-[#93509e] focus:outline-none"
               />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-zinc-700">Potência (W)</label>
-              <input
+            </AdminField>
+            <AdminField label="Potência (W)" forId="pf-watts-input">
+              <AdminInput
+                id="pf-watts-input"
                 type="number"
                 min="1"
                 placeholder="Ex.: 48"
                 value={powerWatts()}
                 onInput={(e) => setPowerWatts(e.currentTarget.value)}
-                class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-2.5 text-sm focus:border-[#93509e] focus:outline-none"
               />
-            </div>
+            </AdminField>
           </div>
         </div>
 
-        {/* Multi-category searchable selector + chips */}
-        <div class="space-y-2">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <label class="text-xs font-semibold text-zinc-700">
-              Categorias ({selectedCats().length} selecionadas)
-            </label>
-            <input
-              type="search"
-              placeholder="Filtrar categorias..."
-              value={catQuery()}
-              onInput={(e) => setCatQuery(e.currentTarget.value)}
-              class="h-8 w-full rounded-md border border-zinc-300 px-2.5 text-xs sm:w-56 focus:border-[#93509e] focus:outline-none"
-            />
-          </div>
-          <Show when={selectedCats().length > 0}>
-            <div class="flex flex-wrap gap-1.5">
-              <For each={props.categories.filter((c) => selectedCats().includes(c.id))}>
-                {(c) => (
-                  <button
-                    type="button"
-                    onClick={() => toggleCategory(c.id)}
-                    class="inline-flex items-center gap-1 rounded-md border border-[#93509e] bg-purple-50 px-2 py-0.5 text-xs font-medium text-[#62298d]"
-                  >
-                    {c.name}
-                    <X class="h-3 w-3" />
-                  </button>
-                )}
-              </For>
-            </div>
-          </Show>
-          <div class="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto rounded-md border border-zinc-200 p-2.5">
-            <For each={filteredCategories()}>
-              {(cat) => (
-                <label class="inline-flex cursor-pointer items-center gap-1.5 rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50">
-                  <input
-                    type="checkbox"
-                    checked={selectedCats().includes(cat.id)}
-                    onChange={() => toggleCategory(cat.id)}
-                    class="accent-[#93509e]"
-                  />
-                  {cat.name}
-                </label>
-              )}
-            </For>
-          </div>
-        </div>
+        {/* Keyboard-searchable Multi-Category Combobox */}
+        <AdminMultiCombobox
+          label="Categorias"
+          placeholder="Pesquisar e selecionar categorias por teclado..."
+          selectedValues={selectedCats().map(String)}
+          options={props.categories.map((c) => ({
+            value: String(c.id),
+            label: c.name,
+          }))}
+          onToggleValue={(val) => toggleCategory(Number(val))}
+          onClearAll={() => setSelectedCats([])}
+        />
       </section>
 
       {/* Section 2: Preços e custos */}
@@ -863,51 +845,33 @@ export function ProductFormScreen(props: {
       </section>
 
       {/* Section 3: Media & Variations */}
-      <section class="space-y-4 rounded-lg border border-zinc-200 bg-white p-5">
+      <section class="space-y-4 rounded-[12px] border border-zinc-200/90 bg-white p-5">
         <h3 class="text-sm font-bold text-zinc-900">3. Imagem e Variações</h3>
         <div class="grid gap-3 sm:grid-cols-12">
-          <div class="sm:col-span-8">
-            <label class="block text-xs font-semibold text-zinc-700">Caminho ou URL da imagem</label>
-            <input
+          <div class="sm:col-span-6">
+            <AdminImageUpload
+              label="Foto principal do produto"
+              folder="products"
+              value={imagePath()}
+              altText={imageAlt() || name() || "Prévia do produto"}
+              onChange={(next) => setImagePath(next)}
+            />
+          </div>
+          <AdminField
+            label="Caminho manual ou URL externa (opcional)"
+            forId="pf-img-path"
+            class="sm:col-span-6"
+          >
+            <AdminInput
+              id="pf-img-path"
               type="text"
               placeholder="/storage/products/..."
               value={imagePath()}
               onInput={(e) => setImagePath(e.currentTarget.value)}
-              class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-xs focus:border-[#93509e] focus:outline-none"
+              class="text-xs"
             />
-          </div>
-          <div class="sm:col-span-4 flex items-end">
-            <label class="inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-md border border-zinc-300 bg-zinc-50 px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-100">
-              {uploading() ? "Enviando..." : "Enviar arquivo de foto"}
-              <input
-                type="file"
-                accept="image/*"
-                class="hidden"
-                onChange={(e) => {
-                  const file = e.currentTarget.files?.[0];
-                  if (file) void uploadImage(file);
-                }}
-              />
-            </label>
-          </div>
+          </AdminField>
         </div>
-        <Show when={imagePath().trim()}>
-          <div class="flex items-center gap-3 rounded-md border border-zinc-200 p-2.5 text-xs">
-            <img
-              src={assetUrl(imagePath())}
-              alt={imageAlt() || name() || "Preview"}
-              class="h-12 w-12 rounded border border-zinc-200 object-contain"
-            />
-            <span class="min-w-0 flex-1 truncate text-zinc-700">{imagePath()}</span>
-            <button
-              type="button"
-              onClick={() => setImagePath("")}
-              class="text-red-700 hover:underline"
-            >
-              Remover
-            </button>
-          </div>
-        </Show>
 
         <div class="space-y-2 pt-2 text-xs">
           <label class="inline-flex items-center gap-2 font-medium text-zinc-800">
@@ -1125,31 +1089,29 @@ export function ProductFormScreen(props: {
       </section>
 
       {/* Sticky Save bar */}
-      <div class="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-sm">
-        <button
-          type="button"
-          onClick={() => props.onCancel()}
-          class="rounded-md border border-zinc-300 px-3.5 py-2 text-xs font-semibold text-zinc-700"
-        >
+      <div class="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-zinc-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+        <AdminButton variant="secondary" onClick={() => props.onCancel()}>
           Cancelar
-        </button>
+        </AdminButton>
         <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={busy()}
+          <AdminButton
+            variant="secondary"
+            loading={busy()}
+            loadingLabel="Salvando…"
             onClick={() => void submitForm(true)}
-            class="inline-flex items-center gap-1 rounded-md border border-[#93509e] px-3.5 py-2 text-xs font-bold text-[#93509e] hover:bg-purple-50 disabled:opacity-60"
+            class="border-[#93509e] text-[#62298d]"
           >
             <Plus class="h-3.5 w-3.5" />
             Salvar e cadastrar próximo
-          </button>
-          <button
+          </AdminButton>
+          <AdminButton
             type="submit"
-            disabled={busy()}
-            class="rounded-md bg-[#93509e] px-5 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
+            variant="primary"
+            loading={busy()}
+            loadingLabel="Salvando…"
           >
-            {busy() ? "Salvando..." : "Salvar produto"}
-          </button>
+            Salvar produto
+          </AdminButton>
         </div>
       </div>
     </form>

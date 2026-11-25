@@ -678,7 +678,7 @@ test.describe("Admin Produtos Redesign E2E & Responsividade", () => {
 
     // Open Mode A Bulk Rule modal & capture screenshot
     await page.getByRole("checkbox", { name: /Selecionar Esmalte Gel Studio/i }).check();
-    await page.getByRole("button", { name: "Aplicar regra em massa" }).click();
+    await page.getByRole("button", { name: "Editar em massa" }).click();
     await page.getByRole("button", { name: "Visualizar prévia" }).click();
     await expect(page.getByText(/Atacado \(Regra Salão/)).toBeVisible();
     await page.screenshot({

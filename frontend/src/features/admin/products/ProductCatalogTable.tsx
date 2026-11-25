@@ -9,10 +9,10 @@ import PackagePlus from "lucide-solid/icons/package-plus";
 import Pencil from "lucide-solid/icons/pencil";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import Trash2 from "lucide-solid/icons/trash";
-import X from "lucide-solid/icons/x";
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
+import { AdminButton, AdminField, AdminInput, AdminModal } from "../ui";
 import {
   type AdminProductRow,
   type AdminVariantRow,
@@ -22,6 +22,7 @@ import {
 } from "./types";
 
 interface QuickPriceTarget {
+  productId: number;
   kind: "product" | "variant";
   id: number;
   name: string;
@@ -32,6 +33,7 @@ interface QuickPriceTarget {
 }
 
 interface QuickStockTarget {
+  productId: number;
   variantId: number;
   productName: string;
   variantName: string;
@@ -47,6 +49,8 @@ export function ProductCatalogTable(props: {
   pageSelectedIds: number[];
   selectAllMatching: boolean;
   excludedIds: number[];
+  highlightedId?: number | null;
+  onHighlightRow?: (productId: number) => void;
   onToggleOne: (id: number) => void;
   onTogglePage: () => void;
   onSelectAllMatching: () => void;
@@ -64,7 +68,9 @@ export function ProductCatalogTable(props: {
   canPrice: boolean;
   canStock: boolean;
 }) {
-  const [expandedProductIds, setExpandedProductIds] = createSignal<number[]>([]);
+  const [expandedProductIds, setExpandedProductIds] = createSignal<number[]>(
+    [],
+  );
   const [copiedSku, setCopiedSku] = createSignal<string | null>(null);
   const [openMenuId, setOpenMenuId] = createSignal<number | null>(null);
 
@@ -93,6 +99,26 @@ export function ProductCatalogTable(props: {
     current_available_qty: number;
     updated_at?: string;
   } | null>(null);
+
+  // Close row action popover on Escape or outside click
+  createEffect(() => {
+    if (openMenuId() === null) return;
+    const onOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest("[data-row-menu-root]")) {
+        setOpenMenuId(null);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenMenuId(null);
+    };
+    document.addEventListener("mousedown", onOutside);
+    document.addEventListener("keydown", onEsc);
+    onCleanup(() => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("keydown", onEsc);
+    });
+  });
 
   const allPageChecked = createMemo(() => {
     if (props.products.length === 0) return false;
@@ -139,6 +165,7 @@ export function ProductCatalogTable(props: {
     const base = v ? v.price_cents : p.price_cents;
     const promo = v ? v.promo_price_cents : p.promo_price_cents;
     setPriceTarget({
+      productId: p.id,
       kind: v ? "variant" : "product",
       id: v ? v.id : p.id,
       name: p.name,
@@ -155,6 +182,7 @@ export function ProductCatalogTable(props: {
 
   function openQuickPriceForVariant(p: AdminProductRow, v: AdminVariantRow) {
     setPriceTarget({
+      productId: p.id,
       kind: "variant",
       id: v.id,
       name: `${p.name} — ${v.name}`,
@@ -176,21 +204,22 @@ export function ProductCatalogTable(props: {
   async function saveQuickPrice(e: Event) {
     e.preventDefault();
     const target = priceTarget();
-    if (!target) return;
+    if (!target || priceBusy()) return;
     const priceCents = parseBrlInputToCents(priceInput());
     if (priceCents <= 0) {
-      setPriceError("Informe um preço de venda válido maior que zero.");
+      setPriceError("Informe um preço de venda maior que zero.");
       return;
     }
-    let promoCents: number | null = null;
-    if (!clearPromo() && promoInput().trim() !== "") {
-      promoCents = parseBrlInputToCents(promoInput());
-      if (promoCents <= 0 || promoCents >= priceCents) {
-        setPriceError(
-          "Preço promocional inválido ou maior/igual ao preço de venda.",
-        );
-        return;
-      }
+    const promoCents = clearPromo()
+      ? null
+      : promoInput().trim()
+        ? parseBrlInputToCents(promoInput())
+        : null;
+    if (promoCents !== null && (promoCents <= 0 || promoCents >= priceCents)) {
+      setPriceError(
+        "O preço promocional deve ser maior que zero e menor que o preço normal.",
+      );
+      return;
     }
 
     setPriceBusy(true);
@@ -204,40 +233,36 @@ export function ProductCatalogTable(props: {
         method: "PATCH",
         body: {
           price_cents: priceCents,
-          promo_price_cents: clearPromo() ? null : promoCents,
+          promo_price_cents: promoCents,
           clear_promo: clearPromo(),
           expected_updated_at: target.updatedAt,
         },
       });
       setPriceTarget(null);
+      props.onHighlightRow?.(target.productId);
       await props.onReload();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setPriceError(
-          "Outro operador alterou este preço agora há pouco. Reabra para conferir o valor atual.",
-        );
-      } else {
-        setPriceError(
-          err instanceof ApiError ? err.message : "Falha ao atualizar preço.",
-        );
-      }
+      setPriceError(
+        err instanceof ApiError ? err.message : "Erro ao atualizar preço.",
+      );
     } finally {
       setPriceBusy(false);
     }
   }
 
   function openQuickStockForProduct(p: AdminProductRow) {
+    const v = p.variants?.[0];
     if ((p.variants?.length ?? 0) > 1) {
       if (!isExpanded(p.id)) toggleExpand(p.id);
       return;
     }
-    const v = p.variants?.[0];
     if (!v) return;
     openQuickStockForVariant(p, v);
   }
 
   function openQuickStockForVariant(p: AdminProductRow, v: AdminVariantRow) {
     setStockTarget({
+      productId: p.id,
       variantId: v.id,
       productName: p.name,
       variantName: v.name,
@@ -265,7 +290,7 @@ export function ProductCatalogTable(props: {
   async function saveQuickStock(e: Event) {
     e.preventDefault();
     const target = stockTarget();
-    if (!target) return;
+    if (!target || stockBusy()) return;
     const qtyVal = Number.parseInt(stockQtyInput() || "0", 10);
     if (!Number.isFinite(qtyVal) || qtyVal < 0) {
       setStockError("Informe uma quantidade válida (0 ou maior).");
@@ -292,6 +317,7 @@ export function ProductCatalogTable(props: {
         },
       });
       setStockTarget(null);
+      props.onHighlightRow?.(target.productId);
       await props.onReload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -331,20 +357,20 @@ export function ProductCatalogTable(props: {
   function renderStatusBadge(p: AdminProductRow) {
     if (p.is_archived) {
       return (
-        <span class="inline-flex items-center rounded border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
+        <span class="inline-flex items-center rounded-[6px] border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
           Arquivado
         </span>
       );
     }
     if (!p.is_active) {
       return (
-        <span class="inline-flex items-center rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+        <span class="inline-flex items-center rounded-[6px] border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
           Inativo
         </span>
       );
     }
     return (
-      <span class="inline-flex items-center rounded border border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-[#62298d]">
+      <span class="inline-flex items-center rounded-[6px] border border-[#e4c6ea] bg-[#f5ebf7] px-2 py-0.5 text-[11px] font-medium text-[#62298d]">
         Ativo
       </span>
     );
@@ -353,15 +379,22 @@ export function ProductCatalogTable(props: {
   return (
     <div class="space-y-3">
       {/* Page vs All Results selection banner */}
-      <Show when={allPageChecked() && props.totalResults > props.products.length && !props.selectAllMatching}>
-        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50/70 px-3.5 py-2 text-xs text-zinc-800">
+      <Show
+        when={
+          allPageChecked() &&
+          props.totalResults > props.products.length &&
+          !props.selectAllMatching
+        }
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[#e4c6ea] bg-[#f5ebf7]/70 px-3.5 py-2 text-xs text-zinc-800">
           <span>
-            Os <strong>{props.products.length}</strong> produtos desta página estão selecionados.
+            Os <strong>{props.products.length}</strong> produtos desta página
+            estão selecionados.
           </span>
           <button
             type="button"
             onClick={() => props.onSelectAllMatching()}
-            class="font-bold text-[#93509e] underline hover:text-[#7c3f87]"
+            class="font-semibold text-[#62298d] underline hover:text-[#93509e]"
           >
             Selecionar todos os {props.totalResults} resultados
           </button>
@@ -369,10 +402,11 @@ export function ProductCatalogTable(props: {
       </Show>
 
       <Show when={props.selectAllMatching}>
-        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#93509e] bg-purple-50 px-3.5 py-2 text-xs text-zinc-900">
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-[#93509e] bg-[#f5ebf7] px-3.5 py-2 text-xs text-zinc-900">
           <span>
             <strong>
-              Todos os {Math.max(0, props.totalResults - props.excludedIds.length)}
+              Todos os{" "}
+              {Math.max(0, props.totalResults - props.excludedIds.length)}
             </strong>{" "}
             resultados filtrados estão selecionados no servidor.
           </span>
@@ -386,11 +420,11 @@ export function ProductCatalogTable(props: {
         </div>
       </Show>
 
-      {/* Desktop compact table: Seleção | Foto e nome | SKU | Preço | Estoque | Situação | Ações */}
-      <div class="hidden overflow-visible rounded-lg border border-zinc-200 bg-white md:block">
+      {/* Desktop compact table: Seleção | Produto e SKU | Preço | Estoque | Situação | Ações */}
+      <div class="hidden overflow-visible rounded-[12px] border border-zinc-200/90 bg-white md:block">
         <table class="w-full border-collapse text-left text-sm">
           <thead>
-            <tr class="border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
+            <tr class="border-b border-zinc-200 bg-zinc-50/80 text-[11px] font-semibold uppercase tracking-wide text-zinc-600">
               <th class="w-10 px-3 py-2.5">
                 <input
                   type="checkbox"
@@ -401,12 +435,11 @@ export function ProductCatalogTable(props: {
                   class="h-4 w-4 accent-[#93509e]"
                 />
               </th>
-              <th class="px-3 py-2.5">Produto</th>
-              <th class="w-36 px-3 py-2.5">SKU</th>
-              <th class="w-40 px-3 py-2.5 text-right">Preço de venda</th>
+              <th class="px-3 py-2.5">Produto e SKU</th>
+              <th class="w-36 px-3 py-2.5 text-right">Preço</th>
               <th class="w-32 px-3 py-2.5 text-right">Estoque</th>
               <th class="w-28 px-3 py-2.5">Situação</th>
-              <th class="w-20 px-3 py-2.5 text-right">Ações</th>
+              <th class="w-16 px-3 py-2.5 text-right">Ações</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-zinc-100">
@@ -415,8 +448,8 @@ export function ProductCatalogTable(props: {
               fallback={
                 <tr>
                   <td
-                    colspan={7}
-                    class="px-4 py-10 text-center text-sm text-zinc-500"
+                    colspan={6}
+                    class="px-4 py-12 text-center text-sm text-zinc-500"
                   >
                     Nenhum produto corresponde aos filtros atuais.
                   </td>
@@ -424,7 +457,7 @@ export function ProductCatalogTable(props: {
               }
             >
               <For each={props.products}>
-                {(p) => {
+                {(p, rowIdx) => {
                   const summary = () => p.variants_summary;
                   const isMulti = () => (p.variants?.length ?? 0) > 1;
                   const totalAvail = () =>
@@ -436,14 +469,22 @@ export function ProductCatalogTable(props: {
                         )
                       : 0);
                   const outOfStock = () =>
-                    totalAvail() <= 0 || (summary()?.out_of_stock_count ?? 0) > 0;
+                    totalAvail() <= 0 ||
+                    (summary()?.out_of_stock_count ?? 0) > 0;
                   const priceInfo = () => formatProductPriceRange(p);
+                  const openUp = () =>
+                    props.products.length >= 4 &&
+                    rowIdx() >= props.products.length - 2;
 
                   return (
                     <>
                       <tr
-                        class={`transition-colors hover:bg-zinc-50/70 ${
-                          isRowSelected(p.id) ? "bg-purple-50/40" : ""
+                        class={`transition-colors hover:bg-zinc-50/80 ${
+                          props.highlightedId === p.id
+                            ? "adm-row-saved"
+                            : isRowSelected(p.id)
+                              ? "bg-[#f5ebf7]/50"
+                              : ""
                         }`}
                       >
                         <td class="px-3 py-2.5 align-middle">
@@ -456,34 +497,53 @@ export function ProductCatalogTable(props: {
                           />
                         </td>
 
+                        {/* Foto + Nome + SKU + Marca/Variações na mesma célula */}
                         <td class="px-3 py-2.5 align-middle">
-                          <div class="flex items-center gap-3 min-w-0">
+                          <div class="flex min-w-0 items-center gap-3">
                             <img
                               src={assetUrl(p.images?.[0]?.path)}
                               alt={p.name}
-                              class="h-10 w-10 shrink-0 rounded border border-zinc-200 bg-zinc-50 object-contain"
+                              class="h-10 w-10 shrink-0 rounded-[8px] border border-zinc-200 bg-zinc-50 object-contain"
                             />
                             <div class="min-w-0 flex-1">
                               <button
                                 type="button"
                                 onClick={() => props.onEditProduct(p.id)}
-                                class="block max-w-full truncate text-left font-semibold text-zinc-900 hover:text-[#93509e] hover:underline"
+                                class="block max-w-full truncate text-left font-semibold text-zinc-900 hover:text-[#62298d] hover:underline"
                               >
                                 {p.name}
                               </button>
-                              <div class="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
+                              <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-zinc-500">
+                                <span class="inline-flex items-center gap-1 font-mono text-zinc-700">
+                                  <span>{p.sku}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => void copySku(p.sku)}
+                                    aria-label={`Copiar SKU ${p.sku}`}
+                                    class="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800"
+                                  >
+                                    <Show
+                                      when={copiedSku() === p.sku}
+                                      fallback={<Copy class="h-3 w-3" />}
+                                    >
+                                      <Check class="h-3 w-3 text-emerald-700" />
+                                    </Show>
+                                  </button>
+                                </span>
                                 <Show when={p.brand?.name}>
-                                  <span>{p.brand?.name}</span>
+                                  <span>· {p.brand?.name}</span>
                                 </Show>
                                 <Show when={isMulti()}>
                                   <button
                                     type="button"
                                     onClick={() => toggleExpand(p.id)}
-                                    class="inline-flex items-center gap-0.5 font-semibold text-[#93509e] hover:underline"
+                                    class="inline-flex items-center gap-0.5 font-semibold text-[#62298d] hover:underline"
                                   >
                                     <Show
                                       when={isExpanded(p.id)}
-                                      fallback={<ChevronRight class="h-3.5 w-3.5" />}
+                                      fallback={
+                                        <ChevronRight class="h-3.5 w-3.5" />
+                                      }
                                     >
                                       <ChevronDown class="h-3.5 w-3.5" />
                                     </Show>
@@ -491,35 +551,14 @@ export function ProductCatalogTable(props: {
                                   </button>
                                 </Show>
                                 <Show when={p.power_watts}>
-                                  <span>{p.power_watts}W</span>
+                                  <span>· {p.power_watts}W</span>
                                 </Show>
                               </div>
                             </div>
                           </div>
                         </td>
 
-                        <td class="px-3 py-2.5 align-middle font-mono text-xs text-zinc-700">
-                          <div class="inline-flex items-center gap-1.5">
-                            <span class="truncate max-w-[104px]" title={p.sku}>
-                              {p.sku}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => void copySku(p.sku)}
-                              aria-label={`Copiar SKU ${p.sku}`}
-                              class="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800"
-                            >
-                              <Show
-                                when={copiedSku() === p.sku}
-                                fallback={<Copy class="h-3.5 w-3.5" />}
-                              >
-                                <Check class="h-3.5 w-3.5 text-emerald-700" />
-                              </Show>
-                            </button>
-                          </div>
-                        </td>
-
-                        <td class="px-3 py-2.5 text-right align-middle tabular-nums">
+                        <td class="adm-tabular px-3 py-2.5 text-right align-middle">
                           <button
                             type="button"
                             disabled={!props.canPrice || p.is_archived}
@@ -529,7 +568,7 @@ export function ProductCatalogTable(props: {
                                 ? "Expandir variações para editar preços individuais"
                                 : "Edição rápida de preço"
                             }
-                            class="inline-flex flex-col items-end rounded px-1.5 py-0.5 text-right hover:bg-purple-50 hover:text-[#93509e] disabled:cursor-default disabled:hover:bg-transparent"
+                            class="inline-flex flex-col items-end rounded-[6px] px-2 py-1 text-right hover:bg-[#f5ebf7] hover:text-[#62298d] disabled:cursor-default disabled:hover:bg-transparent"
                           >
                             <span class="font-semibold text-zinc-900">
                               {priceInfo().primary}
@@ -542,7 +581,7 @@ export function ProductCatalogTable(props: {
                           </button>
                         </td>
 
-                        <td class="px-3 py-2.5 text-right align-middle tabular-nums">
+                        <td class="adm-tabular px-3 py-2.5 text-right align-middle">
                           <button
                             type="button"
                             disabled={!props.canStock || p.is_archived}
@@ -550,20 +589,25 @@ export function ProductCatalogTable(props: {
                             title={
                               isMulti()
                                 ? "Expandir variações para ajustar estoque por cor"
-                                : "Ajustar estoque registrando movimentação"
+                                : `Ajustar estoque de ${p.name}`
                             }
-                            class={`inline-flex flex-col items-end rounded px-2 py-0.5 text-right ${
+                            class={`inline-flex flex-col items-end rounded-[6px] px-2 py-1 text-right font-medium ${
                               totalAvail() <= 0
-                                ? "bg-red-50 text-red-700 font-semibold"
+                                ? "bg-red-50 font-semibold text-red-700"
                                 : outOfStock()
-                                  ? "bg-amber-50 text-amber-800 font-semibold"
-                                  : "text-zinc-900 hover:bg-purple-50 hover:text-[#93509e]"
+                                  ? "bg-amber-50 font-semibold text-amber-800"
+                                  : "text-zinc-900 hover:bg-[#f5ebf7] hover:text-[#62298d]"
                             }`}
                           >
                             <span>{totalAvail()} un.</span>
-                            <Show when={isMulti() && (summary()?.out_of_stock_count ?? 0) > 0}>
+                            <Show
+                              when={
+                                isMulti() &&
+                                (summary()?.out_of_stock_count ?? 0) > 0
+                              }
+                            >
                               <span class="text-[10px] font-medium text-red-700">
-                                {summary()?.out_of_stock_count} cor(es) esgotada(s)
+                                {summary()?.out_of_stock_count} esgotada(s)
                               </span>
                             </Show>
                           </button>
@@ -573,59 +617,74 @@ export function ProductCatalogTable(props: {
                           {renderStatusBadge(p)}
                         </td>
 
-                        <td class="relative px-3 py-2.5 text-right align-middle">
+                        <td
+                          data-row-menu-root
+                          class="relative px-3 py-2.5 text-right align-middle"
+                        >
                           <button
                             type="button"
+                            aria-expanded={openMenuId() === p.id}
                             aria-label={`Mais ações para ${p.name}`}
                             onClick={() =>
                               setOpenMenuId(openMenuId() === p.id ? null : p.id)
                             }
-                            class="inline-flex h-8 w-8 items-center justify-center rounded border border-transparent text-zinc-500 hover:border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900"
+                            class="adm-btn inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-transparent text-zinc-500 hover:border-zinc-200 hover:bg-zinc-100 hover:text-zinc-900"
                           >
                             <MoreVertical class="h-4 w-4" />
                           </button>
+
                           <Show when={openMenuId() === p.id}>
-                            <div class="absolute right-3 top-10 z-30 w-52 rounded-lg border border-zinc-200 bg-white py-1 text-left text-xs shadow-md">
+                            <div
+                              role="menu"
+                              style={{ "box-shadow": "var(--adm-shadow-popover)" }}
+                              class={`absolute right-3 z-40 w-56 rounded-[10px] border border-zinc-200 bg-white py-1 text-left text-xs ${
+                                openUp() ? "bottom-10" : "top-10"
+                              }`}
+                            >
                               <button
                                 type="button"
+                                role="menuitem"
                                 onClick={() => {
                                   setOpenMenuId(null);
                                   props.onEditProduct(p.id);
                                 }}
-                                class="flex w-full items-center gap-2 px-3 py-2 hover:bg-zinc-50"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-zinc-800 hover:bg-zinc-50"
                               >
                                 <Pencil class="h-3.5 w-3.5 text-zinc-500" />
                                 Editar cadastro completo
                               </button>
                               <button
                                 type="button"
+                                role="menuitem"
                                 onClick={() => {
                                   setOpenMenuId(null);
                                   props.onDuplicateProduct(p.id);
                                 }}
-                                class="flex w-full items-center gap-2 px-3 py-2 hover:bg-zinc-50"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-zinc-800 hover:bg-zinc-50"
                               >
                                 <CopyPlus class="h-3.5 w-3.5 text-zinc-500" />
                                 Duplicar como novo
                               </button>
                               <button
                                 type="button"
+                                role="menuitem"
                                 onClick={() => {
                                   setOpenMenuId(null);
                                   props.onOpenBulkGridForProduct(p.id);
                                 }}
-                                class="flex w-full items-center gap-2 px-3 py-2 hover:bg-zinc-50"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-zinc-800 hover:bg-zinc-50"
                               >
                                 <Pencil class="h-3.5 w-3.5 text-zinc-500" />
                                 Editar variações na grade
                               </button>
                               <button
                                 type="button"
+                                role="menuitem"
                                 onClick={() => {
                                   setOpenMenuId(null);
                                   props.onOpenReceipts();
                                 }}
-                                class="flex w-full items-center gap-2 px-3 py-2 hover:bg-zinc-50"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-zinc-800 hover:bg-zinc-50"
                               >
                                 <PackagePlus class="h-3.5 w-3.5 text-zinc-500" />
                                 Recebimento de mercadorias
@@ -637,11 +696,15 @@ export function ProductCatalogTable(props: {
                                   fallback={
                                     <button
                                       type="button"
+                                      role="menuitem"
                                       onClick={() => {
                                         setOpenMenuId(null);
-                                        props.onLifecycleAction([p.id], "restore");
+                                        props.onLifecycleAction(
+                                          [p.id],
+                                          "restore",
+                                        );
                                       }}
-                                      class="flex w-full items-center gap-2 px-3 py-2 text-[#93509e] hover:bg-purple-50"
+                                      class="flex w-full items-center gap-2 px-3 py-2 text-[#62298d] hover:bg-[#f5ebf7]"
                                     >
                                       <RotateCcw class="h-3.5 w-3.5" />
                                       Restaurar produto
@@ -650,9 +713,13 @@ export function ProductCatalogTable(props: {
                                 >
                                   <button
                                     type="button"
+                                    role="menuitem"
                                     onClick={() => {
                                       setOpenMenuId(null);
-                                      props.onLifecycleAction([p.id], "archive");
+                                      props.onLifecycleAction(
+                                        [p.id],
+                                        "archive",
+                                      );
                                     }}
                                     class="flex w-full items-center gap-2 px-3 py-2 text-zinc-700 hover:bg-zinc-50"
                                   >
@@ -662,6 +729,7 @@ export function ProductCatalogTable(props: {
                                 </Show>
                                 <button
                                   type="button"
+                                  role="menuitem"
                                   onClick={() => {
                                     setOpenMenuId(null);
                                     props.onLifecycleAction([p.id], "delete");
@@ -687,7 +755,7 @@ export function ProductCatalogTable(props: {
                               <tr class="bg-zinc-50/70 text-xs text-zinc-700">
                                 <td class="px-3 py-2" />
                                 <td class="px-3 py-2 pl-9">
-                                  <div class="flex items-center gap-2">
+                                  <div class="flex flex-wrap items-center gap-2">
                                     <span
                                       class="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-zinc-300"
                                       style={{
@@ -703,32 +771,32 @@ export function ProductCatalogTable(props: {
                                         ({v.shade_code})
                                       </span>
                                     </Show>
-                                  </div>
-                                </td>
-                                <td class="px-3 py-2 font-mono text-[11px]">
-                                  <div class="inline-flex items-center gap-1">
-                                    <span>{v.sku}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => void copySku(v.sku)}
-                                      aria-label={`Copiar SKU ${v.sku}`}
-                                      class="rounded p-0.5 text-zinc-400 hover:text-zinc-800"
-                                    >
-                                      <Show
-                                        when={copiedSku() === v.sku}
-                                        fallback={<Copy class="h-3 w-3" />}
+                                    <span class="inline-flex items-center gap-1 font-mono text-[11px] text-zinc-600">
+                                      <span>· {v.sku}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => void copySku(v.sku)}
+                                        aria-label={`Copiar SKU ${v.sku}`}
+                                        class="rounded p-0.5 text-zinc-400 hover:text-zinc-800"
                                       >
-                                        <Check class="h-3 w-3 text-emerald-700" />
-                                      </Show>
-                                    </button>
+                                        <Show
+                                          when={copiedSku() === v.sku}
+                                          fallback={<Copy class="h-3 w-3" />}
+                                        >
+                                          <Check class="h-3 w-3 text-emerald-700" />
+                                        </Show>
+                                      </button>
+                                    </span>
                                   </div>
                                 </td>
-                                <td class="px-3 py-2 text-right tabular-nums">
+                                <td class="adm-tabular px-3 py-2 text-right">
                                   <button
                                     type="button"
                                     disabled={!props.canPrice || p.is_archived}
-                                    onClick={() => openQuickPriceForVariant(p, v)}
-                                    class="rounded px-1.5 py-0.5 font-medium text-zinc-900 hover:bg-purple-50 hover:text-[#93509e]"
+                                    onClick={() =>
+                                      openQuickPriceForVariant(p, v)
+                                    }
+                                    class="rounded-[6px] px-2 py-0.5 font-medium text-zinc-900 hover:bg-[#f5ebf7] hover:text-[#62298d]"
                                   >
                                     <Show
                                       when={
@@ -746,18 +814,20 @@ export function ProductCatalogTable(props: {
                                     </Show>
                                   </button>
                                 </td>
-                                <td class="px-3 py-2 text-right tabular-nums">
+                                <td class="adm-tabular px-3 py-2 text-right">
                                   <button
                                     type="button"
                                     disabled={!props.canStock || p.is_archived}
-                                    onClick={() => openQuickStockForVariant(p, v)}
-                                    class={`rounded px-1.5 py-0.5 ${
+                                    onClick={() =>
+                                      openQuickStockForVariant(p, v)
+                                    }
+                                    class={`rounded-[6px] px-2 py-0.5 ${
                                       vAvail() <= 0
                                         ? "bg-red-50 font-semibold text-red-700"
-                                        : "hover:bg-purple-50 hover:text-[#93509e]"
+                                        : "hover:bg-[#f5ebf7] hover:text-[#62298d]"
                                     }`}
                                   >
-                                    {vAvail()} un. disp.
+                                    {vAvail()} un.
                                     <Show when={v.reserved_qty > 0}>
                                       <span class="ml-1 text-[10px] text-zinc-500">
                                         ({v.reserved_qty} res.)
@@ -784,7 +854,7 @@ export function ProductCatalogTable(props: {
       </div>
 
       {/* Mobile compact list (360px / 390px) with zero horizontal scroll */}
-      <div class="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white md:hidden">
+      <div class="divide-y divide-zinc-200 rounded-[12px] border border-zinc-200 bg-white md:hidden">
         <Show
           when={props.products.length > 0}
           fallback={
@@ -819,7 +889,11 @@ export function ProductCatalogTable(props: {
               const priceInfo = () => formatProductPriceRange(p);
 
               return (
-                <div class="px-3 py-2.5">
+                <div
+                  class={`px-3 py-2.5 ${
+                    props.highlightedId === p.id ? "adm-row-saved" : ""
+                  }`}
+                >
                   <div class="flex items-start gap-2.5">
                     <input
                       type="checkbox"
@@ -833,7 +907,7 @@ export function ProductCatalogTable(props: {
                         <button
                           type="button"
                           onClick={() => props.onEditProduct(p.id)}
-                          class="text-left text-sm font-semibold leading-snug text-zinc-900 hover:text-[#93509e]"
+                          class="text-left text-sm font-semibold leading-snug text-zinc-900 hover:text-[#62298d]"
                         >
                           {p.name}
                         </button>
@@ -843,7 +917,7 @@ export function ProductCatalogTable(props: {
                           onClick={() =>
                             setOpenMenuId(openMenuId() === p.id ? null : p.id)
                           }
-                          class="shrink-0 rounded p-1 text-zinc-500 hover:bg-zinc-100"
+                          class="shrink-0 rounded-[8px] p-1 text-zinc-500 hover:bg-zinc-100"
                         >
                           <MoreVertical class="h-4 w-4" />
                         </button>
@@ -859,19 +933,19 @@ export function ProductCatalogTable(props: {
                           <button
                             type="button"
                             onClick={() => toggleExpand(p.id)}
-                            class="font-semibold text-[#93509e]"
+                            class="font-semibold text-[#62298d]"
                           >
                             {p.variants?.length} cores
                           </button>
                         </Show>
                       </div>
 
-                      <div class="mt-2 flex items-center justify-between gap-2 text-xs tabular-nums">
+                      <div class="adm-tabular mt-2 flex items-center justify-between gap-2 text-xs">
                         <button
                           type="button"
                           disabled={!props.canPrice || p.is_archived}
                           onClick={() => openQuickPriceForProduct(p)}
-                          class="rounded border border-zinc-200 px-2.5 py-1 font-semibold text-zinc-900 active:bg-purple-50"
+                          class="rounded-[8px] border border-zinc-200 px-2.5 py-1 font-semibold text-zinc-900 active:bg-[#f5ebf7]"
                         >
                           {priceInfo().primary}
                         </button>
@@ -879,10 +953,10 @@ export function ProductCatalogTable(props: {
                           type="button"
                           disabled={!props.canStock || p.is_archived}
                           onClick={() => openQuickStockForProduct(p)}
-                          class={`rounded border px-2.5 py-1 font-semibold ${
+                          class={`rounded-[8px] border px-2.5 py-1 font-semibold ${
                             avail() <= 0
                               ? "border-red-200 bg-red-50 text-red-700"
-                              : "border-zinc-200 text-zinc-800 active:bg-purple-50"
+                              : "border-zinc-200 text-zinc-800 active:bg-[#f5ebf7]"
                           }`}
                         >
                           Saldo: {avail()} un.
@@ -897,7 +971,7 @@ export function ProductCatalogTable(props: {
                               setOpenMenuId(null);
                               props.onDuplicateProduct(p.id);
                             }}
-                            class="rounded border border-zinc-200 px-2 py-1"
+                            class="rounded-[8px] border border-zinc-200 px-2.5 py-1"
                           >
                             Duplicar
                           </button>
@@ -907,7 +981,7 @@ export function ProductCatalogTable(props: {
                               setOpenMenuId(null);
                               props.onOpenBulkGridForProduct(p.id);
                             }}
-                            class="rounded border border-zinc-200 px-2 py-1"
+                            class="rounded-[8px] border border-zinc-200 px-2.5 py-1"
                           >
                             Grade
                           </button>
@@ -921,7 +995,7 @@ export function ProductCatalogTable(props: {
                                   p.is_archived ? "restore" : "archive",
                                 );
                               }}
-                              class="rounded border border-zinc-200 px-2 py-1"
+                              class="rounded-[8px] border border-zinc-200 px-2.5 py-1"
                             >
                               {p.is_archived ? "Restaurar" : "Arquivar"}
                             </button>
@@ -931,7 +1005,7 @@ export function ProductCatalogTable(props: {
                                 setOpenMenuId(null);
                                 props.onLifecycleAction([p.id], "delete");
                               }}
-                              class="rounded border border-red-200 px-2 py-1 text-red-700"
+                              class="rounded-[8px] border border-red-200 px-2.5 py-1 text-red-700"
                             >
                               Excluir
                             </button>
@@ -952,13 +1026,13 @@ export function ProductCatalogTable(props: {
                                     {v.sku}
                                   </p>
                                 </div>
-                                <div class="flex shrink-0 items-center gap-1.5 tabular-nums">
+                                <div class="adm-tabular flex shrink-0 items-center gap-1.5">
                                   <button
                                     type="button"
                                     onClick={() =>
                                       openQuickPriceForVariant(p, v)
                                     }
-                                    class="rounded border border-zinc-200 px-2 py-0.5 text-[11px] font-medium"
+                                    class="rounded-[6px] border border-zinc-200 px-2 py-0.5 text-[11px] font-medium"
                                   >
                                     {formatBrlFromCents(
                                       v.promo_price_cents &&
@@ -972,7 +1046,7 @@ export function ProductCatalogTable(props: {
                                     onClick={() =>
                                       openQuickStockForVariant(p, v)
                                     }
-                                    class="rounded border border-zinc-200 px-2 py-0.5 text-[11px] font-medium"
+                                    class="rounded-[6px] border border-zinc-200 px-2 py-0.5 text-[11px] font-medium"
                                   >
                                     {Math.max(0, v.stock_qty - v.reserved_qty)}{" "}
                                     un.
@@ -992,257 +1066,246 @@ export function ProductCatalogTable(props: {
         </Show>
       </div>
 
-      {/* Quick Price Sheet / Modal */}
-      <Show when={priceTarget()}>
-        {(target) => (
-          <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
-            <form
-              onSubmit={(e) => void saveQuickPrice(e)}
-              class="w-full max-w-md rounded-t-xl border border-zinc-200 bg-white sm:rounded-xl"
+      {/* Quick Price Accessible Modal */}
+      <AdminModal
+        open={Boolean(priceTarget())}
+        title={`Ajustar preço — ${priceTarget()?.sku ?? ""}`}
+        subtitle={priceTarget()?.name}
+        maxWidthClass="max-w-md"
+        closeLabel="Fechar janela de preço"
+        onClose={() => setPriceTarget(null)}
+        footer={
+          <>
+            <AdminButton
+              variant="secondary"
+              onClick={() => setPriceTarget(null)}
             >
-              <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
-                <div class="min-w-0">
-                  <h3 class="truncate text-sm font-bold text-zinc-900">
-                    Ajustar preço — {target().sku}
-                  </h3>
-                  <p class="truncate text-xs text-zinc-500">{target().name}</p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Fechar janela de preço"
-                  onClick={() => setPriceTarget(null)}
-                  class="rounded p-1 text-zinc-500 hover:bg-zinc-100"
-                >
-                  <X class="h-4 w-4" />
-                </button>
-              </div>
-              <div class="space-y-3 p-4 text-sm">
-                <Show when={priceError()}>
-                  <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                    {priceError()}
-                  </div>
-                </Show>
-                <div>
-                  <label class="block text-xs font-semibold text-zinc-700">
-                    Preço de venda (R$)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={priceInput()}
-                    onInput={(e) => setPriceInput(e.currentTarget.value)}
-                    class="mt-1 h-10 w-full rounded-md border border-zinc-300 px-3 text-right font-semibold tabular-nums focus:border-[#93509e] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-zinc-700">
-                    Preço promocional (R$) — opcional
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    disabled={clearPromo()}
-                    value={clearPromo() ? "" : promoInput()}
-                    onInput={(e) => setPromoInput(e.currentTarget.value)}
-                    placeholder="Ex.: 19,90"
-                    class="mt-1 h-10 w-full rounded-md border border-zinc-300 px-3 text-right tabular-nums focus:border-[#93509e] focus:outline-none disabled:bg-zinc-100"
-                  />
-                  <label class="mt-2 inline-flex items-center gap-2 text-xs text-zinc-700">
-                    <input
-                      type="checkbox"
-                      checked={clearPromo()}
-                      onChange={(e) => setClearPromo(e.currentTarget.checked)}
-                      class="accent-[#93509e]"
-                    />
-                    Remover preço promocional
-                  </label>
-                </div>
-              </div>
-              <div class="sticky bottom-0 flex justify-end gap-2 border-t border-zinc-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-                <button
-                  type="button"
-                  onClick={() => setPriceTarget(null)}
-                  class="rounded-md border border-zinc-300 px-3.5 py-2 text-xs font-semibold text-zinc-700"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={priceBusy()}
-                  class="rounded-md bg-[#93509e] px-4 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
-                >
-                  {priceBusy() ? "Salvando..." : "Salvar preço"}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-      </Show>
+              Cancelar
+            </AdminButton>
+            <AdminButton
+              type="submit"
+              form="adm-quick-price-form"
+              variant="primary"
+              loading={priceBusy()}
+              loadingLabel="Salvando…"
+            >
+              Salvar preço
+            </AdminButton>
+          </>
+        }
+      >
+        <form
+          id="adm-quick-price-form"
+          onSubmit={(e) => void saveQuickPrice(e)}
+          class="space-y-3"
+        >
+          <Show when={priceError()}>
+            <div
+              role="alert"
+              class="rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
+            >
+              {priceError()}
+            </div>
+          </Show>
+          <AdminField label="Preço de venda (R$)" forId="qp-sale-input">
+            <AdminInput
+              id="qp-sale-input"
+              data-autofocus
+              type="text"
+              inputMode="decimal"
+              value={priceInput()}
+              onInput={(e) => setPriceInput(e.currentTarget.value)}
+              class="adm-tabular text-right font-semibold"
+            />
+          </AdminField>
 
-      {/* Quick Stock Adjustment Sheet / Modal showing Saldo Atual -> Operação -> Resultante */}
-      <Show when={stockTarget()}>
-        {(target) => (
-          <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
-            <form
-              onSubmit={(e) => void saveQuickStock(e)}
-              class="w-full max-w-md rounded-t-xl border border-zinc-200 bg-white sm:rounded-xl"
+          <AdminField
+            label="Preço promocional (R$) — opcional"
+            forId="qp-promo-input"
+          >
+            <AdminInput
+              id="qp-promo-input"
+              type="text"
+              inputMode="decimal"
+              disabled={clearPromo()}
+              value={clearPromo() ? "" : promoInput()}
+              onInput={(e) => setPromoInput(e.currentTarget.value)}
+              placeholder="Ex.: 19,90"
+              class="adm-tabular text-right"
+            />
+          </AdminField>
+
+          <label class="inline-flex items-center gap-2 text-xs text-zinc-700">
+            <input
+              type="checkbox"
+              checked={clearPromo()}
+              onChange={(e) => setClearPromo(e.currentTarget.checked)}
+              class="accent-[#93509e]"
+            />
+            Remover preço promocional
+          </label>
+        </form>
+      </AdminModal>
+
+      {/* Quick Stock Adjustment Modal */}
+      <AdminModal
+        open={Boolean(stockTarget())}
+        title={`Ajustar estoque de ${stockTarget()?.productName ?? ""}`}
+        subtitle={
+          stockTarget()
+            ? `${stockTarget()!.variantName} · SKU ${stockTarget()!.sku}`
+            : undefined
+        }
+        maxWidthClass="max-w-md"
+        closeLabel="Fechar janela de estoque"
+        onClose={() => setStockTarget(null)}
+        footer={
+          <>
+            <AdminButton
+              variant="secondary"
+              onClick={() => setStockTarget(null)}
             >
-              <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
-                <div class="min-w-0">
-                  <h3 class="truncate text-sm font-bold text-zinc-900">
-                    Ajustar estoque — {target().sku}
-                  </h3>
-                  <p class="truncate text-xs text-zinc-500">
-                    {target().productName} ({target().variantName})
+              Cancelar
+            </AdminButton>
+            <AdminButton
+              type="submit"
+              form="adm-quick-stock-form"
+              variant="primary"
+              loading={stockBusy()}
+              loadingLabel="Salvando…"
+            >
+              Confirmar ajuste
+            </AdminButton>
+          </>
+        }
+      >
+        <form
+          id="adm-quick-stock-form"
+          onSubmit={(e) => void saveQuickStock(e)}
+          class="space-y-3"
+        >
+          <Show when={stockError()}>
+            <div
+              role="alert"
+              class="rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
+            >
+              {stockError()}
+              <Show when={stockConflict()}>
+                {(c) => (
+                  <p class="mt-1 font-semibold">
+                    Saldo atualizado no servidor: {c().current_stock_qty} un.
+                    físicos ({c().current_available_qty} disp.).
                   </p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Fechar janela de estoque"
-                  onClick={() => setStockTarget(null)}
-                  class="rounded p-1 text-zinc-500 hover:bg-zinc-100"
-                >
-                  <X class="h-4 w-4" />
-                </button>
-              </div>
+                )}
+              </Show>
+            </div>
+          </Show>
 
-              <div class="space-y-3 p-4 text-sm">
-                <Show when={stockError()}>
-                  <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                    {stockError()}
-                    <Show when={stockConflict()}>
-                      {(c) => (
-                        <p class="mt-1 font-semibold">
-                          Saldo atualizado no servidor: {c().current_stock_qty}{" "}
-                          un. físicos ({c().current_available_qty} disp.).
-                        </p>
-                      )}
-                    </Show>
-                  </div>
-                </Show>
-
-                <div class="grid grid-cols-3 gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 p-1 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setStockOp("set")}
-                    class={`rounded px-2 py-1.5 font-semibold ${
-                      stockOp() === "set"
-                        ? "bg-[#93509e] text-white"
-                        : "text-zinc-700"
-                    }`}
-                  >
-                    Definir saldo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStockOp("add");
-                      setStockQtyInput("5");
-                    }}
-                    class={`rounded px-2 py-1.5 font-semibold ${
-                      stockOp() === "add"
-                        ? "bg-[#93509e] text-white"
-                        : "text-zinc-700"
-                    }`}
-                  >
-                    Adicionar (+)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStockOp("subtract");
-                      setStockQtyInput("1");
-                    }}
-                    class={`rounded px-2 py-1.5 font-semibold ${
-                      stockOp() === "subtract"
-                        ? "bg-[#93509e] text-white"
-                        : "text-zinc-700"
-                    }`}
-                  >
-                    Retirar (-)
-                  </button>
-                </div>
-
-                <div>
-                  <label class="block text-xs font-semibold text-zinc-700">
-                    {stockOp() === "set"
-                      ? "Novo saldo físico total"
-                      : "Quantidade de unidades"}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="numeric"
-                    value={stockQtyInput()}
-                    onInput={(e) => setStockQtyInput(e.currentTarget.value)}
-                    class="mt-1 h-10 w-full rounded-md border border-zinc-300 px-3 text-right font-semibold tabular-nums focus:border-[#93509e] focus:outline-none"
-                  />
-                </div>
-
-                <div class="grid grid-cols-3 gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5 text-center text-xs tabular-nums">
-                  <div>
-                    <p class="text-[11px] text-zinc-500">Saldo atual</p>
-                    <p class="font-bold text-zinc-900">{target().stockQty} un.</p>
-                  </div>
-                  <div>
-                    <p class="text-[11px] text-zinc-500">Operação</p>
-                    <p class="font-semibold text-[#93509e]">
-                      {stockOp() === "set"
-                        ? "Definir"
-                        : stockOp() === "add"
-                          ? `+${Number.parseInt(stockQtyInput() || "0", 10) || 0}`
-                          : `-${Number.parseInt(stockQtyInput() || "0", 10) || 0}`}
-                    </p>
-                  </div>
-                  <div>
-                    <p class="text-[11px] text-zinc-500">Saldo resultante</p>
-                    <p
-                      class={`font-bold ${
-                        resultingStockQty() < target().reservedQty
-                          ? "text-red-700"
-                          : "text-zinc-900"
-                      }`}
-                    >
-                      {resultingStockQty()} un.
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <label class="block text-xs font-semibold text-zinc-700">
-                    Motivo da movimentação
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    minLength={3}
-                    value={stockReason()}
-                    onInput={(e) => setStockReason(e.currentTarget.value)}
-                    class="mt-1 h-9 w-full rounded-md border border-zinc-300 px-3 text-xs focus:border-[#93509e] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div class="sticky bottom-0 flex justify-end gap-2 border-t border-zinc-200 bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-                <button
-                  type="button"
-                  onClick={() => setStockTarget(null)}
-                  class="rounded-md border border-zinc-300 px-3.5 py-2 text-xs font-semibold text-zinc-700"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={stockBusy()}
-                  class="rounded-md bg-[#93509e] px-4 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
-                >
-                  {stockBusy() ? "Registrando..." : "Confirmar ajuste"}
-                </button>
-              </div>
-            </form>
+          <div class="grid grid-cols-3 gap-1.5 rounded-[8px] border border-zinc-200 bg-zinc-50 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setStockOp("set")}
+              class={`adm-btn rounded-[6px] px-2 py-1.5 font-semibold ${
+                stockOp() === "set"
+                  ? "bg-[#93509e] text-white"
+                  : "text-zinc-700 hover:bg-zinc-100"
+              }`}
+            >
+              Definir saldo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStockOp("add");
+                setStockQtyInput("5");
+              }}
+              class={`adm-btn rounded-[6px] px-2 py-1.5 font-semibold ${
+                stockOp() === "add"
+                  ? "bg-[#93509e] text-white"
+                  : "text-zinc-700 hover:bg-zinc-100"
+              }`}
+            >
+              Adicionar (+)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStockOp("subtract");
+                setStockQtyInput("1");
+              }}
+              class={`adm-btn rounded-[6px] px-2 py-1.5 font-semibold ${
+                stockOp() === "subtract"
+                  ? "bg-[#93509e] text-white"
+                  : "text-zinc-700 hover:bg-zinc-100"
+              }`}
+            >
+              Retirar (-)
+            </button>
           </div>
-        )}
-      </Show>
+
+          <AdminField
+            label={
+              stockOp() === "set"
+                ? "Novo saldo físico total"
+                : "Quantidade de unidades"
+            }
+            forId="qs-qty-input"
+          >
+            <AdminInput
+              id="qs-qty-input"
+              data-autofocus
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={stockQtyInput()}
+              onInput={(e) => setStockQtyInput(e.currentTarget.value)}
+              class="adm-tabular text-right font-semibold"
+            />
+          </AdminField>
+
+          <div class="adm-tabular grid grid-cols-3 gap-2 rounded-[8px] border border-zinc-200 bg-zinc-50 p-2.5 text-center text-xs">
+            <div>
+              <p class="text-[11px] text-zinc-500">Saldo atual</p>
+              <p class="font-bold text-zinc-900">
+                {stockTarget()?.stockQty ?? 0} un.
+              </p>
+            </div>
+            <div>
+              <p class="text-[11px] text-zinc-500">Operação</p>
+              <p class="font-semibold text-[#62298d]">
+                {stockOp() === "set"
+                  ? "Definir"
+                  : stockOp() === "add"
+                    ? `+${Number.parseInt(stockQtyInput() || "0", 10) || 0}`
+                    : `-${Number.parseInt(stockQtyInput() || "0", 10) || 0}`}
+              </p>
+            </div>
+            <div>
+              <p class="text-[11px] text-zinc-500">Saldo resultante</p>
+              <p
+                class={`font-bold ${
+                  resultingStockQty() < (stockTarget()?.reservedQty ?? 0)
+                    ? "text-red-700"
+                    : "text-zinc-900"
+                }`}
+              >
+                {resultingStockQty()} un.
+              </p>
+            </div>
+          </div>
+
+          <AdminField label="Motivo da movimentação" forId="qs-reason-input">
+            <AdminInput
+              id="qs-reason-input"
+              type="text"
+              required
+              minLength={3}
+              value={stockReason()}
+              onInput={(e) => setStockReason(e.currentTarget.value)}
+            />
+          </AdminField>
+        </form>
+      </AdminModal>
     </div>
   );
 }

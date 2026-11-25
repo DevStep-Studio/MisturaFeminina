@@ -64,7 +64,7 @@ class DashboardController extends Controller
             ->sum('total_cents');
         $growth7dPct = $salesPrev7dCents > 0
             ? (float) round((($sales7dCents - $salesPrev7dCents) / $salesPrev7dCents) * 100, 1)
-            : 15.4;
+            : null;
 
         $paidOrders30dCount = Order::query()
             ->whereIn('status', $paidStatuses)
@@ -186,6 +186,31 @@ class DashboardController extends Controller
             ? CarbonImmutable::parse((string) $request->query('stock_as_of'))
             : null;
 
+        // Real daily sales points scoped to selected period (capped at 90 days)
+        $periodTimelineStart = $from->copy()->startOfDay();
+        $periodSpanDays = min(90, max(1, (int) $periodTimelineStart->diffInDays($to->copy()->startOfDay()) + 1));
+        $periodOrders = Order::query()
+            ->whereIn('status', $paidStatuses)
+            ->where('paid_at', '>=', $periodTimelineStart)
+            ->where('paid_at', '<=', $to)
+            ->selectRaw('substr(paid_at, 1, 10) as sale_date, COUNT(*) as orders_count, SUM(total_cents) as total_cents')
+            ->groupBy('sale_date')
+            ->get()
+            ->keyBy('sale_date');
+
+        $dailySalesPeriod = [];
+        for ($i = 0; $i < $periodSpanDays; $i++) {
+            $dt = $periodTimelineStart->addDays($i);
+            $dStr = $dt->format('Y-m-d');
+            $row = $periodOrders->get($dStr);
+            $dailySalesPeriod[] = [
+                'date' => $dStr,
+                'label' => $dt->format('d/m'),
+                'sales_cents' => (int) ($row->total_cents ?? 0),
+                'orders_count' => (int) ($row->orders_count ?? 0),
+            ];
+        }
+
         $data = [
             'kpis' => [
                 'sales_today_cents' => $salesTodayCents,
@@ -205,6 +230,7 @@ class DashboardController extends Controller
                 'shared_carts_imported_count' => (int) SharedCart::query()->sum('imports_count'),
             ],
             'daily_sales_30d' => $dailySales30d,
+            'daily_sales_period' => $dailySalesPeriod,
             'top_products' => $topProducts,
             'payment_methods' => $paymentMethods,
             'orders_by_status' => $ordersByStatus,

@@ -24,6 +24,7 @@ import { AdminGoodsReceiptsPanel } from "../../../features/admin/AdminGoodsRecei
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminRestockAnalyticsPanel } from "../../../features/admin/AdminRestockAnalyticsPanel";
 import { AdminAiCatalogAgentPanel } from "../../../features/admin/ai/AdminAiCatalogAgentPanel";
+import { AdminButton, AdminCombobox, AdminSelect } from "../../../features/admin/ui";
 import { BulkLifecycleModal } from "../../../features/admin/products/BulkLifecycleModal";
 import { BulkRuleModal } from "../../../features/admin/products/BulkRuleModal";
 import { ProductCatalogTable } from "../../../features/admin/products/ProductCatalogTable";
@@ -149,6 +150,9 @@ function AdminProductsPage() {
     null,
   );
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [savedHighlightId, setSavedHighlightId] = createSignal<number | null>(
+    null,
+  );
   const [pendingScrollRestore, setPendingScrollRestore] = createSignal(false);
 
   const [ruleModalOpen, setRuleModalOpen] = createSignal(false);
@@ -362,11 +366,26 @@ function AdminProductsPage() {
     setExcludedIds([]);
   }
 
+  function flushPendingSearchPatch(): Record<string, string | undefined> {
+    if (!searchDebounceTimer) return {};
+    window.clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = undefined;
+    return {
+      search: searchInput().trim() || undefined,
+      page: "1",
+    };
+  }
+
   function openEditProduct(id: number) {
     if (currentView() === "catalogo") {
       sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
     }
-    updateQuery({ view: "editar", editId: String(id), dupId: undefined });
+    updateQuery({
+      ...flushPendingSearchPatch(),
+      view: "editar",
+      editId: String(id),
+      dupId: undefined,
+    });
   }
 
   function openNewProduct(duplicateFromId?: number) {
@@ -374,6 +393,7 @@ function AdminProductsPage() {
       sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
     }
     updateQuery({
+      ...flushPendingSearchPatch(),
       view: "novo",
       editId: undefined,
       dupId: duplicateFromId ? String(duplicateFromId) : undefined,
@@ -413,11 +433,24 @@ function AdminProductsPage() {
     void refetchProducts();
   }
 
-  function handleFormSaved(msg: string, stayAndNext?: boolean) {
+  function highlightSavedRow(id?: number | null) {
+    if (!id) return;
+    setSavedHighlightId(id);
+    window.setTimeout(() => {
+      if (savedHighlightId() === id) setSavedHighlightId(null);
+    }, 2200);
+  }
+
+  function handleFormSaved(
+    msg: string,
+    stayAndNext?: boolean,
+    savedId?: number,
+  ) {
     setFeedback(msg);
     void refetchProducts();
     if (!stayAndNext) {
       returnToCatalog();
+      highlightSavedRow(savedId);
     }
   }
 
@@ -442,149 +475,114 @@ function AdminProductsPage() {
   const catNameById = (id: string) =>
     categories()?.find((c) => String(c.id) === id)?.name ?? id;
 
+  const headerActions = (
+    <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+      <Show when={canAiCatalog()}>
+        <AdminButton
+          variant="secondary"
+          onClick={() =>
+            updateQuery({
+              view: "ia",
+              editId: undefined,
+              dupId: undefined,
+            })
+          }
+          class="border-[#e4c6ea] text-[#62298d] hover:bg-[#f5ebf7]"
+        >
+          <Sparkles class="h-3.5 w-3.5 text-[#93509e]" />
+          Cadastrar com IA
+        </AdminButton>
+      </Show>
+
+      <Show when={canWrite()}>
+        <AdminButton variant="primary" onClick={() => openNewProduct()}>
+          <Plus class="h-3.5 w-3.5" />
+          Novo produto
+        </AdminButton>
+      </Show>
+
+      <div class="relative">
+        <AdminButton
+          variant="secondary"
+          aria-expanded={secondaryMenuOpen()}
+          onClick={() => setSecondaryMenuOpen(!secondaryMenuOpen())}
+        >
+          Mais ferramentas
+          <ChevronDown class="h-3.5 w-3.5" />
+        </AdminButton>
+        <Show when={secondaryMenuOpen()}>
+          <div
+            role="menu"
+            style={{ "box-shadow": "var(--adm-shadow-popover)" }}
+            class="absolute left-0 top-10 z-40 w-56 rounded-[10px] border border-zinc-200 bg-white py-1 text-xs sm:left-auto sm:right-0"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setSecondaryMenuOpen(false);
+                updateQuery({ view: "massa" });
+              }}
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-zinc-800 hover:bg-zinc-50"
+            >
+              <Grid class="h-3.5 w-3.5 text-zinc-500" />
+              Edição individual em grade
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setSecondaryMenuOpen(false);
+                updateQuery({ view: "csv" });
+              }}
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-zinc-800 hover:bg-zinc-50"
+            >
+              <FileSpreadsheet class="h-3.5 w-3.5 text-zinc-500" />
+              Importar / Exportar CSV
+            </button>
+            <a
+              href={`${import.meta.env.VITE_API_URL}/admin/catalog/export-csv`}
+              target="_blank"
+              rel="noopener noreferrer"
+              role="menuitem"
+              onClick={() => setSecondaryMenuOpen(false)}
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-zinc-800 hover:bg-zinc-50"
+            >
+              <Download class="h-3.5 w-3.5 text-zinc-500" />
+              Exportar CSV completo
+            </a>
+          </div>
+        </Show>
+      </div>
+    </div>
+  );
+
   return (
     <AdminLayout
       title="Produtos"
-      subtitle="Catálogo administrativo, regras em massa, grade individual e cadastro com IA"
       permission="catalog.view"
+      headerActions={headerActions}
     >
-      {/* Top Module Navigation */}
-      <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 pb-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <Show when={currentView() === "catalogo"}>
-            <span class="rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700">
-              {totalResults()} resultados
-            </span>
-          </Show>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <Show when={canAiCatalog()}>
-            <button
-              type="button"
-              onClick={() =>
-                updateQuery({
-                  view: "ia",
-                  editId: undefined,
-                  dupId: undefined,
-                })
-              }
-              class="inline-flex items-center gap-1.5 rounded-md border border-[#93509e] bg-white px-3 py-2 text-xs font-bold text-[#93509e] hover:bg-purple-50"
-            >
-              <Sparkles class="h-3.5 w-3.5" />
-              Cadastrar com IA
-            </button>
-          </Show>
-
-          <Show when={canWrite()}>
-            <button
-              type="button"
-              onClick={() => openNewProduct()}
-              class="inline-flex items-center gap-1.5 rounded-md bg-[#93509e] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#7c3f87]"
-            >
-              <Plus class="h-3.5 w-3.5" />
-              Novo produto
-            </button>
-          </Show>
-
-          <div class="relative">
-            <button
-              type="button"
-              onClick={() => setSecondaryMenuOpen(!secondaryMenuOpen())}
-              class="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-            >
-              Mais ferramentas
-              <ChevronDown class="h-3.5 w-3.5" />
-            </button>
-            <Show when={secondaryMenuOpen()}>
-              <div class="absolute right-0 top-10 z-30 w-56 rounded-lg border border-zinc-200 bg-white py-1 text-xs shadow-md">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSecondaryMenuOpen(false);
-                    updateQuery({ view: "massa" });
-                  }}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
-                >
-                  <Grid class="h-3.5 w-3.5 text-zinc-500" />
-                  Edição individual em grade
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSecondaryMenuOpen(false);
-                    updateQuery({ view: "recebimentos" });
-                  }}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
-                >
-                  Recebimento de mercadorias
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSecondaryMenuOpen(false);
-                    updateQuery({ view: "avisos" });
-                  }}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
-                >
-                  Avisos de reposição
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSecondaryMenuOpen(false);
-                    updateQuery({ view: "avaliacoes" });
-                  }}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
-                >
-                  Avaliações de clientes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSecondaryMenuOpen(false);
-                    updateQuery({ view: "csv" });
-                  }}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50"
-                >
-                  <FileSpreadsheet class="h-3.5 w-3.5 text-zinc-500" />
-                  Importar / Exportar CSV
-                </button>
-                <a
-                  href={`${import.meta.env.VITE_API_URL}/admin/catalog/export-csv`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setSecondaryMenuOpen(false)}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-zinc-700 hover:bg-zinc-50"
-                >
-                  <Download class="h-3.5 w-3.5 text-zinc-500" />
-                  Exportar CSV completo
-                </a>
-              </div>
-            </Show>
-          </div>
-        </div>
-      </div>
-
-      {/* Sub-navigation pills for primary workflow views */}
-      <Show when={currentView() !== "catalogo"}>
-        <div class="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
+      {/* Single clean module navigation strip */}
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 pb-2.5">
+        <nav
+          aria-label="Destinos de Produtos e Estoque"
+          class="flex flex-wrap items-center gap-1 text-xs"
+        >
           <For
             each={
               [
                 ["catalogo", "Catálogo"],
-                ["massa", "Grade em massa"],
-                ["ia", "Cadastrar com IA"],
                 ["recebimentos", "Recebimentos"],
                 ["avaliacoes", "Avaliações"],
                 ["avisos", "Reposição"],
-                ["csv", "CSV"],
               ] as const
             }
           >
             {([v, label]) => (
               <button
                 type="button"
+                aria-current={currentView() === v ? "page" : undefined}
                 onClick={() =>
                   updateQuery({
                     view: v,
@@ -592,17 +590,24 @@ function AdminProductsPage() {
                     dupId: undefined,
                   })
                 }
-                class={`rounded-md px-3 py-1.5 font-semibold ${currentView() === v
-                  ? "bg-[#93509e] text-white"
-                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-                  }`}
+                class={`adm-btn rounded-[8px] px-3 py-1.5 font-semibold ${
+                  currentView() === v
+                    ? "bg-[#f5ebf7] text-[#62298d]"
+                    : "text-zinc-600 hover:bg-white hover:text-zinc-900"
+                }`}
               >
                 {label}
               </button>
             )}
           </For>
-        </div>
-      </Show>
+        </nav>
+
+        <Show when={currentView() === "catalogo"}>
+          <span class="adm-tabular text-xs font-medium text-zinc-500">
+            {totalResults()} resultados
+          </span>
+        </Show>
+      </div>
 
       <Show when={feedback()}>
         <div
@@ -663,77 +668,84 @@ function AdminProductsPage() {
             </button>
 
             {/* Desktop inline filters */}
-            <div class="hidden flex-wrap items-center gap-2 md:flex">
-              <select
-                aria-label="Filtrar por marca"
+            <div class="hidden flex-wrap items-end gap-2 md:flex">
+              <AdminCombobox
+                label="Marca"
+                placeholder="Todas as marcas"
+                searchPlaceholder="Buscar marca..."
                 value={filters().brand_id}
-                onChange={(e) =>
-                  updateQuery(
-                    { brand_id: e.currentTarget.value || undefined, page: "1" },
-                    true,
-                  )
+                options={(brands() ?? []).map((b) => ({
+                  value: String(b.id),
+                  label: b.name,
+                }))}
+                onChange={(val) =>
+                  updateQuery({ brand_id: val || undefined, page: "1" }, true)
                 }
-                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
-              >
-                <option value="">Todas as marcas</option>
-                <For each={brands() ?? []}>
-                  {(b) => <option value={b.id}>{b.name}</option>}
-                </For>
-              </select>
+                class="w-44"
+              />
 
-              <select
-                aria-label="Filtrar por categoria"
+              <AdminCombobox
+                label="Categoria"
+                placeholder="Todas categorias"
+                searchPlaceholder="Buscar categoria..."
                 value={filters().category_id}
-                onChange={(e) =>
+                options={(categories() ?? []).map((c) => ({
+                  value: String(c.id),
+                  label: c.name,
+                }))}
+                onChange={(val) =>
                   updateQuery(
-                    {
-                      category_id: e.currentTarget.value || undefined,
-                      page: "1",
-                    },
+                    { category_id: val || undefined, page: "1" },
                     true,
                   )
                 }
-                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
-              >
-                <option value="">Todas as categorias</option>
-                <For each={categories() ?? []}>
-                  {(c) => <option value={c.id}>{c.name}</option>}
-                </For>
-              </select>
+                class="w-44"
+              />
 
-              <select
-                aria-label="Filtrar por situação"
+              <AdminSelect
+                label="Situação"
                 value={filters().status}
-                onChange={(e) =>
-                  updateQuery(
-                    { status: e.currentTarget.value, page: "1" },
-                    true,
-                  )
+                onChange={(val) =>
+                  updateQuery({ status: val, page: "1" }, true)
                 }
-                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
-              >
-                <option value="all">Todas as situações</option>
-                <option value="active">Ativos</option>
-                <option value="inactive">Inativos</option>
-                <option value="archived">Arquivados</option>
-              </select>
+                options={[
+                  { value: "all", label: "Todas situações" },
+                  { value: "active", label: "Ativos" },
+                  { value: "inactive", label: "Inativos" },
+                  { value: "archived", label: "Arquivados" },
+                ]}
+              />
 
-              <select
-                aria-label="Filtrar por disponibilidade"
+              <AdminSelect
+                label="Disponibilidade"
                 value={filters().availability}
-                onChange={(e) =>
-                  updateQuery(
-                    { availability: e.currentTarget.value, page: "1" },
-                    true,
-                  )
+                onChange={(val) =>
+                  updateQuery({ availability: val, page: "1" }, true)
                 }
-                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
-              >
-                <option value="all">Qualquer estoque</option>
-                <option value="in_stock">Disponível (&gt; 0)</option>
-                <option value="low_stock">Estoque baixo (1–5)</option>
-                <option value="out_of_stock">Esgotado</option>
-              </select>
+                options={[
+                  { value: "all", label: "Qualquer estoque" },
+                  { value: "in_stock", label: "Disponível (> 0)" },
+                  { value: "low_stock", label: "Estoque baixo (1–5)" },
+                  { value: "out_of_stock", label: "Esgotado" },
+                ]}
+              />
+
+              <AdminSelect
+                label="Ordenar por"
+                value={filters().sort}
+                onChange={(val) =>
+                  updateQuery({ sort: val, page: "1" }, false)
+                }
+                options={[
+                  { value: "newest", label: "Mais recentes" },
+                  { value: "name_asc", label: "Nome (A–Z)" },
+                  { value: "name_desc", label: "Nome (Z–A)" },
+                  { value: "price_asc", label: "Menor preço" },
+                  { value: "price_desc", label: "Maior preço" },
+                  { value: "stock_asc", label: "Menor estoque" },
+                  { value: "stock_desc", label: "Maior estoque" },
+                ]}
+              />
 
               <Show when={canCostView()}>
                 <button
@@ -750,32 +762,15 @@ function AdminProductsPage() {
                       true,
                     )
                   }
-                  class={`h-9 rounded-md border px-3 text-xs font-semibold transition-colors ${
+                  class={`adm-btn h-9 rounded-[8px] border px-3 text-xs font-semibold ${
                     filters().filter === "missing_cost"
-                      ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                      ? "border-[#93509e] bg-[#f5ebf7] text-[#62298d]"
                       : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
                   }`}
                 >
                   Sem custo cadastrado
                 </button>
               </Show>
-
-              <select
-                aria-label="Ordenação"
-                value={filters().sort}
-                onChange={(e) =>
-                  updateQuery({ sort: e.currentTarget.value, page: "1" }, false)
-                }
-                class="h-9 rounded-md border border-zinc-300 bg-white px-2.5"
-              >
-                <option value="newest">Mais recentes</option>
-                <option value="name_asc">Nome (A–Z)</option>
-                <option value="name_desc">Nome (Z–A)</option>
-                <option value="price_asc">Menor preço</option>
-                <option value="price_desc">Maior preço</option>
-                <option value="stock_asc">Menor estoque</option>
-                <option value="stock_desc">Maior estoque</option>
-              </select>
             </div>
           </div>
 
@@ -879,33 +874,41 @@ function AdminProductsPage() {
             </div>
           </Show>
 
-          <ProductCatalogTable
-            products={productList()}
-            totalResults={totalResults()}
-            pageSelectedIds={pageSelectedIds()}
-            selectAllMatching={selectAllMatching()}
-            excludedIds={excludedIds()}
-            onToggleOne={toggleOne}
-            onTogglePage={togglePage}
-            onSelectAllMatching={() => {
-              setSelectAllMatching(true);
-              setExcludedIds([]);
-            }}
-            onClearSelection={clearSelection}
-            onEditProduct={openEditProduct}
-            onDuplicateProduct={(id) => openNewProduct(id)}
-            onOpenBulkGridForProduct={(id) =>
-              updateQuery({ view: "massa", product_id: String(id) })
-            }
-            onOpenReceipts={() => updateQuery({ view: "recebimentos" })}
-            onLifecycleAction={(ids, action) =>
-              setLifecycleModal({ open: true, action, productIds: ids })
-            }
-            onReload={() => triggerReloadCatalog()}
-            canWrite={canWrite()}
-            canPrice={canPrice()}
-            canStock={canStock()}
-          />
+          <div
+            class={`min-h-[300px] transition-opacity ${
+              productsPage.loading ? "opacity-65" : "opacity-100"
+            }`}
+          >
+            <ProductCatalogTable
+              products={productList()}
+              totalResults={totalResults()}
+              pageSelectedIds={pageSelectedIds()}
+              selectAllMatching={selectAllMatching()}
+              excludedIds={excludedIds()}
+              highlightedId={savedHighlightId()}
+              onHighlightRow={(id) => highlightSavedRow(id)}
+              onToggleOne={toggleOne}
+              onTogglePage={togglePage}
+              onSelectAllMatching={() => {
+                setSelectAllMatching(true);
+                setExcludedIds([]);
+              }}
+              onClearSelection={clearSelection}
+              onEditProduct={openEditProduct}
+              onDuplicateProduct={(id) => openNewProduct(id)}
+              onOpenBulkGridForProduct={(id) =>
+                updateQuery({ view: "massa", product_id: String(id) })
+              }
+              onOpenReceipts={() => updateQuery({ view: "recebimentos" })}
+              onLifecycleAction={(ids, action) =>
+                setLifecycleModal({ open: true, action, productIds: ids })
+              }
+              onReload={() => triggerReloadCatalog()}
+              canWrite={canWrite()}
+              canPrice={canPrice()}
+              canStock={canStock()}
+            />
+          </div>
 
           {/* Pagination */}
           <Show when={(productsPage()?.last_page ?? 1) > 1}>
@@ -943,16 +946,19 @@ function AdminProductsPage() {
 
         {/* Sticky Contextual Bulk Bar */}
         <Show when={selectedCount() > 0}>
-          <div class="fixed inset-x-0 bottom-0 z-40 border-t border-[#93509e] bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-lg">
+          <div
+            style={{ "box-shadow": "var(--adm-shadow-overlay)" }}
+            class="fixed inset-x-0 bottom-0 z-40 border-t border-[#e4c6ea] bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+          >
             <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs">
               <div class="flex items-center gap-2">
-                <span class="rounded bg-[#93509e] px-2.5 py-1 font-bold text-white">
+                <span class="adm-tabular rounded-[6px] bg-[#93509e] px-2.5 py-1 font-bold text-white">
                   {selectedCount()} selecionado(s)
                 </span>
                 <button
                   type="button"
                   onClick={clearSelection}
-                  class="font-semibold text-zinc-600 underline"
+                  class="font-semibold text-zinc-600 underline hover:text-zinc-900"
                 >
                   Limpar
                 </button>
@@ -960,61 +966,63 @@ function AdminProductsPage() {
 
               <div class="flex flex-wrap items-center gap-2">
                 <Show when={canBulkEdit()}>
-                  <button
-                    type="button"
+                  <AdminButton
+                    size="sm"
+                    variant="primary"
                     onClick={() => setRuleModalOpen(true)}
-                    class="rounded-md bg-[#93509e] px-3.5 py-1.5 font-bold text-white hover:bg-[#7c3f87]"
                   >
-                    Aplicar regra em massa
-                  </button>
+                    Editar em massa
+                  </AdminButton>
                 </Show>
 
                 <Show when={!selectAllMatching() && pageSelectedIds().length > 0}>
-                  <button
-                    type="button"
+                  <AdminButton
+                    size="sm"
+                    variant="secondary"
                     onClick={() => updateQuery({ view: "massa" })}
-                    class="rounded-md border border-zinc-300 bg-white px-3 py-1.5 font-semibold text-zinc-800 hover:bg-zinc-50"
                   >
                     Editar na grade
-                  </button>
+                  </AdminButton>
                 </Show>
 
                 <Show when={canWrite()}>
                   <Show
                     when={filters().status === "archived"}
                     fallback={
-                      <button
-                        type="button"
+                      <AdminButton
+                        size="sm"
+                        variant="secondary"
                         onClick={() =>
                           setLifecycleModal({ open: true, action: "archive" })
                         }
-                        class="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-1.5 font-semibold text-zinc-800 hover:bg-zinc-50"
                       >
                         <Archive class="h-3.5 w-3.5" />
                         Arquivar
-                      </button>
+                      </AdminButton>
                     }
                   >
-                    <button
-                      type="button"
+                    <AdminButton
+                      size="sm"
+                      variant="secondary"
                       onClick={() =>
                         setLifecycleModal({ open: true, action: "restore" })
                       }
-                      class="rounded-md border border-[#93509e] bg-white px-3 py-1.5 font-semibold text-[#93509e]"
+                      class="border-[#93509e] text-[#62298d]"
                     >
                       Restaurar
-                    </button>
+                    </AdminButton>
                   </Show>
-                  <button
-                    type="button"
+                  <AdminButton
+                    size="sm"
+                    variant="ghost"
                     onClick={() =>
                       setLifecycleModal({ open: true, action: "delete" })
                     }
-                    class="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50"
+                    class="border border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
                   >
                     <Trash2 class="h-3.5 w-3.5" />
                     Excluir
-                  </button>
+                  </AdminButton>
                 </Show>
               </div>
             </div>
@@ -1131,11 +1139,10 @@ function AdminProductsPage() {
                         true,
                       )
                     }
-                    class={`h-10 rounded-md border px-3 text-left text-xs font-semibold ${
-                      filters().filter === "missing_cost"
-                        ? "border-[#93509e] bg-purple-50 text-[#62298d]"
-                        : "border-zinc-300 bg-white text-zinc-700"
-                    }`}
+                    class={`h-10 rounded-md border px-3 text-left text-xs font-semibold ${filters().filter === "missing_cost"
+                      ? "border-[#93509e] bg-purple-50 text-[#62298d]"
+                      : "border-zinc-300 bg-white text-zinc-700"
+                      }`}
                   >
                     Sem custo cadastrado
                   </button>
@@ -1173,7 +1180,9 @@ function AdminProductsPage() {
           onArchiveOrDelete={(prodId, action) =>
             setLifecycleModal({ open: true, action, productIds: [prodId] })
           }
-          onSaved={(msg, stayAndNext) => handleFormSaved(msg, stayAndNext)}
+          onSaved={(msg, stayAndNext, savedId) =>
+            handleFormSaved(msg, stayAndNext, savedId)
+          }
         />
       </Show>
 

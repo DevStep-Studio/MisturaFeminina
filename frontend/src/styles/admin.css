@@ -1,0 +1,183 @@
+/* Mistura Feminina — Admin Design System Tokens & Scoped Utilities
+ * Strictly scoped to .mf-admin-shell so public storefront styling remains untouched.
+ */
+.mf-admin-shell {
+  --adm-bg: #f6f7f9;
+  --adm-surface: #ffffff;
+  --adm-surface-subtle: #fafafa;
+  --adm-surface-hover: #f4f4f5;
+  --adm-ink: #18181b;
+  --adm-ink-secondary: #3f3f46;
+  --adm-muted: #52525b;
+  --adm-muted-soft: #71717a;
+
+  /* Official Mistura Feminina Brand Purple */
+  --adm-brand: #93509e;
+  --adm-brand-hover: #7c3f87;
+  --adm-brand-active: #62298d;
+  --adm-brand-soft: #f5ebf7;
+  --adm-brand-border: #e4c6ea;
+  --adm-brand-ink: #62298d;
+
+  /* Semantic Status Colors */
+  --adm-danger: #b91c1c;
+  --adm-danger-hover: #991b1b;
+  --adm-danger-soft: #fef2f2;
+  --adm-danger-border: #fecaca;
+  --adm-warning: #92400e;
+  --adm-warning-soft: #fffbeb;
+  --adm-warning-border: #fde68a;
+  --adm-success: #15803d;
+  --adm-success-soft: #f0fdf4;
+  --adm-success-border: #bbf7d0;
+
+  /* Dividers & Elevation */
+  --adm-border: #e4e4e7;
+  --adm-border-strong: #d4d4d8;
+  --adm-shadow-overlay: 0 12px 32px -8px rgba(24, 24, 27, 0.14), 0 4px 12px -4px rgba(24, 24, 27, 0.08);
+  --adm-shadow-popover: 0 8px 20px -4px rgba(24, 24, 27, 0.12), 0 2px 6px -2px rgba(24, 24, 27, 0.06);
+
+  /* Spacing Scale (4, 8, 12, 16, 24, 32) & Geometry */
+  --adm-space-1: 4px;
+  --adm-space-2: 8px;
+  --adm-space-3: 12px;
+  --adm-space-4: 16px;
+  --adm-space-6: 24px;
+  --adm-space-8: 32px;
+  --adm-radius-control: 8px;
+  --adm-radius-panel: 12px;
+
+  /* Motion Timing */
+  --adm-dur-fast: 150ms;
+  --adm-dur-panel: 200ms;
+  --adm-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --adm-ease-overlay: cubic-bezier(0.16, 1, 0.3, 1);
+
+  background-color: var(--adm-bg);
+  color: var(--adm-ink);
+}
+
+.mf-admin-shell :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--adm-brand);
+  outline-offset: 2px;
+}
+
+.adm-btn {
+  transition:
+    background-color var(--adm-dur-fast) var(--adm-ease-standard),
+    border-color var(--adm-dur-fast) var(--adm-ease-standard),
+    color var(--adm-dur-fast) var(--adm-ease-standard),
+    transform var(--adm-dur-fast) var(--adm-ease-standard);
+}
+
+.adm-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.adm-nav-item {
+  transition:
+    background-color var(--adm-dur-fast) var(--adm-ease-standard),
+    color var(--adm-dur-fast) var(--adm-ease-standard);
+}
+
+.adm-card-interactive {
+  transition:
+    border-color var(--adm-dur-fast) var(--adm-ease-standard),
+    background-color var(--adm-dur-fast) var(--adm-ease-standard);
+}
+
+@keyframes adm-modal-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes adm-drawer-right-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(20px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes adm-drawer-left-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(-20px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes adm-row-saved {
+  0% {
+    background-color: var(--adm-brand-soft);
+  }
+  65% {
+    background-color: var(--adm-brand-soft);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.adm-overlay-backdrop {
+  animation: adm-fade-in var(--adm-dur-panel) var(--adm-ease-overlay);
+}
+
+@keyframes adm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.adm-modal-panel {
+  box-shadow: var(--adm-shadow-overlay);
+  animation: adm-modal-enter var(--adm-dur-panel) var(--adm-ease-overlay);
+}
+
+.adm-drawer-right {
+  box-shadow: var(--adm-shadow-overlay);
+  animation: adm-drawer-right-enter var(--adm-dur-panel) var(--adm-ease-overlay);
+}
+
+.adm-drawer-left {
+  box-shadow: var(--adm-shadow-overlay);
+  animation: adm-drawer-left-enter var(--adm-dur-panel) var(--adm-ease-overlay);
+}
+
+.adm-row-saved {
+  animation: adm-row-saved 1.8s var(--adm-ease-standard);
+}
+
+.adm-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-btn,
+  .adm-nav-item,
+  .adm-card-interactive,
+  .adm-overlay-backdrop,
+  .adm-modal-panel,
+  .adm-drawer-right,
+  .adm-drawer-left,
+  .adm-row-saved {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

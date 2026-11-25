@@ -4,6 +4,7 @@ import ArrowUp from "lucide-solid/icons/arrow-up";
 import Trash2 from "lucide-solid/icons/trash";
 import { For, Show, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import { AdminImageUpload } from "../../../features/admin/ui";
 import { ApiError, api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
@@ -144,17 +145,6 @@ function AdminAppearancePage() {
     const res = await api<{ data: AdminContentPage[] }>("/admin/pages");
     return res.data ?? [];
   });
-
-  async function uploadBannerImg(file: File, setter: (v: string) => void) {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("folder", "banners");
-    const res = await api<{ data: { path: string } }>("/admin/media/upload", {
-      method: "POST",
-      body: fd,
-    });
-    setter(res.data.path);
-  }
 
   function loadBannerIntoForm(b: AdminBanner) {
     setEditingBannerId(b.id);
@@ -460,63 +450,28 @@ function AdminAppearancePage() {
               <option value="promo_grid">Grade Promocional (Home)</option>
               <option value="category_top">Topo de Categoria / Catálogo</option>
             </select>
-            <div>
-              <label class="block text-xs font-semibold text-zinc-700">
-                Arte Desktop *
-              </label>
-              <div class="mt-1 flex items-center gap-2">
-                <input
-                  type="text"
-                  required
-                  placeholder="/storage/banners/... ou /jack-promocoes.jpg"
-                  value={bDesktop()}
-                  onInput={(e) => setBDesktop(e.currentTarget.value)}
-                  class="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-xs"
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const f = e.currentTarget.files?.[0];
-                    if (f) void uploadBannerImg(f, setBDesktop);
-                  }}
-                  class="max-w-[150px] text-xs"
-                />
-              </div>
-              <Show when={bDesktop().trim()}>
-                <div class="mt-2 flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
-                  <img
-                    src={assetUrl(bDesktop())}
-                    alt="Preview Desktop"
-                    class="h-10 w-24 rounded border border-zinc-200 object-cover"
-                  />
-                  <p class="truncate text-xs text-zinc-700">{bDesktop()}</p>
-                </div>
-              </Show>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-zinc-700">
-                Arte Mobile (opcional)
-              </label>
-              <div class="mt-1 flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Opcional para mobile"
-                  value={bMobile()}
-                  onInput={(e) => setBMobile(e.currentTarget.value)}
-                  class="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-xs"
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const f = e.currentTarget.files?.[0];
-                    if (f) void uploadBannerImg(f, setBMobile);
-                  }}
-                  class="max-w-[150px] text-xs"
-                />
-              </div>
-            </div>
+            <AdminImageUpload
+              label="Arte Desktop *"
+              folder="banners"
+              previewShape="wide"
+              value={bDesktop()}
+              onChange={(next) => setBDesktop(next)}
+            />
+            <input
+              type="text"
+              required
+              placeholder="Caminho manual (ex.: /storage/banners/... ou /jack-promocoes.jpg)"
+              value={bDesktop()}
+              onInput={(e) => setBDesktop(e.currentTarget.value)}
+              class="h-9 w-full rounded-[8px] border border-zinc-300 px-3 text-xs"
+            />
+            <AdminImageUpload
+              label="Arte Mobile (opcional)"
+              folder="banners"
+              previewShape="wide"
+              value={bMobile()}
+              onChange={(next) => setBMobile(next)}
+            />
             <input
               type="text"
               placeholder="Texto alternativo (acessibilidade)"

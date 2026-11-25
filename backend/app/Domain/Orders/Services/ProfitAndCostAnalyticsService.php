@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderReturnItem;
 use App\Models\ProductVariant;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -28,7 +29,7 @@ class ProfitAndCostAnalyticsService
      *
      * @return array<string, mixed>
      */
-    public function periodProfitSummary(CarbonInterface $from, CarbonInterface $to): array
+    public function periodProfitSummary(CarbonInterface $from, CarbonInterface $to, bool $includeComparison = true): array
     {
         $breakdown = $this->periodItemBreakdown($from, $to);
         $rows = $breakdown['items'];
@@ -83,6 +84,38 @@ class ProfitAndCostAnalyticsService
             )
             : ($coveredItemsCount > 0 ? 'Cobertura de custo: 100%' : 'Sem vendas reconhecidas no período');
 
+        $comparison = null;
+        if ($includeComparison) {
+            $spanDays = max(1, (int) $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1);
+            $prevTo = CarbonImmutable::instance($from)->startOfDay()->subSecond();
+            $prevFrom = $prevTo->subDays($spanDays - 1)->startOfDay();
+            $prevSummary = $this->periodProfitSummary($prevFrom, $prevTo, false);
+            $prevKpis = $prevSummary['kpis'];
+
+            $prevRev = (int) $prevKpis['products_revenue_cents'];
+            $prevCmv = (int) $prevKpis['cmv_cents'];
+            $prevProfit = (int) $prevKpis['gross_profit_cents'];
+            $hasPriorData = ((int) $prevKpis['total_units_sold']) > 0 || $prevRev > 0;
+
+            $comparison = [
+                'previous_from' => $prevFrom->toDateString(),
+                'previous_to' => $prevTo->toDateString(),
+                'has_prior_data' => $hasPriorData,
+                'previous_products_revenue_cents' => $prevRev,
+                'previous_cmv_cents' => $prevCmv,
+                'previous_gross_profit_cents' => $prevProfit,
+                'revenue_delta_pct' => ($hasPriorData && $prevRev > 0)
+                    ? round((($productsRevenueCents - $prevRev) / $prevRev) * 100, 1)
+                    : null,
+                'cmv_delta_pct' => ($hasPriorData && $prevCmv > 0)
+                    ? round((($knownCmvCents - $prevCmv) / $prevCmv) * 100, 1)
+                    : null,
+                'profit_delta_pct' => ($hasPriorData && $prevProfit > 0)
+                    ? round((($grossProfitCents - $prevProfit) / $prevProfit) * 100, 1)
+                    : null,
+            ];
+        }
+
         return [
             'period' => [
                 'from' => $from->toDateString(),
@@ -108,6 +141,7 @@ class ProfitAndCostAnalyticsService
                 'missing_cost_units_count' => $missingCostUnits,
                 'label' => $coverageLabel,
             ],
+            'comparison' => $comparison,
             'missing_cost_items' => array_values($missingCostItems),
         ];
     }

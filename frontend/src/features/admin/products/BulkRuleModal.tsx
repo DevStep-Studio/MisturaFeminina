@@ -1,9 +1,9 @@
 import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
 import CheckCircle2 from "lucide-solid/icons/circle-check";
 import Loader2 from "lucide-solid/icons/loader-circle";
-import X from "lucide-solid/icons/x";
 import { For, Show, createSignal, onCleanup } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
+import { AdminButton, AdminCombobox, AdminModal, AdminMultiCombobox } from "../ui";
 import {
   type BrandOption,
   type BulkRulePreviewPayload,
@@ -232,57 +232,107 @@ export function BulkRuleModal(props: {
   }
 
   return (
-    <Show when={props.open}>
-      <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4">
-        <div class="flex max-h-[92dvh] w-full max-w-4xl flex-col rounded-t-xl border border-zinc-200 bg-white sm:rounded-xl">
-          <div class="flex items-center justify-between border-b border-zinc-200 px-5 py-3.5">
-            <div>
-              <h2 class="text-base font-bold text-zinc-900">
-                Aplicar regra em massa
-              </h2>
-              <p class="text-xs text-zinc-500">
-                Escopo atual: <strong>{props.selectionLabel}</strong>
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-label="Fechar regras em massa"
-              onClick={() => props.onClose()}
-              class="rounded p-1.5 text-zinc-500 hover:bg-zinc-100"
-            >
-              <X class="h-4 w-4" />
-            </button>
-          </div>
-
-          <div class="flex-1 space-y-4 overflow-y-auto p-5 text-sm">
-            <Show when={errorMsg()}>
-              <div class="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-800">
-                <p class="font-semibold">{errorMsg()}</p>
+    <AdminModal
+      open={props.open}
+      title="Editar em massa (regras)"
+      subtitle={`Escopo atual: ${props.selectionLabel}`}
+      maxWidthClass="max-w-4xl"
+      closeLabel="Fechar regras em massa"
+      onClose={() => props.onClose()}
+      footer={
+        <>
+          <AdminButton variant="secondary" onClick={() => props.onClose()}>
+            Fechar
+          </AdminButton>
+          <Show
+            when={preview()}
+            fallback={
+              <AdminButton
+                variant="primary"
+                loading={busy()}
+                loadingLabel="Calculando…"
+                onClick={() => void generatePreview()}
+              >
+                Visualizar prévia
+              </AdminButton>
+            }
+          >
+            {(p) => (
+              <>
                 <Show when={conflicts().length > 0}>
-                  <ul class="mt-1 list-disc pl-4">
-                    <For each={conflicts()}>
-                      {(c) => (
-                        <li>
-                          <strong>{c.sku}:</strong> {c.reason}
-                        </li>
-                      )}
-                    </For>
-                  </ul>
+                  <AdminButton
+                    variant="secondary"
+                    loading={busy()}
+                    loadingLabel="Salvando…"
+                    onClick={() => void commit(false, true)}
+                    class="border-[#93509e] text-[#62298d]"
+                  >
+                    Aplicar com saldo atualizado
+                  </AdminButton>
                 </Show>
-              </div>
+                <Show
+                  when={
+                    p().summary.invalid_count > 0 && p().summary.valid_count > 0
+                  }
+                >
+                  <AdminButton
+                    variant="primary"
+                    loading={busy()}
+                    loadingLabel="Salvando…"
+                    onClick={() => void commit(true, false)}
+                  >
+                    Aplicar apenas os {p().summary.valid_count} válidos
+                  </AdminButton>
+                </Show>
+                <Show when={p().summary.invalid_count === 0}>
+                  <AdminButton
+                    variant="primary"
+                    loading={busy()}
+                    loadingLabel="Salvando…"
+                    onClick={() => void commit(false, false)}
+                  >
+                    Confirmar {p().summary.valid_count} alterações
+                  </AdminButton>
+                </Show>
+              </>
+            )}
+          </Show>
+        </>
+      }
+    >
+      <div class="space-y-4">
+        <Show when={errorMsg()}>
+          <div
+            role="alert"
+            class="rounded-[8px] border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-800"
+          >
+            <p class="font-semibold">{errorMsg()}</p>
+            <Show when={conflicts().length > 0}>
+              <ul class="mt-1 list-disc pl-4">
+                <For each={conflicts()}>
+                  {(c) => (
+                    <li>
+                      <strong>{c.sku}:</strong> {c.reason}
+                    </li>
+                  )}
+                </For>
+              </ul>
             </Show>
+          </div>
+        </Show>
 
-            <Show when={batchResult()}>
-              {(res) => (
-                <div class="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-xs text-zinc-900">
-                  <Show
-                    when={!res().queued}
-                    fallback={
-                      <p class="flex items-center gap-2 font-semibold text-[#62298d]">
-                        <Loader2 class="h-4 w-4 animate-spin" />
-                        Processando lote em segundo plano (#{res().batch_id}). Você pode acompanhar em seguida.
-                      </p>
-                    }
+        <Show when={batchResult()}>
+          {(res) => (
+            <div class="rounded-[8px] border border-[#e4c6ea] bg-[#f5ebf7] px-4 py-3 text-xs text-zinc-900">
+              <Show
+                when={!res().queued}
+                fallback={
+                  <p class="flex items-center gap-2 font-semibold text-[#62298d]">
+                    <Loader2 class="h-4 w-4 animate-spin" />
+                    Processando lote em segundo plano (#{res().batch_id}). Você
+                    pode acompanhar em seguida.
+                  </p>
+                }
                   >
                     <p class="flex items-center gap-2 font-semibold text-zinc-900">
                       <CheckCircle2 class="h-4 w-4 text-[#93509e]" />
@@ -454,22 +504,23 @@ export function BulkRuleModal(props: {
                         <option value="clear">Remover vínculo de marca</option>
                       </select>
                       <Show when={brandOp() === "set"}>
-                        <select
+                        <AdminCombobox
+                          label="Nova marca"
+                          placeholder="Selecione a marca..."
+                          searchPlaceholder="Buscar marca..."
                           value={brandId()}
-                          onChange={(e) => setBrandId(e.currentTarget.value)}
-                          class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5"
-                        >
-                          <option value="">Selecione a marca...</option>
-                          <For each={props.brands}>
-                            {(b) => <option value={b.id}>{b.name}</option>}
-                          </For>
-                        </select>
+                          options={props.brands.map((b) => ({
+                            value: String(b.id),
+                            label: b.name,
+                          }))}
+                          onChange={(val) => setBrandId(val)}
+                        />
                       </Show>
 
                       <select
                         value={statusOp()}
                         onChange={(e) => setStatusOp(e.currentTarget.value as "keep" | "activate" | "deactivate" | "archive" | "restore")}
-                        class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5"
+                        class="h-9 w-full rounded-[8px] border border-zinc-300 bg-white px-2.5"
                       >
                         <option value="keep">Manter situação atual</option>
                         <option value="activate">Ativar na loja pública</option>
@@ -480,13 +531,13 @@ export function BulkRuleModal(props: {
                     </div>
 
                     {/* Categorias */}
-                    <div class="space-y-2 rounded-lg border border-zinc-200 p-3.5 text-xs md:col-span-2">
+                    <div class="space-y-2 rounded-[10px] border border-zinc-200 p-3.5 text-xs md:col-span-2">
                       <div class="flex flex-wrap items-center justify-between gap-2">
                         <p class="font-bold text-zinc-900">Categorias múltiplas</p>
                         <select
                           value={categoryOp()}
                           onChange={(e) => setCategoryOp(e.currentTarget.value as "keep" | "add" | "remove" | "replace")}
-                          class="h-8 rounded-md border border-zinc-300 bg-white px-2.5"
+                          class="h-8 rounded-[8px] border border-zinc-300 bg-white px-2.5"
                         >
                           <option value="keep">Manter categorias atuais</option>
                           <option value="add">Adicionar selecionadas</option>
@@ -495,21 +546,16 @@ export function BulkRuleModal(props: {
                         </select>
                       </div>
                       <Show when={categoryOp() !== "keep"}>
-                        <div class="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto pt-1">
-                          <For each={props.categories}>
-                            {(cat) => (
-                              <label class="inline-flex cursor-pointer items-center gap-1.5 rounded border border-zinc-200 px-2 py-1 text-[11px]">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedCategoryIds().includes(cat.id)}
-                                  onChange={() => toggleCategoryId(cat.id)}
-                                  class="accent-[#93509e]"
-                                />
-                                {cat.name}
-                              </label>
-                            )}
-                          </For>
-                        </div>
+                        <AdminMultiCombobox
+                          label="Selecionar categorias"
+                          selectedValues={selectedCategoryIds().map(String)}
+                          options={props.categories.map((c) => ({
+                            value: String(c.id),
+                            label: c.name,
+                          }))}
+                          onToggleValue={(val) => toggleCategoryId(Number(val))}
+                          onClearAll={() => setSelectedCategoryIds([])}
+                        />
                       </Show>
                     </div>
                   </Show>
@@ -601,69 +647,7 @@ export function BulkRuleModal(props: {
                 </div>
               )}
             </Show>
-          </div>
-
-          <div class="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200 bg-white px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-            <button
-              type="button"
-              onClick={() => props.onClose()}
-              class="rounded-md border border-zinc-300 px-3.5 py-2 text-xs font-semibold text-zinc-700"
-            >
-              Fechar
-            </button>
-            <div class="flex flex-wrap gap-2">
-              <Show
-                when={preview()}
-                fallback={
-                  <button
-                    type="button"
-                    disabled={busy()}
-                    onClick={() => void generatePreview()}
-                    class="rounded-md bg-[#93509e] px-4 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
-                  >
-                    {busy() ? "Calculando..." : "Visualizar prévia"}
-                  </button>
-                }
-              >
-                {(p) => (
-                  <>
-                    <Show when={conflicts().length > 0}>
-                      <button
-                        type="button"
-                        disabled={busy()}
-                        onClick={() => void commit(false, true)}
-                        class="rounded-md border border-[#93509e] px-3.5 py-2 text-xs font-bold text-[#93509e] hover:bg-purple-50"
-                      >
-                        Aplicar com saldo atualizado
-                      </button>
-                    </Show>
-                    <Show when={p().summary.invalid_count > 0 && p().summary.valid_count > 0}>
-                      <button
-                        type="button"
-                        disabled={busy()}
-                        onClick={() => void commit(true, false)}
-                        class="rounded-md bg-[#93509e] px-4 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
-                      >
-                        Aplicar apenas os {p().summary.valid_count} válidos
-                      </button>
-                    </Show>
-                    <Show when={p().summary.invalid_count === 0}>
-                      <button
-                        type="button"
-                        disabled={busy()}
-                        onClick={() => void commit(false, false)}
-                        class="rounded-md bg-[#93509e] px-4 py-2 text-xs font-bold text-white hover:bg-[#7c3f87] disabled:opacity-60"
-                      >
-                        {busy() ? "Aplicando..." : `Confirmar ${p().summary.valid_count} alterações`}
-                      </button>
-                    </Show>
-                  </>
-                )}
-              </Show>
-            </div>
-          </div>
-        </div>
       </div>
-    </Show>
+    </AdminModal>
   );
 }

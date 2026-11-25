@@ -1,15 +1,24 @@
 import { Link, createFileRoute } from "@tanstack/solid-router";
-import ArrowUpRight from "lucide-solid/icons/arrow-up-right";
-import Box from "lucide-solid/icons/box";
-import CreditCard from "lucide-solid/icons/credit-card";
 import AlertTriangle from "lucide-solid/icons/shield-exclamation-point";
-import TrendingUp from "lucide-solid/icons/trending-up";
+import ArrowRight from "lucide-solid/icons/arrow-right";
+import Boxes from "lucide-solid/icons/boxes";
+import Calendar from "lucide-solid/icons/calendar";
+import Clock from "lucide-solid/icons/clock";
+import ShoppingBag from "lucide-solid/icons/shopping-bag";
 import { For, Show, createMemo, createResource, createSignal } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
 import { AdminB2bMetricsSection } from "../../../features/admin/AdminB2bMetricsSection";
 import { AdminTodayWorkPanel } from "../../../features/admin/AdminTodayWorkPanel";
 import { ProfitBreakdownDrawer } from "../../../features/admin/ProfitBreakdownDrawer";
-import { formatBrlSigned, formatMarginPercentage } from "../../../features/admin/profit-math";
+import {
+  AdminButton,
+  AdminCard,
+  AdminMetricCard,
+} from "../../../features/admin/ui";
+import {
+  formatBrlSigned,
+  formatMarginPercentage,
+} from "../../../features/admin/profit-math";
 import { hasPermission } from "../../../security/permissions";
 import { session } from "../../../security/session";
 import {
@@ -20,15 +29,6 @@ import {
   AdminBarChart,
   type TopProductItem,
 } from "../../../features/admin/components/charts/AdminBarChart";
-import {
-  AdminDonutChart,
-  type DonutSegment,
-} from "../../../features/admin/components/charts/AdminDonutChart";
-import {
-  AdminFunnelChart,
-  type FunnelStep,
-} from "../../../features/admin/components/charts/AdminFunnelChart";
-import { AdminSparkline } from "../../../features/admin/components/charts/AdminSparkline";
 import { api } from "../../../lib/api";
 import { formatCents, orderStatusLabel } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
@@ -44,12 +44,24 @@ export const Route = createFileRoute("/_authenticated/admin/")({
   component: AdminDashboardPage,
 });
 
+interface ProfitComparison {
+  previous_from: string;
+  previous_to: string;
+  has_prior_data: boolean;
+  previous_products_revenue_cents: number;
+  previous_cmv_cents: number;
+  previous_gross_profit_cents: number;
+  revenue_delta_pct: number | null;
+  cmv_delta_pct: number | null;
+  profit_delta_pct: number | null;
+}
+
 interface DashboardSummary {
   kpis: {
     sales_today_cents: number;
     sales_7d_cents: number;
     sales_30d_cents: number;
-    growth_7d_pct?: number;
+    growth_7d_pct?: number | null;
     paid_orders_30d: number;
     avg_ticket_cents: number;
     pending_payment_count: number;
@@ -84,13 +96,8 @@ interface DashboardSummary {
     total_desired_qty: number;
   }>;
   daily_sales_30d?: DailySalesPoint[];
+  daily_sales_period?: DailySalesPoint[];
   top_products?: TopProductItem[];
-  payment_methods?: {
-    method: string;
-    label: string;
-    count: number;
-    total_cents: number;
-  }[];
   orders_by_status: Record<string, { count: number; total_cents: number }>;
   low_stock_variants: {
     id: number;
@@ -109,13 +116,6 @@ interface DashboardSummary {
     status: string;
     created_at: string;
   }[];
-  funnel_30d: {
-    page_view: number;
-    add_to_cart: number;
-    begin_checkout: number;
-    purchase_created: number;
-    purchase_paid: number;
-  };
   financial_summary?: {
     period: {
       from: string;
@@ -141,6 +141,7 @@ interface DashboardSummary {
       missing_cost_units_count: number;
       label: string;
     };
+    comparison?: ProfitComparison | null;
   };
   inventory_valuation?: {
     label: string;
@@ -156,18 +157,49 @@ interface DashboardSummary {
   };
 }
 
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86400 * 1000).toISOString().slice(0, 10);
+}
+
+function formatDeltaLabel(delta: number | null | undefined): string | null {
+  if (delta === null || delta === undefined || !Number.isFinite(delta)) {
+    return null;
+  }
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(1).replace(".", ",")}%`;
+}
+
 function AdminDashboardPage() {
   const todayStr = new Date().toISOString().slice(0, 10);
-  const thirtyAgoStr = new Date(Date.now() - 29 * 86400 * 1000)
-    .toISOString()
-    .slice(0, 10);
-  const [profitFrom, setProfitFrom] = createSignal(thirtyAgoStr);
+  const [preset, setPreset] = createSignal<"today" | "7d" | "30d" | "custom">(
+    "30d",
+  );
+  const [profitFrom, setProfitFrom] = createSignal(isoDaysAgo(29));
   const [profitTo, setProfitTo] = createSignal(todayStr);
-  const [drillMode, setDrillMode] = createSignal<"sales" | "inventory" | null>(null);
-  const [drillFilter, setDrillFilter] = createSignal<"all" | "missing_cost">("all");
+  const [drillMode, setDrillMode] = createSignal<"sales" | "inventory" | null>(
+    null,
+  );
+  const [drillFilter, setDrillFilter] = createSignal<"all" | "missing_cost">(
+    "all",
+  );
+  const [opsTab, setOpsTab] = createSignal<"orders" | "today" | "b2b">(
+    "orders",
+  );
 
   const canViewProfit = () =>
     hasPermission(session.user()?.permissions ?? [], "reports.profit.view");
+
+  function applyPreset(next: "today" | "7d" | "30d") {
+    setPreset(next);
+    setProfitTo(todayStr);
+    if (next === "today") {
+      setProfitFrom(todayStr);
+    } else if (next === "7d") {
+      setProfitFrom(isoDaysAgo(6));
+    } else {
+      setProfitFrom(isoDaysAgo(29));
+    }
+  }
 
   const [summary, { refetch }] = createResource(
     () => ({ from: profitFrom(), to: profitTo() }),
@@ -180,400 +212,409 @@ function AdminDashboardPage() {
     },
   );
 
-  const [donutTab, setDonutTab] = createSignal<"status" | "payments">("status");
+  const periodFilterControls = (
+    <div class="flex flex-wrap items-center gap-1.5 text-xs">
+      <div
+        role="group"
+        aria-label="Atalhos de período"
+        class="inline-flex rounded-[8px] border border-zinc-200 bg-zinc-50 p-0.5"
+      >
+        <button
+          type="button"
+          onClick={() => applyPreset("today")}
+          class={`rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors ${
+            preset() === "today"
+              ? "bg-white font-semibold text-[#62298d] shadow-2xs"
+              : "text-zinc-600 hover:text-zinc-900"
+          }`}
+        >
+          Hoje
+        </button>
+        <button
+          type="button"
+          onClick={() => applyPreset("7d")}
+          class={`rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors ${
+            preset() === "7d"
+              ? "bg-white font-semibold text-[#62298d] shadow-2xs"
+              : "text-zinc-600 hover:text-zinc-900"
+          }`}
+        >
+          7 dias
+        </button>
+        <button
+          type="button"
+          onClick={() => applyPreset("30d")}
+          class={`rounded-[6px] px-2.5 py-1 text-xs font-medium transition-colors ${
+            preset() === "30d"
+              ? "bg-white font-semibold text-[#62298d] shadow-2xs"
+              : "text-zinc-600 hover:text-zinc-900"
+          }`}
+        >
+          30 dias
+        </button>
+      </div>
+      <div class="flex max-w-full flex-wrap items-center gap-1">
+        <Calendar class="hidden h-3.5 w-3.5 text-zinc-400 sm:block" />
+        <input
+          type="date"
+          aria-label="Data inicial de vendas"
+          value={profitFrom()}
+          onInput={(e) => {
+            setPreset("custom");
+            setProfitFrom(e.currentTarget.value);
+          }}
+          class="h-8 min-w-0 max-w-full rounded-[8px] border border-zinc-300 bg-white px-2 text-xs text-zinc-800 focus:border-[#93509e] focus:outline-none"
+        />
+        <span class="text-zinc-400">–</span>
+        <input
+          type="date"
+          aria-label="Data final de vendas"
+          value={profitTo()}
+          onInput={(e) => {
+            setPreset("custom");
+            setProfitTo(e.currentTarget.value);
+          }}
+          class="h-8 min-w-0 max-w-full rounded-[8px] border border-zinc-300 bg-white px-2 text-xs text-zinc-800 focus:border-[#93509e] focus:outline-none"
+        />
+      </div>
+    </div>
+  );
 
-  // Prepare donut segments for order statuses
-  const orderStatusSegments = createMemo<DonutSegment[]>(() => {
+  const realPendencies = createMemo(() => {
     const d = summary();
-    if (!d || !d.orders_by_status) return [];
+    if (!d) return [];
+    const items: Array<{
+      id: string;
+      label: string;
+      detail: string;
+      count: number;
+      to: "/admin/pedidos" | "/admin/produtos";
+      search: Record<string, string>;
+      tone: "warning" | "danger" | "brand";
+    }> = [];
 
-    const statusColors: Record<string, string> = {
-      paid: "#10b981",
-      preparing: "#3b82f6",
-      shipped: "#8b5cf6",
-      delivered: "#059669",
-      pending_payment: "#f59e0b",
-      cancelled: "#ef4444",
-      expired: "#71717a",
-    };
-
-    return Object.entries(d.orders_by_status).map(([status, info]) => ({
-      id: status,
-      label: orderStatusLabel(status),
-      value: info.count,
-      cents: info.total_cents,
-      color: statusColors[status] || "#93509e",
-    }));
-  });
-
-  // Prepare donut segments for payment methods
-  const paymentMethodSegments = createMemo<DonutSegment[]>(() => {
-    const d = summary();
-    if (!d || !d.payment_methods) return [];
-
-    const colors = ["#10b981", "#93509e", "#3b82f6", "#f59e0b"];
-
-    return d.payment_methods.map((p, idx) => ({
-      id: p.method,
-      label: p.label,
-      value: p.count,
-      cents: p.total_cents,
-      color: colors[idx % colors.length],
-    }));
-  });
-
-  // Prepare conversion funnel steps
-  const funnelSteps = createMemo<FunnelStep[]>(() => {
-    const d = summary();
-    if (!d || !d.funnel_30d) return [];
-
-    const f = d.funnel_30d;
-    return [
-      {
-        id: "views",
-        label: "Visualizações de Produtos",
-        count: Math.max(f.page_view, 1250),
-        color: "#93509e",
-      },
-      {
-        id: "cart",
-        label: "Adições ao Carrinho",
-        count: Math.max(f.add_to_cart, 380),
-        color: "#a855f7",
-      },
-      {
-        id: "checkout",
-        label: "Início de Checkout",
-        count: Math.max(f.begin_checkout, 190),
-        color: "#6366f1",
-      },
-      {
-        id: "paid",
-        label: "Pedidos Concluídos & Pagos",
-        count: f.purchase_paid || d.kpis.paid_orders_30d || 100,
-        color: "#10b981",
-      },
-    ];
+    if (d.kpis.to_pack_count > 0) {
+      items.push({
+        id: "pack",
+        label: "Pedidos pagos aguardando envio",
+        detail: "Ir para expedição",
+        count: d.kpis.to_pack_count,
+        to: "/admin/pedidos",
+        search: { filter: "ship_today" },
+        tone: "brand",
+      });
+    }
+    if ((d.low_stock_variants?.length ?? 0) > 0) {
+      items.push({
+        id: "low_stock",
+        label: "SKUs com estoque baixo ou esgotado",
+        detail: "Ajustar no catálogo",
+        count: d.low_stock_variants.length,
+        to: "/admin/produtos",
+        search: { availability: "low_stock" },
+        tone: "danger",
+      });
+    }
+    if (d.kpis.pending_payment_count > 0) {
+      items.push({
+        id: "pending_pay",
+        label: "Pedidos aguardando pagamento",
+        detail: "Acompanhar cobrança",
+        count: d.kpis.pending_payment_count,
+        to: "/admin/pedidos",
+        search: { status: "pending_payment" },
+        tone: "warning",
+      });
+    }
+    if (d.kpis.pending_restock_count > 0) {
+      items.push({
+        id: "restock",
+        label: "Avisos de cliente aguardando reposição",
+        detail: "Ver solicitações",
+        count: d.kpis.pending_restock_count,
+        to: "/admin/produtos",
+        search: { view: "avisos" },
+        tone: "brand",
+      });
+    }
+    if (d.kpis.pending_reviews_count > 0) {
+      items.push({
+        id: "reviews",
+        label: "Avaliações aguardando moderação",
+        detail: "Revisar comentários",
+        count: d.kpis.pending_reviews_count,
+        to: "/admin/produtos",
+        search: { view: "avaliacoes" },
+        tone: "warning",
+      });
+    }
+    return items;
   });
 
   return (
     <AdminLayout
       title="Visão Geral da Operação"
-      subtitle="Indicadores em tempo real de vendas, estoque, funil e expedição"
       permission="dashboard.view"
+      headerActions={periodFilterControls}
     >
-      <Show when={summary.loading}>
-        <div class="space-y-6">
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <For each={[1, 2, 3, 4]}>
-              {() => <div class="h-32 animate-pulse rounded-2xl bg-white" />}
+      <Show when={summary.loading && !summary()}>
+        <div class="space-y-4">
+          <div class="grid gap-4 md:grid-cols-3">
+            <For each={[1, 2, 3]}>
+              {() => <div class="h-28 animate-pulse rounded-[12px] bg-white" />}
             </For>
           </div>
-          <div class="h-72 animate-pulse rounded-2xl bg-white" />
+          <div class="h-64 animate-pulse rounded-[12px] bg-white" />
         </div>
       </Show>
 
       <Show when={summary.error}>
-        <div class="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          Não foi possível carregar os indicadores da operação.{" "}
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            class="font-bold underline"
-          >
-            Tentar novamente
-          </button>
-        </div>
+        <AdminCard>
+          <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-red-800">
+            <span>Não foi possível carregar os indicadores deste período.</span>
+            <AdminButton variant="secondary" size="sm" onClick={() => void refetch()}>
+              Tentar novamente
+            </AdminButton>
+          </div>
+        </AdminCard>
       </Show>
 
       <Show when={summary()}>
         {(d) => {
-          const sparkData = createMemo(() =>
-            (d().daily_sales_30d || []).slice(-10).map((p) => p.sales_cents),
-          );
+          const chartPoints = () =>
+            d().daily_sales_period?.length
+              ? d().daily_sales_period!
+              : d().daily_sales_30d || [];
 
           return (
             <div class="space-y-6">
-              <AdminTodayWorkPanel onDataChanged={() => void refetch()} />
-
-              {/* Top KPI Cards with Sparklines & Deltas */}
-              <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {/* KPI 1: Vendas Hoje */}
-                <div class="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs transition-all hover:shadow-md">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold uppercase tracking-wider text-zinc-500">
-                      Vendas Hoje
-                    </span>
-                    <span class="rounded-full bg-purple-50 p-2 text-[#93509e]">
-                      <TrendingUp class="size-4" />
-                    </span>
-                  </div>
-                  <div class="mt-2 flex items-baseline justify-between">
-                    <p class="text-2xl font-black text-zinc-900">
-                      {formatCents(d().kpis.sales_today_cents)}
-                    </p>
-                    <AdminSparkline
-                      data={sparkData()}
-                      color="#93509e"
-                      width={80}
-                      height={28}
+              {/* FIRST FOLD: Financial Performance (3 aligned cards) + Current Inventory Valuation ("Posição atual") */}
+              <Show
+                when={canViewProfit() && d().financial_summary}
+                fallback={
+                  <section
+                    aria-label="Indicadores operacionais"
+                    class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                  >
+                    <AdminMetricCard
+                      label="Vendas hoje"
+                      value={formatCents(d().kpis.sales_today_cents)}
+                      footer={`Últimos 7 dias: ${formatCents(d().kpis.sales_7d_cents)}`}
                     />
-                  </div>
-                  <div class="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2 text-xs text-zinc-500">
-                    <span>Últimos 7 dias</span>
-                    <span class="font-bold text-zinc-800">
-                      {formatCents(d().kpis.sales_7d_cents)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* KPI 2: Faturamento 30 Dias */}
-                <div class="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs transition-all hover:shadow-md">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold uppercase tracking-wider text-zinc-500">
-                      Faturamento 30D
-                    </span>
-                    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                      <ArrowUpRight class="size-3" />+
-                      {d().kpis.growth_7d_pct ?? 15.4}%
-                    </span>
-                  </div>
-                  <div class="mt-2 flex items-baseline justify-between">
-                    <p class="text-2xl font-black text-[#93509e]">
-                      {formatCents(d().kpis.sales_30d_cents)}
-                    </p>
-                    <AdminSparkline
-                      data={sparkData()}
-                      color="#10b981"
-                      width={80}
-                      height={28}
+                    <AdminMetricCard
+                      label="Faturamento 30 dias"
+                      value={formatCents(d().kpis.sales_30d_cents)}
+                      badge={
+                        <Show when={formatDeltaLabel(d().kpis.growth_7d_pct)}>
+                          {(lbl) => (
+                            <span class="adm-tabular rounded-[6px] bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
+                              {lbl()} vs 7d ant.
+                            </span>
+                          )}
+                        </Show>
+                      }
+                      footer={`${d().kpis.paid_orders_30d} pedidos pagos`}
                     />
-                  </div>
-                  <div class="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2 text-xs text-zinc-500">
-                    <span>Pedidos pagos</span>
-                    <span class="font-bold text-zinc-800">
-                      {d().kpis.paid_orders_30d} pedidos
-                    </span>
-                  </div>
-                </div>
-
-                {/* KPI 3: Ticket Médio */}
-                <div class="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs transition-all hover:shadow-md">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold uppercase tracking-wider text-zinc-500">
-                      Ticket Médio
-                    </span>
-                    <span class="rounded-full bg-blue-50 p-2 text-blue-600">
-                      <CreditCard class="size-4" />
-                    </span>
-                  </div>
-                  <div class="mt-2 flex items-baseline justify-between">
-                    <p class="text-2xl font-black text-zinc-900">
-                      {formatCents(d().kpis.avg_ticket_cents)}
-                    </p>
-                    <AdminSparkline
-                      data={[8500, 9200, 8900, 9951, 10200]}
-                      color="#3b82f6"
-                      width={80}
-                      height={28}
+                    <AdminMetricCard
+                      label="Ticket médio"
+                      value={
+                        d().kpis.paid_orders_30d > 0
+                          ? formatCents(d().kpis.avg_ticket_cents)
+                          : "Sem dados no período"
+                      }
+                      footer={`${d().kpis.pending_payment_count} aguardando pagamento`}
                     />
-                  </div>
-                  <div class="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2 text-xs text-zinc-500">
-                    <span>Aguardando pagamento</span>
-                    <span class="font-bold text-amber-600">
-                      {d().kpis.pending_payment_count} pedidos
-                    </span>
-                  </div>
-                </div>
+                    <AdminMetricCard
+                      label="Para separar e enviar"
+                      value={`${d().kpis.to_pack_count} pedido(s)`}
+                      highlightTone={d().kpis.to_pack_count > 0 ? "brand" : "default"}
+                      footer={`${d().low_stock_variants.length} SKUs em alerta`}
+                    />
+                  </section>
+                }
+              >
+                {(fs) => {
+                  const hasPeriodSales = () =>
+                    fs().kpis.total_units_sold > 0 ||
+                    fs().kpis.products_revenue_cents !== 0;
+                  const cmp = () => fs().comparison;
+                  const revDelta = () => formatDeltaLabel(cmp()?.revenue_delta_pct);
+                  const cmvDelta = () => formatDeltaLabel(cmp()?.cmv_delta_pct);
+                  const profitDelta = () => formatDeltaLabel(cmp()?.profit_delta_pct);
 
-                {/* KPI 4: Fila Operacional & Expedição */}
-                <div class="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs transition-all hover:shadow-md">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold uppercase tracking-wider text-zinc-500">
-                      Fila de Expedição
-                    </span>
-                    <span class="rounded-full bg-amber-50 p-2 text-amber-700">
-                      <Box class="size-4" />
-                    </span>
-                  </div>
-                  <div class="mt-2 flex items-baseline justify-between">
-                    <p class="text-2xl font-black text-zinc-900">
-                      {d().kpis.to_pack_count}{" "}
-                      <span class="text-xs font-bold text-zinc-500">
-                        para separar
-                      </span>
-                    </p>
-                    <Link
-                      to="/admin/pedidos"
-                      class="rounded-lg bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white transition-all hover:bg-zinc-800"
+                  return (
+                    <section
+                      aria-label="Resultado de vendas e custo"
+                      class="space-y-4"
                     >
-                      Ver fila →
-                    </Link>
-                  </div>
-                  <div class="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2 text-xs text-zinc-500">
-                    <span>Estoque baixo</span>
-                    <Link
-                      to="/admin/produtos"
-                      class="font-bold text-amber-600 hover:underline"
-                    >
-                      {d().low_stock_variants.length} itens em alerta
-                    </Link>
-                  </div>
-                </div>
-              </section>
-
-              {/* Financial Gross Profit & Cost Section (RBAC restricted) */}
-              <Show when={canViewProfit() && d().financial_summary}>
-                {(fs) => (
-                  <section class="space-y-4 rounded-2xl border border-zinc-200/80 bg-white p-5">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h2 class="text-sm font-bold text-zinc-900">
-                          Vendas, Custo da Mercadoria Vendida e Lucro Bruto
-                        </h2>
-                        <p class="text-xs text-zinc-500">
-                          Regra de reconhecimento: {fs().period.sale_recognition_rule}. Sem lucro líquido operacional (taxas/anúncios/impostos à parte).
-                        </p>
-                      </div>
-                      <div class="flex flex-wrap items-center gap-2 text-xs">
-                        <input
-                          type="date"
-                          aria-label="Data inicial de vendas"
-                          value={profitFrom()}
-                          onInput={(e) => setProfitFrom(e.currentTarget.value)}
-                          class="h-8 rounded-md border border-zinc-300 px-2.5"
-                        />
-                        <span class="text-zinc-400">até</span>
-                        <input
-                          type="date"
-                          aria-label="Data final de vendas"
-                          value={profitTo()}
-                          onInput={(e) => setProfitTo(e.currentTarget.value)}
-                          class="h-8 rounded-md border border-zinc-300 px-2.5"
-                        />
-                      </div>
-                    </div>
-
-                    <div class="grid gap-4 lg:grid-cols-4">
-                      {/* 1. Receita de produtos */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrillFilter("all");
-                          setDrillMode("sales");
-                        }}
-                        class="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 text-left transition-colors hover:border-[#93509e] hover:bg-purple-50/30"
-                      >
-                        <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                          Receita de produtos
-                        </p>
-                        <p class="mt-1.5 text-2xl font-black tabular-nums text-zinc-900">
-                          {formatCents(fs().kpis.products_revenue_cents)}
-                        </p>
-                        <p class="mt-1 text-[11px] text-zinc-500">
-                          Sem frete · após cupons, atacado e devoluções · Ver itens →
-                        </p>
-                      </button>
-
-                      {/* 2. Custo da mercadoria vendida */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrillFilter("all");
-                          setDrillMode("sales");
-                        }}
-                        class="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 text-left transition-colors hover:border-[#93509e] hover:bg-purple-50/30"
-                      >
-                        <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                          Custo da mercadoria vendida
-                        </p>
-                        <p class="mt-1.5 text-2xl font-black tabular-nums text-zinc-900">
-                          {formatCents(fs().kpis.cmv_cents)}
-                        </p>
-                        <p class="mt-1 text-[11px] text-zinc-500">
-                          Custo unitário histórico ({fs().kpis.covered_units_sold} un. cobertas) →
-                        </p>
-                      </button>
-
-                      {/* 3. Lucro bruto + Margem bruta + cobertura transparente */}
-                      <div class="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
-                        <button
-                          type="button"
+                      {/* Three primary aligned financial cards */}
+                      <div class="grid gap-4 md:grid-cols-3">
+                        <AdminMetricCard
+                          label="Receita de produtos"
+                          value={
+                            hasPeriodSales()
+                              ? formatCents(fs().kpis.products_revenue_cents)
+                              : "Sem dados no período"
+                          }
+                          badge={
+                            <Show when={cmp()?.has_prior_data && revDelta()}>
+                              {(lbl) => (
+                                <span class="adm-tabular rounded-[6px] bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
+                                  {lbl()} vs ant.
+                                </span>
+                              )}
+                            </Show>
+                          }
                           onClick={() => {
                             setDrillFilter("all");
                             setDrillMode("sales");
                           }}
-                          class="w-full text-left"
-                        >
-                          <div class="flex items-center justify-between gap-2">
-                            <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                              Lucro bruto
-                            </p>
-                            <span class="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[#62298d]">
-                              Margem: {formatMarginPercentage(fs().kpis.gross_margin_pct)}
-                            </span>
-                          </div>
-                          <p
-                            class={`mt-1.5 text-2xl font-black tabular-nums ${
-                              fs().kpis.gross_profit_cents < 0
-                                ? "text-red-700"
-                                : "text-[#93509e]"
-                            }`}
-                          >
-                            {formatBrlSigned(fs().kpis.gross_profit_cents)}
-                          </p>
-                        </button>
-                        <Show
-                          when={fs().coverage.is_partial}
-                          fallback={
-                            <p class="mt-1 text-[11px] text-zinc-500">
-                              {fs().coverage.label}
-                            </p>
+                          actionLabel="Ver itens"
+                          footer={
+                            hasPeriodSales()
+                              ? "Sem frete · após cupons e devoluções"
+                              : `${fs().period.from} até ${fs().period.to}`
                           }
-                        >
+                        />
+
+                        <AdminMetricCard
+                          label="Custo da mercadoria vendida"
+                          value={
+                            hasPeriodSales()
+                              ? formatCents(fs().kpis.cmv_cents)
+                              : "Sem dados no período"
+                          }
+                          badge={
+                            <Show when={cmp()?.has_prior_data && cmvDelta()}>
+                              {(lbl) => (
+                                <span class="adm-tabular rounded-[6px] bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
+                                  {lbl()} vs ant.
+                                </span>
+                              )}
+                            </Show>
+                          }
+                          onClick={() => {
+                            setDrillFilter("all");
+                            setDrillMode("sales");
+                          }}
+                          actionLabel="Conferir CMV"
+                          footer={
+                            hasPeriodSales()
+                              ? `${fs().kpis.covered_units_sold} un. com custo histórico`
+                              : "Custo reconhecido no pagamento"
+                          }
+                        />
+
+                        <div class="adm-card-interactive flex flex-col justify-between rounded-[12px] border border-zinc-200/90 bg-white p-4 hover:border-[#e4c6ea] hover:bg-[#fcfafd] sm:p-5">
                           <button
                             type="button"
                             onClick={() => {
-                              setDrillFilter("missing_cost");
+                              setDrillFilter("all");
                               setDrillMode("sales");
                             }}
-                            class="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 underline hover:text-amber-950"
+                            class="w-full text-left"
                           >
-                            {fs().coverage.label}
-                          </button>
-                        </Show>
-                      </div>
-
-                      {/* Valor do estoque a custo (separado e rotulado como Posição atual) */}
-                      <Show when={d().inventory_valuation}>
-                        {(inv) => (
-                          <button
-                            type="button"
-                            onClick={() => setDrillMode("inventory")}
-                            class="rounded-xl border border-[#DFC2E3] bg-[#FCF8FD] p-4 text-left transition-colors hover:border-[#93509e]"
-                          >
-                            <div class="flex items-center justify-between gap-2">
-                              <p class="text-[11px] font-bold uppercase tracking-wide text-zinc-600">
-                                Valor do estoque a custo
+                            <div class="flex items-start justify-between gap-2">
+                              <p class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                                Lucro bruto
                               </p>
-                              <span class="rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-[#62298d] border border-[#DFC2E3]">
-                                {inv().label}
+                              <span class="adm-tabular rounded-[6px] bg-[#f5ebf7] px-2 py-0.5 text-[11px] font-semibold text-[#62298d]">
+                                Margem: {formatMarginPercentage(fs().kpis.gross_margin_pct)}
                               </span>
                             </div>
-                            <p class="mt-1.5 text-2xl font-black tabular-nums text-zinc-900">
-                              {formatCents(inv().total_cost_cents)}
-                            </p>
-                            <p class="mt-1 text-[11px] text-zinc-600">
-                              {inv().is_partial
-                                ? `${inv().coverage_label} · Abrir pendências →`
-                                : `${inv().valued_units} un. em estoque avaliadas →`}
-                            </p>
+
+                            <div class="mt-2 flex items-baseline justify-between gap-2">
+                              <p
+                                class={`adm-tabular text-2xl font-bold tracking-tight ${
+                                  !hasPeriodSales()
+                                    ? "text-zinc-900"
+                                    : fs().kpis.gross_profit_cents < 0
+                                      ? "text-red-700"
+                                      : "text-[#62298d]"
+                                }`}
+                              >
+                                {hasPeriodSales()
+                                  ? formatBrlSigned(fs().kpis.gross_profit_cents)
+                                  : "Sem dados no período"}
+                              </p>
+                              <Show when={cmp()?.has_prior_data && profitDelta()}>
+                                {(lbl) => (
+                                  <span class="adm-tabular text-xs font-semibold text-zinc-600">
+                                    {lbl()} vs ant.
+                                  </span>
+                                )}
+                              </Show>
+                            </div>
                           </button>
+
+                          <div class="mt-2.5 flex items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs">
+                            <Show
+                              when={fs().coverage.is_partial}
+                              fallback={
+                                <span class="text-zinc-500">
+                                  {fs().coverage.label}
+                                </span>
+                              }
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDrillFilter("missing_cost");
+                                  setDrillMode("sales");
+                                }}
+                                class="font-semibold text-amber-800 underline hover:text-amber-950"
+                              >
+                                {fs().coverage.label}
+                              </button>
+                            </Show>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Separate Temporal Block: Inventory Cost Valuation ("Posição atual") */}
+                      <Show when={d().inventory_valuation}>
+                        {(inv) => (
+                          <div class="flex flex-wrap items-center justify-between gap-4 rounded-[12px] border border-zinc-200/90 bg-white px-4 py-3.5 sm:px-5">
+                            <div class="flex min-w-0 flex-wrap items-center gap-3">
+                              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#f5ebf7] text-[#62298d]">
+                                <Boxes class="h-4 w-4" />
+                              </div>
+                              <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                                    Valor do estoque a custo
+                                  </h2>
+                                  <span class="rounded-[6px] border border-[#e4c6ea] bg-[#f5ebf7] px-2 py-0.5 text-[10px] font-semibold text-[#62298d]">
+                                    {inv().label}
+                                  </span>
+                                </div>
+                                <p class="mt-0.5 text-xs text-zinc-500">
+                                  {inv().is_partial
+                                    ? inv().coverage_label
+                                    : `${inv().valued_units} un. avaliadas em estoque atual`}
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setDrillMode("inventory")}
+                              class="adm-btn flex w-full items-center justify-between gap-3 rounded-[8px] px-0 py-1 text-right hover:bg-zinc-50 sm:w-auto sm:justify-end sm:px-2.5 sm:py-1.5"
+                            >
+                              <span class="adm-tabular text-xl font-bold text-zinc-900">
+                                {formatCents(inv().total_cost_cents)}
+                              </span>
+                              <span class="inline-flex items-center gap-1 text-xs font-semibold text-[#62298d]">
+                                Conferir
+                                <ArrowRight class="h-3.5 w-3.5" />
+                              </span>
+                            </button>
+                          </div>
                         )}
                       </Show>
-                    </div>
-                  </section>
-                )}
+                    </section>
+                  );
+                }}
               </Show>
 
               <ProfitBreakdownDrawer
@@ -584,199 +625,258 @@ function AdminDashboardPage() {
                 onClose={() => setDrillMode(null)}
               />
 
-              {/* Main Interactive Revenue Evolution Chart */}
-              <AdminAreaChart
-                data={d().daily_sales_30d || []}
-                title="Evolução de Vendas e Faturamento Líquido"
-                subtitle="Valores diários consolidados de pedidos pagos no período selecionado"
-              />
-
-              {/* Secondary Charts: Status Distribution & Funnel / Top Products */}
-              <div class="grid gap-6 lg:grid-cols-12">
-                {/* Donut Chart: Status / Payment Methods */}
-                <div class="lg:col-span-6 flex flex-col">
-                  <div class="mb-2 flex items-center justify-between">
-                    <div class="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setDonutTab("status")}
-                        class={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                          donutTab() === "status"
-                            ? "bg-[#93509e] text-white"
-                            : "text-zinc-600 hover:text-zinc-900"
-                        }`}
-                      >
-                        Status dos Pedidos
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDonutTab("payments")}
-                        class={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
-                          donutTab() === "payments"
-                            ? "bg-[#93509e] text-white"
-                            : "text-zinc-600 hover:text-zinc-900"
-                        }`}
-                      >
-                        Formas de Pagamento
-                      </button>
+              {/* SECOND FOLD: On mobile renders Pendencies FIRST, then Evolution Chart */}
+              <div class="grid gap-4 lg:grid-cols-12">
+                {/* Operational Pendencies (order-1 on mobile, right column 5 cols on desktop) */}
+                <div class="order-1 lg:order-2 lg:col-span-5">
+                  <AdminCard class="h-full">
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                      <h2 class="text-sm font-bold text-zinc-900">
+                        Pendências da operação
+                      </h2>
+                      <span class="adm-tabular text-xs font-medium text-zinc-500">
+                        {realPendencies().length} fila(s)
+                      </span>
                     </div>
-                  </div>
 
-                  <Show
-                    when={donutTab() === "status"}
-                    fallback={
-                      <AdminDonutChart
-                        title="Formas de Pagamento"
-                        subtitle="Proporção entre PIX, Cartão e Boleto nos últimos 30 dias"
-                        segments={paymentMethodSegments()}
-                        centerLabel="Transações"
-                      />
-                    }
-                  >
-                    <AdminDonutChart
-                      title="Distribuição de Pedidos por Status"
-                      subtitle="Volume e faturamento agrupados pelo estágio de atendimento"
-                      segments={orderStatusSegments()}
-                      centerLabel="Pedidos"
-                    />
-                  </Show>
-                </div>
-
-                {/* Conversion Funnel */}
-                <div class="lg:col-span-6 flex flex-col">
-                  <AdminFunnelChart
-                    title="Funil de Conversão do E-commerce"
-                    subtitle="Trajetória dos clientes desde a navegação até o pagamento aprovado"
-                    steps={funnelSteps()}
-                  />
-                </div>
-              </div>
-
-              {/* Top Products Ranking & Tables Section */}
-              <div class="grid gap-6 lg:grid-cols-12">
-                {/* Top 5 Products Ranking */}
-                <div class="lg:col-span-5 flex flex-col">
-                  <AdminBarChart
-                    title="Top 5 Produtos Mais Vendidos"
-                    subtitle="Produtos com maior faturamento consolidado na loja"
-                    items={d().top_products || []}
-                  />
-                </div>
-
-                {/* Recent Orders Stream */}
-                <div class="lg:col-span-7 flex flex-col rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-xs">
-                  <div class="mb-4 flex items-center justify-between">
-                    <div>
-                      <h3 class="text-base font-bold text-zinc-900">
-                        Últimos Pedidos Recebidos
-                      </h3>
-                      <p class="text-xs text-zinc-500">
-                        Acompanhe as novas vendas em tempo real
-                      </p>
-                    </div>
-                    <Link
-                      to="/admin/pedidos"
-                      class="text-xs font-bold text-[#93509e] hover:underline"
+                    <Show
+                      when={realPendencies().length > 0}
+                      fallback={
+                        <div class="rounded-[8px] border border-zinc-100 bg-zinc-50 p-4 text-center text-xs text-zinc-500">
+                          Nenhuma pendência operacional aberta no momento.
+                        </div>
+                      }
                     >
-                      Ver todos ({d().kpis.paid_orders_30d}) →
-                    </Link>
-                  </div>
-
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs">
-                      <thead class="border-b border-zinc-100 text-zinc-400 font-semibold uppercase">
-                        <tr>
-                          <th class="py-2.5 pr-3">Pedido</th>
-                          <th class="py-2.5 pr-3">Cliente</th>
-                          <th class="py-2.5 pr-3">Status</th>
-                          <th class="py-2.5 text-right">Valor</th>
-                        </tr>
-                      </thead>
-                      <tbody class="divide-y divide-zinc-50">
-                        <For each={d().recent_orders}>
-                          {(ord) => {
-                            const isPaid =
-                              ord.status === "paid" ||
-                              ord.status === "preparing";
-                            return (
-                              <tr class="hover:bg-zinc-50/80 transition-colors">
-                                <td class="py-2.5 pr-3 font-bold text-zinc-900">
-                                  {ord.order_number}
-                                </td>
-                                <td class="py-2.5 pr-3 text-zinc-700">
-                                  {ord.customer_name}
-                                </td>
-                                <td class="py-2.5 pr-3">
+                      <ul class="divide-y divide-zinc-100">
+                        <For each={realPendencies()}>
+                          {(item) => (
+                            <li>
+                              <Link
+                                to={item.to}
+                                search={item.search}
+                                class="flex items-center justify-between gap-3 py-2.5 text-xs transition-colors hover:bg-zinc-50"
+                              >
+                                <span class="flex min-w-0 items-center gap-2.5">
                                   <span
-                                    class={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
-                                      isPaid
-                                        ? "bg-emerald-50 text-emerald-700"
-                                        : ord.status === "shipped"
-                                          ? "bg-purple-50 text-purple-700"
-                                          : ord.status === "pending_payment"
-                                            ? "bg-amber-50 text-amber-700"
-                                            : "bg-zinc-100 text-zinc-700"
+                                    class={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] ${
+                                      item.tone === "danger"
+                                        ? "bg-red-50 text-red-700"
+                                        : item.tone === "warning"
+                                          ? "bg-amber-50 text-amber-800"
+                                          : "bg-[#f5ebf7] text-[#62298d]"
                                     }`}
                                   >
-                                    {orderStatusLabel(ord.status)}
+                                    {item.tone === "danger" ? (
+                                      <AlertTriangle class="h-3.5 w-3.5" />
+                                    ) : item.tone === "warning" ? (
+                                      <Clock class="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ShoppingBag class="h-3.5 w-3.5" />
+                                    )}
                                   </span>
-                                </td>
-                                <td class="py-2.5 text-right font-extrabold text-zinc-900">
-                                  {formatCents(ord.total_cents)}
-                                </td>
-                              </tr>
-                            );
-                          }}
+                                  <span class="min-w-0">
+                                    <span class="block truncate font-semibold text-zinc-900">
+                                      {item.label}
+                                    </span>
+                                    <span class="block text-[11px] text-[#62298d]">
+                                      {item.detail} →
+                                    </span>
+                                  </span>
+                                </span>
+                                <span
+                                  class={`adm-tabular shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+                                    item.tone === "danger"
+                                      ? "bg-red-100 text-red-800"
+                                      : item.tone === "warning"
+                                        ? "bg-amber-100 text-amber-900"
+                                        : "bg-[#f5ebf7] text-[#62298d]"
+                                  }`}
+                                >
+                                  {item.count}
+                                </span>
+                              </Link>
+                            </li>
+                          )}
                         </For>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+                      </ul>
+                    </Show>
 
-              {/* Operational Alert Row: Low Stock Items */}
-              <div class="rounded-2xl border border-amber-200/80 bg-amber-50/40 p-5">
-                <div class="flex items-center justify-between mb-3">
-                  <div class="flex items-center gap-2">
-                    <span class="rounded-full bg-amber-100 p-1.5 text-amber-700">
-                      <AlertTriangle class="size-4" />
-                    </span>
-                    <h3 class="text-sm font-bold text-amber-900">
-                      Alertas de Reposição & Estoque Crítico
-                    </h3>
-                  </div>
-                  <Link
-                    to="/admin/produtos"
-                    class="text-xs font-bold text-amber-800 hover:underline"
-                  >
-                    Gerenciar catálogo completo →
-                  </Link>
-                </div>
-
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <For each={d().low_stock_variants.slice(0, 6)}>
-                    {(v) => (
-                      <div class="flex items-center justify-between rounded-xl border border-amber-200/60 bg-white p-3 shadow-2xs">
-                        <div class="min-w-0 pr-2">
-                          <p class="truncate text-xs font-bold text-zinc-900">
-                            {v.product_name || v.name}
-                          </p>
-                          <p class="text-[10px] text-zinc-500">SKU: {v.sku}</p>
+                    <Show when={d().low_stock_variants.length > 0}>
+                      <div class="mt-3 border-t border-zinc-100 pt-3">
+                        <div class="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                          <span>SKUs em atenção</span>
+                          <Link
+                            to="/admin/produtos"
+                            search={{ availability: "low_stock" }}
+                            class="text-[#62298d] hover:underline"
+                          >
+                            Ver todos
+                          </Link>
                         </div>
-                        <span class="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-extrabold text-amber-800">
-                          {v.available_stock} disp.
-                        </span>
+                        <ul class="space-y-1.5 text-xs">
+                          <For each={d().low_stock_variants.slice(0, 3)}>
+                            {(v) => (
+                              <li class="flex items-center justify-between gap-2">
+                                <span class="min-w-0 truncate text-zinc-700">
+                                  <span class="font-mono text-[11px] text-zinc-500">
+                                    {v.sku}
+                                  </span>{" "}
+                                  · {v.product_name || v.name}
+                                </span>
+                                <span class="adm-tabular shrink-0 font-semibold text-red-700">
+                                  {v.available_stock} un.
+                                </span>
+                              </li>
+                            )}
+                          </For>
+                        </ul>
                       </div>
-                    )}
-                  </For>
+                    </Show>
+                  </AdminCard>
+                </div>
+
+                {/* Evolution Chart (order-2 on mobile, left 7 cols on desktop) */}
+                <div class="order-2 lg:order-1 lg:col-span-7">
+                  <AdminAreaChart
+                    data={chartPoints()}
+                    title="Evolução de faturamento no período"
+                    subtitle="Pedidos confirmados agrupados por dia"
+                  />
                 </div>
               </div>
 
-              <AdminB2bMetricsSection
-                kpis={d().kpis}
-                topDemandedVariants={d().top_demanded_variants}
-                topReplenishmentVariants={d().top_replenishment_variants}
-              />
+              {/* THIRD FOLD: Tabbed Operational Details (avoids stacked walls of cards) */}
+              <div class="space-y-3">
+                <div
+                  role="tablist"
+                  aria-label="Detalhamento operacional"
+                  class="flex flex-wrap gap-1 border-b border-zinc-200 pb-2 text-xs"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={opsTab() === "orders"}
+                    onClick={() => setOpsTab("orders")}
+                    class={`adm-btn rounded-[8px] px-3 py-1.5 font-semibold ${
+                      opsTab() === "orders"
+                        ? "bg-[#f5ebf7] text-[#62298d]"
+                        : "text-zinc-600 hover:bg-white hover:text-zinc-900"
+                    }`}
+                  >
+                    Pedidos recentes & Produtos
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={opsTab() === "today"}
+                    onClick={() => setOpsTab("today")}
+                    class={`adm-btn rounded-[8px] px-3 py-1.5 font-semibold ${
+                      opsTab() === "today"
+                        ? "bg-[#f5ebf7] text-[#62298d]"
+                        : "text-zinc-600 hover:bg-white hover:text-zinc-900"
+                    }`}
+                  >
+                    Tarefas de Hoje
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={opsTab() === "b2b"}
+                    onClick={() => setOpsTab("b2b")}
+                    class={`adm-btn rounded-[8px] px-3 py-1.5 font-semibold ${
+                      opsTab() === "b2b"
+                        ? "bg-[#f5ebf7] text-[#62298d]"
+                        : "text-zinc-600 hover:bg-white hover:text-zinc-900"
+                    }`}
+                  >
+                    Atacado & Demanda de Cores
+                  </button>
+                </div>
+
+                <Show when={opsTab() === "orders"}>
+                  <div class="grid gap-4 lg:grid-cols-12">
+                    <div class="lg:col-span-5">
+                      <AdminBarChart
+                        title="Produtos mais vendidos (30d)"
+                        subtitle="Soma do valor bruto dos itens pagos"
+                        items={d().top_products || []}
+                      />
+                    </div>
+                    <AdminCard class="lg:col-span-7">
+                      <div class="mb-3 flex items-center justify-between gap-2">
+                        <h3 class="text-sm font-bold text-zinc-900">
+                          Últimos pedidos
+                        </h3>
+                        <Link
+                          to="/admin/pedidos"
+                          class="text-xs font-semibold text-[#62298d] hover:underline"
+                        >
+                          Gerenciar pedidos →
+                        </Link>
+                      </div>
+                      <Show
+                        when={d().recent_orders.length > 0}
+                        fallback={
+                          <p class="py-6 text-center text-xs text-zinc-500">
+                            Sem pedidos registrados ainda.
+                          </p>
+                        }
+                      >
+                        <div class="overflow-x-auto">
+                          <table class="w-full text-left text-xs">
+                            <thead class="border-b border-zinc-200 text-[11px] font-semibold uppercase text-zinc-500">
+                              <tr>
+                                <th class="py-2 pr-3">Pedido</th>
+                                <th class="py-2 pr-3">Cliente</th>
+                                <th class="py-2 pr-3">Situação</th>
+                                <th class="py-2 text-right">Valor</th>
+                              </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100">
+                              <For each={d().recent_orders}>
+                                {(ord) => (
+                                  <tr class="hover:bg-zinc-50">
+                                    <td class="py-2.5 pr-3 font-semibold text-zinc-900">
+                                      <Link
+                                        to="/admin/pedidos"
+                                        search={{ order: String(ord.id) }}
+                                        class="hover:text-[#93509e] hover:underline"
+                                      >
+                                        {ord.order_number}
+                                      </Link>
+                                    </td>
+                                    <td class="py-2.5 pr-3 text-zinc-700">
+                                      {ord.customer_name}
+                                    </td>
+                                    <td class="py-2.5 pr-3 text-zinc-600">
+                                      {orderStatusLabel(ord.status)}
+                                    </td>
+                                    <td class="adm-tabular py-2.5 text-right font-semibold text-zinc-900">
+                                      {formatCents(ord.total_cents)}
+                                    </td>
+                                  </tr>
+                                )}
+                              </For>
+                            </tbody>
+                          </table>
+                        </div>
+                      </Show>
+                    </AdminCard>
+                  </div>
+                </Show>
+
+                <Show when={opsTab() === "today"}>
+                  <AdminTodayWorkPanel onDataChanged={() => void refetch()} />
+                </Show>
+
+                <Show when={opsTab() === "b2b"}>
+                  <AdminB2bMetricsSection
+                    kpis={d().kpis}
+                    topDemandedVariants={d().top_demanded_variants}
+                    topReplenishmentVariants={d().top_replenishment_variants}
+                  />
+                </Show>
+              </div>
             </div>
           );
         }}

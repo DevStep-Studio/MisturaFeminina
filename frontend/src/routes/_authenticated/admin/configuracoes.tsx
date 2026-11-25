@@ -7,10 +7,10 @@ import {
   createSignal,
 } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
+import { AdminImageUpload } from "../../../features/admin/ui";
 import { loadStorefrontBootstrap } from "../../../features/storefront/store";
 import type { StoreSettings } from "../../../features/storefront/types";
 import { ApiError, api } from "../../../lib/api";
-import { assetUrl } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/configuracoes")({
@@ -73,20 +73,6 @@ function AdminSettingsPage() {
     const me = integrations()?.find((i) => i.provider === "melhorenvio");
     if (me) setMeEnv(me.environment);
   });
-
-  async function uploadBrandingFile(
-    field: "logo_light_url" | "logo_dark_url" | "favicon_url",
-    file: File,
-  ) {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("folder", "branding");
-    const res = await api<{ data: { path: string } }>("/admin/media/upload", {
-      method: "POST",
-      body: fd,
-    });
-    setForm((prev) => ({ ...prev, [field]: res.data.path }));
-  }
 
   async function saveStore(e: Event) {
     e.preventDefault();
@@ -226,70 +212,36 @@ function AdminSettingsPage() {
             </div>
           </div>
 
-          <div class="grid gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-3">
-            <div>
-              <p class="text-xs font-semibold text-zinc-700">
-                Logo Fundo Claro
-              </p>
-              <Show when={form().logo_light_url}>
-                <img
-                  src={assetUrl(form().logo_light_url)}
-                  alt="Logo claro"
-                  class="mt-2 h-10 object-contain"
-                />
-              </Show>
-              <input
-                type="file"
-                accept="image/*,.svg"
-                onChange={(e) => {
-                  const f = e.currentTarget.files?.[0];
-                  if (f) void uploadBrandingFile("logo_light_url", f);
-                }}
-                class="mt-2 w-full text-xs"
-              />
-            </div>
-            <div>
-              <p class="text-xs font-semibold text-zinc-700">
-                Logo Fundo Escuro
-              </p>
-              <div class="mt-2 inline-block rounded bg-zinc-900 p-1.5">
-                <Show when={form().logo_dark_url}>
-                  <img
-                    src={assetUrl(form().logo_dark_url)}
-                    alt="Logo escuro"
-                    class="h-8 object-contain"
-                  />
-                </Show>
-              </div>
-              <input
-                type="file"
-                accept="image/*,.svg"
-                onChange={(e) => {
-                  const f = e.currentTarget.files?.[0];
-                  if (f) void uploadBrandingFile("logo_dark_url", f);
-                }}
-                class="mt-2 w-full text-xs"
-              />
-            </div>
-            <div>
-              <p class="text-xs font-semibold text-zinc-700">Favicon</p>
-              <Show when={form().favicon_url}>
-                <img
-                  src={assetUrl(form().favicon_url)}
-                  alt="Favicon"
-                  class="mt-2 h-8 w-8 object-contain"
-                />
-              </Show>
-              <input
-                type="file"
-                accept="image/*,.svg,.ico"
-                onChange={(e) => {
-                  const f = e.currentTarget.files?.[0];
-                  if (f) void uploadBrandingFile("favicon_url", f);
-                }}
-                class="mt-2 w-full text-xs"
-              />
-            </div>
+          <div class="grid gap-4 rounded-[12px] border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-3">
+            <AdminImageUpload
+              label="Logo Fundo Claro"
+              folder="branding"
+              previewShape="wide"
+              accept="image/*,.svg"
+              value={form().logo_light_url || ""}
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, logo_light_url: next }))
+              }
+            />
+            <AdminImageUpload
+              label="Logo Fundo Escuro"
+              folder="branding"
+              previewShape="wide"
+              accept="image/*,.svg"
+              value={form().logo_dark_url || ""}
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, logo_dark_url: next }))
+              }
+            />
+            <AdminImageUpload
+              label="Favicon"
+              folder="branding"
+              accept="image/*,.svg,.ico"
+              value={form().favicon_url || ""}
+              onChange={(next) =>
+                setForm((prev) => ({ ...prev, favicon_url: next }))
+              }
+            />
           </div>
 
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
