@@ -63,6 +63,53 @@ export function StoreHeader() {
 
   const settings = () => storefrontStore.settings();
   const categories = () => storefrontStore.bootstrap().menu_categories;
+  const megaMenuColumns = () => {
+    const cats = categories();
+    if (!cats.length) return [];
+    const bySlug = new Map(cats.map((c) => [c.slug, c]));
+
+    const col1Slugs = ["acessorios", "maquinarios"];
+    const col2Slugs = ["alongamento-unhas"];
+    const col3Slugs = [
+      "cuidados-unhas",
+      "decoracao",
+      "esmalte",
+      "esmalte-em-gel",
+    ];
+    const col4Slugs = [
+      "kits",
+      "cilios-e-sobrancelhas",
+      "depilacao",
+      "descartaveis",
+      "higiene-e-esterilizacao",
+    ];
+
+    const used = new Set<string>();
+    const getCats = (slugs: string[]) => {
+      const res: CategoryNode[] = [];
+      for (const s of slugs) {
+        const found = bySlug.get(s);
+        if (found) {
+          res.push(found);
+          used.add(s);
+        }
+      }
+      return res;
+    };
+
+    const col1 = getCats(col1Slugs);
+    const col2 = getCats(col2Slugs);
+    const col3 = getCats(col3Slugs);
+    const col4 = getCats(col4Slugs);
+
+    for (const c of cats) {
+      if (!used.has(c.slug)) {
+        col4.push(c);
+      }
+    }
+
+    return [col1, col2, col3, col4].filter((col) => col.length > 0);
+  };
   const [mobileExpandedCats, setMobileExpandedCats] = createSignal<
     Record<number, boolean>
   >({});
@@ -653,30 +700,36 @@ export function StoreHeader() {
 
               <Show when={activePopover() === "all"}>
                 <div
-                  class="absolute left-4 right-4 top-full z-50 mt-1 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white/98 shadow-[0_20px_48px_-12px_rgba(46,16,73,0.14)] backdrop-blur-md xl:left-6 xl:right-6"
+                  class="absolute left-4 top-full z-50 mt-1 w-[980px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-[0_20px_48px_-12px_rgba(46,16,73,0.18)] backdrop-blur-md"
                   onMouseEnter={() => openPopover("all")}
                   onMouseLeave={scheduleClosePopover}
                 >
-                  <div class="flex items-center justify-between border-b border-zinc-100 bg-[#FAF8FC] px-6 py-3">
-                    <span class="text-[12.5px] font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
+                  <div class="flex items-center justify-between border-b border-zinc-100 bg-[#FAF8FC] px-4 py-2.5">
+                    <span class="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[#2E0C49]">
                       Departamentos
                     </span>
                     <Link
                       to="/categorias"
                       onClick={closeAllMenus}
-                      class="inline-flex items-center gap-1 text-[13.5px] font-semibold text-[#93509e] transition-colors hover:text-[#7c3f87]"
+                      class="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#93509e] transition-colors hover:text-[#7c3f87]"
                     >
                       <span>Ver todas as categorias</span>
-                      <ChevronRight class="size-4" aria-hidden="true" />
+                      <ChevronRight class="size-3.5" aria-hidden="true" />
                     </Link>
                   </div>
-                  <div class="grid grid-cols-3 gap-x-4 gap-y-6 px-5 py-6 xl:grid-cols-6">
-                    <For each={categories()}>
-                      {(cat) => (
-                        <CategoryMegaColumn
-                          category={cat}
-                          onSelect={closeAllMenus}
-                        />
+                  <div class="grid max-h-[min(480px,calc(100vh-140px))] grid-cols-4 gap-x-5 overflow-y-auto p-4">
+                    <For each={megaMenuColumns()}>
+                      {(columnCats) => (
+                        <div class="space-y-4">
+                          <For each={columnCats}>
+                            {(cat) => (
+                              <CategoryMegaColumn
+                                category={cat}
+                                onSelect={closeAllMenus}
+                              />
+                            )}
+                          </For>
+                        </div>
                       )}
                     </For>
                   </div>
@@ -1085,17 +1138,17 @@ function CategoryMegaColumn(props: {
         to="/categoria/$slug"
         params={{ slug: props.category.slug }}
         onClick={props.onSelect}
-        class="mb-2 flex items-center justify-between gap-1.5 border-b border-zinc-100 pb-2 text-[13px] font-bold uppercase tracking-[0.04em] text-[#2E0C49] transition-colors hover:text-[#93509e]"
+        class="mb-1.5 flex items-center justify-between gap-1.5 border-b border-zinc-100 pb-1 text-[12px] font-bold uppercase tracking-[0.05em] text-[#2E0C49] transition-colors hover:text-[#93509e]"
       >
-        <span class="flex min-w-0 items-center gap-2">
+        <span class="flex min-w-0 items-center gap-1.5">
           <span
-            class="size-2 shrink-0 rounded-full bg-[#93509e]"
+            class="size-1.5 shrink-0 rounded-full bg-[#93509e]"
             aria-hidden="true"
           />
-          <span>{props.category.name}</span>
+          <span class="truncate">{props.category.name}</span>
         </span>
         <ChevronRight
-          class="size-3.5 shrink-0 text-zinc-400"
+          class="size-3 shrink-0 text-zinc-400"
           aria-hidden="true"
         />
       </Link>
@@ -1122,16 +1175,16 @@ function CategorySubtreeList(props: {
               to="/categoria/$slug"
               params={{ slug: child.slug }}
               onClick={props.onSelect}
-              class="group flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-[14px] font-medium leading-snug text-[#3D2352] transition-colors hover:bg-[#FAF6FC] hover:text-[#93509e]"
+              class="group flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[12px] font-medium leading-tight text-[#3D2352] transition-colors hover:bg-[#FAF6FC] hover:text-[#93509e]"
             >
               <span
-                class="size-1.5 shrink-0 rounded-full bg-[#93509e]/85 transition-transform duration-200 group-hover:scale-125 group-hover:bg-[#93509e]"
+                class="size-1 shrink-0 rounded-full bg-[#93509e]/70 transition-transform duration-200 group-hover:scale-125 group-hover:bg-[#93509e]"
                 aria-hidden="true"
               />
-              <span>{child.name}</span>
+              <span class="truncate">{child.name}</span>
             </Link>
             <Show when={(child.children?.length ?? 0) > 0}>
-              <ul class="ml-2 mt-0.5 space-y-0.5 border-l border-zinc-200/80 pl-2.5">
+              <ul class="ml-2 mt-0.5 space-y-0.5 border-l border-zinc-200/70 pl-2">
                 <For each={child.children}>
                   {(grandChild) => (
                     <li>
@@ -1139,13 +1192,13 @@ function CategorySubtreeList(props: {
                         to="/categoria/$slug"
                         params={{ slug: grandChild.slug }}
                         onClick={props.onSelect}
-                        class="group/sub flex items-center gap-2 rounded-md px-1.5 py-1 text-[13px] font-medium leading-snug text-zinc-600 transition-colors hover:bg-[#FAF6FC] hover:text-[#93509e]"
+                        class="group/sub flex items-center gap-1 rounded px-1 py-0.5 text-[11px] font-medium leading-tight text-zinc-500 transition-colors hover:bg-[#FAF6FC] hover:text-[#93509e]"
                       >
                         <span
-                          class="size-1.5 shrink-0 rounded-full bg-[#93509e]/65 transition-colors group-hover/sub:bg-[#93509e]"
+                          class="size-1 shrink-0 rounded-full bg-[#93509e]/50 transition-colors group-hover/sub:bg-[#93509e]"
                           aria-hidden="true"
                         />
-                        <span>{grandChild.name}</span>
+                        <span class="truncate">{grandChild.name}</span>
                       </Link>
                     </li>
                   )}
