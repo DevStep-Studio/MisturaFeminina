@@ -32,6 +32,12 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
   const [stockFilter, setStockFilter] = createSignal<"all" | "in_stock">("all");
   const [feedback, setFeedback] = createSignal<string | null>(null);
 
+  const isColorProduct = createMemo(() =>
+    props.variants.some(
+      (v) => Boolean(v.color_hex || v.shade_code || v.color_family),
+    ),
+  );
+
   const colorFamilies = createMemo(() => {
     const set = new Set<string>();
     for (const v of props.variants) {
@@ -160,24 +166,35 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
     );
     setQuantities({});
     setFeedback(
-      `${entries.length} ${entries.length === 1 ? "cor adicionada" : "cores adicionadas"} (${totalUnits()} un.) ao carrinho!`,
+      `${entries.length} ${
+        entries.length === 1
+          ? isColorProduct()
+            ? "cor adicionada"
+            : "opção adicionada"
+          : isColorProduct()
+            ? "cores adicionadas"
+            : "opções adicionadas"
+      } (${totalUnits()} un.) ao carrinho!`,
     );
   }
 
   return (
     <section
       id="multi-shade-grid"
-      aria-label="Compra de várias cores em uma tela"
+      aria-label="Compra de várias opções em uma tela"
       class="rounded-2xl border border-[#E5CFE8] bg-[#FCF8FD] p-4 sm:p-5"
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 class="text-base font-extrabold text-[#2E0C49]">
-            Escolha suas cores ({props.variants.length} tonalidades)
+            {isColorProduct()
+              ? `Escolha suas cores (${props.variants.length} tonalidades)`
+              : `Comprar várias opções (${props.variants.length} opções disponíveis)`}
           </h2>
-          <p class="text-xs text-[#5B486B]">
-            Defina a quantidade por cor abaixo para adicionar todas ao carrinho
-            de uma só vez.
+          <p class="mt-0.5 text-xs text-[#5B486B]">
+            {isColorProduct()
+              ? "Defina a quantidade por cor abaixo para adicionar todas ao carrinho de uma só vez."
+              : "Defina a quantidade de cada opção abaixo para adicionar todas ao carrinho de uma só vez."}
           </p>
         </div>
 
@@ -229,73 +246,75 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
         </div>
       </Show>
 
-      {/* Search & family filter bar */}
-      <div class="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div class="relative flex-1">
-          <Search
-            class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400"
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            value={searchTerm()}
-            onInput={(e) => setSearchTerm(e.currentTarget.value)}
-            placeholder="Buscar por nome, número ou SKU da tonalidade..."
-            aria-label="Buscar tonalidade por nome, código ou SKU"
-            class="h-9 w-full rounded-lg border border-[#DFC2E3] bg-white pl-8 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none"
-          />
-        </div>
+      {/* Barra de busca e filtros para produtos com muitas opções */}
+      <Show when={props.variants.length > 6}>
+        <div class="mt-3 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div class="relative flex-1">
+            <Search
+              class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchTerm()}
+              onInput={(e) => setSearchTerm(e.currentTarget.value)}
+              placeholder="Buscar por nome, número ou SKU..."
+              aria-label="Buscar opção por nome, código ou SKU"
+              class="h-9 w-full rounded-lg border border-[#DFC2E3] bg-white pl-8 pr-3 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none"
+            />
+          </div>
 
-        <div class="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() =>
-              setStockFilter(stockFilter() === "all" ? "in_stock" : "all")
-            }
-            class={`h-8 rounded-lg border px-2.5 text-[11px] font-bold transition-colors ${
-              stockFilter() === "in_stock"
-                ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                : "border-zinc-200 bg-white text-zinc-600 hover:border-[#93509e]"
-            }`}
-          >
-            Disponíveis
-          </button>
-
-          <Show when={colorFamilies().length > 0}>
+          <div class="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setFamilyFilter("all")}
+              onClick={() =>
+                setStockFilter(stockFilter() === "all" ? "in_stock" : "all")
+              }
               class={`h-8 rounded-lg border px-2.5 text-[11px] font-bold transition-colors ${
-                familyFilter() === "all"
-                  ? "border-[#93509e] bg-[#93509e] text-white"
+                stockFilter() === "in_stock"
+                  ? "border-emerald-600 bg-emerald-50 text-emerald-800"
                   : "border-zinc-200 bg-white text-zinc-600 hover:border-[#93509e]"
               }`}
             >
-              Todas
+              Disponíveis
             </button>
-            <For each={colorFamilies()}>
-              {(family) => (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFamilyFilter(familyFilter() === family ? "all" : family)
-                  }
-                  class={`h-8 rounded-lg border px-2.5 text-[11px] font-bold transition-colors ${
-                    familyFilter() === family
-                      ? "border-[#93509e] bg-[#93509e] text-white"
-                      : "border-zinc-200 bg-white text-zinc-600 hover:border-[#93509e]"
-                  }`}
-                >
-                  {family}
-                </button>
-              )}
-            </For>
-          </Show>
-        </div>
-      </div>
 
-      {/* Responsive Shade Matrix */}
-      <div class="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <Show when={colorFamilies().length > 0}>
+              <button
+                type="button"
+                onClick={() => setFamilyFilter("all")}
+                class={`h-8 rounded-lg border px-2.5 text-[11px] font-bold transition-colors ${
+                  familyFilter() === "all"
+                    ? "border-[#93509e] bg-[#93509e] text-white"
+                    : "border-zinc-200 bg-white text-zinc-600 hover:border-[#93509e]"
+                }`}
+              >
+                Todas
+              </button>
+              <For each={colorFamilies()}>
+                {(family) => (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFamilyFilter(familyFilter() === family ? "all" : family)
+                    }
+                    class={`h-8 rounded-lg border px-2.5 text-[11px] font-bold transition-colors ${
+                      familyFilter() === family
+                        ? "border-[#93509e] bg-[#93509e] text-white"
+                        : "border-zinc-200 bg-white text-zinc-600 hover:border-[#93509e]"
+                    }`}
+                  >
+                    {family}
+                  </button>
+                )}
+              </For>
+            </Show>
+          </div>
+        </div>
+      </Show>
+
+      {/* Grade arejada e espaçosa (1 coluna com folga total para texto e controles) */}
+      <div class="mt-3.5 space-y-2.5">
         <For each={filteredVariants()}>
           {(variant) => {
             const qty = () => quantities()[variant.id] ?? 0;
@@ -313,30 +332,31 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
                     props.onHoverImage(variant.image_path);
                   }
                 }}
-                class={`flex items-center justify-between gap-2.5 rounded-xl border p-2.5 transition-all ${
+                class={`flex items-center justify-between gap-3 rounded-xl border p-3 sm:p-3.5 transition-all ${
                   !variant.in_stock
-                    ? "border-zinc-200 bg-zinc-50/90 opacity-85"
+                    ? "border-zinc-200 bg-zinc-50/90 opacity-80"
                     : qty() > 0
-                      ? "border-[#93509e] bg-white ring-1 ring-[#93509e]/20"
-                      : "border-[#EADBED] bg-white hover:border-[#C89FD1]"
+                      ? "border-[#93509e] bg-[#FAF5FB] ring-1 ring-[#93509e]/30 shadow-xs"
+                      : "border-[#E5DAE9] bg-white hover:border-[#93509e]/60 hover:shadow-2xs"
                 }`}
               >
-                <div class="flex min-w-0 flex-1 items-center gap-2.5">
-                  <div class="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-white">
+                <div class="flex min-w-0 flex-1 items-center gap-3">
+                  {/* Miniatura do produto / variação */}
+                  <div class="relative size-12 sm:size-14 shrink-0 overflow-hidden rounded-lg border border-zinc-200/80 bg-white p-0.5 shadow-2xs">
                     <Show
                       when={variant.color_hex}
                       fallback={
                         <img
                           src={thumb()}
                           alt={variant.name}
-                          class="h-full w-full object-contain p-0.5"
+                          class="h-full w-full object-contain"
                           loading="lazy"
                         />
                       }
                     >
                       <div class="flex h-full w-full flex-col">
                         <span
-                          class="flex-1 w-full"
+                          class="flex-1 w-full rounded-xs"
                           style={{ "background-color": variant.color_hex! }}
                         />
                         <Show when={variant.shade_code}>
@@ -348,83 +368,109 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
                     </Show>
                   </div>
 
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-xs font-bold text-[#2E0C49]">
+                  {/* Textos com folga e sem quebras estranhas */}
+                  <div class="min-w-0 flex-1 pl-1">
+                    <p class="truncate text-xs sm:text-sm font-bold text-[#2E0C49]">
                       {variant.name}
                     </p>
-                    <p class="text-[11px] font-semibold text-[#93509e]">
-                      {formatCents(variant.effective_price_cents)}
-                      <span class="ml-1.5 text-[10px] font-normal text-zinc-400">
-                        {variant.sku}
+
+                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span class="text-xs sm:text-sm font-extrabold text-[#93509e]">
+                        {formatCents(variant.effective_price_cents)}
                       </span>
-                    </p>
-                    <p
-                      class={`mt-0.5 text-[10px] font-semibold ${
-                        !variant.in_stock
-                          ? "text-red-600"
+                      <span aria-hidden="true" class="text-zinc-300">•</span>
+                      <span
+                        class={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] sm:text-[11px] font-semibold ${
+                          !variant.in_stock
+                            ? "bg-red-50 text-red-600"
+                            : lowStock()
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-emerald-50 text-emerald-700"
+                        }`}
+                      >
+                        <span
+                          class={`size-1.5 rounded-full ${
+                            !variant.in_stock
+                              ? "bg-red-500"
+                              : lowStock()
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
+                          }`}
+                        />
+                        {!variant.in_stock
+                          ? "Esgotada"
                           : lowStock()
-                            ? "text-amber-700"
-                            : "text-emerald-700"
-                      }`}
-                    >
-                      {!variant.in_stock
-                        ? "Esgotada"
-                        : lowStock()
-                          ? `Últimas ${variant.available_stock} un.`
-                          : `${variant.available_stock} un. disponíveis`}
-                    </p>
+                            ? `Restam ${variant.available_stock} un.`
+                            : `${variant.available_stock} un. disponíveis`}
+                      </span>
+                    </div>
+
+                    <Show when={variant.sku}>
+                      <p class="mt-0.5 truncate text-[10px] font-mono text-zinc-400">
+                        SKU: {variant.sku}
+                      </p>
+                    </Show>
                   </div>
                 </div>
 
-                <Show
-                  when={variant.in_stock}
-                  fallback={
-                    <button
-                      type="button"
-                      onClick={() => props.onSelectRestock(variant)}
-                      class="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-[#93509e] bg-white px-2.5 text-[11px] font-bold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
+                {/* Seletor de quantidade com botões espaçosos */}
+                <div class="shrink-0 pl-1">
+                  <Show
+                    when={variant.in_stock}
+                    fallback={
+                      <button
+                        type="button"
+                        onClick={() => props.onSelectRestock(variant)}
+                        class="inline-flex h-9 items-center gap-1 rounded-lg border border-[#93509e] bg-white px-2.5 text-[11px] font-bold text-[#93509e] transition-colors hover:bg-[#93509e] hover:text-white"
+                      >
+                        <BellRing class="h-3 w-3" />
+                        Avise-me
+                      </button>
+                    }
+                  >
+                    <div
+                      class={`inline-flex h-9 items-center rounded-lg border bg-white shadow-2xs transition-colors ${
+                        qty() > 0
+                          ? "border-[#93509e]/60 ring-1 ring-[#93509e]/20"
+                          : "border-zinc-200"
+                      }`}
                     >
-                      <BellRing class="h-3 w-3" />
-                      Avise-me
-                    </button>
-                  }
-                >
-                  <div class="inline-flex h-8 shrink-0 items-center rounded-lg border border-zinc-200 bg-zinc-50">
-                    <button
-                      type="button"
-                      onClick={() => setVariantQty(variant, qty() - 1)}
-                      disabled={qty() <= 0}
-                      aria-label={`Diminuir quantidade de ${variant.name}`}
-                      class="flex h-full w-7 items-center justify-center text-zinc-700 hover:bg-zinc-200/70 disabled:opacity-35"
-                    >
-                      <Minus class="h-3 w-3" />
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      max={variant.available_stock}
-                      value={qty()}
-                      onInput={(e) => {
-                        const val = Number.parseInt(
-                          e.currentTarget.value || "0",
-                          10,
-                        );
-                        setVariantQty(variant, Number.isNaN(val) ? 0 : val);
-                      }}
-                      aria-label={`Quantidade da cor ${variant.name}`}
-                      class="h-full w-9 border-x border-zinc-200 bg-white text-center text-xs font-bold text-zinc-900 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setVariantQty(variant, qty() + 1)}
-                      disabled={qty() >= variant.available_stock}
-                      aria-label={`Aumentar quantidade de ${variant.name}`}
-                      class="flex h-full w-7 items-center justify-center text-zinc-700 hover:bg-zinc-200/70 disabled:opacity-35"
-                    >
-                      <Plus class="h-3 w-3" />
-                    </button>
-                  </div>
-                </Show>
+                      <button
+                        type="button"
+                        onClick={() => setVariantQty(variant, qty() - 1)}
+                        disabled={qty() <= 0}
+                        aria-label={`Diminuir quantidade de ${variant.name}`}
+                        class="flex h-full w-8 items-center justify-center text-zinc-600 hover:bg-[#FAF5FB] hover:text-[#93509e] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      >
+                        <Minus class="h-3.5 w-3.5" />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        max={variant.available_stock}
+                        value={qty()}
+                        onInput={(e) => {
+                          const val = Number.parseInt(
+                            e.currentTarget.value || "0",
+                            10,
+                          );
+                          setVariantQty(variant, Number.isNaN(val) ? 0 : val);
+                        }}
+                        aria-label={`Quantidade de ${variant.name}`}
+                        class="h-full w-10 border-x border-zinc-100 bg-zinc-50/50 text-center text-xs font-bold text-[#2E0C49] focus:bg-white focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setVariantQty(variant, qty() + 1)}
+                        disabled={qty() >= variant.available_stock}
+                        aria-label={`Aumentar quantidade de ${variant.name}`}
+                        class="flex h-full w-8 items-center justify-center text-zinc-600 hover:bg-[#FAF5FB] hover:text-[#93509e] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      >
+                        <Plus class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </Show>
+                </div>
               </div>
             );
           }}
@@ -433,16 +479,23 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
 
       <Show when={filteredVariants().length === 0}>
         <p class="py-6 text-center text-xs text-zinc-500">
-          Nenhuma tonalidade encontrada para este filtro.
+          Nenhuma opção encontrada para este filtro.
         </p>
       </Show>
 
-      {/* Summary & Bulk CTA */}
+      {/* Resumo e Botão de Ação em Lote */}
       <div class="mt-4 flex flex-col gap-3 rounded-xl border border-[#DFC2E3] bg-white p-3.5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-bold text-[#2E0C49]">
             {selectedShadesCount()}{" "}
-            {selectedShadesCount() === 1 ? "cor" : "cores"} • {totalUnits()}{" "}
+            {selectedShadesCount() === 1
+              ? isColorProduct()
+                ? "cor selecionada"
+                : "opção selecionada"
+              : isColorProduct()
+                ? "cores selecionadas"
+                : "opções selecionadas"}{" "}
+            • {totalUnits()}{" "}
             {totalUnits() === 1 ? "unidade" : "unidades"}
           </p>
           <p class="mt-0.5 text-sm font-extrabold text-[#93509e]">
@@ -464,7 +517,11 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
         >
           <ShoppingCart class="h-4 w-4" />
           <span>
-            {props.busy ? "Adicionando..." : "Adicionar cores selecionadas"}
+            {props.busy
+              ? "Adicionando..."
+              : isColorProduct()
+                ? "Adicionar cores selecionadas"
+                : "Adicionar opções selecionadas"}
           </span>
         </button>
       </div>
