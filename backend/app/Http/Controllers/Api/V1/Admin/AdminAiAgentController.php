@@ -389,6 +389,34 @@ class AdminAiAgentController extends Controller
         ]);
     }
 
+    public function generateProductDescription(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => ['nullable', 'integer'],
+            'name' => ['required', 'string', 'min:2', 'max:220'],
+            'sku' => ['nullable', 'string', 'max:80'],
+            'gtin' => ['nullable', 'string', 'max:40'],
+            'brand_name' => ['nullable', 'string', 'max:120'],
+            'category_path' => ['nullable', 'string', 'max:255'],
+            'unit_label' => ['nullable', 'string', 'max:80'],
+            'weight_grams' => ['nullable', 'integer', 'min:0'],
+            'power_watts' => ['nullable', 'integer', 'min:0'],
+            'specs' => ['nullable', 'array'],
+            'specs.*' => ['string', 'max:120'],
+            'variants' => ['nullable', 'array'],
+            'variants.*' => ['string', 'max:120'],
+            'usage_instructions' => ['nullable', 'string', 'max:2000'],
+            'ingredients' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        /** @var User|null $actor */
+        $actor = $request->user();
+
+        return response()->json([
+            'data' => $this->catalogAgent->generateProductDescription($validated, $actor, true),
+        ]);
+    }
+
     public function testSearchConnection(): JsonResponse
     {
         return response()->json(['data' => $this->googleSearch->testConnection()]);

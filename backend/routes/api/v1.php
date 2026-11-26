@@ -157,6 +157,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('products/{id}', [AdminCatalogController::class, 'showProduct'])->middleware('permission:catalog.view');
         Route::get('products/{id}/links', [AdminCatalogController::class, 'productLinks'])->middleware('permission:catalog.view');
         Route::post('products', [AdminCatalogController::class, 'storeProduct'])->middleware('permission:catalog.write');
+        Route::post('products/generate-description', [AdminAiAgentController::class, 'generateProductDescription'])->middleware('permission:catalog.write');
         Route::put('products/{id}', [AdminCatalogController::class, 'updateProduct'])->middleware('permission:catalog.write');
         Route::patch('products/{id}/quick-price', [AdminCatalogController::class, 'quickUpdatePrice'])->middleware('permission:catalog.view');
         Route::post('products/{id}/archive', [AdminCatalogController::class, 'archiveProduct'])->middleware('permission:catalog.write');
@@ -336,6 +337,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             Route::post('catalog/imports/{id}/approve', [AdminAiAgentController::class, 'approveCatalogImport'])->middleware('permission:ai.catalog.approve');
             Route::post('catalog/imports/{id}/discard', [AdminAiAgentController::class, 'discardCatalogImport'])->middleware('permission:ai.catalog');
             Route::post('catalog/products/{productId}/assist', [AdminAiAgentController::class, 'assistSingleProduct'])->middleware('permission:ai.catalog');
+            Route::post('catalog/generate-description', [AdminAiAgentController::class, 'generateProductDescription'])->middleware('permission:ai.catalog');
 
             // Agente 03: Reposicao Inteligente
             Route::get('replenishment/latest', [AdminAiAgentController::class, 'latestReplenishment'])->middleware('permission:ai.replenishment');

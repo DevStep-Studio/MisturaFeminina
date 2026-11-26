@@ -883,25 +883,30 @@ class ProductCatalogAgent
             ->get(['id', 'name', 'sku', 'gtin'])
             ->toArray();
 
-        $catName = $product->categories->first()?->name;
-        $proposedShort = "{$product->name}".($product->brand ? " da marca {$product->brand->name}" : '').($catName ? " ({$catName})" : '').' — disponível na Mistura Feminina.';
-        $proposedDesc = "{$product->name}"
-            .($product->brand ? " — {$product->brand->name}" : '')
-            .'. Possui '.$product->variants->count().' variação(ões) ativa(s) no catálogo oficial da Mistura Feminina.'
-            .($product->usage_instructions ? "\n\nModo de uso: {$product->usage_instructions}" : '')
-            .($product->ingredients ? "\n\nComposição informada: {$product->ingredients}" : '');
+        $generated = $this->generateProductDescription([
+            'product_id' => $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'gtin' => $product->gtin,
+            'brand_name' => $product->brand?->name,
+            'category_path' => $product->categories->pluck('name')->implode(' > '),
+            'unit_label' => $product->unit_label,
+            'weight_grams' => $product->weight_grams,
+            'power_watts' => $product->power_watts,
+            'variants' => $product->variants->where('is_active', true)->pluck('name')->values()->all(),
+            'usage_instructions' => $product->usage_instructions,
+            'ingredients' => $product->ingredients,
+        ], $actor, false);
 
         $output = [
             'action' => $action,
             'product_id' => $product->id,
             'issues' => $issues,
             'possible_duplicates' => $duplicates,
-            'proposed' => [
-                'short_description' => $proposedShort,
-                'description' => $proposedDesc,
-                'seo_title' => mb_substr("{$product->name} | Mistura Feminina Cosméticos", 0, 160),
-                'seo_description' => mb_substr($proposedShort, 0, 160),
-            ],
+            'ai_used' => $generated['ai_used'],
+            'ai_status' => $generated['ai_status'],
+            'ai_notice' => $generated['ai_notice'],
+            'proposed' => $generated['proposed'],
             'requires_user_confirmation' => true,
             'execution_id' => $execution->id,
         ];
@@ -909,5 +914,255 @@ class ProductCatalogAgent
         $this->tracker->finishExecution($execution, 'completed', $output, [['tool' => 'search_existing_products']], [], $product->sku);
 
         return $output;
+    }
+
+    /**
+     * Generates a professional, factual PT-BR product description and SEO metadata
+     * for create or edit product forms, strictly using confirmed data without inventing claims.
+     * Never throws when AI is unconfigured or unreachable — returns clear status + safe factual draft.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    public function generateProductDescription(array $attributes, ?User $actor = null, bool $trackExecution = true): array
+    {
+        $name = trim((string) ($attributes['name'] ?? ''));
+        $sku = trim((string) ($attributes['sku'] ?? ''));
+        $gtin = trim((string) ($attributes['gtin'] ?? ''));
+        $brandName = trim((string) ($attributes['brand_name'] ?? ''));
+        $categoryPath = trim((string) ($attributes['category_path'] ?? ''));
+        $unitLabel = trim((string) ($attributes['unit_label'] ?? ''));
+        $powerWatts = ! empty($attributes['power_watts']) ? (int) $attributes['power_watts'] : null;
+        $weightGrams = ! empty($attributes['weight_grams']) ? (int) $attributes['weight_grams'] : null;
+        $usage = trim((string) ($attributes['usage_instructions'] ?? ''));
+        $ingredients = trim((string) ($attributes['ingredients'] ?? ''));
+        $productId = ! empty($attributes['product_id']) ? (int) $attributes['product_id'] : null;
+        $specs = array_values(array_filter(array_map('strval', (array) ($attributes['specs'] ?? []))));
+        $variants = array_values(array_filter(
+            array_map('strval', (array) ($attributes['variants'] ?? [])),
+            static fn (string $v): bool => trim($v) !== '' && mb_strtolower(trim($v)) !== 'padrão'
+        ));
+
+        // Extract volume/grit/count confirmed directly in the product name if unit_label is empty
+        if ($unitLabel === '' && preg_match('/\b(\d{2,3}\/\d{2,3}|\d+(?:[.,]\d+)?\s*(?:ml|g|gr|kg|l|mm|cm|w|unid(?:ades)?|peças|folhas))\b/iu', $name, $m) === 1) {
+            $unitLabel = trim($m[1]);
+        }
+
+        // Check duplicate candidates in existing catalog
+        $dupQuery = Product::query();
+        if ($productId) {
+            $dupQuery->where('id', '!=', $productId);
+        }
+        $duplicates = $dupQuery->where(function ($q) use ($name, $sku, $gtin): void {
+            $q->whereRaw('LOWER(name) = ?', [mb_strtolower($name)]);
+            if ($sku !== '') {
+                $q->orWhere('sku', $sku);
+            }
+            if ($gtin !== '') {
+                $q->orWhere('gtin', $gtin);
+            }
+        })->limit(5)->get(['id', 'name', 'sku', 'gtin'])->toArray();
+
+        $factualFallback = $this->buildFactualPortugueseDraft(
+            $name,
+            $brandName,
+            $categoryPath,
+            $unitLabel,
+            $powerWatts,
+            $specs,
+            $variants,
+            $usage,
+            $ingredients
+        );
+
+        $conn = $this->provider->connectionStatus();
+        $execution = null;
+        if ($trackExecution && $actor) {
+            $agent = $this->tracker->resolveAgent('product_catalog');
+            $execution = $this->tracker->startExecution(
+                $agent,
+                $actor,
+                ['action' => 'generate_description', 'name' => $name, 'brand' => $brandName, 'category' => $categoryPath],
+                'product_description',
+                $productId,
+                $sku !== '' ? $sku : mb_substr($name, 0, 80)
+            );
+        }
+
+        if (! $conn['has_api_key']) {
+            $out = [
+                'ai_used' => false,
+                'ai_status' => 'unavailable',
+                'ai_notice' => 'A chave OPENAI_API_KEY ainda não está configurada no servidor; preparamos uma sugestão estruturada apenas com os dados confirmados do cadastro para você revisar e salvar normalmente.',
+                'possible_duplicates' => $duplicates,
+                'proposed' => $factualFallback,
+            ];
+            if ($execution) {
+                $this->tracker->finishExecution($execution, 'completed', $out, [], [], $sku ?: $name);
+            }
+
+            return $out;
+        }
+
+        $confirmedFacts = array_filter([
+            'nome_do_produto' => $name,
+            'marca' => $brandName !== '' ? $brandName : null,
+            'categoria' => $categoryPath !== '' ? $categoryPath : null,
+            'apresentacao_ou_tamanho' => $unitLabel !== '' ? $unitLabel : null,
+            'potencia_watts' => $powerWatts,
+            'peso_envio_gramas' => ($weightGrams && $weightGrams !== 200) ? $weightGrams : null,
+            'especificacoes_confirmadas' => $specs !== [] ? $specs : null,
+            'variacoes_disponiveis' => $variants !== [] ? array_slice($variants, 0, 15) : null,
+            'modo_de_uso_informado' => $usage !== '' ? $usage : null,
+            'composicao_informada' => $ingredients !== '' ? $ingredients : null,
+        ], static fn ($v): bool => $v !== null);
+
+        $systemPrompt = "Você é redator técnico de e-commerce da loja Mistura Feminina Cosméticos.\n"
+            ."Escreva em português do Brasil claro, elegante e objetivo.\n"
+            ."REGRAS OBRIGATÓRIAS:\n"
+            ."1. Use EXCLUSIVAMENTE os fatos confirmados enviados no JSON. NUNCA invente composição química, ingredientes, hipoalergenicidade, registro ANVISA, certificações, tempo de garantia, rendimento ou benefícios clínicos não informados.\n"
+            ."2. Entregue `description` em texto limpo separado por quebras de linha duplas (\\n\\n) entre 2 parágrafos curtos (sem tags HTML cruas como <p> ou <span>).\n"
+            ."3. Evite clichês vazios como 'descubra a combinação perfeita de qualidade e inovação'.\n"
+            ."4. `short_description` deve ter até 180 caracteres e `seo_description` até 155 caracteres.";
+
+        $llm = $this->provider->chatStructured(
+            'catalog',
+            $systemPrompt,
+            json_encode($confirmedFacts, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['short_description', 'description', 'seo_title', 'seo_description'],
+                'properties' => [
+                    'short_description' => ['type' => 'string'],
+                    'description' => ['type' => 'string'],
+                    'seo_title' => ['type' => 'string'],
+                    'seo_description' => ['type' => 'string'],
+                ],
+            ]
+        );
+
+        if ($llm['connected'] && is_array($llm['content']) && ! empty($llm['content']['description'])) {
+            $cleanShort = trim(strip_tags((string) ($llm['content']['short_description'] ?? $factualFallback['short_description'])));
+            $cleanDesc = trim(strip_tags((string) $llm['content']['description']));
+            $cleanSeoTitle = mb_substr(trim(strip_tags((string) ($llm['content']['seo_title'] ?? $factualFallback['seo_title']))), 0, 160);
+            $cleanSeoDesc = mb_substr(trim(strip_tags((string) ($llm['content']['seo_description'] ?? $cleanShort))), 0, 160);
+
+            $out = [
+                'ai_used' => true,
+                'ai_status' => 'generated',
+                'ai_notice' => null,
+                'possible_duplicates' => $duplicates,
+                'proposed' => [
+                    'short_description' => $cleanShort !== '' ? $cleanShort : $factualFallback['short_description'],
+                    'description' => $cleanDesc !== '' ? $cleanDesc : $factualFallback['description'],
+                    'seo_title' => $cleanSeoTitle !== '' ? $cleanSeoTitle : $factualFallback['seo_title'],
+                    'seo_description' => $cleanSeoDesc !== '' ? $cleanSeoDesc : $factualFallback['seo_description'],
+                ],
+            ];
+            if ($execution) {
+                $this->tracker->finishExecution($execution, 'completed', $out, [], $llm, $sku ?: $name);
+            }
+
+            return $out;
+        }
+
+        $errDetail = $llm['error'] ? " ({$llm['error']})" : '';
+        $out = [
+            'ai_used' => false,
+            'ai_status' => 'error',
+            'ai_notice' => "Não foi possível consultar o provedor de IA neste momento{$errDetail}. Geramos uma sugestão segura com os dados cadastrais confirmados — você pode revisar, editar e salvar o produto normalmente.",
+            'possible_duplicates' => $duplicates,
+            'proposed' => $factualFallback,
+        ];
+        if ($execution) {
+            $this->tracker->finishExecution($execution, 'failed', $out, [], $llm, $sku ?: $name);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Builds a clean, factual Portuguese description strictly from verified fields (zero invented claims).
+     *
+     * @param  list<string>  $specs
+     * @param  list<string>  $variants
+     * @return array{short_description: string, description: string, seo_title: string, seo_description: string}
+     */
+    private function buildFactualPortugueseDraft(
+        string $name,
+        string $brandName,
+        string $categoryPath,
+        string $unitLabel,
+        ?int $powerWatts,
+        array $specs,
+        array $variants,
+        string $usage,
+        string $ingredients,
+    ): array {
+        $leafCategory = $categoryPath !== ''
+            ? trim((string) collect(explode('>', $categoryPath))->last())
+            : '';
+
+        $brandClause = $brandName !== '' ? " da marca {$brandName}" : '';
+        $unitClause = $unitLabel !== '' && ! str_contains(mb_strtolower($name), mb_strtolower($unitLabel))
+            ? " ({$unitLabel})"
+            : '';
+        $catClause = $leafCategory !== '' ? " para a linha de {$leafCategory}" : '';
+
+        $short = trim("{$name}{$unitClause}{$brandClause}{$catClause}, disponível na Mistura Feminina Cosméticos.");
+        if (mb_strlen($short) > 190) {
+            $short = mb_substr($short, 0, 187).'...';
+        }
+
+        $paragraphs = [];
+        $p1 = "{$name}{$unitClause}{$brandClause}";
+        if ($leafCategory !== '') {
+            $p1 .= " integra a seleção de {$leafCategory} da Mistura Feminina Cosméticos, indicada para organização de bancada, rotina de cuidados e atendimento profissional.";
+        } else {
+            $p1 .= ' faz parte do catálogo oficial da Mistura Feminina Cosméticos, selecionado para uso profissional e cuidados diários.';
+        }
+        $paragraphs[] = $p1;
+
+        $details = [];
+        if ($brandName !== '') {
+            $details[] = "Marca: {$brandName}";
+        }
+        if ($unitLabel !== '') {
+            $details[] = "Apresentação: {$unitLabel}";
+        }
+        if ($powerWatts !== null && $powerWatts > 0) {
+            $details[] = "Potência nominal: {$powerWatts} W";
+        }
+        if ($specs !== []) {
+            $details[] = 'Especificações: '.implode(', ', $specs);
+        }
+        if ($variants !== []) {
+            $details[] = 'Opções disponíveis: '.implode(', ', array_slice($variants, 0, 10));
+        }
+        if ($details !== []) {
+            $paragraphs[] = 'Dados confirmados do item: '.implode(' · ', $details).'.';
+        }
+        if ($usage !== '') {
+            $paragraphs[] = "Modo de uso informado: {$usage}";
+        }
+        if ($ingredients !== '') {
+            $paragraphs[] = "Composição informada: {$ingredients}";
+        }
+
+        $seoTitle = mb_substr(
+            $brandName !== '' && ! str_contains(mb_strtolower($name), mb_strtolower($brandName))
+                ? "{$name} {$brandName} | Mistura Feminina"
+                : "{$name} | Mistura Feminina",
+            0,
+            160
+        );
+
+        return [
+            'short_description' => $short,
+            'description' => implode("\n\n", $paragraphs),
+            'seo_title' => $seoTitle,
+            'seo_description' => mb_substr($short, 0, 155),
+        ];
     }
 }

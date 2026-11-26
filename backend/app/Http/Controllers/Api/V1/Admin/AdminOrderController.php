@@ -78,7 +78,8 @@ class AdminOrderController extends Controller
     {
         $order = Order::query()
             ->with([
-                'items.variant',
+                'items.variant.image',
+                'items.product' => fn ($pq) => $pq->withTrashed()->with('images'),
                 'payments.events',
                 'refunds',
                 'statusHistories.user:id,name',

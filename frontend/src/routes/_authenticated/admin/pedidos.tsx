@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import AlertTriangle from "lucide-solid/icons/triangle-exclamation-point";
 import ExternalLink from "lucide-solid/icons/external-link";
+import Package from "lucide-solid/icons/package";
 import Plus from "lucide-solid/icons/plus";
 import Printer from "lucide-solid/icons/printer";
 import Tag from "lucide-solid/icons/tag";
@@ -28,6 +29,7 @@ import {
 } from "../../../features/admin/profit-math";
 import { ApiError, api } from "../../../lib/api";
 import {
+  assetUrl,
   formatCents,
   orderStatusLabel,
   paymentStatusLabel,
@@ -88,6 +90,7 @@ interface OrderDetailPayload {
   shipping_address_snapshot: Record<string, string>;
   items: {
     id: number;
+    image_path?: string | null;
     product_name_snapshot: string;
     variant_name_snapshot: string;
     sku_snapshot: string;
@@ -733,28 +736,34 @@ function AdminOrdersPage() {
                     <For each={d().items}>
                       {(item) => (
                         <li class="rounded-md border border-zinc-100 bg-zinc-50/70 px-2.5 py-2">
-                          <div class="flex items-center justify-between gap-2">
-                            <div>
-                              <span class="font-medium text-zinc-900">
-                                {item.quantity}x {item.product_name_snapshot} (
-                                {item.variant_name_snapshot})
-                              </span>
-                              <span class="ml-1.5 font-mono text-[10px] text-zinc-500">
-                                {item.sku_snapshot}
-                              </span>
-                              <Show when={item.wholesale_rule_name}>
-                                <span class="ml-2 inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784]">
-                                  Atacado ({item.wholesale_tier_min_qty}+ un.)
+                          <div class="flex items-start justify-between gap-2.5">
+                            <div class="flex min-w-0 flex-1 items-start gap-2.5">
+                              <OrderItemThumb
+                                src={item.image_path}
+                                alt={item.product_name_snapshot}
+                              />
+                              <div class="min-w-0 flex-1 pt-0.5">
+                                <span class="font-medium text-zinc-900">
+                                  {item.quantity}x {item.product_name_snapshot}{" "}
+                                  ({item.variant_name_snapshot})
                                 </span>
-                              </Show>
-                              <Show when={(item.returned_qty ?? 0) > 0}>
-                                <span class="ml-2 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
-                                  Devolvido: {item.returned_qty} un. (Estocado:{" "}
-                                  {item.restocked_qty ?? 0})
+                                <span class="ml-1.5 font-mono text-[10px] text-zinc-500">
+                                  {item.sku_snapshot}
                                 </span>
-                              </Show>
+                                <Show when={item.wholesale_rule_name}>
+                                  <span class="ml-2 inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-[#7C2784]">
+                                    Atacado ({item.wholesale_tier_min_qty}+ un.)
+                                  </span>
+                                </Show>
+                                <Show when={(item.returned_qty ?? 0) > 0}>
+                                  <span class="ml-2 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">
+                                    Devolvido: {item.returned_qty} un.
+                                    (Estocado: {item.restocked_qty ?? 0})
+                                  </span>
+                                </Show>
+                              </div>
                             </div>
-                            <span class="font-semibold text-zinc-900">
+                            <span class="shrink-0 pt-0.5 font-semibold text-zinc-900 tabular-nums">
                               {formatCents(
                                 item.net_revenue_cents ?? item.total_cents,
                               )}
@@ -1036,11 +1045,18 @@ function AdminOrdersPage() {
                             );
                             return (
                               <div class="flex items-center justify-between gap-2 rounded border border-zinc-200 bg-white px-2 py-1.5">
-                                <span class="text-zinc-800">
-                                  {item.product_name_snapshot} (
-                                  {item.variant_name_snapshot}) · disp.:{" "}
-                                  {maxQty}
-                                </span>
+                                <div class="flex min-w-0 items-center gap-2">
+                                  <OrderItemThumb
+                                    src={item.image_path}
+                                    alt={item.product_name_snapshot}
+                                    size="sm"
+                                  />
+                                  <span class="min-w-0 truncate text-zinc-800">
+                                    {item.product_name_snapshot} (
+                                    {item.variant_name_snapshot}) · disp.:{" "}
+                                    {maxQty}
+                                  </span>
+                                </div>
                                 <input
                                   type="number"
                                   min={0}
@@ -1161,5 +1177,53 @@ function AdminOrdersPage() {
         )}
       </Show>
     </AdminLayout>
+  );
+}
+
+function OrderItemThumb(props: {
+  src?: string | null;
+  alt: string;
+  size?: "sm" | "md";
+}) {
+  const [failed, setFailed] = createSignal(false);
+  const resolved = () => {
+    const raw = (props.src ?? "").trim();
+    if (!raw || raw.toLowerCase().includes("placeholder-product.svg")) {
+      return "";
+    }
+    return assetUrl(raw);
+  };
+
+  createEffect(() => {
+    // Reset failed flag whenever src changes across selected orders
+    if (props.src !== undefined) setFailed(false);
+  });
+
+  const boxCls = () =>
+    props.size === "sm"
+      ? "h-8 w-8 rounded-md"
+      : "h-11 w-11 rounded-lg";
+
+  return (
+    <Show
+      when={resolved() && !failed()}
+      fallback={
+        <div
+          aria-hidden="true"
+          title="Produto sem imagem cadastrada"
+          class={`grid shrink-0 place-items-center border border-zinc-200 bg-zinc-100 text-zinc-400 ${boxCls()}`}
+        >
+          <Package class={props.size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        </div>
+      }
+    >
+      <img
+        src={resolved()}
+        alt={props.alt}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        class={`shrink-0 border border-zinc-200 bg-white object-contain p-0.5 ${boxCls()}`}
+      />
+    </Show>
   );
 }

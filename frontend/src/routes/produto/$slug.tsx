@@ -46,6 +46,8 @@ import type {
 } from "../../features/storefront/types";
 import { ApiError, api } from "../../lib/api";
 import { formatCents, whatsappUrl } from "../../lib/format";
+import { stripHtmlToPlainText } from "../../lib/rich-text";
+import { RichProductText } from "../../features/storefront/components/RichProductText";
 import {
   computeWholesaleUnitPrice,
   type WholesaleTier,
@@ -147,7 +149,9 @@ export const Route = createFileRoute("/produto/$slug")({
           ? `${p.name} | Mistura Feminina`
           : `${params.slug} | Mistura Feminina`),
       description:
-        p?.seo_description || p?.short_description || fallbackDescription,
+        stripHtmlToPlainText(
+          p?.seo_description || p?.short_description || p?.description,
+        ) || fallbackDescription,
       path: `/produto/${params.slug}`,
       image: p?.primary_image || undefined,
       type: "product",
@@ -158,7 +162,9 @@ export const Route = createFileRoute("/produto/$slug")({
         ? [
             buildProductSchema({
               name: p.name,
-              description: p.short_description || p.description,
+              description: stripHtmlToPlainText(
+                p.short_description || p.description,
+              ),
               sku: defVariant?.sku || p.sku,
               gtin: defVariant?.gtin || p.gtin,
               category: p.categories?.[0]?.name,
@@ -1376,19 +1382,19 @@ function ProductDetailPage() {
                         </button>
                         <Show when={openAccordion() === "descricao"}>
                           <div class="space-y-3 pb-4 text-xs leading-relaxed text-zinc-700">
-                            <p class="whitespace-pre-line">
-                              {p().description ||
-                                p().short_description ||
-                                "Descrição técnica em atualização."}
-                            </p>
+                            <RichProductText
+                              text={p().description || p().short_description}
+                              fallback="Descrição técnica em atualização."
+                            />
                             <Show when={p().usage_instructions}>
                               <div>
                                 <p class="font-bold text-[#2E0C49]">
                                   Modo de Uso
                                 </p>
-                                <p class="mt-1 whitespace-pre-line">
-                                  {p().usage_instructions}
-                                </p>
+                                <RichProductText
+                                  text={p().usage_instructions}
+                                  class="mt-1 space-y-1.5 leading-relaxed [&_p+p]:mt-1.5"
+                                />
                               </div>
                             </Show>
                             <Show when={p().ingredients}>
@@ -1396,9 +1402,10 @@ function ProductDetailPage() {
                                 <p class="font-bold text-[#2E0C49]">
                                   Composição / Ingredientes
                                 </p>
-                                <p class="mt-1 whitespace-pre-line">
-                                  {p().ingredients}
-                                </p>
+                                <RichProductText
+                                  text={p().ingredients}
+                                  class="mt-1 space-y-1.5 leading-relaxed [&_p+p]:mt-1.5"
+                                />
                               </div>
                             </Show>
                           </div>

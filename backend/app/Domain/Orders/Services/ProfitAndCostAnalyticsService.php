@@ -8,6 +8,7 @@ use App\Models\InventoryMovement;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderReturnItem;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -505,7 +506,10 @@ class ProfitAndCostAnalyticsService
     public function summarizeOrder(Order $order, bool $includeCost): array
     {
         $order->loadMissing([
-            'items' => fn ($q) => $q->with('variant')->orderBy('id'),
+            'items' => fn ($q) => $q->with([
+                'variant.image',
+                'product' => fn ($pq) => $pq->withTrashed()->with('images'),
+            ])->orderBy('id'),
             'returns.items',
         ]);
 
@@ -545,6 +549,7 @@ class ProfitAndCostAnalyticsService
                 'product_id' => $oi->product_id,
                 'product_variant_id' => $oi->product_variant_id,
                 'variant_archived' => $oi->variant?->isArchived() ?? false,
+                'image_path' => $this->resolveOrderItemImagePath($oi),
                 'product_name_snapshot' => $oi->product_name_snapshot,
                 'variant_name_snapshot' => $oi->variant_name_snapshot,
                 'sku_snapshot' => $oi->sku_snapshot,
@@ -637,5 +642,65 @@ class ProfitAndCostAnalyticsService
                 ])->values()->all(),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Resolves the best available thumbnail for an OrderItem:
+     * 1) Sold variant's own image (if non-placeholder)
+     * 2) Parent product's primary image (including deactivated or soft-deleted products)
+     * 3) Historical SKU fallback against variants/products (when foreign keys were nulled)
+     */
+    public function resolveOrderItemImagePath(OrderItem $oi): ?string
+    {
+        $isValidPath = static fn (?string $p): bool => $p !== null
+            && trim($p) !== ''
+            && ! str_contains(mb_strtolower($p), 'placeholder-product.svg');
+
+        $variantImg = $oi->variant?->effectiveImagePath();
+        if ($isValidPath($variantImg)) {
+            return $variantImg;
+        }
+
+        $product = $oi->product;
+        if (! $product && $oi->product_id) {
+            $product = Product::withTrashed()->with('images')->find($oi->product_id);
+        }
+        if ($product) {
+            $primary = $product->images->sortByDesc('is_primary')->first()?->path;
+            if ($isValidPath($primary)) {
+                return $primary;
+            }
+        }
+
+        $sku = trim((string) ($oi->sku_snapshot ?? ''));
+        if ($sku !== '') {
+            $byVariantSku = ProductVariant::query()
+                ->where('sku', $sku)
+                ->with(['image', 'product' => fn ($q) => $q->withTrashed()->with('images')])
+                ->first();
+            if ($byVariantSku) {
+                $vImg = $byVariantSku->effectiveImagePath();
+                if ($isValidPath($vImg)) {
+                    return $vImg;
+                }
+                $vpImg = $byVariantSku->product?->images?->sortByDesc('is_primary')->first()?->path;
+                if ($isValidPath($vpImg)) {
+                    return $vpImg;
+                }
+            }
+
+            $byProductSku = Product::withTrashed()
+                ->where('sku', $sku)
+                ->with('images')
+                ->first();
+            if ($byProductSku) {
+                $pImg = $byProductSku->images->sortByDesc('is_primary')->first()?->path;
+                if ($isValidPath($pImg)) {
+                    return $pImg;
+                }
+            }
+        }
+
+        return null;
     }
 }
