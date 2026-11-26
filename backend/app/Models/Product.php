@@ -49,6 +49,17 @@ class Product extends Model
 {
     use SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::saved(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+        });
+
+        static::deleted(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+        });
+    }
+
     /** @return BelongsTo<Brand, $this> */
     public function brand(): BelongsTo
     {

@@ -10,6 +10,17 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable(['slug', 'title', 'content_html', 'seo_title', 'seo_description', 'is_published', 'show_in_footer', 'footer_group', 'sort_order'])]
 class ContentPage extends Model
 {
+    protected static function booted(): void
+    {
+        static::saved(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+        });
+
+        static::deleted(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+        });
+    }
+
     protected function casts(): array
     {
         return [

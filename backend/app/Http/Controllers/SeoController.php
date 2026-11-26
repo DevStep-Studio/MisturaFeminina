@@ -47,6 +47,8 @@ class SeoController extends Controller
                 ['loc' => $base.'/promocoes'],
                 ['loc' => $base.'/novidades'],
                 ['loc' => $base.'/contato'],
+                ['loc' => $base.'/atacado'],
+                ['loc' => $base.'/rastrear-pedido'],
             ];
 
             $activeCats = Category::query()
@@ -98,7 +100,16 @@ class SeoController extends Controller
                 ];
             });
 
-            $urls = array_slice($urls, 0, 50000);
+            $dedupedUrls = [];
+            $seenLocs = [];
+            foreach ($urls as $item) {
+                if (! isset($seenLocs[$item['loc']])) {
+                    $seenLocs[$item['loc']] = true;
+                    $dedupedUrls[] = $item;
+                }
+            }
+
+            $urls = array_slice($dedupedUrls, 0, 50000);
 
             $xml = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
             foreach ($urls as $item) {

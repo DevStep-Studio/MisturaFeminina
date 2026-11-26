@@ -21,6 +21,9 @@ ErrorDocument 404 default
 
 RewriteEngine On
 
+# Gateway dinâmico do sitemap: entrega o XML oficial atualizado da API
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
 # Serve existing files and directories before applying the SPA fallback.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

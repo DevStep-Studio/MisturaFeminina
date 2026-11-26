@@ -11,6 +11,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['name', 'slug', 'description', 'logo_path', 'is_featured', 'is_active', 'seo_title', 'seo_description'])]
 class Brand extends Model
 {
+    protected static function booted(): void
+    {
+        static::saved(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+        });
+
+        static::deleted(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+        });
+    }
+
     /** @return HasMany<Product, $this> */
     public function products(): HasMany
     {
