@@ -3,6 +3,7 @@ import ChevronDown from "lucide-solid/icons/chevron-down";
 import Pencil from "lucide-solid/icons/pencil";
 import Plus from "lucide-solid/icons/plus";
 import Search from "lucide-solid/icons/search";
+import Trash from "lucide-solid/icons/trash";
 import {
   For,
   Show,
@@ -20,6 +21,7 @@ import {
   AdminField,
   AdminImageUpload,
   AdminInput,
+  AdminModal,
   AdminSideDrawer,
   AdminTextarea,
 } from "../../../features/admin/ui";
@@ -241,6 +243,39 @@ export function AdminCategoriesBrandsPage(props: {
     }
   }
 
+  const [deletingBrand, setDeletingBrand] = createSignal<AdminBrand | null>(null);
+  const [deleteSaving, setDeleteSaving] = createSignal(false);
+
+  function askDeleteBrand(b: AdminBrand) {
+    setDeletingBrand(b);
+  }
+
+  async function confirmDeleteBrand() {
+    const target = deletingBrand();
+    if (!target || deleteSaving()) return;
+
+    setDeleteSaving(true);
+    try {
+      await api(`/admin/brands/${target.id}`, {
+        method: "DELETE",
+      });
+      setDeletingBrand(null);
+      if (editingBrandId() === target.id) {
+        setBrandDrawerOpen(false);
+      }
+      await refetchBrands();
+      setFeedback(`Marca "${target.name}" excluída com sucesso.`);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setFeedback(`Erro ao excluir marca: ${err.message}`);
+      } else {
+        setFeedback("Erro ao excluir marca. Tente novamente.");
+      }
+    } finally {
+      setDeleteSaving(false);
+    }
+  }
+
   const filteredBrands = createMemo(() => {
     const all = brands() ?? [];
     const q = brandSearch().trim().toLowerCase();
@@ -440,6 +475,15 @@ export function AdminCategoriesBrandsPage(props: {
                           <Pencil class="h-3.5 w-3.5" />
                           Editar
                         </AdminButton>
+                        <AdminButton
+                          size="sm"
+                          variant="danger"
+                          onClick={() => askDeleteBrand(b)}
+                          title={`Excluir marca ${b.name}`}
+                        >
+                          <Trash class="h-3.5 w-3.5" />
+                          Excluir
+                        </AdminButton>
                       </div>
                     </li>
                   )}
@@ -470,23 +514,42 @@ export function AdminCategoriesBrandsPage(props: {
         isDirty={isBrandDirty()}
         onClose={() => setBrandDrawerOpen(false)}
         footer={
-          <>
-            <AdminButton
-              variant="secondary"
-              onClick={() => setBrandDrawerOpen(false)}
-            >
-              Cancelar
-            </AdminButton>
-            <AdminButton
-              type="submit"
-              form="adm-brand-form"
-              variant="primary"
-              loading={brandSaving()}
-              loadingLabel="Salvando…"
-            >
-              {editingBrandId() ? "Atualizar marca" : "Salvar marca"}
-            </AdminButton>
-          </>
+          <div class="flex w-full items-center justify-between gap-2">
+            <div>
+              <Show when={editingBrandId()}>
+                <AdminButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => {
+                    const current = (brands() ?? []).find(
+                      (b) => b.id === editingBrandId(),
+                    );
+                    if (current) askDeleteBrand(current);
+                  }}
+                >
+                  <Trash class="h-3.5 w-3.5" />
+                  Excluir marca
+                </AdminButton>
+              </Show>
+            </div>
+            <div class="flex items-center gap-2">
+              <AdminButton
+                variant="secondary"
+                onClick={() => setBrandDrawerOpen(false)}
+              >
+                Cancelar
+              </AdminButton>
+              <AdminButton
+                type="submit"
+                form="adm-brand-form"
+                variant="primary"
+                loading={brandSaving()}
+                loadingLabel="Salvando…"
+              >
+                {editingBrandId() ? "Atualizar marca" : "Salvar marca"}
+              </AdminButton>
+            </div>
+          </div>
         }
       >
         <form
@@ -655,6 +718,53 @@ export function AdminCategoriesBrandsPage(props: {
           </div>
         </form>
       </AdminSideDrawer>
+
+      {/* Modal de confirmação de exclusão de marca */}
+      <AdminModal
+        open={Boolean(deletingBrand())}
+        title="Excluir marca"
+        subtitle={deletingBrand()?.name}
+        onClose={() => {
+          if (!deleteSaving()) setDeletingBrand(null);
+        }}
+        footer={
+          <>
+            <AdminButton
+              variant="secondary"
+              disabled={deleteSaving()}
+              onClick={() => setDeletingBrand(null)}
+            >
+              Cancelar
+            </AdminButton>
+            <AdminButton
+              variant="danger"
+              loading={deleteSaving()}
+              loadingLabel="Excluindo…"
+              onClick={() => void confirmDeleteBrand()}
+            >
+              Sim, excluir marca
+            </AdminButton>
+          </>
+        }
+      >
+        <div class="space-y-3 text-sm text-zinc-700">
+          <p>
+            Tem certeza de que deseja excluir a marca{" "}
+            <strong class="font-semibold text-zinc-900">
+              {deletingBrand()?.name}
+            </strong>
+            ?
+          </p>
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <p class="font-semibold">O que acontece com os produtos:</p>
+            <p class="mt-1">
+              Os produtos vinculados a esta marca continuarão no catálogo, mas
+              terão o campo de marca desvinculado com segurança. Nenhum pedido ou
+              histórico será perdido.
+            </p>
+          </div>
+        </div>
+      </AdminModal>
     </AdminLayout>
   );
 }

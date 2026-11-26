@@ -1180,6 +1180,30 @@ class AdminCatalogController extends Controller
         return response()->json(['data' => $brand->fresh()]);
     }
 
+    public function destroyBrand(Request $request, int $id): JsonResponse
+    {
+        $brand = Brand::query()->withCount('products')->findOrFail($id);
+
+        $unlinkedCount = (int) $brand->products_count;
+        if ($unlinkedCount > 0) {
+            $brand->products()->update(['brand_id' => null]);
+        }
+
+        $brandName = $brand->name;
+        $brand->delete();
+
+        SeoController::clearCaches();
+
+        return response()->json([
+            'data' => [
+                'id' => $id,
+                'name' => $brandName,
+                'unlinked_products_count' => $unlinkedCount,
+                'message' => "Marca {$brandName} excluída com sucesso.",
+            ],
+        ]);
+    }
+
     public function archiveVariant(Request $request, int $id, int $variantId): JsonResponse
     {
         $product = Product::withTrashed()->findOrFail($id);

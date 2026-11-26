@@ -181,6 +181,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('brands', [AdminCatalogController::class, 'listBrands'])->middleware('permission:catalog.view');
         Route::post('brands', [AdminCatalogController::class, 'storeBrand'])->middleware('permission:catalog.write');
         Route::put('brands/{id}', [AdminCatalogController::class, 'updateBrand'])->middleware('permission:catalog.write');
+        Route::delete('brands/{id}', [AdminCatalogController::class, 'destroyBrand'])->middleware('permission:catalog.write');
         Route::get('attributes', [AdminCatalogController::class, 'listAttributes'])->middleware('permission:catalog.view');
         Route::post('attributes', [AdminCatalogController::class, 'storeAttribute'])->middleware('permission:catalog.write');
         Route::put('attributes/{id}', [AdminCatalogController::class, 'updateAttribute'])->middleware('permission:catalog.write');

@@ -425,3 +425,26 @@ test('CENARIO 7 - Idempotencia em repeticoes e controle estrito de permissoes RB
     expect($replay['idempotent_replay'])->toBeTrue();
     expect(Product::query()->find($prod->id)?->price_cents)->toBe(1100);
 });
+
+test('exclusao de marca desvincula produtos com seguranca e remove o registro', function (): void {
+    $catalog = createRedesignStaff(RoleSlug::Catalog, 'cat_brand_del@misturafeminina.com.br');
+    $brand = Brand::query()->create([
+        'name' => 'Marca Descartavel Teste',
+        'slug' => 'marca-descartavel-teste',
+        'is_active' => true,
+    ]);
+
+    $prod1 = createSimpleCatalogItem('BRD-DEL-01', 'Produto Marca 1', 1500, 5, $brand);
+    $prod2 = createSimpleCatalogItem('BRD-DEL-02', 'Produto Marca 2', 2500, 3, $brand);
+
+    expect(Product::query()->where('brand_id', $brand->id)->count())->toBe(2);
+
+    $this->actingAs($catalog)
+        ->deleteJson("/api/v1/admin/brands/{$brand->id}")
+        ->assertOk()
+        ->assertJsonPath('data.unlinked_products_count', 2);
+
+    expect(Brand::query()->find($brand->id))->toBeNull();
+    expect(Product::query()->find($prod1->id)?->brand_id)->toBeNull();
+    expect(Product::query()->find($prod2->id)?->brand_id)->toBeNull();
+});
