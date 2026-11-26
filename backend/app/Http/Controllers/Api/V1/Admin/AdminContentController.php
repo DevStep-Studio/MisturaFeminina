@@ -223,7 +223,7 @@ class AdminContentController extends Controller
     {
         return $request->validate([
             'title' => ['required', 'string', 'max:150'],
-            'placement' => ['required', Rule::in(['hero', 'promo_grid', 'category_top', 'popup'])],
+            'placement' => ['required', Rule::in(['hero', 'promo_grid', 'category_top', 'promocoes', 'novidades', 'popup'])],
             'desktop_image_path' => ['required', 'string', 'max:500'],
             'mobile_image_path' => ['nullable', 'string', 'max:500'],
             'alt_text' => ['required', 'string', 'max:255'],

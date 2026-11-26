@@ -119,6 +119,13 @@ class StorefrontController extends Controller
             ->orderBy('id')
             ->first(['code', 'name', 'type', 'value']);
 
+        $activeBanners = Banner::query()
+            ->where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
+            ->where(fn ($q) => $q->whereNull('ends_at')->orWhere('ends_at', '>=', $now))
+            ->orderBy('sort_order')
+            ->get();
+
         return response()->json([
             'data' => [
                 'settings' => $config,
@@ -128,6 +135,7 @@ class StorefrontController extends Controller
                 'brands' => $brands,
                 'footer_pages' => $footerPages,
                 'featured_coupon' => $featuredCoupon,
+                'banners' => $activeBanners,
             ],
         ]);
     }

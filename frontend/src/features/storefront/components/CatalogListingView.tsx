@@ -10,6 +10,7 @@ import { For, Show, createEffect, createSignal, on, type JSX } from "solid-js";
 import { api } from "../../../lib/api";
 import { trackViewItemList } from "../../../monitoring/analytics";
 import { getCategorySeoContent } from "../data/categorySeoContent";
+import { findStoreBanner } from "../store";
 import type { BrandItem, FacetAttribute, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
 import { BannerImage } from "./BannerImage";
@@ -41,29 +42,39 @@ export function CatalogBanner(props: {
   href?: string | null;
 }) {
   const hasCustomBanner = () => Boolean(props.src?.trim());
-  const image = (
-    <BannerImage
-      src={props.src}
-      mobileSrc={props.mobileSrc}
-      alt={props.alt}
-      eager
-      imageClass="mx-auto block h-auto max-h-[60svh] w-full object-contain sm:max-h-[420px]"
-    />
-  );
 
   return (
-    <section
-      aria-label="Banner do catálogo"
-      class={`relative overflow-hidden ${hasCustomBanner() ? "bg-[#7c3f87]" : "bg-[#faf5fc]"}`}
-    >
-      <div class="relative mx-auto max-w-[1600px]">
-        <Show when={props.href} fallback={image}>
-          <a href={props.href!} class="block">
-            {image}
-          </a>
-        </Show>
-      </div>
-    </section>
+    <Show when={hasCustomBanner()}>
+      <section
+        aria-label="Banner do catálogo"
+        class="relative overflow-hidden bg-[#7c3f87]"
+      >
+        <div class="relative mx-auto max-w-[1600px]">
+          <Show
+            when={props.href}
+            fallback={
+              <BannerImage
+                src={props.src}
+                mobileSrc={props.mobileSrc}
+                alt={props.alt}
+                eager
+                imageClass="mx-auto block h-auto max-h-[60svh] w-full object-contain sm:max-h-[420px]"
+              />
+            }
+          >
+            <a href={props.href!} class="block">
+              <BannerImage
+                src={props.src}
+                mobileSrc={props.mobileSrc}
+                alt={props.alt}
+                eager
+                imageClass="mx-auto block h-auto max-h-[60svh] w-full object-contain sm:max-h-[420px]"
+              />
+            </a>
+          </Show>
+        </div>
+      </section>
+    </Show>
   );
 }
 
@@ -518,13 +529,43 @@ export function CatalogListingView(props: CatalogListingProps) {
     </div>
   );
 
+  const resolvedBanner = () => {
+    if (props.bannerImage?.trim()) {
+      return {
+        src: props.bannerImage,
+        mobileSrc: props.bannerMobileImage,
+        alt: props.bannerAlt ?? props.title,
+        href: props.bannerHref,
+      };
+    }
+    // Tenta encontrar um banner cadastrado pelo lojista no admin
+    const targetUrl = props.categorySlug
+      ? `/categoria/${props.categorySlug}`
+      : undefined;
+    const storeBanner = findStoreBanner("category_top", targetUrl);
+    if (storeBanner) {
+      return {
+        src: storeBanner.desktop_image_path,
+        mobileSrc: storeBanner.mobile_image_path,
+        alt: storeBanner.alt_text || storeBanner.title,
+        href: storeBanner.cta_url,
+      };
+    }
+    return {
+      src: null,
+      mobileSrc: null,
+      alt: props.title,
+      href: null,
+    };
+  };
+
   return (
     <StoreShell>
       <CatalogBanner
-        src={props.bannerImage}
-        mobileSrc={props.bannerMobileImage}
-        alt={props.bannerAlt ?? props.title}
-        href={props.bannerHref}
+        src={resolvedBanner().src}
+        mobileSrc={resolvedBanner().mobileSrc}
+        alt={resolvedBanner().alt}
+        href={resolvedBanner().href}
       />
       <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Show when={props.breadcrumbs && props.breadcrumbs.length > 0}>

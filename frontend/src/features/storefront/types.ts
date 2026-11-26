@@ -463,4 +463,5 @@ export interface BootstrapPayload {
   brands: BrandItem[];
   footer_pages: FooterPageLink[];
   featured_coupon: CouponSummary | null;
+  banners?: BannerData[];
 }

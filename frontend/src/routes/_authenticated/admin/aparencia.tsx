@@ -85,8 +85,66 @@ const SHOWCASE_FILTERS = [
   { value: "featured", label: "Produtos em Destaque" },
 ];
 
+const BANNER_PLACEMENTS = [
+  {
+    value: "hero",
+    label: "Hero Principal (Carrossel Topo da Home)",
+    badge: "Carrossel Home",
+    color: "bg-purple-50 text-purple-700 border-purple-200",
+    defaultPath: "/",
+  },
+  {
+    value: "category_top",
+    label: "Topo de Categorias e Catálogo (/categorias e /categoria/*)",
+    badge: "Topo Categorias",
+    color: "bg-blue-50 text-blue-700 border-blue-200",
+    defaultPath: "/categorias",
+  },
+  {
+    value: "promocoes",
+    label: "Página de Promoções e Ofertas (/promocoes)",
+    badge: "Pág. Promoções",
+    color: "bg-amber-50 text-amber-700 border-amber-200",
+    defaultPath: "/promocoes",
+  },
+  {
+    value: "novidades",
+    label: "Página de Novidades e Lançamentos (/novidades)",
+    badge: "Pág. Novidades",
+    color: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    defaultPath: "/novidades",
+  },
+  {
+    value: "promo_grid",
+    label: "Grade Promocional (Blocos da Home)",
+    badge: "Grade Home",
+    color: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    defaultPath: "/promocoes",
+  },
+  {
+    value: "popup",
+    label: "Pop-up Promocional",
+    badge: "Pop-up",
+    color: "bg-rose-50 text-rose-700 border-rose-200",
+    defaultPath: "/promocoes",
+  },
+];
+
+function getPlacementMeta(placement: string) {
+  return (
+    BANNER_PLACEMENTS.find((p) => p.value === placement) ?? {
+      value: placement,
+      label: placement,
+      badge: placement,
+      color: "bg-zinc-100 text-zinc-700 border-zinc-200",
+      defaultPath: "/",
+    }
+  );
+}
+
 function AdminAppearancePage() {
   const [tab, setTab] = createSignal<"banners" | "home" | "paginas">("banners");
+  const [bannerFilter, setBannerFilter] = createSignal<string>("all");
   const [editingBannerId, setEditingBannerId] = createSignal<number | null>(
     null,
   );
@@ -231,6 +289,32 @@ function AdminAppearancePage() {
   async function deleteBanner(id: number) {
     await api(`/admin/banners/${id}`, { method: "DELETE" });
     await refetchBanners();
+  }
+
+  async function moveBanner(b: AdminBanner, delta: number) {
+    const currentList = banners() ?? [];
+    const idx = currentList.findIndex((item) => item.id === b.id);
+    if (idx === -1) return;
+    const target = idx + delta;
+    if (target < 0 || target >= currentList.length) return;
+
+    const reordered = [...currentList];
+    const [moved] = reordered.splice(idx, 1);
+    if (!moved) return;
+    reordered.splice(target, 0, moved);
+
+    try {
+      await api("/admin/banners/reorder", {
+        method: "POST",
+        body: { ordered_ids: reordered.map((item) => item.id) },
+      });
+      await refetchBanners();
+      setFeedback("Ordem dos banners atualizada.");
+    } catch (err) {
+      setFeedback(
+        err instanceof ApiError ? err.message : "Erro ao reordenar banners.",
+      );
+    }
   }
 
   function moveSection(index: number, delta: number) {
@@ -443,12 +527,25 @@ function AdminAppearancePage() {
             />
             <select
               value={bPlacement()}
-              onChange={(e) => setBPlacement(e.currentTarget.value)}
+              onChange={(e) => {
+                const val = e.currentTarget.value;
+                setBPlacement(val);
+                const meta = getPlacementMeta(val);
+                if (
+                  !bUrl() ||
+                  bUrl() === "/promocoes" ||
+                  bUrl() === "/categorias" ||
+                  bUrl() === "/novidades" ||
+                  bUrl() === "/"
+                ) {
+                  setBUrl(meta.defaultPath);
+                }
+              }}
               class="h-9 w-full rounded-md border border-zinc-300 bg-white px-2.5 text-sm"
             >
-              <option value="hero">Hero Principal (Carrossel Topo)</option>
-              <option value="promo_grid">Grade Promocional (Home)</option>
-              <option value="category_top">Topo de Categoria / Catálogo</option>
+              <For each={BANNER_PLACEMENTS}>
+                {(opt) => <option value={opt.value}>{opt.label}</option>}
+              </For>
             </select>
             <AdminImageUpload
               label="Arte Desktop *"
@@ -479,13 +576,56 @@ function AdminAppearancePage() {
               onInput={(e) => setBAlt(e.currentTarget.value)}
               class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
             />
-            <input
-              type="text"
-              placeholder="Link de destino (ex.: /promocoes)"
-              value={bUrl()}
-              onInput={(e) => setBUrl(e.currentTarget.value)}
-              class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
-            />
+            <div class="space-y-1">
+              <label class="text-[11px] font-semibold text-zinc-600">
+                Link de destino (ao clicar no banner)
+              </label>
+              <input
+                type="text"
+                placeholder="Link de destino (ex.: /promocoes)"
+                value={bUrl()}
+                onInput={(e) => setBUrl(e.currentTarget.value)}
+                class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
+              />
+              <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span class="text-[10px] text-zinc-400">Atalhos:</span>
+                <button
+                  type="button"
+                  onClick={() => setBUrl("/promocoes")}
+                  class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 hover:bg-zinc-200"
+                >
+                  /promocoes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBUrl("/categorias")}
+                  class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 hover:bg-zinc-200"
+                >
+                  /categorias
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBUrl("/novidades")}
+                  class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 hover:bg-zinc-200"
+                >
+                  /novidades
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBUrl("/categoria/alongamento-unhas")}
+                  class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 hover:bg-zinc-200"
+                >
+                  /alongamento-unhas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBUrl("/")}
+                  class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-700 hover:bg-zinc-200"
+                >
+                  Home (/)
+                </button>
+              </div>
+            </div>
             <div class="flex items-center gap-2 pt-1">
               <input
                 type="checkbox"
@@ -510,67 +650,154 @@ function AdminAppearancePage() {
           </form>
 
           <section class="space-y-3 rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-7">
-            <h2 class="text-base font-bold text-zinc-900">Banners Atuais</h2>
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
+              <div>
+                <h2 class="text-base font-bold text-zinc-900">Banners Atuais</h2>
+                <p class="text-[11px] text-zinc-500">
+                  Filtre pela posição ou reordene com as setas para ajustar a exibição na loja.
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => setBannerFilter("all")}
+                  class={`rounded-full px-2.5 py-0.5 text-[11px] font-bold transition ${
+                    bannerFilter() === "all"
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                  }`}
+                >
+                  Todos ({banners()?.length ?? 0})
+                </button>
+                <For each={BANNER_PLACEMENTS}>
+                  {(p) => {
+                    const count = () =>
+                      (banners() ?? []).filter((b) => b.placement === p.value)
+                        .length;
+                    return (
+                      <Show when={count() > 0 || p.value === "category_top" || p.value === "hero"}>
+                        <button
+                          type="button"
+                          onClick={() => setBannerFilter(p.value)}
+                          class={`rounded-full px-2.5 py-0.5 text-[11px] font-bold transition ${
+                            bannerFilter() === p.value
+                              ? "bg-zinc-900 text-white"
+                              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                          }`}
+                        >
+                          {p.badge} ({count()})
+                        </button>
+                      </Show>
+                    );
+                  }}
+                </For>
+              </div>
+            </div>
+
             <div class="space-y-2.5">
-              <For each={banners() ?? []}>
-                {(b) => (
-                  <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 shadow-2xs hover:border-[var(--mf-primary)]/40 transition">
-                    <div class="flex items-center gap-3 min-w-0">
-                      <img
-                        src={assetUrl(b.desktop_image_path)}
-                        alt={b.alt_text}
-                        class="h-14 w-28 shrink-0 rounded border border-zinc-200 object-cover bg-zinc-50"
-                      />
-                      <div class="min-w-0">
-                        <div class="flex items-center gap-2">
-                          <p class="truncate text-sm font-bold text-zinc-900">
-                            {b.title}
-                          </p>
-                          <span
-                            class={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                              b.is_active
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-zinc-100 text-zinc-500 border border-zinc-200"
-                            }`}
+              <For
+                each={
+                  bannerFilter() === "all"
+                    ? (banners() ?? [])
+                    : (banners() ?? []).filter(
+                        (b) => b.placement === bannerFilter(),
+                      )
+                }
+              >
+                {(b) => {
+                  const meta = getPlacementMeta(b.placement);
+                  const previewHref = b.cta_url || meta.defaultPath;
+                  return (
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 shadow-2xs hover:border-[var(--mf-primary)]/40 transition">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="flex flex-col items-center gap-0.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => void moveBanner(b, -1)}
+                            class="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                            title="Mover para cima"
                           >
-                            {b.is_active ? "Ativo" : "Pausado"}
-                          </span>
+                            <ArrowUp class="size-3.5" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void moveBanner(b, 1)}
+                            class="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                            title="Mover para baixo"
+                          >
+                            <ArrowDown class="size-3.5" aria-hidden="true" />
+                          </button>
                         </div>
-                        <p class="text-xs text-zinc-500">
-                          Posição:{" "}
-                          <span class="font-semibold text-zinc-700">
-                            {b.placement}
-                          </span>{" "}
-                          · {b.cta_url || "Sem link"}
-                        </p>
+                        <img
+                          src={assetUrl(b.desktop_image_path)}
+                          alt={b.alt_text}
+                          class="h-14 w-28 shrink-0 rounded border border-zinc-200 object-cover bg-zinc-50"
+                        />
+                        <div class="min-w-0">
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <p class="truncate text-sm font-bold text-zinc-900">
+                              {b.title}
+                            </p>
+                            <span
+                              class={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${meta.color}`}
+                            >
+                              {meta.badge}
+                            </span>
+                            <span
+                              class={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                b.is_active
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                              }`}
+                            >
+                              {b.is_active ? "Ativo" : "Pausado"}
+                            </span>
+                          </div>
+                          <div class="flex flex-wrap items-center gap-2 pt-1 text-xs text-zinc-500">
+                            <span>
+                              Destino:{" "}
+                              <code class="rounded bg-zinc-100 px-1 py-0.5 text-[11px] font-semibold text-zinc-700">
+                                {b.cta_url || "Sem link"}
+                              </code>
+                            </span>
+                            <a
+                              href={previewHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="font-semibold text-[var(--mf-primary)] hover:underline inline-flex items-center gap-0.5"
+                            >
+                              Ver na loja ↗
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void toggleBannerActive(b)}
+                          class="text-xs font-semibold text-zinc-600 hover:text-zinc-900"
+                        >
+                          {b.is_active ? "Pausar" : "Ativar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => loadBannerIntoForm(b)}
+                          class="rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteBanner(b.id)}
+                          class="rounded p-1 text-red-600 hover:bg-red-50"
+                          title="Remover banner"
+                        >
+                          <Trash2 class="size-4" aria-hidden="true" />
+                        </button>
                       </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void toggleBannerActive(b)}
-                        class="text-xs font-semibold text-zinc-600 hover:text-zinc-900"
-                      >
-                        {b.is_active ? "Pausar" : "Ativar"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => loadBannerIntoForm(b)}
-                        class="rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-bold text-zinc-700 hover:bg-zinc-50"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteBanner(b.id)}
-                        class="rounded p-1 text-red-600 hover:bg-red-50"
-                        title="Remover banner"
-                      >
-                        <Trash2 class="size-4" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  );
+                }}
               </For>
             </div>
           </section>

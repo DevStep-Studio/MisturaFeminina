@@ -12,7 +12,9 @@ import Search from "lucide-solid/icons/search";
 import Sparkles from "lucide-solid/icons/sparkles";
 import X from "lucide-solid/icons/x";
 import { For, Show, createMemo, createResource, createSignal } from "solid-js";
+import { CatalogBanner } from "../features/storefront/components/CatalogListingView";
 import { StoreShell } from "../features/storefront/components/StoreShell";
+import { findStoreBanner } from "../features/storefront/store";
 import type { CategoryNode } from "../features/storefront/types";
 import { api } from "../lib/api";
 import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
@@ -73,8 +75,20 @@ function CategoriesDirectoryPage() {
     });
   });
 
+  const catBanner = () => findStoreBanner("category_top", "/categorias");
+
   return (
     <StoreShell>
+      <Show when={catBanner()}>
+        {(b) => (
+          <CatalogBanner
+            src={b().desktop_image_path}
+            mobileSrc={b().mobile_image_path}
+            alt={b().alt_text || b().title}
+            href={b().cta_url}
+          />
+        )}
+      </Show>
       <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {/* Breadcrumb Navigation */}
         <nav aria-label="Navegação estrutural" class="mb-4">

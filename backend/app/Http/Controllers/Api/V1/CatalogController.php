@@ -13,6 +13,7 @@ use App\Domain\Shipping\Services\ShippingQuoteService;
 use App\Domain\Wholesale\Services\WholesalePricingService;
 use App\Domain\Wholesale\Services\WholesaleResellerService;
 use App\Http\Controllers\Controller;
+use App\Models\Banner;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Order;
@@ -75,6 +76,27 @@ class CatalogController extends Controller
 
         $categoryPayload = $category->toArray();
         $categoryPayload['ancestors'] = $ancestors;
+
+        if (empty($category->banner_desktop_path)) {
+            $catBanner = Banner::query()
+                ->where('is_active', true)
+                ->where('placement', 'category_top')
+                ->where(function ($q) use ($slug) {
+                    $q->where('cta_url', '/categoria/'.$slug)
+                      ->orWhere('cta_url', '/categorias')
+                      ->orWhereNull('cta_url')
+                      ->orWhere('cta_url', '');
+                })
+                ->orderByRaw("CASE WHEN cta_url = '/categoria/{$slug}' THEN 0 WHEN cta_url = '/categorias' THEN 1 ELSE 2 END")
+                ->orderBy('sort_order')
+                ->first();
+
+            if ($catBanner) {
+                $categoryPayload['banner_desktop_path'] = $catBanner->desktop_image_path;
+                $categoryPayload['banner_mobile_path'] = $catBanner->mobile_image_path;
+                $categoryPayload['banner_href'] = $catBanner->cta_url;
+            }
+        }
 
         return response()->json([
             'data' => [

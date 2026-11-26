@@ -19,6 +19,10 @@ export const Route = createFileRoute("/novidades")({
 });
 
 function NewArrivalsPage() {
+  const newBanner = () =>
+    storefrontStore.findBanner("novidades", "/novidades") ||
+    storefrontStore.findBanner("category_top");
+
   return (
     <CatalogListingView
       title="Novidades e Lançamentos"
@@ -27,6 +31,10 @@ function NewArrivalsPage() {
       endpoint="/catalog/products"
       fixedParams={{ collection: "novidades" }}
       brands={storefrontStore.bootstrap().brands}
+      bannerImage={newBanner()?.desktop_image_path}
+      bannerMobileImage={newBanner()?.mobile_image_path}
+      bannerAlt={newBanner()?.alt_text || "Novidades e Lançamentos"}
+      bannerHref={newBanner()?.cta_url}
     />
   );
 }

@@ -3,6 +3,7 @@ import { api } from "../../lib/api";
 import { assetUrl } from "../../lib/format";
 import { configureDynamicAnalytics } from "../../monitoring/analytics";
 import type {
+  BannerData,
   BootstrapPayload,
   BrandItem,
   CartSummary,
@@ -148,6 +149,7 @@ const [bootstrapData, setBootstrapData] = createSignal<BootstrapPayload>({
   brands: DEFAULT_BRANDS,
   footer_pages: [],
   featured_coupon: null,
+  banners: [],
 });
 
 const [cartData, setCartData] = createSignal<CartSummary | null>(null);
@@ -459,6 +461,42 @@ export async function importSharedCart(token: string): Promise<{
   }
 }
 
+export function findStoreBanner(
+  placement: string,
+  targetUrl?: string,
+): BannerData | null {
+  const banners = bootstrapData().banners ?? [];
+  if (!banners.length) return null;
+
+  // 1. Prioridade máxima: correspondência exata de targetUrl (ex.: cta_url === '/promocoes' ou '/categorias')
+  if (targetUrl) {
+    const cleanTarget = targetUrl.split("?")[0].replace(/\/+$/, "") || "/";
+    const exactMatch = banners.find(
+      (b) =>
+        b.cta_url &&
+        b.cta_url.split("?")[0].replace(/\/+$/, "") === cleanTarget &&
+        (b.placement === placement || b.placement === "category_top"),
+    );
+    if (exactMatch) return exactMatch;
+  }
+
+  // 2. Correspondência por placement específico (ex.: 'category_top', 'promocoes', 'novidades')
+  const placementMatch = banners.find((b) => b.placement === placement);
+  if (placementMatch) return placementMatch;
+
+  // 3. Fallback para 'category_top' se estiver procurando banner de catálogo/listagem
+  if (
+    placement.startsWith("category_") ||
+    placement === "catalog" ||
+    placement === "promocoes"
+  ) {
+    const catTop = banners.find((b) => b.placement === "category_top");
+    if (catTop) return catTop;
+  }
+
+  return null;
+}
+
 export const storefrontStore = {
   bootstrap: bootstrapData,
   settings: () => bootstrapData().settings,
@@ -467,4 +505,5 @@ export const storefrontStore = {
   drawerOpen: cartDrawerOpen,
   setDrawerOpen: setCartDrawerOpen,
   cartBusy,
+  findBanner: findStoreBanner,
 };
