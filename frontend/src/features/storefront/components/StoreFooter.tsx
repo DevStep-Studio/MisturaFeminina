@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/solid-router";
+import BookOpen from "lucide-solid/icons/book-open";
 import ChevronUp from "lucide-solid/icons/chevron-up";
 import Clock from "lucide-solid/icons/clock";
 import CreditCard from "lucide-solid/icons/credit-card";
@@ -198,6 +199,15 @@ export function StoreFooter() {
             <li>
               <Link to="/marcas" class="transition-colors hover:text-white">
                 Marcas parceiras
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/guia"
+                class="inline-flex items-center gap-1 font-semibold text-white transition-colors hover:text-[#FFD166]"
+              >
+                <BookOpen class="size-3.5" aria-hidden="true" />
+                <span>Guia da Manicure & Dicas</span>
               </Link>
             </li>
             <li>

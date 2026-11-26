@@ -250,6 +250,105 @@ export function buildProductSchema(product: SeoProductOptions) {
   };
 }
 
+export interface CollectionPageItem {
+  name: string;
+  path: string;
+  image?: string | null;
+  price?: string | null;
+}
+
+export function buildCollectionPageSchema(options: {
+  name: string;
+  description: string;
+  path: string;
+  items?: CollectionPageItem[];
+}) {
+  const collectionUrl = new URL(options.path, site.url).href;
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: options.name,
+    description: stripHtml(options.description),
+    url: collectionUrl,
+    mainEntity: options.items && options.items.length > 0
+      ? {
+          "@type": "ItemList",
+          numberOfItems: options.items.length,
+          itemListElement: options.items.map((item, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: item.name,
+            url: new URL(item.path, site.url).href,
+            ...(item.image ? { image: new URL(item.image, site.url).href } : {}),
+          })),
+        }
+      : undefined,
+  };
+}
+
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+export function buildFaqSchema(faqs: FaqItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: stripHtml(faq.answer),
+      },
+    })),
+  };
+}
+
+export interface ArticleSchemaOptions {
+  title: string;
+  description: string;
+  path: string;
+  datePublished: string;
+  dateModified?: string;
+  image?: string;
+  authorName?: string;
+}
+
+export function buildArticleSchema(options: ArticleSchemaOptions) {
+  const articleUrl = new URL(options.path, site.url).href;
+  const imageUrl = new URL(options.image || "/og-cover.png", site.url).href;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: options.title,
+    description: stripHtml(options.description),
+    url: articleUrl,
+    image: imageUrl,
+    datePublished: options.datePublished,
+    dateModified: options.dateModified || options.datePublished,
+    author: {
+      "@type": "Organization",
+      name: options.authorName || site.name,
+      url: site.url,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: site.name,
+      logo: {
+        "@type": "ImageObject",
+        url: new URL("/logo-mf.png", site.url).href,
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": articleUrl,
+    },
+  };
+}
+
 export function seoHead(options: SeoOptions) {
   const brandName = "Mistura Feminina";
   const title = options.title.toLowerCase().includes("mistura feminina")

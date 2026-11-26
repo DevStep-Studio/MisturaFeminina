@@ -1,9 +1,15 @@
 import { createFileRoute, redirect } from "@tanstack/solid-router";
 import { CatalogListingView } from "../../features/storefront/components/CatalogListingView";
+import { getCategorySeoContent } from "../../features/storefront/data/categorySeoContent";
 import { storefrontStore } from "../../features/storefront/store";
 import type { CategoryNode } from "../../features/storefront/types";
 import { ApiError, api } from "../../lib/api";
-import { buildBreadcrumbSchema, seoHead } from "../../lib/seo";
+import {
+  buildBreadcrumbSchema,
+  buildCollectionPageSchema,
+  buildFaqSchema,
+  seoHead,
+} from "../../lib/seo";
 
 export const Route = createFileRoute("/categoria/$slug")({
   loader: async ({ params }) => {
@@ -24,6 +30,8 @@ export const Route = createFileRoute("/categoria/$slug")({
     const cat = loaderData;
     const name = cat?.name || params.slug;
     const ancestors = cat?.ancestors ?? [];
+    const seoData = getCategorySeoContent(params.slug);
+
     const schemaItems = [
       { name: "Início", path: "/" },
       { name: "Categorias", path: "/categorias" },
@@ -31,15 +39,35 @@ export const Route = createFileRoute("/categoria/$slug")({
         ? ancestors.map((a) => ({ name: a.name, path: `/categoria/${a.slug}` }))
         : [{ name, path: `/categoria/${params.slug}` }]),
     ];
+
+    const title =
+      cat?.seo_title ||
+      (seoData ? `${seoData.heading} | Mistura Feminina` : `${name} | Mistura Feminina`);
+    const description =
+      cat?.seo_description ||
+      seoData?.intro ||
+      cat?.description ||
+      `Confira nossa seleção de ${name} na Mistura Feminina. Conheça os produtos disponíveis e encontre opções para sua rotina de beleza.`;
+
+    const schemas: Array<Record<string, unknown>> = [
+      buildBreadcrumbSchema(schemaItems),
+      buildCollectionPageSchema({
+        name: title,
+        description,
+        path: `/categoria/${params.slug}`,
+      }),
+    ];
+
+    if (seoData && seoData.faqs.length > 0) {
+      schemas.push(buildFaqSchema(seoData.faqs));
+    }
+
     return seoHead({
-      title: cat?.seo_title || `${name} | Mistura Feminina`,
-      description:
-        cat?.seo_description ||
-        cat?.description ||
-        `Confira nossa seleção de ${name} na Mistura Feminina. Conheça os produtos disponíveis e encontre opções para sua rotina de beleza.`,
+      title,
+      description,
       path: `/categoria/${params.slug}`,
       noindex: !cat,
-      jsonLd: buildBreadcrumbSchema(schemaItems),
+      jsonLd: schemas,
     });
   },
   component: CategoryPage,
@@ -83,6 +111,7 @@ function CategoryPage() {
       }))}
       endpoint={`/catalog/categories/${params().slug}`}
       brands={storefrontStore.bootstrap().brands}
+      categorySlug={params().slug}
     />
   );
 }

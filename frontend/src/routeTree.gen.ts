@@ -34,6 +34,8 @@ import { Route as RastrearPedidoRouteImport } from './routes/rastrear-pedido'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as CategoriaSlugRouteImport } from './routes/categoria/$slug'
+import { Route as GuiaIndexRouteImport } from './routes/guia/index'
+import { Route as GuiaSlugRouteImport } from './routes/guia/$slug'
 import { Route as MarcaSlugRouteImport } from './routes/marca/$slug'
 import { Route as ProdutoSlugRouteImport } from './routes/produto/$slug'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -178,6 +180,16 @@ const CategoriaSlugRoute = CategoriaSlugRouteImport.update({
   path: '/categoria/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuiaIndexRoute = GuiaIndexRouteImport.update({
+  id: '/guia/',
+  path: '/guia/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuiaSlugRoute = GuiaSlugRouteImport.update({
+  id: '/guia/$slug',
+  path: '/guia/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarcaSlugRoute = MarcaSlugRouteImport.update({
   id: '/marca/$slug',
   path: '/marca/$slug',
@@ -312,8 +324,10 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/app': typeof AuthenticatedAppRoute
   '/categoria/$slug': typeof CategoriaSlugRoute
+  '/guia/$slug': typeof GuiaSlugRoute
   '/marca/$slug': typeof MarcaSlugRoute
   '/produto/$slug': typeof ProdutoSlugRoute
+  '/guia/': typeof GuiaIndexRoute
   '/admin/aparencia': typeof AuthenticatedAdminAparenciaRoute
   '/admin/atacado': typeof AuthenticatedAdminAtacadoRoute
   '/admin/categorias': typeof AuthenticatedAdminCategoriasRoute
@@ -357,8 +371,10 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/app': typeof AuthenticatedAppRoute
   '/categoria/$slug': typeof CategoriaSlugRoute
+  '/guia/$slug': typeof GuiaSlugRoute
   '/marca/$slug': typeof MarcaSlugRoute
   '/produto/$slug': typeof ProdutoSlugRoute
+  '/guia': typeof GuiaIndexRoute
   '/admin/aparencia': typeof AuthenticatedAdminAparenciaRoute
   '/admin/atacado': typeof AuthenticatedAdminAtacadoRoute
   '/admin/categorias': typeof AuthenticatedAdminCategoriasRoute
@@ -404,8 +420,10 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/categoria/$slug': typeof CategoriaSlugRoute
+  '/guia/$slug': typeof GuiaSlugRoute
   '/marca/$slug': typeof MarcaSlugRoute
   '/produto/$slug': typeof ProdutoSlugRoute
+  '/guia/': typeof GuiaIndexRoute
   '/_authenticated/admin/aparencia': typeof AuthenticatedAdminAparenciaRoute
   '/_authenticated/admin/atacado': typeof AuthenticatedAdminAtacadoRoute
   '/_authenticated/admin/categorias': typeof AuthenticatedAdminCategoriasRoute
@@ -451,8 +469,10 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/app'
     | '/categoria/$slug'
+    | '/guia/$slug'
     | '/marca/$slug'
     | '/produto/$slug'
+    | '/guia/'
     | '/admin/aparencia'
     | '/admin/atacado'
     | '/admin/categorias'
@@ -496,8 +516,10 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/app'
     | '/categoria/$slug'
+    | '/guia/$slug'
     | '/marca/$slug'
     | '/produto/$slug'
+    | '/guia'
     | '/admin/aparencia'
     | '/admin/atacado'
     | '/admin/categorias'
@@ -542,8 +564,10 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/app'
     | '/categoria/$slug'
+    | '/guia/$slug'
     | '/marca/$slug'
     | '/produto/$slug'
+    | '/guia/'
     | '/_authenticated/admin/aparencia'
     | '/_authenticated/admin/atacado'
     | '/_authenticated/admin/categorias'
@@ -588,8 +612,10 @@ export interface RootRouteChildren {
   RastrearPedidoRoute: typeof RastrearPedidoRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   CategoriaSlugRoute: typeof CategoriaSlugRoute
+  GuiaSlugRoute: typeof GuiaSlugRoute
   MarcaSlugRoute: typeof MarcaSlugRoute
   ProdutoSlugRoute: typeof ProdutoSlugRoute
+  GuiaIndexRoute: typeof GuiaIndexRoute
   PedidoTokenConfirmacaoRoute: typeof PedidoTokenConfirmacaoRoute
 }
 
@@ -768,6 +794,20 @@ declare module '@tanstack/solid-router' {
       path: '/categoria/$slug'
       fullPath: '/categoria/$slug'
       preLoaderRoute: typeof CategoriaSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guia/': {
+      id: '/guia/'
+      path: '/guia'
+      fullPath: '/guia/'
+      preLoaderRoute: typeof GuiaIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guia/$slug': {
+      id: '/guia/$slug'
+      path: '/guia/$slug'
+      fullPath: '/guia/$slug'
+      preLoaderRoute: typeof GuiaSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/marca/$slug': {
@@ -998,8 +1038,10 @@ const rootRouteChildren: RootRouteChildren = {
   RastrearPedidoRoute: RastrearPedidoRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   CategoriaSlugRoute: CategoriaSlugRoute,
+  GuiaSlugRoute: GuiaSlugRoute,
   MarcaSlugRoute: MarcaSlugRoute,
   ProdutoSlugRoute: ProdutoSlugRoute,
+  GuiaIndexRoute: GuiaIndexRoute,
   PedidoTokenConfirmacaoRoute: PedidoTokenConfirmacaoRoute,
 }
 export const routeTree = rootRouteImport

@@ -37,9 +37,9 @@ import { selectPromotion } from "../monitoring/analytics";
 export const Route = createFileRoute("/")({
   head: () =>
     seoHead({
-      title: "Mistura Feminina | Cosméticos, Maquiagem e Beleza",
+      title: "Mistura Feminina Cosméticos | Esmaltes em Gel, Alongamento e Beleza",
       description:
-        "Encontre cosméticos, maquiagens e produtos de beleza na Mistura Feminina. Explore nosso catálogo e descubra opções para seus cuidados diários.",
+        "Loja de cosméticos e produtos para unhas: esmaltes em gel, géis construtores, moldes F1, lixas, cabines e acessórios profissionais com entrega rápida.",
       path: "/",
       jsonLd: [buildOrganizationSchema(), buildWebSiteSchema()],
     }),
@@ -773,7 +773,7 @@ function StorefrontHomePage() {
   return (
     <StoreShell>
       <h1 class="sr-only">
-        {settings().store_name} — Cosméticos e Cuidados Pessoais
+        Mistura Feminina Cosméticos — Esmaltes em Gel, Alongamento de Unhas e Produtos Profissionais
       </h1>
 
       <ErrorBoundary

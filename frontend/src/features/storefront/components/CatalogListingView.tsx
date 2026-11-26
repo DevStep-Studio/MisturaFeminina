@@ -1,10 +1,15 @@
 import { Link } from "@tanstack/solid-router";
+import BookOpen from "lucide-solid/icons/book-open";
+import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronRight from "lucide-solid/icons/chevron-right";
+import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
 import SlidersHorizontal from "lucide-solid/icons/sliders-horizontal";
+import Sparkles from "lucide-solid/icons/sparkles";
 import X from "lucide-solid/icons/x";
 import { For, Show, createEffect, createSignal, on, type JSX } from "solid-js";
 import { api } from "../../../lib/api";
 import { trackViewItemList } from "../../../monitoring/analytics";
+import { getCategorySeoContent } from "../data/categorySeoContent";
 import type { BrandItem, FacetAttribute, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
 import { BannerImage } from "./BannerImage";
@@ -25,6 +30,7 @@ export interface CatalogListingProps {
   bannerHref?: string | null;
   subCategories?: Array<{ id: number; name: string; slug: string }>;
   headerAction?: JSX.Element;
+  categorySlug?: string;
 }
 
 /** Full-width promotional banner displayed above catalog and category listings. */
@@ -150,6 +156,8 @@ function FilterOptionCheckbox(props: {
 
 export function CatalogListingView(props: CatalogListingProps) {
   const [sort, setSort] = createSignal("relevance");
+  const [openFaq, setOpenFaq] = createSignal<number | null>(null);
+  const seoContent = () => (props.categorySlug ? getCategorySeoContent(props.categorySlug) : null);
   const [selectedBrands, setSelectedBrands] = createSignal<string[]>([]);
   const [selectedCategories, setSelectedCategories] = createSignal<string[]>(
     [],
@@ -791,6 +799,136 @@ export function CatalogListingView(props: CatalogListingProps) {
             </Show>
           </div>
         </div>
+
+        {/* Guia de Compra, Conteúdo Educativo e FAQ da Categoria */}
+        <Show when={seoContent()}>
+          {(seo) => (
+            <section
+              aria-label="Informações e Guia da Categoria"
+              class="mt-14 border-t border-[#F0E4F2] pt-10"
+            >
+              <div class="rounded-2xl border border-[#E5D4EC] bg-[#FAF6FC] p-6 sm:p-8">
+                <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#7C3F87]">
+                  <BookOpen class="size-4" />
+                  Guia da Categoria & Dicas Técnicas
+                </div>
+                <h2 class="mt-2 text-xl font-extrabold text-[#2E0C49] sm:text-2xl">
+                  {seo().heading}
+                </h2>
+                <p class="mt-3 text-sm leading-relaxed text-[#5B486B]">
+                  {seo().description}
+                </p>
+
+                {/* Dicas de Aplicação */}
+                <Show when={seo().tips.length > 0}>
+                  <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                    <For each={seo().tips}>
+                      {(tip) => (
+                        <div class="rounded-xl border border-[#E5D4EC] bg-white p-4 shadow-2xs">
+                          <h3 class="flex items-center gap-1.5 text-sm font-bold text-[#2E0C49]">
+                            <Sparkles class="size-3.5 text-[#93509e]" />
+                            {tip.title}
+                          </h3>
+                          <p class="mt-1.5 text-xs leading-relaxed text-[#5B486B]">
+                            {tip.description}
+                          </p>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+
+                {/* Guia Completo Relacionado */}
+                <Show when={seo().relatedGuide}>
+                  {(guide) => (
+                    <div class="mt-6 flex flex-col items-start justify-between gap-4 rounded-xl border border-[#93509e]/30 bg-white p-4 sm:flex-row sm:items-center">
+                      <div>
+                        <span class="inline-block rounded-md bg-[#FAF4FB] px-2 py-0.5 text-[10px] font-bold text-[#7C3F87]">
+                          Artigo Educativo Relacionado
+                        </span>
+                        <h4 class="mt-1 text-sm font-bold text-[#2E0C49]">
+                          {guide().title}
+                        </h4>
+                        <p class="mt-0.5 text-xs text-[#5B486B]">
+                          {guide().summary}
+                        </p>
+                      </div>
+                      <Link
+                        to="/guia/$slug"
+                        params={{ slug: guide().slug }}
+                        class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#93509e] px-3.5 py-2 text-xs font-bold text-white transition hover:bg-[#7C3F87]"
+                      >
+                        <span>Ler guia completo</span>
+                        <ChevronRight class="size-3.5" />
+                      </Link>
+                    </div>
+                  )}
+                </Show>
+
+                {/* Perguntas Frequentes (FAQ) da Categoria */}
+                <Show when={seo().faqs.length > 0}>
+                  <div class="mt-8 border-t border-[#E5D4EC] pt-6">
+                    <h3 class="flex items-center gap-2 text-base font-bold text-[#2E0C49]">
+                      <CircleQuestionMark class="size-4 text-[#93509e]" />
+                      Dúvidas Frequentes sobre {props.title}
+                    </h3>
+                    <div class="mt-4 space-y-2.5">
+                      <For each={seo().faqs}>
+                        {(faq, idx) => {
+                          const isOpen = () => openFaq() === idx();
+                          return (
+                            <div class="rounded-xl border border-[#E5D4EC] bg-white transition hover:border-[#93509e]">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenFaq((prev) =>
+                                    prev === idx() ? null : idx(),
+                                  )
+                                }
+                                class="flex w-full items-center justify-between gap-3 p-3.5 text-left text-sm font-semibold text-[#2E0C49]"
+                                aria-expanded={isOpen()}
+                              >
+                                <span>{faq.question}</span>
+                                <ChevronDown
+                                  class="size-4 shrink-0 text-[#93509e] transition-transform duration-200"
+                                  classList={{ "rotate-180": isOpen() }}
+                                />
+                              </button>
+                              <Show when={isOpen()}>
+                                <div class="border-t border-[#FAF4FB] px-3.5 pb-3.5 pt-1 text-xs leading-relaxed text-[#5B486B]">
+                                  {faq.answer}
+                                </div>
+                              </Show>
+                            </div>
+                          );
+                        }}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
+
+                {/* Categorias e Departamentos Relacionados */}
+                <Show when={seo().relatedCategories.length > 0}>
+                  <div class="mt-6 flex flex-wrap items-center gap-2 text-xs text-[#5B486B]">
+                    <span class="font-bold text-[#2E0C49]">
+                      Departamentos complementares:
+                    </span>
+                    <For each={seo().relatedCategories}>
+                      {(rel) => (
+                        <Link
+                          to={rel.path}
+                          class="rounded-full border border-[#E5D4EC] bg-white px-3 py-1 font-semibold text-[#7C3F87] transition hover:border-[#93509e] hover:bg-[#93509e] hover:text-white"
+                        >
+                          {rel.label}
+                        </Link>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+              </div>
+            </section>
+          )}
+        </Show>
       </div>
     </StoreShell>
   );

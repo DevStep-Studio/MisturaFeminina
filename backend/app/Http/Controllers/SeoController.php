@@ -43,6 +43,11 @@ class SeoController extends Controller
             $urls = [
                 ['loc' => $base.'/', 'lastmod' => $rootLastMod],
                 ['loc' => $base.'/categorias', 'lastmod' => $latestCategoryAt ? Carbon::parse((string) $latestCategoryAt)->toAtomString() : null],
+                ['loc' => $base.'/guia', 'lastmod' => Carbon::now()->toAtomString()],
+                ['loc' => $base.'/guia/alongamento-unhas-em-gel-guia-completo', 'lastmod' => '2026-11-26T12:00:00+00:00'],
+                ['loc' => $base.'/guia/esmaltacao-em-gel-passo-a-passo', 'lastmod' => '2026-11-26T12:00:00+00:00'],
+                ['loc' => $base.'/guia/como-escolher-lixas-e-brocas', 'lastmod' => '2026-11-26T12:00:00+00:00'],
+                ['loc' => $base.'/guia/cuidados-e-higiene-de-alicates-e-cutelaria', 'lastmod' => '2026-11-26T12:00:00+00:00'],
                 ['loc' => $base.'/marcas'],
                 ['loc' => $base.'/promocoes'],
                 ['loc' => $base.'/novidades'],

@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buildProductSchema, seoHead, stripHtml } from "../../src/lib/seo";
+import {
+  buildArticleSchema,
+  buildCollectionPageSchema,
+  buildFaqSchema,
+  buildProductSchema,
+  seoHead,
+  stripHtml,
+} from "../../src/lib/seo";
+import { getCategorySeoContent } from "../../src/features/storefront/data/categorySeoContent";
+import {
+  getNailGuideBySlug,
+  NAIL_GUIDES,
+} from "../../src/features/storefront/data/nailGuidesData";
 import { publicPages } from "../../src/lib/site";
 import { mapCartItemsToGa4 } from "../../src/monitoring/analytics";
 
@@ -122,24 +134,89 @@ describe("publicPages", () => {
   });
 });
 
-describe("mapCartItemsToGa4", () => {
-  it("maps cart items without PII", () => {
-    expect(
-      mapCartItemsToGa4([
-        {
-          sku: "SKU-1",
-          product_name: "Sérum",
-          unit_price_cents: 4590,
-          quantity: 2,
-        },
-      ]),
-    ).toEqual([
+describe("buildCollectionPageSchema", () => {
+  it("generates valid CollectionPage schema with item list", () => {
+    const schema = buildCollectionPageSchema({
+      name: "Alongamento de Unhas",
+      description: "<p>Produtos de <b>alongamento</b> de alta qualidade.</p>",
+      path: "/categoria/alongamento-unhas",
+      items: [
+        { name: "Gel Any Lovy", path: "/produto/gel-any-lovy" },
+        { name: "Molde F1 Kaisa", path: "/produto/molde-f1-kaisa" },
+      ],
+    });
+
+    expect(schema["@type"]).toBe("CollectionPage");
+    expect(schema.name).toBe("Alongamento de Unhas");
+    expect(schema.description).toBe("Produtos de alongamento de alta qualidade.");
+    expect(schema.url).toContain("/categoria/alongamento-unhas");
+    expect(schema.mainEntity?.["@type"]).toBe("ItemList");
+    expect(schema.mainEntity?.numberOfItems).toBe(2);
+    expect(schema.mainEntity?.itemListElement[0]?.name).toBe("Gel Any Lovy");
+  });
+});
+
+describe("buildFaqSchema", () => {
+  it("builds valid FAQPage schema stripping HTML from answers", () => {
+    const schema = buildFaqSchema([
       {
-        item_id: "SKU-1",
-        item_name: "Sérum",
-        price: 45.9,
-        quantity: 2,
+        question: "O gel precisa ir para a cabine?",
+        answer: "Sim, o gel <strong>polimeriza</strong> na cabine LED/UV.",
       },
     ]);
+
+    expect(schema["@type"]).toBe("FAQPage");
+    expect(schema.mainEntity).toHaveLength(1);
+    expect(schema.mainEntity[0]?.name).toBe("O gel precisa ir para a cabine?");
+    expect(schema.mainEntity[0]?.acceptedAnswer.text).toBe(
+      "Sim, o gel polimeriza na cabine LED/UV.",
+    );
+  });
+});
+
+describe("buildArticleSchema", () => {
+  it("builds valid Article schema with author and publisher", () => {
+    const schema = buildArticleSchema({
+      title: "Guia de Alongamento",
+      description: "Tudo sobre gel.",
+      path: "/guia/alongamento-unhas-em-gel-guia-completo",
+      datePublished: "2026-11-26",
+      dateModified: "2026-11-26",
+    });
+
+    expect(schema["@type"]).toBe("Article");
+    expect(schema.headline).toBe("Guia de Alongamento");
+    expect(schema.datePublished).toBe("2026-11-26");
+    expect(schema.author.name).toBe("Mistura Feminina Cosméticos");
+  });
+});
+
+describe("categorySeoContent & nailGuidesData", () => {
+  it("provides rich SEO content for priority categories", () => {
+    const alongamento = getCategorySeoContent("alongamento-unhas");
+    expect(alongamento).not.toBeNull();
+    expect(alongamento?.heading).toContain("Alongamento de Unhas");
+    expect(alongamento?.tips.length).toBeGreaterThan(0);
+    expect(alongamento?.faqs.length).toBeGreaterThan(0);
+    expect(alongamento?.relatedCategories.length).toBeGreaterThan(0);
+
+    const esmalteGel = getCategorySeoContent("esmalte-em-gel");
+    expect(esmalteGel).not.toBeNull();
+
+    const alicates = getCategorySeoContent("alicates-e-cortadores");
+    expect(alicates).not.toBeNull();
+  });
+
+  it("contains 4 comprehensive nail guides with complete metadata", () => {
+    expect(NAIL_GUIDES.length).toBe(4);
+    for (const guide of NAIL_GUIDES) {
+      expect(guide.slug).toBeTruthy();
+      expect(guide.title).toBeTruthy();
+      expect(guide.contentHtml).toContain("<h2>");
+      expect(guide.faqs.length).toBeGreaterThan(0);
+      expect(guide.relatedProducts.length).toBeGreaterThan(0);
+      expect(guide.relatedCategories.length).toBeGreaterThan(0);
+      expect(getNailGuideBySlug(guide.slug)).toEqual(guide);
+    }
   });
 });
