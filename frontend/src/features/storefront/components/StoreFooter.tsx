@@ -12,6 +12,7 @@ import Sparkles from "lucide-solid/icons/sparkles";
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { assetUrl, whatsappUrl } from "../../../lib/format";
 import { storefrontStore } from "../store";
+import { openPrivacyModal, PrivacyModal } from "../../../components/privacy/privacy-modal";
 
 const PAYMENT_BADGES = [
   { name: "Pix", isPix: true },
@@ -254,6 +255,15 @@ export function StoreFooter() {
                 Fale Conosco
               </Link>
             </li>
+            <li>
+              <button
+                type="button"
+                onClick={openPrivacyModal}
+                class="transition-colors hover:text-white cursor-pointer"
+              >
+                Privacidade e Cookies
+              </button>
+            </li>
           </ul>
         </div>
 
@@ -358,6 +368,14 @@ export function StoreFooter() {
             <Show when={settings().cnpj}> • CNPJ: {settings().cnpj}</Show>
             <Show when={settings().address}> • {settings().address}</Show>
             {" — "}© {new Date().getFullYear()} Todos os direitos reservados.
+            {" • "}
+            <button
+              type="button"
+              onClick={openPrivacyModal}
+              class="underline underline-offset-2 transition-colors hover:text-white cursor-pointer"
+            >
+              Privacidade
+            </button>
           </p>
           <p class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-white/90">
             <CreditCard class="size-3.5 text-white/80" aria-hidden="true" />
@@ -379,6 +397,7 @@ export function StoreFooter() {
       >
         <ChevronUp class="size-4 stroke-[2.2]" aria-hidden="true" />
       </button>
+      <PrivacyModal />
     </footer>
   );
 }

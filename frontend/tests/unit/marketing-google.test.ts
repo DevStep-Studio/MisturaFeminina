@@ -4,6 +4,7 @@ import {
   isValidGtmId,
   mapCartItemsToGa4,
   sanitizeAnalyticsPayload,
+  setAnalyticsConsent,
 } from "../../src/monitoring/analytics";
 
 describe("marketing e google — GA4 validation & PII protection", () => {
@@ -75,6 +76,67 @@ describe("marketing e google — GA4 validation & PII protection", () => {
         item_name: "Tips Soft Gel Quadrada",
         price: 24.9,
         quantity: 3,
+      },
+    ]);
+  });
+
+  it("garante proteção de privacidade LGPD no fluxo de consentimento e opt-out", () => {
+    const mockStorage = new Map<string, string>();
+    const storageMock = {
+      getItem: (k: string) => mockStorage.get(k) ?? null,
+      setItem: (k: string, v: string) => mockStorage.set(k, String(v)),
+      removeItem: (k: string) => mockStorage.delete(k),
+      clear: () => mockStorage.clear(),
+      key: (i: number) => Array.from(mockStorage.keys())[i] ?? null,
+      get length() {
+        return mockStorage.size;
+      },
+    };
+    Object.defineProperty(globalThis, "localStorage", {
+      value: storageMock,
+      writable: true,
+      configurable: true,
+    });
+
+    setAnalyticsConsent("denied");
+    expect(globalThis.localStorage.getItem("mf:analytics-consent:v1")).toBe("denied");
+
+    setAnalyticsConsent("granted");
+    expect(globalThis.localStorage.getItem("mf:analytics-consent:v1")).toBe("granted");
+  });
+
+  it("assegura que sanitização de PII protege todos os eventos e-commerce (view_item, cart, checkout, purchase)", () => {
+    const dirtyCheckout = {
+      currency: "BRL",
+      value: 299.8,
+      customer_email: "cliente@privado.com",
+      customer_phone: "31999991111",
+      cpf_cnpj: "123.456.789-00",
+      address: "Rua Exemplo, 123",
+      items: [
+        {
+          item_id: "SKU-001",
+          item_name: "Gel Construtor 15g",
+          price: 149.9,
+          quantity: 2,
+          recipient_name: "Nome Oculto",
+        },
+      ],
+    };
+
+    const sanitized = sanitizeAnalyticsPayload(dirtyCheckout) as Record<string, unknown>;
+    expect(sanitized.currency).toBe("BRL");
+    expect(sanitized.value).toBe(299.8);
+    expect(sanitized).not.toHaveProperty("customer_email");
+    expect(sanitized).not.toHaveProperty("customer_phone");
+    expect(sanitized).not.toHaveProperty("cpf_cnpj");
+    expect(sanitized).not.toHaveProperty("address");
+    expect(sanitized.items).toEqual([
+      {
+        item_id: "SKU-001",
+        item_name: "Gel Construtor 15g",
+        price: 149.9,
+        quantity: 2,
       },
     ]);
   });

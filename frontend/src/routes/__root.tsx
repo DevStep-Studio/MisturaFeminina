@@ -5,7 +5,6 @@ import {
   Outlet,
   useRouter,
 } from "@tanstack/solid-router";
-import { ConsentBanner } from "../components/privacy/consent-banner";
 import { NetworkStatus } from "../components/feedback/network-status";
 import { ErrorState } from "../components/errors/error-state";
 import { StatusPage } from "../components/errors/status-page";
@@ -29,7 +28,6 @@ export const Route = createRootRoute({
       <main class="min-h-svh bg-white font-sans text-zinc-900">
         <Outlet />
       </main>
-      <ConsentBanner />
     </>
   ),
   pendingComponent: () => <LoadingState fullScreen />,

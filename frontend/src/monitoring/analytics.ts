@@ -186,29 +186,44 @@ function ensureGtagFunction() {
   }
 }
 
-function consentCommand(action: "default" | "update", granted: boolean) {
+function consentCommand(
+  action: "default" | "update",
+  settings: {
+    analytics_storage: "granted" | "denied";
+    ad_storage: "granted" | "denied";
+    ad_user_data: "granted" | "denied";
+    ad_personalization: "granted" | "denied";
+  },
+) {
+  if (typeof window === "undefined") return;
   ensureGtagFunction();
-  window.gtag?.("consent", action, {
-    analytics_storage: granted ? "granted" : "denied",
-    ad_storage: granted ? "granted" : "denied",
-    ad_user_data: granted ? "granted" : "denied",
-    ad_personalization: granted ? "granted" : "denied",
-  });
+  window.gtag?.("consent", action, settings);
 }
 
 function loadScripts() {
   if (
     typeof document === "undefined" ||
     !runtimeAllowed ||
-    consent() !== "granted" ||
+    consent() === "denied" ||
     (!activeGa4Id && !activeGtmId)
   ) {
     return;
   }
 
   ensureGtagFunction();
-  consentCommand("default", false);
-  consentCommand("update", true);
+
+  const isFullGranted = consent() === "granted";
+
+  // Google Consent Mode v2:
+  // - unknown (first visit): analytics granted under legitimate interest (aggregated metrics, no PII), ad storage denied.
+  // - granted: full consent for analytics and ads.
+  // - denied: loadScripts exits early above.
+  consentCommand("default", {
+    analytics_storage: "granted",
+    ad_storage: isFullGranted ? "granted" : "denied",
+    ad_user_data: isFullGranted ? "granted" : "denied",
+    ad_personalization: isFullGranted ? "granted" : "denied",
+  });
 
   if (activeGa4Id && !document.getElementById("mf-ga4")) {
     const script = document.createElement("script");
@@ -221,6 +236,7 @@ function loadScripts() {
     window.gtag?.("config", activeGa4Id, {
       send_page_view: false,
       allow_google_signals: false,
+      restricted_data_processing: true,
     });
   }
 
@@ -256,8 +272,11 @@ export function configureDynamicAnalytics(opts: {
     updateConsent(readStoredConsent());
   }
 
-  if (tagReady && consent() === "granted") {
+  if (tagReady && consent() !== "denied") {
     loadScripts();
+    if (!lastTrackedPath) {
+      trackPageView(currentPath);
+    }
   }
 }
 
@@ -268,7 +287,17 @@ export function initializeAnalytics() {
   if (initialized) return () => {};
   initialized = true;
 
-  loadScripts();
+  if (consent() === "denied") {
+    ensureGtagFunction();
+    consentCommand("default", {
+      analytics_storage: "denied",
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+    });
+  } else {
+    loadScripts();
+  }
 
   const onStorage = (event: StorageEvent) => {
     if (
@@ -291,7 +320,7 @@ function applyConsent(
   value: Exclude<AnalyticsConsent, "unknown">,
   persist: boolean,
 ) {
-  const wasGranted = consent() === "granted";
+  const wasDenied = consent() === "denied";
   updateConsent(value);
 
   if (persist) {
@@ -304,13 +333,24 @@ function applyConsent(
 
   if (value === "denied") {
     lastTrackedPath = undefined;
-    if (wasGranted && typeof window !== "undefined") {
-      if (window.dataLayer) consentCommand("update", false);
+    consentCommand("update", {
+      analytics_storage: "denied",
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+    });
+    if (!wasDenied && typeof window !== "undefined") {
       window.location.reload();
     }
     return;
   }
 
+  consentCommand("update", {
+    analytics_storage: "granted",
+    ad_storage: "granted",
+    ad_user_data: "granted",
+    ad_personalization: "granted",
+  });
   loadScripts();
   trackPageView(currentPath);
 }
@@ -329,7 +369,7 @@ function forwardConsentedStorefrontEvent(
     typeof window === "undefined" ||
     typeof fetch !== "function" ||
     !runtimeAllowed ||
-    consent() !== "granted" ||
+    consent() === "denied" ||
     !FORWARDED_STOREFRONT_EVENTS.has(eventName)
   ) {
     return;
@@ -365,7 +405,7 @@ export function trackEvent(
   event: string,
   properties: Record<string, unknown> = {},
 ) {
-  if (!runtimeAllowed || consent() !== "granted") return;
+  if (!runtimeAllowed || consent() === "denied") return;
 
   const sanitized = sanitizeAnalyticsPayload(properties);
   loadScripts();
@@ -387,7 +427,7 @@ export function trackPageView(pathname: string) {
 
   if (
     !runtimeAllowed ||
-    consent() !== "granted" ||
+    consent() === "denied" ||
     lastTrackedPath === currentPath
   ) {
     return;
