@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { formatCents, whatsappUrl } from "../../src/lib/format";
+import { formatCents, isWhatsAppConfigured, whatsappUrl } from "../../src/lib/format";
 import { computeWholesaleUnitPrice, type WholesaleTier } from "../../src/features/storefront/wholesale";
 import type { ProductCardData } from "../../src/features/storefront/types";
 
@@ -112,9 +112,19 @@ describe("Storefront Responsive & Wholesale Logic Suite", () => {
     expect(url).toContain(encodeURIComponent("Esmalte em Gel Coleção Lírio 15ml"));
   });
 
-  it("falls back to default WhatsApp contact when store setting is not configured", () => {
+  it("falls back gracefully when WhatsApp contact is not configured", () => {
     const url = whatsappUrl(undefined, "Teste");
-    expect(url).toContain("https://wa.me/5511900000000");
+    expect(url).toBe("/contato?assunto=duvida-produto&mensagem=Teste");
+  });
+
+  it("identifies valid and placeholder WhatsApp numbers correctly", () => {
+    expect(isWhatsAppConfigured("5511900000000")).toBe(false);
+    expect(isWhatsAppConfigured("11900000000")).toBe(false);
+    expect(isWhatsAppConfigured("0000000000")).toBe(false);
+    expect(isWhatsAppConfigured("")).toBe(false);
+    expect(isWhatsAppConfigured(undefined)).toBe(false);
+    expect(isWhatsAppConfigured("11987654321")).toBe(true);
+    expect(isWhatsAppConfigured("5511987654321")).toBe(true);
   });
 
   it("validates badge character budgets fit within 120px mobile card inner width", () => {

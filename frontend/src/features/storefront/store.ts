@@ -22,8 +22,11 @@ const DEFAULT_SETTINGS: StoreSettings = {
   address: "Endereço comercial a definir no backoffice",
   origin_cep: "01001000",
   email: "atendimento@misturafeminina.local",
-  phone: "(11) 0000-0000",
-  whatsapp_number: "5511900000000",
+  phone: "",
+  whatsapp_number:
+    (typeof import.meta !== "undefined" &&
+      (import.meta.env?.VITE_WHATSAPP_NUMBER as string | undefined)) ||
+    "",
   whatsapp_default_message:
     "Olá! Gostaria de atendimento sobre um produto da Mistura Feminina Cosméticos.",
   social_instagram: "",
@@ -159,6 +162,21 @@ export async function loadStorefrontBootstrap(
       authenticated: false,
     });
     if (res?.data) {
+      if (res.data.settings) {
+        const s = res.data.settings;
+        const envWhatsapp = (
+          typeof import.meta !== "undefined" &&
+          (import.meta.env?.VITE_WHATSAPP_NUMBER as string | undefined)
+        ) || "";
+        if (s.whatsapp_number === "5511900000000" || s.whatsapp_number === "11900000000") {
+          s.whatsapp_number = envWhatsapp;
+        } else if (!s.whatsapp_number && envWhatsapp) {
+          s.whatsapp_number = envWhatsapp;
+        }
+        if (s.phone === "(11) 0000-0000") {
+          s.phone = "";
+        }
+      }
       setBootstrapData(res.data);
       applyThemeFromSettings(res.data.settings);
       configureDynamicAnalytics({

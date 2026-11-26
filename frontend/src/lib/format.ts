@@ -51,11 +51,46 @@ export function assetUrl(path: string | null | undefined): string {
   return path;
 }
 
+/**
+ * Valida se um número de WhatsApp é real e não um placeholder/fictício.
+ * Rejeita valores vazios, com menos de 10 dígitos, sequências repetidas e o placeholder 5511900000000.
+ */
+export function isWhatsAppConfigured(
+  whatsappNumber: string | null | undefined,
+): boolean {
+  if (!whatsappNumber) return false;
+  const digits = String(whatsappNumber).replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return false;
+  if (digits === "5511900000000" || digits === "11900000000") return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
+  if (digits.endsWith("00000000")) return false;
+  return true;
+}
+
+export function cleanWhatsAppDigits(
+  whatsappNumber: string | null | undefined,
+): string | null {
+  const envNumber = (
+    typeof import.meta !== "undefined" && import.meta.env?.VITE_WHATSAPP_NUMBER
+  ) as string | undefined;
+  const candidate =
+    envNumber && isWhatsAppConfigured(envNumber) ? envNumber : whatsappNumber;
+  if (!isWhatsAppConfigured(candidate)) return null;
+  let digits = String(candidate).replace(/\D/g, "");
+  if (!digits.startsWith("55") && (digits.length === 10 || digits.length === 11)) {
+    digits = `55${digits}`;
+  }
+  return digits;
+}
+
 export function whatsappUrl(
   whatsappNumber: string | undefined,
   message: string,
 ): string {
-  const digits = (whatsappNumber || "5511900000000").replace(/\D/g, "");
+  const digits = cleanWhatsAppDigits(whatsappNumber);
+  if (!digits) {
+    return `/contato?assunto=duvida-produto&mensagem=${encodeURIComponent(message)}`;
+  }
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 

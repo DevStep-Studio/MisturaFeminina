@@ -379,27 +379,29 @@ export function StoreHeader() {
                   onMouseEnter={() => openPopover("support")}
                   onMouseLeave={scheduleClosePopover}
                 >
-                  <div class="border-b border-zinc-100 pb-3.5">
-                    <p class="flex items-center gap-2 text-[13px] font-medium text-[#3D1260]">
-                      <MessageCircle
-                        class="size-4 shrink-0 text-[#C22583]"
-                        aria-hidden="true"
-                      />
-                      <span>Whatsapp:</span>
-                    </p>
-                    <a
-                      href={whatsappUrl(
-                        settings().whatsapp_number,
-                        settings().whatsapp_default_message,
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={closeAllMenus}
-                      class="mt-1 block text-sm font-bold text-[#3D1260] hover:text-[#C22583]"
-                    >
-                      {settings().phone}
-                    </a>
-                  </div>
+                  <Show when={settings().whatsapp_number}>
+                    <div class="border-b border-zinc-100 pb-3.5">
+                      <p class="flex items-center gap-2 text-[13px] font-medium text-[#3D1260]">
+                        <MessageCircle
+                          class="size-4 shrink-0 text-[#C22583]"
+                          aria-hidden="true"
+                        />
+                        <span>Whatsapp:</span>
+                      </p>
+                      <a
+                        href={whatsappUrl(
+                          settings().whatsapp_number,
+                          settings().whatsapp_default_message,
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={closeAllMenus}
+                        class="mt-1 block text-sm font-bold text-[#3D1260] hover:text-[#C22583]"
+                      >
+                        {settings().whatsapp_number}
+                      </a>
+                    </div>
+                  </Show>
 
                   <div class="border-b border-zinc-100 py-3.5">
                     <p class="flex items-center gap-2 text-[13px] font-medium text-[#3D1260]">
