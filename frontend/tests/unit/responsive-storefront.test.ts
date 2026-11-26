@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { formatCents, whatsappUrl } from "../../src/lib/format";
 import { computeWholesaleUnitPrice, type WholesaleTier } from "../../src/features/storefront/wholesale";
 import type { ProductCardData } from "../../src/features/storefront/types";
@@ -137,5 +139,32 @@ describe("Storefront Responsive & Wholesale Logic Suite", () => {
     const formatted = `Preço de Atacado (${minQty}+ un.)`;
     expect(formatted).not.toContain("\n");
     expect(formatted).toBe("Preço de Atacado (5+ un.)");
+  });
+
+  it("renders storefront banners with intrinsic aspect ratio (object-contain, h-auto) and mobileSrc support", () => {
+    const bannerImgSrc = readFileSync(
+      resolve(__dirname, "../../src/features/storefront/components/BannerImage.tsx"),
+      "utf8",
+    );
+    const homeSrc = readFileSync(
+      resolve(__dirname, "../../src/routes/index.tsx"),
+      "utf8",
+    );
+    expect(bannerImgSrc).toContain('media="(max-width: 767px)"');
+    expect(bannerImgSrc).toContain("h-auto");
+    expect(bannerImgSrc).toContain("object-contain");
+    expect(bannerImgSrc).not.toContain("object-cover");
+    expect(homeSrc).toContain("object-contain");
+    expect(homeSrc).toContain("mobileSrc={banner.mobile_image_path}");
+  });
+
+  it("keeps login page free of admin demo credential prefill buttons or hardcoded credentials", () => {
+    const loginSrc = readFileSync(
+      resolve(__dirname, "../../src/features/auth/components/login-page.tsx"),
+      "utf8",
+    );
+    expect(loginSrc).not.toMatch(/Preencher dados/i);
+    expect(loginSrc).not.toContain("misturafeminina.local");
+    expect(loginSrc).toContain('href="/forgot-password"');
   });
 });

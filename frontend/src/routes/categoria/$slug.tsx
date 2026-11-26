@@ -73,6 +73,7 @@ function CategoryPage() {
       title={catMeta()?.name || `Departamento: ${params().slug}`}
       subtitle={catMeta()?.description}
       bannerImage={catMeta()?.banner_desktop_path}
+      bannerMobileImage={catMeta()?.banner_mobile_path}
       bannerAlt={catMeta()?.name}
       breadcrumbs={breadcrumbs()}
       subCategories={(catMeta()?.children ?? []).map((c) => ({

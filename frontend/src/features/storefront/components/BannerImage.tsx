@@ -21,11 +21,15 @@ export function BannerImage(props: {
   });
 
   const useFallback = () => !props.src?.trim() || failed();
+  const resolvedMobileSrc = () => {
+    const candidate = props.mobileSrc?.trim();
+    return candidate ? assetUrl(candidate) : "";
+  };
 
   return (
     <picture class={props.class ?? "block w-full"}>
-      <Show when={!useFallback() && props.mobileSrc}>
-        <source media="(max-width: 767px)" srcset={assetUrl(props.mobileSrc)} />
+      <Show when={!useFallback() && resolvedMobileSrc()}>
+        <source media="(max-width: 767px)" srcset={resolvedMobileSrc()} />
       </Show>
       <img
         src={useFallback() ? FALLBACK_SRC : assetUrl(props.src)}
@@ -41,10 +45,10 @@ export function BannerImage(props: {
         fetchpriority={props.eager ? "high" : "auto"}
         decoding="async"
         width="1600"
-        height="480"
+        height="686"
         class={
           props.imageClass ??
-          "block h-[200px] sm:h-[260px] md:h-[320px] lg:h-[360px] xl:h-[380px] w-full object-cover object-center"
+          "mx-auto block h-auto max-h-[72svh] w-full object-contain sm:max-h-[686px]"
         }
       />
     </picture>

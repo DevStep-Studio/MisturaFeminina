@@ -311,6 +311,21 @@ test("password recovery and reset send CSRF-protected requests", async ({
   await expect(page.getByRole("status")).toContainText("Senha redefinida.");
 });
 
+test("login screen has no admin demo credential prefill button", async ({
+  page,
+}) => {
+  await backend(page);
+  await page.goto("/login");
+  await expect(page.getByLabel("E-mail", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Senha", { exact: true })).toHaveValue("");
+  await expect(
+    page.getByRole("link", { name: "Esqueci minha senha" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /preencher dados/i }),
+  ).toHaveCount(0);
+});
+
 test("password visibility is explicit and preserves the entered value", async ({
   page,
 }) => {

@@ -76,14 +76,37 @@ function renderBenefitIcon(name: string) {
 
 function HeroCarouselBlock(props: { banners: BannerData[] }) {
   const [index, setIndex] = createSignal(0);
+  const [paused, setPaused] = createSignal(false);
+  let touchStartX: number | null = null;
+
+  const prevSlide = () =>
+    setIndex((i) => (i - 1 + props.banners.length) % props.banners.length);
+  const nextSlide = () => setIndex((i) => (i + 1) % props.banners.length);
 
   onMount(() => {
     if (props.banners.length <= 1) return;
     const id = window.setInterval(() => {
-      setIndex((i) => (i + 1) % props.banners.length);
+      if (!paused()) {
+        nextSlide();
+      }
     }, 6000);
     onCleanup(() => window.clearInterval(id));
   });
+
+  const handleTouchStart = (e: TouchEvent) => {
+    touchStartX = e.touches[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd = (e: TouchEvent) => {
+    if (touchStartX === null || props.banners.length <= 1) return;
+    const endX = e.changedTouches[0]?.clientX ?? touchStartX;
+    const deltaX = endX - touchStartX;
+    touchStartX = null;
+    if (Math.abs(deltaX) >= 40) {
+      if (deltaX < 0) nextSlide();
+      else prevSlide();
+    }
+  };
 
   const current = () => props.banners[index()] ?? props.banners[0];
 
@@ -92,6 +115,12 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
       <section
         aria-label="Destaques principais"
         class="relative overflow-hidden bg-[#7c3f87]"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocusIn={() => setPaused(true)}
+        onFocusOut={() => setPaused(false)}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         <Show when={current()}>
           {(banner) => {
@@ -101,12 +130,12 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                 mobileSrc={banner().mobile_image_path}
                 alt={banner().alt_text || banner().title}
                 eager
-                imageClass="block h-[200px] sm:h-[260px] md:h-[320px] lg:h-[360px] xl:h-[380px] w-full object-cover object-center"
+                imageClass="mx-auto block h-auto max-h-[72svh] w-full object-contain sm:max-h-[686px]"
               />
             );
 
             return (
-              <div class="relative mx-auto max-w-[1920px]">
+              <div class="relative mx-auto max-w-[1600px]">
                 <Show when={banner().cta_url} fallback={img}>
                   <a href={banner().cta_url!} class="block">
                     {img}
@@ -116,36 +145,29 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                 <Show when={props.banners.length > 1}>
                   <button
                     type="button"
-                    onClick={() =>
-                      setIndex(
-                        (i) =>
-                          (i - 1 + props.banners.length) % props.banners.length,
-                      )
-                    }
+                    onClick={prevSlide}
                     aria-label="Banner anterior"
-                    class="absolute left-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white/95 text-[#93509e] shadow transition-colors hover:bg-[#93509e] hover:text-white sm:left-4 sm:size-11"
+                    class="absolute left-0 top-1/2 inline-flex h-8 w-5 -translate-y-1/2 items-center justify-center rounded-r-md bg-black/25 text-white backdrop-blur-[2px] transition-colors hover:bg-[#93509e] sm:left-1.5 sm:size-8 sm:rounded-lg sm:border sm:border-[#93509e]/70 sm:bg-white/90 sm:text-[#93509e] sm:shadow-xs sm:hover:text-white lg:left-4 lg:size-10"
                   >
-                    <ChevronLeft class="h-5 w-5" />
+                    <ChevronLeft class="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setIndex((i) => (i + 1) % props.banners.length)
-                    }
+                    onClick={nextSlide}
                     aria-label="Próximo banner"
-                    class="absolute right-3 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white/95 text-[#93509e] shadow transition-colors hover:bg-[#93509e] hover:text-white sm:right-4 sm:size-11"
+                    class="absolute right-0 top-1/2 inline-flex h-8 w-5 -translate-y-1/2 items-center justify-center rounded-l-md bg-black/25 text-white backdrop-blur-[2px] transition-colors hover:bg-[#93509e] sm:right-1.5 sm:size-8 sm:rounded-lg sm:border sm:border-[#93509e]/70 sm:bg-white/90 sm:text-[#93509e] sm:shadow-xs sm:hover:text-white lg:right-4 lg:size-10"
                   >
-                    <ChevronRight class="h-5 w-5" />
+                    <ChevronRight class="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                   </button>
 
-                  <div class="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-2">
+                  <div class="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 gap-1.5 sm:bottom-2.5 sm:gap-2">
                     <For each={props.banners}>
                       {(_, idx) => (
                         <button
                           type="button"
                           onClick={() => setIndex(idx())}
                           aria-label={`Ir para banner ${idx() + 1}`}
-                          class={`h-2.5 w-6 rounded-sm transition ${
+                          class={`h-1.5 w-4 rounded-sm transition sm:h-2.5 sm:w-6 ${
                             index() === idx()
                               ? "bg-[#93509e] ring-1 ring-white"
                               : "bg-white/80 hover:bg-white"
@@ -777,13 +799,13 @@ function StorefrontHomePage() {
                       {(banner) => (
                         <a
                           href={banner.cta_url || "/promocoes"}
-                          class="block overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100"
+                          class="block overflow-hidden rounded-xl border border-zinc-200 bg-[#7c3f87]"
                         >
-                          <img
-                            src={assetUrl(banner.desktop_image_path)}
+                          <BannerImage
+                            src={banner.desktop_image_path}
+                            mobileSrc={banner.mobile_image_path}
                             alt={banner.alt_text || banner.title}
-                            class="aspect-[5/2] w-full object-cover"
-                            loading="lazy"
+                            imageClass="mx-auto block h-auto w-full object-contain"
                           />
                         </a>
                       )}

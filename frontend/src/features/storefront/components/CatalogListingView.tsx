@@ -20,6 +20,7 @@ export interface CatalogListingProps {
   showFilters?: boolean;
   emptyMessage?: string;
   bannerImage?: string | null;
+  bannerMobileImage?: string | null;
   bannerAlt?: string;
   bannerHref?: string | null;
   subCategories?: Array<{ id: number; name: string; slug: string }>;
@@ -29,24 +30,27 @@ export interface CatalogListingProps {
 /** Full-width promotional banner displayed above catalog and category listings. */
 export function CatalogBanner(props: {
   src?: string | null;
+  mobileSrc?: string | null;
   alt: string;
   href?: string | null;
 }) {
+  const hasCustomBanner = () => Boolean(props.src?.trim());
   const image = (
     <BannerImage
       src={props.src}
+      mobileSrc={props.mobileSrc}
       alt={props.alt}
       eager
-      imageClass="block h-[150px] sm:h-[190px] md:h-[230px] lg:h-[260px] w-full object-cover object-center"
+      imageClass="mx-auto block h-auto max-h-[60svh] w-full object-contain sm:max-h-[420px]"
     />
   );
 
   return (
     <section
       aria-label="Banner do catálogo"
-      class="relative overflow-hidden bg-[#7c3f87]"
+      class={`relative overflow-hidden ${hasCustomBanner() ? "bg-[#7c3f87]" : "bg-[#faf5fc]"}`}
     >
-      <div class="relative mx-auto max-w-[1920px]">
+      <div class="relative mx-auto max-w-[1600px]">
         <Show when={props.href} fallback={image}>
           <a href={props.href!} class="block">
             {image}
@@ -510,6 +514,7 @@ export function CatalogListingView(props: CatalogListingProps) {
     <StoreShell>
       <CatalogBanner
         src={props.bannerImage}
+        mobileSrc={props.bannerMobileImage}
         alt={props.bannerAlt ?? props.title}
         href={props.bannerHref}
       />

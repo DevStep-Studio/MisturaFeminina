@@ -252,21 +252,10 @@ export function LoginPage(props: { redirect?: string }) {
               </button>
             )}
           </form.Subscribe>
-          <div class="flex items-center justify-between pt-1">
+          <div class="pt-1">
             <a class={linkClass} href="/forgot-password">
               Esqueci minha senha
             </a>
-            <button
-              type="button"
-              class="text-xs font-semibold text-[#93509e] hover:underline"
-              onClick={() => {
-                form.setFieldValue("email", "admin@misturafeminina.local");
-                form.setFieldValue("password", "Mistura@Admin2026!");
-                setError("");
-              }}
-            >
-              Preencher dados de Admin
-            </button>
           </div>
         </form>
       </Show>
