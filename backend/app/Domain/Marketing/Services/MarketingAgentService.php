@@ -16,98 +16,71 @@ class MarketingAgentService
     public function __construct(
         private readonly AIProviderService $aiProvider,
         private readonly MarketingIntelligenceService $intelligence,
-        private readonly SeoAuditService $seoAudit,
+        private readonly GoogleAnalyticsService $ga4Service,
         private readonly GoogleAdsService $googleAds,
-        private readonly MetaAdsService $metaAds,
+        private readonly GoogleMerchantFeedService $merchantFeed,
     ) {}
 
     /** @return list<MarketingRecommendation> */
     public function getRecommendations(): array
     {
+        // Remove any legacy fake demo recommendations if present
+        MarketingRecommendation::query()
+            ->whereIn('title', [
+                'Otimização de Metadados: Top 5 Esmaltes em Gel',
+                'Adicionar 4 Termos Informativos à Lista Negativa',
+                'Atualizar Criativo de Remarketing no Instagram (Fadiga)',
+            ])
+            ->delete();
+
         $existing = MarketingRecommendation::query()->latest('id')->get();
         if ($existing->isNotEmpty()) {
             return $existing->all();
         }
 
-        // Initialize structured baseline recommendations with Before/After
-        $recommendations = [
-            [
-                'channel' => 'seo',
-                'type' => 'metadata_fix',
-                'title' => 'Otimização de Metadados: Top 5 Esmaltes em Gel',
-                'description' => 'Atualizar os títulos e meta descriptions dos produtos líderes de busca para incluir palavras de atacado e parcelamento.',
-                'evidence_payload' => [
-                    'source' => 'Google Search Console',
-                    'current_avg_ctr' => '4.8%',
-                    'potential_ctr' => '7.5%',
-                    'queries' => ['esmalte em gel atacado', 'kit esmaltes manicure profissional'],
-                ],
-                'proposed_action' => [
-                    'action_type' => 'batch_update_seo_metadata',
-                    'items_count' => 5,
-                ],
-                'before_state' => [
-                    'title' => 'Kit 2 Esmaltes em Gel — Top Lirio',
-                    'meta_description' => 'Kit de esmaltes em gel para unhas.',
-                ],
-                'after_state' => [
-                    'title' => 'Kit 2 Esmaltes em Gel Top Lirio — Atacado & Varejo | Mistura Feminina',
-                    'meta_description' => 'Compre Kit 2 Esmaltes em Gel Top Lirio original no atacado a partir de R$ 4,90. Frete rápido para todo o Brasil e até 6x sem juros!',
-                ],
-                'status' => 'pending_review',
-            ],
-            [
-                'channel' => 'google_ads',
-                'type' => 'negative_keyword',
-                'title' => 'Adicionar 4 Termos Informativos à Lista Negativa',
-                'description' => 'Negativar pesquisas como "como tirar esmalte em gel caseiro" e "curso de manicure gratis", economizando verba diária sem perder compradores.',
-                'evidence_payload' => [
-                    'source' => 'Google Ads Search Terms Report',
-                    'wasted_spend_last_30d_brl' => 131.30,
-                    'clicks_without_conversion' => 101,
-                ],
-                'proposed_action' => [
-                    'action_type' => 'add_negative_keywords',
-                    'keywords' => ['como tirar esmalte', 'caseiro', 'gratis', 'curso manicure senac'],
-                ],
-                'before_state' => [
-                    'negative_keywords_count' => 9,
-                ],
-                'after_state' => [
-                    'negative_keywords_count' => 13,
-                    'estimated_monthly_saving_brl' => 135.0,
-                ],
-                'status' => 'pending_review',
-            ],
-            [
-                'channel' => 'meta_ads',
-                'type' => 'creative_refresh',
-                'title' => 'Atualizar Criativo de Remarketing no Instagram (Fadiga)',
-                'description' => 'O anúncio em vídeo de remarketing atingiu frequência 3.75x com queda de 35% no CTR. Substituir pelo novo vídeo demonstrativo de unhas magnéticas.',
-                'evidence_payload' => [
-                    'source' => 'Meta Marketing API',
-                    'ad_id' => 'crt_03',
-                    'frequency' => 3.75,
-                    'ctr_drop' => 'De 2.10% para 1.15%',
-                ],
-                'proposed_action' => [
-                    'action_type' => 'replace_ad_creative',
-                    'ad_set' => 'Remarketing — Carrinho Abandonado',
-                ],
-                'before_state' => [
-                    'creative_name' => 'Vídeo Banner: Desconto no Atacado (Fevereiro)',
-                    'ctr' => '1.15%',
-                ],
-                'after_state' => [
-                    'creative_name' => 'Reels: Efeito Magnético Olho de Gato em Gel (Novo)',
-                    'expected_ctr' => '2.40%',
-                ],
-                'status' => 'pending_review',
-            ],
-        ];
+        // Build strictly real recommendations based on actual catalog/feed diagnostics
+        $diag = $this->merchantFeed->getAdminDiagnostics(false);
+        $incompleteCount = (int) ($diag['feed']['incomplete_products_count'] ?? 0);
 
-        foreach ($recommendations as $rec) {
-            MarketingRecommendation::query()->create($rec);
+        if ($incompleteCount > 0) {
+            MarketingRecommendation::query()->create([
+                'channel' => 'store',
+                'type' => 'metadata_fix',
+                'title' => "Regularizar {$incompleteCount} produto(s) incompleto(s) para o Google Shopping",
+                'description' => 'Foram identificados produtos ativos sem foto real em JPG/PNG/WebP ou sem preço válido, impedindo sua inclusão no feed do Merchant Center.',
+                'evidence_payload' => [
+                    'source' => 'Diagnóstico Real do Catálogo / Feed Merchant Center',
+                    'incomplete_products_count' => $incompleteCount,
+                    'ready_products_count' => (int) ($diag['feed']['ready_products_count'] ?? 0),
+                ],
+                'proposed_action' => [
+                    'action_type' => 'review_shopping_incomplete_products',
+                    'items_count' => $incompleteCount,
+                ],
+                'before_state' => ['incomplete_count' => $incompleteCount],
+                'after_state' => ['target_incomplete_count' => 0],
+                'status' => 'pending_review',
+            ]);
+        }
+
+        $ga4 = $this->ga4Service->getInsights(['range' => 'last_30_days']);
+        if (empty($ga4['kpis']['tag_configured_on_storefront'])) {
+            MarketingRecommendation::query()->create([
+                'channel' => 'store',
+                'type' => 'metadata_fix',
+                'title' => 'Configurar Measurement ID real do Google Analytics 4 (G-...)',
+                'description' => 'A tag GA4 da vitrine ainda não possui um Measurement ID ativo configurado em Marketing e Google.',
+                'evidence_payload' => [
+                    'source' => 'Auditoria Real de Integrações',
+                    'tag_configured' => false,
+                ],
+                'proposed_action' => [
+                    'action_type' => 'configure_ga4_measurement_id',
+                ],
+                'before_state' => ['tag_configured' => false],
+                'after_state' => ['tag_configured' => true],
+                'status' => 'pending_review',
+            ]);
         }
 
         return MarketingRecommendation::query()->latest('id')->get()->all();
@@ -117,18 +90,17 @@ class MarketingAgentService
     {
         $rec = MarketingRecommendation::query()->findOrFail($id);
 
-        // Execute action based on type
         if ($rec->channel === 'google_ads' && $rec->type === 'negative_keyword') {
-            $keywords = $rec->proposed_action['keywords'] ?? ['gratis', 'como tirar'];
+            $keywords = (array) ($rec->proposed_action['keywords'] ?? []);
             foreach ($keywords as $kw) {
                 $this->googleAds->addNegativeKeyword((string) $kw);
             }
-        } elseif ($rec->channel === 'seo' && $rec->type === 'metadata_fix') {
-            $topProduct = Product::query()->first();
-            if ($topProduct) {
-                $topProduct->update([
-                    'meta_title' => $rec->after_state['title'] ?? $topProduct->name,
-                    'meta_description' => $rec->after_state['meta_description'] ?? $topProduct->meta_description,
+        } elseif ($rec->channel === 'seo' && $rec->type === 'metadata_fix' && ! empty($rec->proposed_action['product_id'])) {
+            $prod = Product::query()->find((int) $rec->proposed_action['product_id']);
+            if ($prod && ! empty($rec->after_state['seo_title'])) {
+                $prod->update([
+                    'seo_title' => (string) $rec->after_state['seo_title'],
+                    'seo_description' => (string) ($rec->after_state['seo_description'] ?? $prod->seo_description),
                 ]);
             }
         }
@@ -151,15 +123,17 @@ class MarketingAgentService
     }
 
     /**
-     * Interactive AI Chat for Marketing & Growth.
+     * Analyzes real data across Store Orders, GA4, Google Ads, and Google Shopping,
+     * strictly separating verified Facts from Agent Suggestions and Data Limitations.
      *
+     * @param  array{range?: string, start_date?: string, end_date?: string}  $periodParams
      * @return array<string, mixed>
      */
-    public function chat(string $message, ?string $sessionId = null, ?User $user = null): array
+    public function chat(string $message, ?string $sessionId = null, ?User $user = null, array $periodParams = []): array
     {
         $sessionId = $sessionId ?: Str::uuid()->toString();
+        $range = $periodParams['range'] ?? 'last_30_days';
 
-        // Save user message
         MarketingChatMessage::query()->create([
             'session_id' => $sessionId,
             'user_id' => $user?->id,
@@ -167,54 +141,87 @@ class MarketingAgentService
             'content' => $message,
         ]);
 
-        // Gather real context from backend services
-        $overview = $this->intelligence->getOverview(['range' => 'last_30_days']);
-        $kpis = $overview['kpis'];
-        $seoData = $this->seoAudit->getLatestAudit();
+        $overview = $this->intelligence->getOverview(['range' => $range] + $periodParams);
+        $ga4 = $this->ga4Service->getInsights(['range' => $range] + $periodParams);
+        $ads = $this->googleAds->getOverview(['range' => $range] + $periodParams);
+        $shopping = $this->merchantFeed->getAdminDiagnostics(false);
+        $aiStatus = $this->aiProvider->connectionStatus();
 
-        $contextSummary = sprintf(
-            "DADOS REAIS DA LOJA MISTURA FEMININA (ÚLTIMOS 30 DIAS):\n- Investimento Total em Tráfego: R$ %.2f\n- Faturamento Real da Loja: R$ %.2f (ROAS Consolidado: %.2fx)\n- Pedidos Concluídos: %d (Ticket Médio: R$ %.2f, Conversão: %.2f%%)\n- Google Ads: ROAS %.2fx\n- Meta Ads: ROAS %.2fx\n- SEO Técnico: Nota %d/100, %d cliques orgânicos no Search Console\n- Principais termos de busca: esmalte em gel atacado (pos. 2.4), kit cilios lash designer (pos. 3.1)\n- Nova categoria em alta: Cílios e Extensões\n- Conversions API (CAPI): Ativo com EMQ 8.4/10",
-            $kpis['total_spend_cents'] / 100,
-            $kpis['store_revenue_cents'] / 100,
-            $kpis['blended_roas'],
-            $kpis['store_orders_count'],
-            $kpis['ticket_medio_cents'] / 100,
-            $kpis['conversion_rate_pct'],
-            $kpis['google_ads_roas'],
-            $kpis['meta_ads_roas'],
-            $seoData['audit']->overall_score ?? 88,
-            $kpis['organic_clicks']
-        );
+        $analysis = $this->buildStructuredAnalysis($message, $overview, $ga4, $ads, $shopping, $aiStatus);
 
-        $systemPrompt = "Você é o Agente Especialista em Marketing & Growth da Mistura Feminina (e-commerce de produtos de beleza, cosméticos, esmaltes e cílios para atacado e varejo).
-Sua missão é interpretar dados reais, responder perguntas do lojista, explicar conclusões e propor melhorias acionáveis.
-REGRA SAGRADA: Utilize APENAS os números e fatos fornecidos no contexto real. NUNCA invente números de cliques, faturamento ou ROAS. Cite sempre as fontes (Google Ads, Meta Ads, GA4, Search Console ou Pedidos da Loja).
-Responda de forma profissional, direta, em português do Brasil e com formatação markdown limpa.";
+        $replyMarkdown = $analysis['markdown'];
+        $usedLlm = false;
+        $llmError = null;
 
-        $userPrompt = "{$contextSummary}\n\nPERGUNTA DO LOJISTA:\n{$message}";
+        if ($aiStatus['has_api_key']) {
+            $systemPrompt = "Você é o Agente de Marketing e Google da Mistura Feminina Cosméticos.\n"
+                ."REGRAS INEGOCIÁVEIS:\n"
+                ."1. Separe SEMPRE a resposta em três blocos exatos com títulos Markdown:\n"
+                ."   ### Fatos Confirmados\n"
+                ."   ### Limitações dos Dados Disponíveis\n"
+                ."   ### Sugestões do Agente\n"
+                ."2. Use EXCLUSIVAMENTE os fatos reais fornecidos no JSON abaixo. NUNCA invente visitas, cliques, campanhas, ROAS, GTINs ou produtos.\n"
+                ."3. Quando uma integração (GA4 Data API, Google Ads ou Merchant Center API) estiver 'not_configured' ou sem dados, declare isso claramente sem estimar números.\n"
+                ."4. Nunca sugira alterações automáticas de orçamento; toda ação paga exige revisão humana.";
 
-        $aiResult = $this->aiProvider->chatStructured('marketing', $systemPrompt, $userPrompt);
+            $contextJson = (string) json_encode([
+                'period' => $overview['period'],
+                'facts' => $analysis['facts'],
+                'limitations' => $analysis['limitations'],
+                'deterministic_suggestions' => $analysis['suggestions'],
+                'shopping_summary' => $shopping['feed'],
+                'incomplete_examples' => array_slice($shopping['incomplete_products'], 0, 8),
+                'views_without_purchases' => array_slice($ga4['products_views_without_purchases'], 0, 8),
+                'ads_campaigns' => array_slice($ads['campaigns'], 0, 8),
+            ], JSON_UNESCAPED_UNICODE);
 
-        if ($aiResult['connected'] && ! empty($aiResult['raw_text'])) {
-            $replyText = $aiResult['raw_text'];
-        } else {
-            // High quality deterministic fallback matching the question
-            $replyText = $this->generateDeterministicReply($message, $kpis, $seoData);
+            $aiRes = $this->aiProvider->chatStructured(
+                'marketing',
+                $systemPrompt,
+                "DADOS VERIFICADOS:\n{$contextJson}\n\nPERGUNTA DA EQUIPE:\n{$message}"
+            );
+
+            if ($aiRes['connected'] && ! empty($aiRes['raw_text']) && $aiRes['error'] === null) {
+                $replyMarkdown = $aiRes['raw_text'];
+                $usedLlm = true;
+            } else {
+                $llmError = $aiRes['error'];
+            }
         }
 
-        // Save assistant reply
+        $contextPayload = [
+            'period' => $overview['period'],
+            'ai_used' => $usedLlm,
+            'ai_provider_connected' => (bool) $aiStatus['has_api_key'],
+            'ai_missing_requirement' => $aiStatus['has_api_key']
+                ? ($llmError ? "Falha ao consultar modelo de IA ({$llmError}); exibindo diagnóstico determinístico real." : null)
+                : 'Credencial OPENAI_API_KEY não configurada. Exibindo diagnóstico determinístico baseado nos dados reais do sistema.',
+            'facts' => $analysis['facts'],
+            'limitations' => $analysis['limitations'],
+            'suggestions' => $analysis['suggestions'],
+        ];
+
         MarketingChatMessage::query()->create([
             'session_id' => $sessionId,
             'user_id' => $user?->id,
             'role' => 'assistant',
-            'content' => $replyText,
-            'context_payload' => ['kpis' => $kpis],
+            'content' => $replyMarkdown,
+            'context_payload' => $contextPayload,
         ]);
 
         return [
             'session_id' => $sessionId,
             'role' => 'assistant',
-            'content' => $replyText,
+            'content' => $replyMarkdown,
+            'facts' => $analysis['facts'],
+            'limitations' => $analysis['limitations'],
+            'suggestions' => $analysis['suggestions'],
+            'ai_status' => [
+                'used_llm' => $usedLlm,
+                'has_api_key' => (bool) $aiStatus['has_api_key'],
+                'missing_requirement' => $contextPayload['ai_missing_requirement'],
+            ],
+            'period' => $overview['period'],
             'created_at' => now()->toIso8601String(),
         ];
     }
@@ -231,49 +238,201 @@ Responda de forma profissional, direta, em português do Brasil e com formataç�
     }
 
     /**
-     * @param  array<string, mixed>  $kpis
-     * @param  array<string, mixed>  $seoData
+     * Builds deterministic, 100% honest answers separating Facts, Limitations, and Suggestions.
+     *
+     * @param  array<string, mixed>  $overview
+     * @param  array<string, mixed>  $ga4
+     * @param  array<string, mixed>  $ads
+     * @param  array<string, mixed>  $shopping
+     * @param  array<string, mixed>  $aiStatus
+     * @return array{facts: list<array{source: string, text: string}>, limitations: list<string>, suggestions: list<string>, markdown: string}
      */
-    private function generateDeterministicReply(string $message, array $kpis, array $seoData): string
-    {
-        $msg = mb_strtolower($message);
+    private function buildStructuredAnalysis(
+        string $message,
+        array $overview,
+        array $ga4,
+        array $ads,
+        array $shopping,
+        array $aiStatus
+    ): array {
+        $q = mb_strtolower($message);
+        $period = $overview['period'];
+        $kpis = $overview['kpis'];
+        $periodDesc = "{$period['label']} ({$period['start_date']} a {$period['end_date']})";
 
-        $spend = number_format($kpis['total_spend_cents'] / 100, 2, ',', '.');
-        $rev = number_format($kpis['store_revenue_cents'] / 100, 2, ',', '.');
-        $roas = $kpis['blended_roas'];
-        $gRoas = $kpis['google_ads_roas'];
-        $mRoas = $kpis['meta_ads_roas'];
+        $facts = [];
+        $limitations = [];
+        $suggestions = [];
 
-        if (str_contains($msg, 'google') || str_contains($msg, 'ads') || str_contains($msg, 'campanha')) {
-            return "### Desempenho do Google Ads (Últimos 30 Dias)\n\n"
-                ."- **ROAS Registrado:** **{$gRoas}x**\n"
-                ."- **Destaque:** As campanhas de pesquisa focadas em *Esmaltes em Gel Top Lirio* e o PMax de *Kits Profissionais* lideram as vendas com CPA médio de R$ 27,44.\n"
-                ."- **Ação Recomendada:** Identificamos 3 termos de busca irrelevantes consumindo verba (ex: 'como tirar esmalte em gel caseiro'). Você pode adicionar essas palavras à lista de negativas na aba **Google Ads** com 1 clique para economizar cerca de R$ 130/mês.";
+        $askShopping = str_contains($q, 'shopping') || str_contains($q, 'merchant') || str_contains($q, 'incompleto') || str_contains($q, 'feed');
+        $askViewsNoBuy = str_contains($q, 'visita') || str_contains($q, 'visualiz') || str_contains($q, 'não geram compra') || str_contains($q, 'nao geram compra') || str_contains($q, 'convers');
+        $askAds = str_contains($q, 'campanha') || str_contains($q, 'ads') || str_contains($q, 'anúncio') || str_contains($q, 'anuncio') || str_contains($q, 'orçamento');
+        $askEvolution = str_contains($q, 'evolu') || str_contains($q, 'venda') || str_contains($q, 'acesso') || str_contains($q, 'período') || str_contains($q, 'periodo');
+
+        if (! $askShopping && ! $askViewsNoBuy && ! $askAds && ! $askEvolution) {
+            $askShopping = true;
+            $askViewsNoBuy = true;
+            $askAds = true;
+            $askEvolution = true;
         }
 
-        if (str_contains($msg, 'meta') || str_contains($msg, 'instagram') || str_contains($msg, 'facebook') || str_contains($msg, 'capi')) {
-            return "### Desempenho do Meta Ads & CAPI (Últimos 30 Dias)\n\n"
-                ."- **ROAS no Meta:** **{$mRoas}x**\n"
-                ."- **Conversions API (CAPI):** O gateway server-side está conectado e operando com **Event Match Quality de 8.4/10** e taxa de desduplicação de **96.8%** com o Pixel do navegador.\n"
-                ."- **Atenção a Criativos:** O criativo de remarketing no Stories atingiu frequência de 3.75x e queda de cliques. Recomendamos aprovar a sugestão na aba **Recomendações da IA** para atualizar pelo novo Reels de Unhas Magnéticas.";
+        // 1. Evolution of Sales & Visits
+        if ($askEvolution) {
+            $revBrl = number_format(((int) $kpis['store_revenue_cents']) / 100, 2, ',', '.');
+            $prevRevBrl = number_format(((int) $kpis['previous_revenue_cents']) / 100, 2, ',', '.');
+            $ticketBrl = number_format(((int) $kpis['ticket_medio_cents']) / 100, 2, ',', '.');
+
+            $facts[] = [
+                'source' => 'Pedidos da Loja',
+                'text' => "Em {$periodDesc}, a loja registrou {$kpis['store_orders_count']} pedido(s) válido(s) totalizando R$ {$revBrl} (ticket médio de R$ {$ticketBrl}), frente a {$kpis['previous_orders_count']} pedido(s) e R$ {$prevRevBrl} no período anterior equivalente ({$period['previous_start_date']} a {$period['previous_end_date']}).",
+            ];
+
+            if ((int) $kpis['refunds_count'] > 0) {
+                $refBrl = number_format(((int) $kpis['refunded_cents']) / 100, 2, ',', '.');
+                $facts[] = [
+                    'source' => 'Pedidos da Loja',
+                    'text' => "Houve {$kpis['refunds_count']} reembolso(s) concluído(s) no período somando R$ {$refBrl}.",
+                ];
+            }
+
+            if ($ga4['ga4_api_connected']) {
+                $facts[] = [
+                    'source' => 'Google Analytics 4',
+                    'text' => "Acessos na propriedade GA4 conectada: {$ga4['kpis']['sessions']} sessão(ões), {$ga4['kpis']['products_viewed']} visualização(ões) de produto e {$ga4['kpis']['carts_started']} adição(ões) ao carrinho.",
+                ];
+            } elseif ($ga4['kpis']['sessions'] !== null) {
+                $facts[] = [
+                    'source' => 'Telemetria Consentida da Loja',
+                    'text' => "Foram registradas {$ga4['kpis']['sessions']} sessão(ões) com consentimento na loja no período.",
+                ];
+                $limitations[] = 'A GA4 Data API externa ainda não está conectada; os acessos exibidos refletem apenas eventos locais após aceite de consentimento.';
+            } else {
+                $limitations[] = 'Dados históricos de acessos/visitas do Google Analytics 4 ainda não estão disponíveis porque a propriedade GA4 não foi conectada.';
+                $suggestions[] = 'Conecte o Measurement ID (G-...) e o Service Account JSON na aba Analytics para acompanhar sessões, origem de tráfego e taxa de conversão por canal.';
+            }
         }
 
-        if (str_contains($msg, 'seo') || str_contains($msg, 'orgânico') || str_contains($msg, 'google search console')) {
-            $score = $seoData['audit']->overall_score ?? 88;
-
-            return "### Auditoria de SEO & Google Search Console\n\n"
-                ."- **Pontuação Geral do Site:** **{$score}/100**\n"
-                ."- **Cliques Orgânicos:** **{$kpis['organic_clicks']}** acessos nos últimos 30 dias.\n"
-                ."- **Termos Líderes no Google:** 'esmalte em gel atacado' (posição 2.4) e 'kit de cilios para lash designer' (posição 3.1).\n"
-                ."- **Oportunidade Imediata:** Há produtos com meta descriptions curtas na aba **SEO**. Você pode utilizar o botão *'Otimizar com IA'* e aplicar as melhorias direto na loja virtual.";
+        // 2. Products with visits and zero purchases
+        if ($askViewsNoBuy) {
+            $viewsNoBuy = (array) ($ga4['products_views_without_purchases'] ?? []);
+            if ($viewsNoBuy !== []) {
+                $topList = array_map(
+                    fn (array $it): string => "{$it['name']} (SKU {$it['sku']}: {$it['views']} visita(s), 0 compras)",
+                    array_slice($viewsNoBuy, 0, 6)
+                );
+                $srcLabel = $ga4['ga4_api_connected'] ? 'Google Analytics 4' : 'Eventos Consentidos da Loja';
+                $facts[] = [
+                    'source' => $srcLabel,
+                    'text' => count($viewsNoBuy).' produto(s) receberam visualizações sem gerar compra no período: '.implode('; ', $topList).'.',
+                ];
+                $suggestions[] = 'Revise nos itens visitados sem compra se há saldo de estoque disponível, foto nítida, descrição completa e competitividade de frete/preço.';
+            } else {
+                if (! $ga4['ga4_api_connected']) {
+                    $limitations[] = 'Ainda não há dados de visualizações por produto vindos do GA4 (integração pendente) nem volume de eventos view_item consentidos no período.';
+                    $suggestions[] = 'Ative a conexão com o GA4 na seção Analytics para identificar automaticamente os SKUs com alto tráfego e baixa conversão.';
+                } else {
+                    $facts[] = [
+                        'source' => 'Google Analytics 4',
+                        'text' => "Nenhum produto com visitas e zero compras foi encontrado no intervalo {$periodDesc}.",
+                    ];
+                }
+            }
         }
 
-        return "### Diagnóstico Geral de Marketing & Vendas\n\n"
-            ."Nos últimos 30 dias, a loja investiu **R$ {$spend}** em anúncios pagos e faturou **R$ {$rev}** em pedidos confirmados, resultando em um **ROAS Consolidado real de {$roas}x**.\n\n"
-            ."- **Google Ads:** ROAS de **{$gRoas}x** (excelente conversão de fundo de funil).\n"
-            ."- **Meta Ads:** ROAS de **{$mRoas}x** (forte atração visual via Instagram Reels).\n"
-            ."- **SEO:** Nota técnica de **88/100** com 4.520 cliques orgânicos.\n"
-            ."- **Nova Categoria:** O novo silo 'Cílios e Extensões' possui alta demanda orgânica e já conta com rascunho de campanha preparado na aba de **Oportunidades**.\n\n"
-            ."Você pode navegar pelas abas superiores para auditar detalhes ou me fazer perguntas específicas sobre qualquer canal!";
+        // 3. Shopping / Merchant Center feed readiness
+        if ($askShopping) {
+            $feed = $shopping['feed'];
+            $facts[] = [
+                'source' => 'Google Shopping / Catálogo',
+                'text' => "Dos {$feed['total_active_products']} produtos ativos no catálogo, {$feed['ready_products_count']} estão prontos e publicados no XML ({$feed['emitted_items_count']} item/variações, sendo {$feed['ready_in_stock_count']} em estoque e {$feed['ready_out_of_stock_count']} sem estoque) e {$feed['incomplete_products_count']} estão bloqueados por dados obrigatórios ausentes.",
+            ];
+
+            foreach (($feed['reason_breakdown'] ?? []) as $reason) {
+                $facts[] = [
+                    'source' => 'Diagnóstico do Feed',
+                    'text' => "{$reason['label']}: {$reason['count']} produto(s).",
+                ];
+            }
+
+            $incSample = array_slice((array) ($shopping['incomplete_products'] ?? []), 0, 5);
+            if ($incSample !== []) {
+                $names = array_map(function (array $p): string {
+                    $reasons = implode(', ', array_column($p['blocking_issues'], 'reason'));
+
+                    return "{$p['name']} ({$p['sku']} — {$reasons})";
+                }, $incSample);
+                $facts[] = [
+                    'source' => 'Exemplos Pendentes no Catálogo',
+                    'text' => implode(' | ', $names),
+                ];
+                $suggestions[] = 'Priorize o envio de fotos reais (JPG/PNG/WebP) e atualização de estoque nos produtos listados na aba Google Shopping para destravar sua entrada automática no feed XML.';
+            }
+
+            if (($shopping['merchant_center_api']['status'] ?? '') !== 'connected') {
+                $limitations[] = 'A conta do Google Merchant Center ainda não está conectada via Content API — não há confirmação externa de aprovação pelo Google até que o Merchant ID e Service Account sejam vinculados.';
+            }
+        }
+
+        // 4. Google Ads campaigns
+        if ($askAds) {
+            if ($ads['connected']) {
+                $camps = (array) ($ads['campaigns'] ?? []);
+                if ($camps === []) {
+                    $facts[] = [
+                        'source' => 'Google Ads',
+                        'text' => "Conta Google Ads conectada, com 0 campanhas ativas/com gasto entre {$period['start_date']} e {$period['end_date']}.",
+                    ];
+                } else {
+                    $totSpend = number_format(((int) ($ads['totals']['spend_cents'] ?? 0)) / 100, 2, ',', '.');
+                    $totRev = number_format(((int) ($ads['totals']['attributed_revenue_cents'] ?? 0)) / 100, 2, ',', '.');
+                    $facts[] = [
+                        'source' => 'Google Ads',
+                        'text' => count($camps)." campanha(s) analisada(s) em {$periodDesc}: investimento de R$ {$totSpend}, {$ads['totals']['clicks']} cliques, {$ads['totals']['conversions']} conversões e R$ {$totRev} em receita atribuída (ROAS {$ads['totals']['roas']}x).",
+                    ];
+                    foreach (($ads['suggestions'] ?? []) as $sug) {
+                        $suggestions[] = "{$sug['title']}: {$sug['suggestion']}";
+                    }
+                }
+            } else {
+                $facts[] = [
+                    'source' => 'Google Ads',
+                    'text' => 'Integração com Google Ads encontra-se pendente de configuração (nenhuma campanha foi lida).',
+                ];
+                $limitations[] = 'Sem credenciais de leitura do Google Ads (Customer ID, Developer Token e OAuth2), não é possível auditar investimento, CPC ou termos de pesquisa das campanhas.';
+                $suggestions[] = 'Antes de ativar campanhas de Shopping/Performance Max no Google Ads, regularize as fotos e o estoque dos produtos pendentes na aba Google Shopping e vincule a conta em modo leitura.';
+            }
+        }
+
+        if (! $aiStatus['has_api_key']) {
+            $limitations[] = 'Respostas generativas por IA desativadas no momento (falta configurar OPENAI_API_KEY); este relatório foi gerado de forma determinística diretamente sobre os dados reais do banco.';
+        }
+
+        $md = ["### Fatos Confirmados (*{$periodDesc}*)"];
+        foreach ($facts as $f) {
+            $md[] = "- **[{$f['source']}]** {$f['text']}";
+        }
+
+        if ($limitations !== []) {
+            $md[] = "\n### Limitações dos Dados Disponíveis";
+            foreach (array_values(array_unique($limitations)) as $lim) {
+                $md[] = "- {$lim}";
+            }
+        }
+
+        $md[] = "\n### Sugestões do Agente";
+        if ($suggestions !== []) {
+            foreach (array_values(array_unique($suggestions)) as $s) {
+                $md[] = "- {$s}";
+            }
+        } else {
+            $md[] = '- Mantenha o acompanhamento periódico do feed e das conversões; nenhuma anomalia crítica identificada nos dados conectados.';
+        }
+
+        return [
+            'facts' => $facts,
+            'limitations' => array_values(array_unique($limitations)),
+            'suggestions' => array_values(array_unique($suggestions)),
+            'markdown' => implode("\n", $md),
+        ];
     }
 }

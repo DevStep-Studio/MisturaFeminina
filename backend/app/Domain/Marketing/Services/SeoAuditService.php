@@ -44,23 +44,14 @@ class SeoAuditService
             'stats' => $stats,
             'inspections' => $inspections,
             'gsc_performance' => [
-                'total_clicks' => 4520,
-                'total_impressions' => 74800,
-                'avg_ctr' => 6.04,
-                'avg_position' => 8.2,
-                'top_queries' => [
-                    ['query' => 'esmalte em gel atacado', 'clicks' => 840, 'impressions' => 9200, 'ctr' => 9.13, 'position' => 2.4],
-                    ['query' => 'kit de cilios para lash designer', 'clicks' => 620, 'impressions' => 8100, 'ctr' => 7.65, 'position' => 3.1],
-                    ['query' => 'top lirio esmalte magnetico', 'clicks' => 510, 'impressions' => 5400, 'ctr' => 9.44, 'position' => 1.8],
-                    ['query' => 'produtos para manicure rj atacado', 'clicks' => 430, 'impressions' => 6700, 'ctr' => 6.42, 'position' => 4.2],
-                    ['query' => 'gel x&d uv led original', 'clicks' => 390, 'impressions' => 4800, 'ctr' => 8.12, 'position' => 2.9],
-                ],
-                'top_pages' => [
-                    ['url' => 'https://misturafeminina.com.br/categorias', 'clicks' => 1120, 'impressions' => 15400],
-                    ['url' => 'https://misturafeminina.com.br/categoria/unhas-e-esmalteria', 'clicks' => 980, 'impressions' => 12800],
-                    ['url' => 'https://misturafeminina.com.br/categoria/cilios', 'clicks' => 740, 'impressions' => 9600],
-                    ['url' => 'https://misturafeminina.com.br/promocoes', 'clicks' => 580, 'impressions' => 8100],
-                ],
+                'connected' => false,
+                'total_clicks' => null,
+                'total_impressions' => null,
+                'avg_ctr' => null,
+                'avg_position' => null,
+                'top_queries' => [],
+                'top_pages' => [],
+                'notice' => 'Google Search Console pendente de credenciais da API.',
             ],
         ];
     }

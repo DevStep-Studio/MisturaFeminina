@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { api } from "../../lib/api";
 import { assetUrl } from "../../lib/format";
+import { configureDynamicAnalytics } from "../../monitoring/analytics";
 import type { BootstrapPayload, CartSummary, StoreSettings } from "./types";
 
 const CART_TOKEN_KEY = "mf:cart-token:v1";
@@ -160,6 +161,10 @@ export async function loadStorefrontBootstrap(
     if (res?.data) {
       setBootstrapData(res.data);
       applyThemeFromSettings(res.data.settings);
+      configureDynamicAnalytics({
+        ga4MeasurementId: res.data.settings.ga4_measurement_id,
+        gtmId: res.data.settings.gtm_id,
+      });
       setStorefrontLoaded(true);
     }
     return bootstrapData();

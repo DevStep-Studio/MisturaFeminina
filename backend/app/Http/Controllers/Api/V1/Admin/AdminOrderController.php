@@ -391,7 +391,14 @@ class AdminOrderController extends Controller
             'items_count' => count($returnItemsInput),
         ], $request);
 
-        return response()->json(['data' => $order->fresh(['payments', 'refunds', 'statusHistories', 'returns.items'])]);
+        $freshOrder = $order->fresh(['payments', 'refunds', 'statusHistories', 'returns.items', 'items']);
+        if ($amountCents > 0 && $freshOrder !== null) {
+            $latestRefundId = $freshOrder->refunds->sortByDesc('id')->first()?->id;
+            app(\App\Domain\Marketing\Services\GoogleAnalyticsService::class)
+                ->recordOrderRefund($freshOrder, $amountCents, $latestRefundId);
+        }
+
+        return response()->json(['data' => $freshOrder]);
     }
 
     public function backfillItemCost(Request $request, int $orderItemId): JsonResponse

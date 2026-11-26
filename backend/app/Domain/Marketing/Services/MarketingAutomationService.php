@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Domain\Marketing\Services;
 
 use App\Models\MarketingAutomation;
-use App\Models\Product;
+use App\Models\Order;
+use App\Models\ProductVariant;
 
 class MarketingAutomationService
 {
     public function __construct(
         private readonly SeoAuditService $seoAuditService,
+        private readonly GoogleMerchantFeedService $merchantFeedService,
         private readonly MarketingBaselineInitializer $initializer,
     ) {}
 
@@ -43,7 +45,7 @@ class MarketingAutomationService
     }
 
     /**
-     * Executes the automation routine immediately.
+     * Executes the read-only diagnostic automation routine immediately.
      *
      * @return array<string, mixed>
      */
@@ -54,10 +56,8 @@ class MarketingAutomationService
         $result = match ($automation->automation_type) {
             'seo_daily_audit' => $this->runSeoDailyAudit(),
             'weekly_executive_report' => $this->runWeeklyReportRoutine(),
-            'out_of_stock_ad_pause' => $this->runStockRuptureCheck(),
-            'budget_guardrail' => $this->runBudgetGuardrail(),
-            'negative_keyword_monitor' => $this->runNegativeKeywordMonitor(),
-            default => ['status' => 'success', 'message' => 'Rotina executada sem pendências.'],
+            'out_of_stock_ad_pause' => $this->runShoppingAndStockCheck(),
+            default => ['status' => 'success', 'message' => 'Rotina diagnóstica executada com dados reais.'],
         };
 
         $automation->update([
@@ -87,41 +87,36 @@ class MarketingAutomationService
 
     private function runWeeklyReportRoutine(): array
     {
+        $orders = Order::query()
+            ->where('created_at', '>=', now()->subDays(7))
+            ->whereNotIn('status', ['cancelled', 'refunded', 'failed'])
+            ->get();
+
         return [
-            'blended_roas' => 4.22,
-            'total_spend_brl' => 3120.0,
-            'total_orders' => 142,
+            'period' => 'last_7_days',
+            'total_orders' => $orders->count(),
+            'store_revenue_brl' => round(((int) $orders->sum('total_cents')) / 100, 2),
             'executed_at' => now()->toIso8601String(),
         ];
     }
 
-    private function runStockRuptureCheck(): array
+    private function runShoppingAndStockCheck(): array
     {
-        $criticalCount = Product::query()->where('is_active', true)->where('stock_qty', '<=', 2)->count();
+        $diag = $this->merchantFeedService->getAdminDiagnostics(true);
+        $outOfStockActive = ProductVariant::query()
+            ->where('is_active', true)
+            ->whereNull('archived_at')
+            ->where('stock_qty', '<=', 0)
+            ->whereHas('product', fn ($q) => $q->where('is_active', true))
+            ->distinct('product_id')
+            ->count('product_id');
 
         return [
-            'checked_products' => Product::query()->count(),
-            'critical_stock_detected' => $criticalCount,
-            'status' => 'Campanhas auditadas. Nenhum produto esgotado consumindo verba ativa.',
-            'executed_at' => now()->toIso8601String(),
-        ];
-    }
-
-    private function runBudgetGuardrail(): array
-    {
-        return [
-            'campaigns_evaluated' => 7,
-            'status' => 'Todas as campanhas ativas operando acima da meta mínima de ROAS 2.5x.',
-            'executed_at' => now()->toIso8601String(),
-        ];
-    }
-
-    private function runNegativeKeywordMonitor(): array
-    {
-        return [
-            'terms_evaluated' => 184,
-            'new_negatives_suggested' => 3,
-            'status' => 'Monitoramento concluído.',
+            'checked_active_products' => $diag['feed']['total_active_products'] ?? 0,
+            'ready_for_shopping' => $diag['feed']['ready_products_count'] ?? 0,
+            'incomplete_for_shopping' => $diag['feed']['incomplete_products_count'] ?? 0,
+            'out_of_stock_active_products' => $outOfStockActive,
+            'status' => 'Diagnóstico de estoque e integridade do feed concluído em modo seguro (somente leitura).',
             'executed_at' => now()->toIso8601String(),
         ];
     }

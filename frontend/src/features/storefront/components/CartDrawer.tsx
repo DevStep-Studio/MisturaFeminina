@@ -10,7 +10,6 @@ import { formatCents } from "../../../lib/format";
 import {
   mapCartItemsToGa4,
   trackAddToCart,
-  trackBeginCheckout,
   trackRemoveFromCart,
   trackViewCart,
 } from "../../../monitoring/analytics";
@@ -382,17 +381,7 @@ export function CartDrawer() {
                 </Link>
                 <Link
                   to="/checkout"
-                  onClick={() => {
-                    const c = cart();
-                    if (c) {
-                      trackBeginCheckout({
-                        currency: "BRL",
-                        value: c.total_cents / 100,
-                        items: mapCartItemsToGa4(c.items),
-                      });
-                    }
-                    closeDrawer();
-                  }}
+                  onClick={closeDrawer}
                   class="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#93509e] px-4 text-sm font-bold text-white transition-colors hover:bg-[#7c3f87]"
                 >
                   Finalizar

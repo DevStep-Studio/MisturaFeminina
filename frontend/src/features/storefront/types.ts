@@ -40,6 +40,8 @@ export interface StoreSettings {
   popup_coupon_code: string;
   seo_default_title: string;
   seo_default_description: string;
+  ga4_measurement_id?: string | null;
+  gtm_id?: string | null;
   payment_environment?: string;
   payment_sandbox_mode?: boolean;
 }

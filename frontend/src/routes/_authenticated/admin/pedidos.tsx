@@ -33,6 +33,7 @@ import {
   paymentStatusLabel,
 } from "../../../lib/format";
 import { seoHead } from "../../../lib/seo";
+import { trackRefund } from "../../../monitoring/analytics";
 import { hasPermission } from "../../../security/permissions";
 import { session } from "../../../security/session";
 
@@ -336,6 +337,7 @@ function AdminOrdersPage() {
 
       const reason = returnReason().trim() || "Reembolso administrativo";
       const idempotencyKey = `admin-ui:${id}:${Date.now()}`;
+      const detailBefore = detail();
       await api(`/admin/orders/${id}/refund`, {
         method: "POST",
         body: {
@@ -346,6 +348,19 @@ function AdminOrdersPage() {
           ...(selectedItems.length > 0 ? { items: selectedItems } : {}),
         },
       });
+      if (detailBefore?.order_number) {
+        trackRefund({
+          transaction_id: detailBefore.order_number,
+          value: (detailBefore.total_cents || 0) / 100,
+          currency: "BRL",
+          items: detailBefore.items.map((it) => ({
+            item_id: it.sku_snapshot,
+            item_name: it.product_name_snapshot,
+            price: (it.unit_price_cents ?? 0) / 100,
+            quantity: it.quantity,
+          })),
+        });
+      }
       setReturnOpen(false);
       await Promise.all([refetch(), refetchDetail()]);
       setFeedback(

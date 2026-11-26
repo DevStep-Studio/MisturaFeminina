@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Domain\Marketing\Services;
 
-use App\Models\Category;
 use App\Models\MarketingOpportunity;
-use App\Models\Product;
+use App\Models\ProductVariant;
 
 class MarketingOpportunitiesService
 {
     public function __construct(
-        private readonly MarketingBaselineInitializer $initializer,
+        private readonly GoogleMerchantFeedService $merchantFeedService,
     ) {}
 
     /**
@@ -20,7 +19,9 @@ class MarketingOpportunitiesService
      */
     public function list(array $filters = []): array
     {
-        $this->initializer->ensureBaselineOpportunities();
+        if (MarketingOpportunity::query()->count() === 0) {
+            $this->scanCatalogOpportunities();
+        }
 
         $query = MarketingOpportunity::query()->latest('id');
 
@@ -59,7 +60,7 @@ class MarketingOpportunitiesService
     }
 
     /**
-     * Scans catalog and metrics to find new commercial opportunities.
+     * Scans real catalog and Shopping feed readiness to find genuine opportunities.
      *
      * @return array<string, mixed>
      */
@@ -67,33 +68,67 @@ class MarketingOpportunitiesService
     {
         $created = 0;
 
-        // Check high stock products with high margin
-        $heroProducts = Product::query()
+        $feedDiag = $this->merchantFeedService->getAdminDiagnostics();
+        $incompleteCount = (int) ($feedDiag['feed']['incomplete_products_count'] ?? 0);
+
+        if ($incompleteCount > 0) {
+            $existingFeedOpp = MarketingOpportunity::query()
+                ->where('details->opportunity_key', 'shopping_feed_incomplete')
+                ->first();
+
+            if (! $existingFeedOpp) {
+                MarketingOpportunity::query()->create([
+                    'title' => "Completar {$incompleteCount} produto(s) pendente(s) para o Google Shopping",
+                    'category' => 'google_shopping',
+                    'priority' => 'alta',
+                    'effort_level' => 'medio',
+                    'estimated_lift' => 'Habilitação de catálogo real no Merchant Center',
+                    'impact_description' => "Há {$incompleteCount} produto(s) ativo(s) fora do feed XML por falta de imagem válida ou preço maior que zero.",
+                    'status' => 'nova',
+                    'details' => [
+                        'opportunity_key' => 'shopping_feed_incomplete',
+                        'incomplete_products_count' => $incompleteCount,
+                    ],
+                ]);
+                $created++;
+            }
+        }
+
+        $heroVariants = ProductVariant::query()
             ->where('is_active', true)
-            ->where('stock_qty', '>=', 30)
+            ->whereNull('archived_at')
+            ->where('stock_qty', '>=', 10)
+            ->where('price_cents', '>', 0)
+            ->whereHas('product', fn ($q) => $q->where('is_active', true))
+            ->with('product:id,name,sku')
+            ->orderByDesc('stock_qty')
             ->take(3)
             ->get();
 
-        foreach ($heroProducts as $hp) {
+        foreach ($heroVariants as $hv) {
+            $hp = $hv->product;
+            if (! $hp) {
+                continue;
+            }
             $existing = MarketingOpportunity::query()
                 ->where('details->product_id', $hp->id)
                 ->first();
 
             if (! $existing) {
                 MarketingOpportunity::query()->create([
-                    'title' => "Oportunidade de Escala em Anúncios: {$hp->name}",
-                    'category' => 'google_ads',
-                    'priority' => 'alta',
+                    'title' => "Produto com estoque disponível para destaque: {$hp->name}",
+                    'category' => 'catalogo',
+                    'priority' => 'media',
                     'effort_level' => 'baixo',
-                    'estimated_lift' => '+25% em faturamento do produto',
-                    'impact_description' => "O produto {$hp->name} possui estoque confortável ({$hp->stock_qty} unidades) e excelente margem. Incluí-lo em campanhas de Shopping ou PMax trará vendas imediatas.",
+                    'estimated_lift' => 'Aproveitamento de estoque pronto para venda',
+                    'impact_description' => "O produto {$hp->name} (SKU {$hp->sku}) está ativo com {$hv->stock_qty} unidade(s) em estoque no catálogo real.",
                     'status' => 'nova',
-                    'details' => ['product_id' => $hp->id, 'stock_qty' => $hp->stock_qty],
+                    'details' => ['product_id' => $hp->id, 'stock_qty' => $hv->stock_qty],
                 ]);
                 $created++;
             }
         }
 
-        return ['message' => "Varredura concluída. {$created} novas oportunidades identificadas."];
+        return ['message' => "Varredura concluída com dados reais do catálogo. {$created} nova(s) oportunidade(s) registrada(s)."];
     }
 }

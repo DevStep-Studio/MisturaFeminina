@@ -51,7 +51,7 @@ class RbacSeederService
             RoleSlug::Support->value => ['name' => 'Atendimento', 'permissions' => ['dashboard.view', 'orders.view', 'orders.assisted', 'orders.occurrences', 'customers.view', 'marketing.view', 'reviews.moderate', 'ai.view', 'ai.support', 'wholesale.view', 'wholesale.resellers']],
             RoleSlug::Fulfillment->value => ['name' => 'Expedição e Logística', 'permissions' => ['dashboard.view', 'orders.view', 'orders.manage', 'orders.occurrences', 'shipping.view', 'shipping.write', 'inventory.manage', 'inventory.receive', 'ai.view', 'ai.replenishment']],
             RoleSlug::Finance->value => ['name' => 'Financeiro', 'permissions' => ['dashboard.view', 'orders.view', 'orders.refund', 'orders.cancel', 'orders.cost.backfill', 'payments.view', 'payments.manage', 'payments.reconcile', 'catalog.cost.view', 'reports.view', 'reports.export', 'reports.profit.view', 'reports.profit.export', 'wholesale.view', 'wholesale.reports']],
-            RoleSlug::Marketing->value => ['name' => 'Marketing e Conteúdo', 'permissions' => ['dashboard.view', 'content.view', 'content.write', 'banners.write', 'marketing.view', 'marketing.write', 'reviews.moderate', 'reports.view']],
+            RoleSlug::Marketing->value => ['name' => 'Marketing e Conteúdo', 'permissions' => ['dashboard.view', 'content.view', 'content.write', 'banners.write', 'marketing.view', 'marketing.write', 'reviews.moderate', 'reports.view', 'ai.view']],
             RoleSlug::Customer->value => ['name' => 'Cliente', 'permissions' => []],
         ];
 

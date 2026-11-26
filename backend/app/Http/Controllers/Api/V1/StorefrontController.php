@@ -15,6 +15,7 @@ use App\Models\Category;
 use App\Models\ContentPage;
 use App\Models\Coupon;
 use App\Models\HomeSection;
+use App\Models\MarketingIntegration;
 use App\Models\NewsletterSubscription;
 use App\Models\Product;
 use App\Models\Review;
@@ -33,6 +34,21 @@ class StorefrontController extends Controller
     public function bootstrap(): JsonResponse
     {
         $config = $this->settings->getPublicConfig();
+
+        try {
+            $ga4Integration = MarketingIntegration::query()->where('platform', 'google_analytics_4')->first();
+            $ga4Id = strtoupper(trim((string) ($ga4Integration?->pixel_id ?? '')));
+            $gtmId = strtoupper(trim((string) ($ga4Integration?->settings['gtm_id'] ?? '')));
+            $config['ga4_measurement_id'] = ($ga4Id !== '' && preg_match('/^G-[A-Z0-9]{4,}$/', $ga4Id) === 1 && preg_match('/^G-X+$/', $ga4Id) !== 1 && $ga4Id !== 'G-MFEMININA01')
+                ? $ga4Id
+                : null;
+            $config['gtm_id'] = ($gtmId !== '' && preg_match('/^GTM-[A-Z0-9]{4,}$/', $gtmId) === 1 && preg_match('/^GTM-X+$/', $gtmId) !== 1)
+                ? $gtmId
+                : null;
+        } catch (\Throwable) {
+            $config['ga4_measurement_id'] = null;
+            $config['gtm_id'] = null;
+        }
 
         $maxInstallments = 3;
 
@@ -313,7 +329,7 @@ class StorefrontController extends Controller
     {
         $validated = $request->validate([
             'session_id' => ['required', 'string', 'max:100'],
-            'event_name' => ['required', 'string', 'in:page_view,view_item,add_to_cart,begin_checkout,purchase,search'],
+            'event_name' => ['required', 'string', 'in:page_view,view_item,add_to_cart,remove_from_cart,begin_checkout,purchase,refund,search'],
             'path' => ['nullable', 'string', 'max:300'],
             'order_id' => ['nullable', 'integer'],
             'utm_source' => ['nullable', 'string', 'max:100'],
@@ -322,14 +338,31 @@ class StorefrontController extends Controller
             'payload' => ['nullable', 'array'],
         ]);
 
-        // Prevent duplicate purchase counting on refresh
-        if ($validated['event_name'] === 'purchase' && ! empty($validated['order_id'])) {
-            $exists = AnalyticsEvent::query()
-                ->where('event_name', 'purchase')
-                ->where('order_id', (int) $validated['order_id'])
-                ->exists();
-            if ($exists) {
-                return response()->json(['recorded' => false]);
+        $cleanPayload = isset($validated['payload']) && is_array($validated['payload'])
+            ? $this->stripAnalyticsPii($validated['payload'])
+            : null;
+
+        // Prevent duplicate purchase counting on refresh (by order_id or transaction_id)
+        if ($validated['event_name'] === 'purchase') {
+            $txId = is_array($cleanPayload) ? trim((string) ($cleanPayload['transaction_id'] ?? '')) : '';
+            if (! empty($validated['order_id'])) {
+                $exists = AnalyticsEvent::query()
+                    ->where('event_name', 'purchase')
+                    ->where('order_id', (int) $validated['order_id'])
+                    ->exists();
+                if ($exists) {
+                    return response()->json(['recorded' => false]);
+                }
+            }
+            if ($txId !== '') {
+                $existsByTx = AnalyticsEvent::query()
+                    ->where('event_name', 'purchase')
+                    ->where('created_at', '>=', now()->subDays(30))
+                    ->get(['payload'])
+                    ->contains(fn (AnalyticsEvent $ev): bool => (string) ($ev->payload['transaction_id'] ?? '') === $txId);
+                if ($existsByTx) {
+                    return response()->json(['recorded' => false]);
+                }
             }
         }
 
@@ -342,9 +375,36 @@ class StorefrontController extends Controller
             'utm_source' => $validated['utm_source'] ?? null,
             'utm_medium' => $validated['utm_medium'] ?? null,
             'utm_campaign' => $validated['utm_campaign'] ?? null,
-            'payload' => $validated['payload'] ?? null,
+            'payload' => $cleanPayload,
         ]);
 
         return response()->json(['recorded' => true], 201);
+    }
+
+    /**
+     * Strips any personal customer fields from analytics event payloads (LGPD & GA4 policy).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function stripAnalyticsPii(array $data): array
+    {
+        $forbiddenKeys = [
+            'name', 'customer_name', 'recipient_name', 'first_name', 'last_name',
+            'email', 'customer_email', 'phone', 'customer_phone', 'whatsapp',
+            'cpf', 'cnpj', 'cpf_cnpj', 'document',
+            'address', 'street', 'complement', 'neighborhood', 'cep', 'zipcode',
+        ];
+
+        $out = [];
+        foreach ($data as $k => $v) {
+            $keyLower = strtolower((string) $k);
+            if (in_array($keyLower, $forbiddenKeys, true)) {
+                continue;
+            }
+            $out[$k] = is_array($v) ? $this->stripAnalyticsPii($v) : $v;
+        }
+
+        return $out;
     }
 }

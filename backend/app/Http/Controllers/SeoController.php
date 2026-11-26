@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Marketing\Services\GoogleMerchantFeedService;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\ContentPage;
@@ -25,6 +26,7 @@ class SeoController extends Controller
         Cache::forget(self::SITEMAP_CACHE_KEY);
         Cache::forget(self::LLMS_CACHE_KEY);
         Cache::forget(self::MERCHANT_FEED_CACHE_KEY);
+        Cache::forget(GoogleMerchantFeedService::FEED_CACHE_KEY);
     }
 
     public function sitemap(): Response
@@ -224,64 +226,9 @@ class SeoController extends Controller
         return response(implode("\n", $md), 200, ['Content-Type' => 'text/markdown; charset=UTF-8']);
     }
 
-    public function merchantFeed(): Response
+    public function merchantFeed(GoogleMerchantFeedService $feedService): Response
     {
-        $content = Cache::remember(self::MERCHANT_FEED_CACHE_KEY, 600, function (): string {
-            $base = rtrim((string) config('app.frontend_url', config('app.url')), '/');
-            $products = Product::query()
-                ->where('is_active', true)
-                ->with(['brand:id,name', 'images', 'variants' => fn ($q) => $q->where('is_active', true)])
-                ->orderBy('id')
-                ->get();
-
-            $xml = [
-                '<?xml version="1.0" encoding="UTF-8"?>',
-                '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">',
-                '  <channel>',
-                '    <title>Mistura Feminina Cosméticos — Catálogo</title>',
-                '    <link>'.htmlspecialchars($base.'/', ENT_XML1).'</link>',
-                '    <description>Feed oficial de produtos da Mistura Feminina Cosméticos para Google Merchant Center.</description>',
-            ];
-
-            foreach ($products as $product) {
-                $defaultVariant = $product->variants->firstWhere('is_default', true) ?? $product->variants->first();
-                $priceCents = $defaultVariant->price_cents ?? $product->price_cents;
-                $effectiveCents = $defaultVariant ? $defaultVariant->effectivePriceCents() : $product->effectivePriceCents();
-                $inStock = $product->variants->contains(fn ($v) => $v->availableStock() > 0);
-                $primaryImage = $product->images->firstWhere('is_primary', true)->path
-                    ?? $product->images->first()->path
-                    ?? '/placeholder-product.svg';
-                $imageUrl = str_starts_with($primaryImage, 'http')
-                    ? $primaryImage
-                    : $base.'/'.ltrim($primaryImage, '/');
-                $desc = trim((string) ($product->short_description ?: strip_tags((string) $product->description) ?: $product->name));
-
-                $xml[] = '    <item>';
-                $xml[] = '      <g:id>'.htmlspecialchars($defaultVariant?->sku ?: $product->sku, ENT_XML1).'</g:id>';
-                $xml[] = '      <g:title>'.htmlspecialchars($product->name, ENT_XML1).'</g:title>';
-                $xml[] = '      <g:description>'.htmlspecialchars(mb_substr($desc, 0, 5000), ENT_XML1).'</g:description>';
-                $xml[] = '      <g:link>'.htmlspecialchars($base.'/produto/'.$product->slug, ENT_XML1).'</g:link>';
-                $xml[] = '      <g:image_link>'.htmlspecialchars($imageUrl, ENT_XML1).'</g:image_link>';
-                $xml[] = '      <g:condition>new</g:condition>';
-                $xml[] = '      <g:availability>'.($inStock ? 'in_stock' : 'out_of_stock').'</g:availability>';
-                $xml[] = '      <g:price>'.number_format($priceCents / 100, 2, '.', '').' BRL</g:price>';
-                if ($effectiveCents < $priceCents) {
-                    $xml[] = '      <g:sale_price>'.number_format($effectiveCents / 100, 2, '.', '').' BRL</g:sale_price>';
-                }
-                if ($product->brand?->name) {
-                    $xml[] = '      <g:brand>'.htmlspecialchars($product->brand->name, ENT_XML1).'</g:brand>';
-                }
-                if (! empty($product->gtin)) {
-                    $xml[] = '      <g:gtin>'.htmlspecialchars($product->gtin, ENT_XML1).'</g:gtin>';
-                }
-                $xml[] = '    </item>';
-            }
-
-            $xml[] = '  </channel>';
-            $xml[] = '</rss>';
-
-            return implode("\n", $xml);
-        });
+        $content = $feedService->renderXml();
 
         return response($content, 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
     }

@@ -1,21 +1,88 @@
+import { createSignal } from "solid-js";
 import { config } from "../app/config";
 import { safeRoute } from "./sanitize";
-import { createSignal } from "solid-js";
 
 export type AnalyticsConsent = "unknown" | "granted" | "denied";
 export const consentStorageKey = "mf:analytics-consent:v1";
+const AUTOMATION_CONSENT_KEY = "devstep:analytics-consent:v1";
+const SESSION_ID_KEY = "mf:analytics-sid:v1";
 const TRACKED_PURCHASES_KEY = "mf:tracked_purchases:v1";
+const TRACKED_REFUNDS_KEY = "mf:tracked_refunds:v1";
+const TRACKED_CHECKOUT_KEY = "mf:tracked_begin_checkout:v1";
 
-const ga4Id = import.meta.env.VITE_GA4_MEASUREMENT_ID?.trim() || "";
-const gtmId = import.meta.env.VITE_GTM_ID?.trim() || "";
+const PLACEHOLDER_IDS = new Set([
+  "G-XXXXXXXXXX",
+  "G-0000000000",
+  "G-MFEMININA01",
+  "GTM-XXXXXXX",
+  "GTM-0000000",
+]);
 
-const hasGa4 = /^G-[A-Z0-9]+$/i.test(ga4Id);
-const hasGtm = /^GTM-[A-Z0-9]+$/i.test(gtmId);
+const FORBIDDEN_PII_KEYS = new Set([
+  "name",
+  "customer_name",
+  "recipient_name",
+  "first_name",
+  "last_name",
+  "email",
+  "customer_email",
+  "phone",
+  "customer_phone",
+  "whatsapp",
+  "cpf",
+  "cnpj",
+  "cpf_cnpj",
+  "document",
+  "address",
+  "shipping_address",
+  "street",
+  "complement",
+  "neighborhood",
+  "cep",
+  "zipcode",
+]);
 
-export const analyticsEnabled =
+const FORWARDED_STOREFRONT_EVENTS = new Set([
+  "page_view",
+  "view_item",
+  "add_to_cart",
+  "remove_from_cart",
+  "begin_checkout",
+  "purchase",
+  "refund",
+  "search",
+]);
+
+export function isValidGa4MeasurementId(raw?: string | null): boolean {
+  const id = (raw ?? "").trim().toUpperCase();
+  if (!id || PLACEHOLDER_IDS.has(id)) return false;
+  if (/^G-X+$/i.test(id) || /^G-0+$/i.test(id)) return false;
+  return /^G-[A-Z0-9]{4,20}$/.test(id);
+}
+
+export function isValidGtmId(raw?: string | null): boolean {
+  const id = (raw ?? "").trim().toUpperCase();
+  if (!id || PLACEHOLDER_IDS.has(id)) return false;
+  if (/^GTM-X+$/i.test(id) || /^GTM-0+$/i.test(id)) return false;
+  return /^GTM-[A-Z0-9]{4,20}$/.test(id);
+}
+
+const envGa4 = import.meta.env.VITE_GA4_MEASUREMENT_ID?.trim() || "";
+const envGtm = import.meta.env.VITE_GTM_ID?.trim() || "";
+
+let activeGa4Id = isValidGa4MeasurementId(envGa4) ? envGa4.toUpperCase() : "";
+let activeGtmId = isValidGtmId(envGtm) ? envGtm.toUpperCase() : "";
+
+const runtimeAllowed =
   config.analyticsEnabled &&
-  (hasGa4 || hasGtm) &&
   (import.meta.env.PROD || import.meta.env.VITE_ANALYTICS_IN_DEV === "true");
+
+const [hasTagSignal, setHasTagSignal] = createSignal<boolean>(
+  Boolean(activeGa4Id || activeGtmId),
+);
+export const hasActiveAnalyticsTag = hasTagSignal;
+
+export const analyticsEnabled = runtimeAllowed;
 
 const [consent, updateConsent] = createSignal<AnalyticsConsent>("unknown");
 export const analyticsConsent = consent;
@@ -56,7 +123,60 @@ export function mapCartItemsToGa4(
   }));
 }
 
+/**
+ * Recursively strips any customer PII before dispatching to GA4 / GTM / backend telemetry.
+ */
+export function sanitizeAnalyticsPayload<T>(input: T): T {
+  if (Array.isArray(input)) {
+    return input.map((item) => sanitizeAnalyticsPayload(item)) as unknown as T;
+  }
+  if (input && typeof input === "object") {
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+      if (FORBIDDEN_PII_KEYS.has(k.toLowerCase())) {
+        continue;
+      }
+      clean[k] = sanitizeAnalyticsPayload(v);
+    }
+    return clean as T;
+  }
+  return input;
+}
+
+function readStoredConsent(): AnalyticsConsent {
+  try {
+    if (typeof localStorage === "undefined") return "unknown";
+    if (localStorage.getItem(AUTOMATION_CONSENT_KEY) === "denied") {
+      return "denied";
+    }
+    const stored = localStorage.getItem(consentStorageKey);
+    if (stored === "granted" || stored === "denied") return stored;
+  } catch {
+    // ignore storage errors
+  }
+  return "unknown";
+}
+
+function getOrCreateAnonymousSessionId(): string {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const existing = window.sessionStorage.getItem(SESSION_ID_KEY);
+      if (existing) return existing;
+      const generated =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `mf-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      window.sessionStorage.setItem(SESSION_ID_KEY, generated);
+      return generated;
+    }
+  } catch {
+    // ignore storage limits
+  }
+  return `mf-ephemeral-${Date.now()}`;
+}
+
 function ensureGtagFunction() {
+  if (typeof window === "undefined") return;
   window.dataLayer ??= [];
   if (!window.gtag) {
     window.gtag = function gtag() {
@@ -68,7 +188,7 @@ function ensureGtagFunction() {
 
 function consentCommand(action: "default" | "update", granted: boolean) {
   ensureGtagFunction();
-  window.gtag!("consent", action, {
+  window.gtag?.("consent", action, {
     analytics_storage: granted ? "granted" : "denied",
     ad_storage: granted ? "granted" : "denied",
     ad_user_data: granted ? "granted" : "denied",
@@ -77,53 +197,89 @@ function consentCommand(action: "default" | "update", granted: boolean) {
 }
 
 function loadScripts() {
-  if (!analyticsEnabled || consent() !== "granted") return;
+  if (
+    typeof document === "undefined" ||
+    !runtimeAllowed ||
+    consent() !== "granted" ||
+    (!activeGa4Id && !activeGtmId)
+  ) {
+    return;
+  }
 
   ensureGtagFunction();
   consentCommand("default", false);
   consentCommand("update", true);
 
-  // Load GA4 direct gtag if configured
-  if (hasGa4 && !document.getElementById("mf-ga4")) {
+  if (activeGa4Id && !document.getElementById("mf-ga4")) {
     const script = document.createElement("script");
     script.id = "mf-ga4";
     script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id}`;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${activeGa4Id}`;
     document.head.append(script);
 
-    window.gtag!("js", new Date());
-    window.gtag!("config", ga4Id, {
-      send_page_view: false, // Explicitly tracked on SPA navigation
+    window.gtag?.("js", new Date());
+    window.gtag?.("config", activeGa4Id, {
+      send_page_view: false,
+      allow_google_signals: false,
     });
   }
 
-  // Load GTM if configured
-  if (hasGtm && !document.getElementById("mf-gtm")) {
+  if (activeGtmId && !document.getElementById("mf-gtm")) {
     window.dataLayer!.push({ "gtm.start": Date.now(), event: "gtm.js" });
     const script = document.createElement("script");
     script.id = "mf-gtm";
     script.async = true;
-    script.src = `https://www.googletagmanager.com/gtm.js?id=${gtmId}`;
+    script.src = `https://www.googletagmanager.com/gtm.js?id=${activeGtmId}`;
     document.head.append(script);
   }
 }
 
-export function initializeAnalytics() {
-  if (initialized || !analyticsEnabled) return () => {};
-  initialized = true;
-
-  try {
-    const stored = localStorage.getItem(consentStorageKey);
-    if (stored === "granted" || stored === "denied") updateConsent(stored);
-  } catch {
-    /* Storage can be blocked; consent still works for session */
+/**
+ * Allows dynamic GA4 / GTM IDs configured in Admin ("Marketing e Google")
+ * to activate on the storefront without requiring a new frontend build.
+ */
+export function configureDynamicAnalytics(opts: {
+  ga4MeasurementId?: string | null;
+  gtmId?: string | null;
+}): void {
+  if (isValidGa4MeasurementId(opts.ga4MeasurementId)) {
+    activeGa4Id = opts.ga4MeasurementId!.trim().toUpperCase();
   }
+  if (isValidGtmId(opts.gtmId)) {
+    activeGtmId = opts.gtmId!.trim().toUpperCase();
+  }
+
+  const tagReady = Boolean(activeGa4Id || activeGtmId);
+  setHasTagSignal(tagReady);
+
+  if (!initialized && typeof window !== "undefined") {
+    updateConsent(readStoredConsent());
+  }
+
+  if (tagReady && consent() === "granted") {
+    loadScripts();
+  }
+}
+
+export function initializeAnalytics() {
+  if (typeof window === "undefined") return () => {};
+  updateConsent(readStoredConsent());
+
+  if (initialized) return () => {};
+  initialized = true;
 
   loadScripts();
 
   const onStorage = (event: StorageEvent) => {
-    if (event.key === consentStorageKey || event.key === null) {
-      applyConsent(event.newValue === "granted" ? "granted" : "denied", false);
+    if (
+      event.key === consentStorageKey ||
+      event.key === AUTOMATION_CONSENT_KEY ||
+      event.key === null
+    ) {
+      const next = readStoredConsent();
+      if (next === "granted" || next === "denied") {
+        applyConsent(next, false);
+      }
     }
   };
 
@@ -148,7 +304,7 @@ function applyConsent(
 
   if (value === "denied") {
     lastTrackedPath = undefined;
-    if (wasGranted) {
+    if (wasGranted && typeof window !== "undefined") {
       if (window.dataLayer) consentCommand("update", false);
       window.location.reload();
     }
@@ -165,18 +321,64 @@ export function setAnalyticsConsent(
   applyConsent(value, true);
 }
 
+function forwardConsentedStorefrontEvent(
+  eventName: string,
+  cleanProperties: Record<string, unknown>,
+) {
+  if (
+    typeof window === "undefined" ||
+    typeof fetch !== "function" ||
+    !runtimeAllowed ||
+    consent() !== "granted" ||
+    !FORWARDED_STOREFRONT_EVENTS.has(eventName)
+  ) {
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const body = {
+      session_id: getOrCreateAnonymousSessionId(),
+      event_name: eventName,
+      path: safeRoute(window.location.pathname || currentPath),
+      utm_source: params.get("utm_source") || undefined,
+      utm_medium: params.get("utm_medium") || undefined,
+      utm_campaign: params.get("utm_campaign") || undefined,
+      payload: cleanProperties,
+    };
+
+    void fetch(`${config.apiUrl.replace(/\/$/, "")}/storefront/events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Never disrupt UX on telemetry errors
+  }
+}
+
 export function trackEvent(
   event: string,
   properties: Record<string, unknown> = {},
 ) {
-  if (!analyticsEnabled || consent() !== "granted") return;
+  if (!runtimeAllowed || consent() !== "granted") return;
+
+  const sanitized = sanitizeAnalyticsPayload(properties);
   loadScripts();
 
-  if (window.gtag) {
-    window.gtag("event", event, properties);
-  } else if (window.dataLayer) {
-    window.dataLayer.push({ ...properties, event });
+  if (typeof window !== "undefined") {
+    if ((activeGa4Id || activeGtmId) && window.gtag) {
+      window.gtag("event", event, sanitized);
+    } else if (activeGtmId && window.dataLayer) {
+      window.dataLayer.push({ ...sanitized, event });
+    }
   }
+
+  forwardConsentedStorefrontEvent(event, sanitized);
 }
 
 export function trackPageView(pathname: string) {
@@ -184,7 +386,7 @@ export function trackPageView(pathname: string) {
   currentPath = safeRoute(normalized);
 
   if (
-    !analyticsEnabled ||
+    !runtimeAllowed ||
     consent() !== "granted" ||
     lastTrackedPath === currentPath
   ) {
@@ -193,15 +395,16 @@ export function trackPageView(pathname: string) {
 
   lastTrackedPath = currentPath;
 
-  if (hasGa4 && window.gtag) {
-    window.gtag("event", "page_view", {
-      page_path: currentPath,
-      page_location: window.location.href,
-      page_title: document.title,
-    });
-  } else {
-    trackEvent("page_view", { page_path: currentPath });
-  }
+  const props = {
+    page_path: currentPath,
+    page_location:
+      typeof window !== "undefined"
+        ? `${window.location.origin}${currentPath}`
+        : currentPath,
+    page_title: typeof document !== "undefined" ? document.title : undefined,
+  };
+
+  trackEvent("page_view", props);
 }
 
 /** E-commerce GA4: Visualização de detalhes do produto */
@@ -230,12 +433,39 @@ export function trackAddToCart(params: {
   });
 }
 
-/** E-commerce GA4: Início do fluxo de checkout */
+/** E-commerce GA4: Início do fluxo de checkout (desduplicado por assinatura do carrinho) */
 export function trackBeginCheckout(params: {
   currency?: string;
   value?: number;
   items: Ga4Item[];
 }) {
+  const signature = (params.items || [])
+    .map((it) => `${it.item_id}:${it.quantity ?? 1}`)
+    .sort()
+    .join("|");
+
+  try {
+    if (typeof window !== "undefined" && signature) {
+      const raw = window.sessionStorage.getItem(TRACKED_CHECKOUT_KEY);
+      if (raw) {
+        const prev = JSON.parse(raw) as { sig?: string; ts?: number };
+        if (
+          prev.sig === signature &&
+          typeof prev.ts === "number" &&
+          Date.now() - prev.ts < 60_000
+        ) {
+          return;
+        }
+      }
+      window.sessionStorage.setItem(
+        TRACKED_CHECKOUT_KEY,
+        JSON.stringify({ sig: signature, ts: Date.now() }),
+      );
+    }
+  } catch {
+    // ignore storage limits
+  }
+
   trackEvent("begin_checkout", {
     currency: params.currency || "BRL",
     value: params.value,
@@ -252,12 +482,14 @@ export function trackPurchase(params: {
   shipping?: number;
   items: Ga4Item[];
 }) {
+  if (!params.transaction_id?.trim()) return;
+
   try {
     if (typeof window !== "undefined") {
       const raw = window.sessionStorage.getItem(TRACKED_PURCHASES_KEY) || "[]";
       const tracked: string[] = JSON.parse(raw);
       if (tracked.includes(params.transaction_id)) {
-        return; // Already tracked for this session (prevents refresh duplication)
+        return;
       }
       tracked.push(params.transaction_id);
       window.sessionStorage.setItem(
@@ -276,6 +508,41 @@ export function trackPurchase(params: {
     tax: params.tax || 0,
     shipping: params.shipping || 0,
     items: params.items,
+  });
+}
+
+/** E-commerce GA4: Reembolso / estorno confirmado com prevenção de duplicidade */
+export function trackRefund(params: {
+  transaction_id: string;
+  value: number;
+  currency?: string;
+  items?: Ga4Item[];
+}) {
+  if (!params.transaction_id?.trim()) return;
+  const dedupKey = `${params.transaction_id}:${params.value.toFixed(2)}`;
+
+  try {
+    if (typeof window !== "undefined") {
+      const raw = window.sessionStorage.getItem(TRACKED_REFUNDS_KEY) || "[]";
+      const tracked: string[] = JSON.parse(raw);
+      if (tracked.includes(dedupKey)) {
+        return;
+      }
+      tracked.push(dedupKey);
+      window.sessionStorage.setItem(
+        TRACKED_REFUNDS_KEY,
+        JSON.stringify(tracked),
+      );
+    }
+  } catch {
+    // ignore storage limits
+  }
+
+  trackEvent("refund", {
+    transaction_id: params.transaction_id,
+    value: params.value,
+    currency: params.currency || "BRL",
+    ...(params.items && params.items.length > 0 ? { items: params.items } : {}),
   });
 }
 

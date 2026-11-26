@@ -25,7 +25,6 @@ import { seoHead } from "../lib/seo";
 import {
   mapCartItemsToGa4,
   trackAddShippingInfo,
-  trackBeginCheckout,
   trackRemoveFromCart,
   trackViewCart,
 } from "../monitoring/analytics";
@@ -415,13 +414,6 @@ function CartPage() {
 
                   <Link
                     to="/checkout"
-                    onClick={() =>
-                      trackBeginCheckout({
-                        currency: "BRL",
-                        value: c().total_cents / 100,
-                        items: mapCartItemsToGa4(c().items),
-                      })
-                    }
                     class="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--mf-primary)] px-5 text-sm font-bold text-white transition hover:bg-[var(--mf-primary-hover)]"
                   >
                     <span>Continuar para o Checkout</span>

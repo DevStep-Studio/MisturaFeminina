@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Marketing\Services\GoogleAdsService;
 use App\Domain\Marketing\Services\GoogleAnalyticsService;
+use App\Domain\Marketing\Services\GoogleMerchantFeedService;
 use App\Domain\Marketing\Services\MarketingAgentService;
 use App\Domain\Marketing\Services\MarketingAutomationService;
 use App\Domain\Marketing\Services\MarketingIntegrationsService;
@@ -32,6 +33,7 @@ class AdminAiMarketingAgentController extends Controller
         private readonly MarketingAutomationService $automationsService,
         private readonly MarketingReportService $reportsService,
         private readonly MarketingIntegrationsService $integrationsService,
+        private readonly GoogleMerchantFeedService $merchantFeedService,
     ) {}
 
     public function overview(Request $request): JsonResponse
@@ -53,12 +55,20 @@ class AdminAiMarketingAgentController extends Controller
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:2000'],
             'session_id' => ['nullable', 'string', 'max:64'],
+            'range' => ['nullable', 'string', 'max:40'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date'],
         ]);
 
         $res = $this->agentService->chat(
             $validated['message'],
             $validated['session_id'] ?? null,
-            $request->user()
+            $request->user(),
+            [
+                'range' => $validated['range'] ?? 'last_30_days',
+                'start_date' => $validated['start_date'] ?? null,
+                'end_date' => $validated['end_date'] ?? null,
+            ]
         );
 
         return response()->json(['data' => $res]);
@@ -112,9 +122,9 @@ class AdminAiMarketingAgentController extends Controller
         return response()->json($data);
     }
 
-    public function googleAdsCampaigns(): JsonResponse
+    public function googleAdsCampaigns(Request $request): JsonResponse
     {
-        $data = $this->googleAds->getOverview();
+        $data = $this->googleAds->getOverview($request->all());
 
         return response()->json(['data' => $data]);
     }
@@ -142,11 +152,29 @@ class AdminAiMarketingAgentController extends Controller
         return response()->json($res, 201);
     }
 
-    public function ga4Insights(): JsonResponse
+    public function ga4Insights(Request $request): JsonResponse
     {
-        $data = $this->ga4->getInsights();
+        $data = $this->ga4->getInsights($request->all());
 
         return response()->json(['data' => $data]);
+    }
+
+    public function shoppingFeed(Request $request): JsonResponse
+    {
+        $force = $request->boolean('refresh');
+        $data = $this->merchantFeedService->getAdminDiagnostics($force);
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function refreshShoppingFeed(): JsonResponse
+    {
+        $data = $this->merchantFeedService->getAdminDiagnostics(true);
+
+        return response()->json([
+            'data' => $data,
+            'message' => 'Feed do Google Merchant Center regerado e validado com os dados atuais do catálogo.',
+        ]);
     }
 
     public function metaAdsCampaigns(): JsonResponse
@@ -280,9 +308,14 @@ class AdminAiMarketingAgentController extends Controller
             'account_name' => ['nullable', 'string'],
             'property_id' => ['nullable', 'string'],
             'pixel_id' => ['nullable', 'string'],
+            'credentials' => ['nullable', 'array'],
             'encrypted_credentials' => ['nullable', 'array'],
             'settings' => ['nullable', 'array'],
         ]);
+
+        if (! isset($validated['encrypted_credentials']) && isset($validated['credentials'])) {
+            $validated['encrypted_credentials'] = $validated['credentials'];
+        }
 
         $data = $this->integrationsService->connect($validated);
 

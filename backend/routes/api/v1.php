@@ -35,6 +35,7 @@ Route::prefix('storefront')->group(function (): void {
     Route::get('robots.txt', [SeoController::class, 'robots']);
     Route::get('llms.txt', [SeoController::class, 'llms']);
     Route::get('merchant-feed.xml', [SeoController::class, 'merchantFeed']);
+    Route::get('feed/google-merchant.xml', [SeoController::class, 'merchantFeed']);
     Route::post('newsletter/subscribe', [StorefrontController::class, 'subscribeNewsletter'])->middleware('throttle:10,1');
     Route::get('newsletter/unsubscribe/{token}', [StorefrontController::class, 'unsubscribeNewsletter']);
     Route::post('contact', [StorefrontController::class, 'contact'])->middleware('throttle:10,1');
@@ -357,6 +358,8 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
                 Route::post('google-ads/negative-keyword', [AdminAiMarketingAgentController::class, 'addNegativeKeyword'])->middleware('permission:ai.view');
                 Route::post('google-ads/draft-campaign', [AdminAiMarketingAgentController::class, 'draftGoogleAdsCampaign'])->middleware('permission:ai.view');
                 Route::get('ga4/insights', [AdminAiMarketingAgentController::class, 'ga4Insights'])->middleware('permission:ai.view');
+                Route::get('shopping/feed', [AdminAiMarketingAgentController::class, 'shoppingFeed'])->middleware('permission:ai.view');
+                Route::post('shopping/feed/refresh', [AdminAiMarketingAgentController::class, 'refreshShoppingFeed'])->middleware('permission:ai.view');
                 Route::get('meta-ads/campaigns', [AdminAiMarketingAgentController::class, 'metaAdsCampaigns'])->middleware('permission:ai.view');
                 Route::get('opportunities', [AdminAiMarketingAgentController::class, 'opportunities'])->middleware('permission:ai.view');
                 Route::patch('opportunities/{id}/status', [AdminAiMarketingAgentController::class, 'updateOpportunityStatus'])->middleware('permission:ai.view');
@@ -375,6 +378,22 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
                 Route::post('integrations/connect', [AdminAiMarketingAgentController::class, 'saveIntegration'])->middleware('permission:ai.view');
                 Route::post('integrations/test', [AdminAiMarketingAgentController::class, 'testIntegration'])->middleware('permission:ai.view');
             });
+        });
+
+        // Área "Marketing e Google" (restrita a usuários autorizados com marketing.view)
+        Route::prefix('marketing-google')->middleware('permission:marketing.view')->group(function (): void {
+            Route::get('overview', [AdminAiMarketingAgentController::class, 'overview']);
+            Route::get('chat', [AdminAiMarketingAgentController::class, 'getChatHistory']);
+            Route::post('chat', [AdminAiMarketingAgentController::class, 'chat']);
+            Route::get('ga4/insights', [AdminAiMarketingAgentController::class, 'ga4Insights']);
+            Route::get('google-ads/campaigns', [AdminAiMarketingAgentController::class, 'googleAdsCampaigns']);
+            Route::post('google-ads/negative-keyword', [AdminAiMarketingAgentController::class, 'addNegativeKeyword'])->middleware('permission:marketing.write');
+            Route::post('google-ads/draft-campaign', [AdminAiMarketingAgentController::class, 'draftGoogleAdsCampaign'])->middleware('permission:marketing.write');
+            Route::get('shopping/feed', [AdminAiMarketingAgentController::class, 'shoppingFeed']);
+            Route::post('shopping/feed/refresh', [AdminAiMarketingAgentController::class, 'refreshShoppingFeed']);
+            Route::get('integrations', [AdminAiMarketingAgentController::class, 'integrations']);
+            Route::post('integrations/connect', [AdminAiMarketingAgentController::class, 'saveIntegration'])->middleware('permission:marketing.write');
+            Route::post('integrations/test', [AdminAiMarketingAgentController::class, 'testIntegration']);
         });
 
         // Central de Atacado (Wholesale System)

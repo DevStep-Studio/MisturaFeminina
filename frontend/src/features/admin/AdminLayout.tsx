@@ -14,6 +14,7 @@ import Settings from "lucide-solid/icons/settings";
 import ShieldCheck from "lucide-solid/icons/shield-check";
 import ShoppingCart from "lucide-solid/icons/shopping-cart";
 import Sparkles from "lucide-solid/icons/sparkles";
+import TrendingUp from "lucide-solid/icons/trending-up";
 import Truck from "lucide-solid/icons/truck";
 import UserCircle from "lucide-solid/icons/user";
 import X from "lucide-solid/icons/x";
@@ -47,6 +48,7 @@ interface AdminNavItem {
     | "cats"
     | "appearance"
     | "marketing"
+    | "marketing_google"
     | "shipping"
     | "reports"
     | "settings"
@@ -99,6 +101,12 @@ const NAV_ITEMS: AdminNavItem[] = [
     icon: "appearance",
   },
   {
+    to: "/admin/marketing-google",
+    label: "Marketing e Google",
+    permission: "marketing.view",
+    icon: "marketing_google",
+  },
+  {
     to: "/admin/marketing",
     label: "Cupons & Promoções",
     permission: "marketing.view",
@@ -144,6 +152,8 @@ function renderNavIcon(kind: AdminNavItem["icon"]) {
       return <Palette class="h-4 w-4 shrink-0" />;
     case "marketing":
       return <Megaphone class="h-4 w-4 shrink-0" />;
+    case "marketing_google":
+      return <TrendingUp class="h-4 w-4 shrink-0" />;
     case "shipping":
       return <Truck class="h-4 w-4 shrink-0" />;
     case "reports":
