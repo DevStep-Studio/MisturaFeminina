@@ -3,6 +3,7 @@ import Check from "lucide-solid/icons/check";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import {
+  ErrorBoundary,
   For,
   Show,
   createResource,
@@ -689,18 +690,85 @@ function TestimonialsCarouselBlock(props: {
   );
 }
 
+function getDefaultHomeSections(): HomeSectionData[] {
+  return [
+    {
+      id: 1001,
+      key: "fallback-hero",
+      type: "hero_carousel",
+      title: "Mistura Feminina Cosméticos",
+      subtitle: "Beleza, autocuidado e alta performance",
+      config: {},
+      data: [
+        {
+          id: 1,
+          title: "Mistura Feminina Cosméticos",
+          subtitle:
+            "Encontre os melhores cosméticos, maquiagem e cuidados pessoais.",
+          cta_label: "Ver Categorias",
+          cta_url: "/categorias",
+          desktop_image_path: "/storage/brand/hero-banner-desktop.png",
+          mobile_image_path: "/storage/brand/hero-banner-mobile.png",
+          alt_text: "Mistura Feminina Cosméticos",
+        },
+      ],
+    },
+    {
+      id: 1002,
+      key: "fallback-benefits",
+      type: "benefits_row",
+      title: null,
+      subtitle: null,
+      config: {},
+      data: null,
+    },
+    {
+      id: 1003,
+      key: "fallback-categories",
+      type: "category_circles",
+      title: "Navegue por Departamentos",
+      subtitle: "Conheça nossas principais categorias de beleza e unhas",
+      config: {},
+      data: [
+        { id: 45, name: "Alongamento Unhas", slug: "alongamento-unhas", image_path: null },
+        { id: 80, name: "Esmalte em Gel", slug: "esmalte-em-gel", image_path: null },
+        { id: 79, name: "Esmalte", slug: "esmalte", image_path: null },
+        { id: 67, name: "Cuidados Unhas", slug: "cuidados-unhas", image_path: null },
+        { id: 6, name: "Maquinários", slug: "maquinarios", image_path: null },
+        { id: 72, name: "Decoração", slug: "decoracao", image_path: null },
+        { id: 1, name: "Acessórios", slug: "acessorios", image_path: null },
+        { id: 12, name: "Kits", slug: "kits", image_path: null },
+      ],
+    },
+    {
+      id: 1004,
+      key: "fallback-newsletter",
+      type: "newsletter",
+      title: "Receba novidades e cupons",
+      subtitle: "Cadastre seu e-mail para acompanhar nossos lançamentos.",
+      config: {},
+      data: null,
+    },
+  ];
+}
+
 function StorefrontHomePage() {
   const [homeData] = createResource(async () => {
-    const res = await api<{ data: { sections: HomeSectionData[] } }>(
-      "/storefront/home",
-      {
-        authenticated: false,
-      },
-    );
-    return res.data.sections ?? [];
+    try {
+      const res = await api<{ data: { sections: HomeSectionData[] } }>(
+        "/storefront/home",
+        {
+          authenticated: false,
+        },
+      );
+      return res.data?.sections?.length ? res.data.sections : getDefaultHomeSections();
+    } catch {
+      // Entrega seções de fallback ricas sem estourar rejeição para o router
+      return getDefaultHomeSections();
+    }
   });
 
-  const sections = () => homeData() ?? [];
+  const sections = () => homeData() ?? getDefaultHomeSections();
   const settings = () => storefrontStore.settings();
 
   return (
@@ -709,136 +777,173 @@ function StorefrontHomePage() {
         {settings().store_name} — Cosméticos e Cuidados Pessoais
       </h1>
 
-      <Show when={homeData.loading}>
-        <div class="mx-auto max-w-7xl space-y-6 px-4 py-8">
-          <div class="h-72 animate-pulse rounded-xl bg-zinc-100" />
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <For each={[1, 2, 3, 4]}>
-              {() => <div class="h-72 animate-pulse rounded-xl bg-zinc-100" />}
-            </For>
-          </div>
-        </div>
-      </Show>
-
-      <For each={sections()}>
-        {(section) => {
-          if (section.type === "hero_carousel") {
-            const banners = Array.isArray(section.data)
-              ? (section.data as BannerData[])
-              : [];
-            return <HeroCarouselBlock banners={banners} />;
-          }
-
-          if (section.type === "coupon_strip") {
-            return (
-              <CouponStripBlock
-                section={section}
-                coupon={(section.data as CouponSummary | null) ?? null}
-              />
-            );
-          }
-
-          if (section.type === "benefits_row") {
-            return (
-              <section
-                aria-label="Diferenciais da loja"
-                class="mf-scroll-reveal bg-white py-7 sm:py-8"
-              >
-                <div class="mx-auto grid max-w-[1440px] grid-cols-2 gap-x-4 gap-y-5 px-4 sm:grid-cols-3 lg:grid-cols-5">
-                  <For each={settings().benefits_row}>
-                    {(item) => (
-                      <div class="flex flex-col items-center text-center last:col-span-2 sm:last:col-span-1">
-                        <div class="mb-2 flex items-center justify-center">
-                          {renderBenefitIcon(item.icon)}
-                        </div>
-                        <p class="text-[13.5px] font-extrabold leading-snug text-[#2F0572]">
-                          {item.title}
-                        </p>
-                        <p class="mt-0.5 text-[12.5px] font-normal leading-snug text-[#2F0572]">
-                          {item.subtitle}
-                        </p>
-                      </div>
-                    )}
-                  </For>
-                </div>
-              </section>
-            );
-          }
-
-          if (section.type === "category_circles") {
-            const categories = Array.isArray(section.data)
-              ? (section.data as CategoryNode[])
-              : [];
-            return (
-              <CategoryCirclesBlock section={section} categories={categories} />
-            );
-          }
-
-          if (section.type === "product_showcase") {
-            return <ProductShowcaseBlock section={section} />;
-          }
-
-          if (section.type === "banner_grid") {
-            const banners = Array.isArray(section.data)
-              ? (section.data as BannerData[])
-              : [];
-            return (
-              <Show when={banners.length > 0}>
-                <section
-                  aria-label={section.title || "Destaques promocionais"}
-                  class="mf-scroll-reveal mx-auto max-w-7xl px-4 py-6"
+      <ErrorBoundary
+        fallback={(_err) => (
+          <div class="mx-auto max-w-7xl px-4 py-8">
+            <div class="rounded-xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
+              <h2 class="text-xl font-bold text-zinc-900">
+                Bem-vindo à Mistura Feminina Cosméticos
+              </h2>
+              <p class="mx-auto mt-2 max-w-xl text-sm text-zinc-600">
+                Explore nosso catálogo completo com os melhores produtos para
+                alongamento de unhas, esmaltes em gel, cuidados faciais e
+                maquiagem.
+              </p>
+              <div class="mt-6 flex flex-wrap justify-center gap-3">
+                <Link
+                  to="/categorias"
+                  class="rounded-lg bg-[var(--mf-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:opacity-95"
                 >
-                  <Show when={section.title}>
-                    <SectionHeading
-                      title={section.title!}
-                      subtitle={section.subtitle}
-                    />
-                  </Show>
-                  <div class="grid gap-4 md:grid-cols-2">
-                    <For each={banners}>
-                      {(banner) => (
-                        <a
-                          href={banner.cta_url || "/promocoes"}
-                          class="block overflow-hidden rounded-xl border border-zinc-200 bg-[#7c3f87]"
-                        >
-                          <BannerImage
-                            src={banner.desktop_image_path}
-                            mobileSrc={banner.mobile_image_path}
-                            alt={banner.alt_text || banner.title}
-                            imageClass="mx-auto block h-auto w-full object-contain"
-                          />
-                        </a>
+                  Ver Todas as Categorias
+                </Link>
+                <Link
+                  to="/buscar"
+                  class="rounded-lg border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+                >
+                  Buscar Produtos
+                </Link>
+                <Link
+                  to="/promocoes"
+                  class="rounded-lg border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+                >
+                  Promoções
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+      >
+        <Show when={homeData.loading && !homeData()}>
+          <div class="mx-auto max-w-7xl space-y-6 px-4 py-8">
+            <div class="h-72 animate-pulse rounded-xl bg-zinc-100" />
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <For each={[1, 2, 3, 4]}>
+                {() => <div class="h-72 animate-pulse rounded-xl bg-zinc-100" />}
+              </For>
+            </div>
+          </div>
+        </Show>
+
+        <For each={sections()}>
+          {(section) => {
+            if (section.type === "hero_carousel") {
+              const banners = Array.isArray(section.data)
+                ? (section.data as BannerData[])
+                : [];
+              return <HeroCarouselBlock banners={banners} />;
+            }
+
+            if (section.type === "coupon_strip") {
+              return (
+                <CouponStripBlock
+                  section={section}
+                  coupon={(section.data as CouponSummary | null) ?? null}
+                />
+              );
+            }
+
+            if (section.type === "benefits_row") {
+              return (
+                <section
+                  aria-label="Diferenciais da loja"
+                  class="mf-scroll-reveal bg-white py-7 sm:py-8"
+                >
+                  <div class="mx-auto grid max-w-[1440px] grid-cols-2 gap-x-4 gap-y-5 px-4 sm:grid-cols-3 lg:grid-cols-5">
+                    <For each={settings().benefits_row}>
+                      {(item) => (
+                        <div class="flex flex-col items-center text-center last:col-span-2 sm:last:col-span-1">
+                          <div class="mb-2 flex items-center justify-center">
+                            {renderBenefitIcon(item.icon)}
+                          </div>
+                          <p class="text-[13.5px] font-extrabold leading-snug text-[#2F0572]">
+                            {item.title}
+                          </p>
+                          <p class="mt-0.5 text-[12.5px] font-normal leading-snug text-[#2F0572]">
+                            {item.subtitle}
+                          </p>
+                        </div>
                       )}
                     </For>
                   </div>
                 </section>
-              </Show>
-            );
-          }
+              );
+            }
 
-          if (section.type === "brand_showcase") {
-            const brands = Array.isArray(section.data)
-              ? (section.data as BrandItem[])
-              : [];
-            return <BrandCarouselBlock section={section} brands={brands} />;
-          }
+            if (section.type === "category_circles") {
+              const categories = Array.isArray(section.data)
+                ? (section.data as CategoryNode[])
+                : [];
+              return (
+                <CategoryCirclesBlock section={section} categories={categories} />
+              );
+            }
 
-          if (section.type === "testimonials") {
-            const reviews = Array.isArray(section.data)
-              ? (section.data as HomeReview[])
-              : [];
-            return (
-              <TestimonialsCarouselBlock section={section} reviews={reviews} />
-            );
-          }
+            if (section.type === "product_showcase") {
+              return <ProductShowcaseBlock section={section} />;
+            }
 
-          if (section.type === "newsletter") {
-            return <NewsletterSection />;
-          }
+            if (section.type === "banner_grid") {
+              const banners = Array.isArray(section.data)
+                ? (section.data as BannerData[])
+                : [];
+              return (
+                <Show when={banners.length > 0}>
+                  <section
+                    aria-label={section.title || "Destaques promocionais"}
+                    class="mf-scroll-reveal mx-auto max-w-7xl px-4 py-6"
+                  >
+                    <Show when={section.title}>
+                      <SectionHeading
+                        title={section.title!}
+                        subtitle={section.subtitle}
+                      />
+                    </Show>
+                    <div class="grid gap-4 md:grid-cols-2">
+                      <For each={banners}>
+                        {(banner) => (
+                          <a
+                            href={banner.cta_url || "/promocoes"}
+                            class="block overflow-hidden rounded-xl border border-zinc-200 bg-[#7c3f87]"
+                          >
+                            <BannerImage
+                              src={banner.desktop_image_path}
+                              mobileSrc={banner.mobile_image_path}
+                              alt={banner.alt_text || banner.title}
+                              imageClass="mx-auto block h-auto w-full object-contain"
+                            />
+                          </a>
+                        )}
+                      </For>
+                    </div>
+                  </section>
+                </Show>
+              );
+            }
 
-          return null;
-        }}
-      </For>
+            if (section.type === "brand_showcase") {
+              const brands = Array.isArray(section.data)
+                ? (section.data as BrandItem[])
+                : [];
+              return <BrandCarouselBlock section={section} brands={brands} />;
+            }
+
+            if (section.type === "testimonials") {
+              const reviews = Array.isArray(section.data)
+                ? (section.data as HomeReview[])
+                : [];
+              return (
+                <TestimonialsCarouselBlock section={section} reviews={reviews} />
+              );
+            }
+
+            if (section.type === "newsletter") {
+              return <NewsletterSection />;
+            }
+
+            return null;
+          }}
+        </For>
+      </ErrorBoundary>
     </StoreShell>
   );
 }

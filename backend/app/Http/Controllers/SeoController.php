@@ -136,6 +136,8 @@ class SeoController extends Controller
             'Allow: /',
             'Allow: /assets/',
             'Allow: /storage/',
+            'Allow: /api/v1/storefront/',
+            'Allow: /api/v1/catalog/',
             'Allow: /*.css$',
             'Allow: /*.js$',
             'Allow: /*.png$',

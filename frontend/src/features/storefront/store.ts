@@ -2,7 +2,13 @@ import { createSignal } from "solid-js";
 import { api } from "../../lib/api";
 import { assetUrl } from "../../lib/format";
 import { configureDynamicAnalytics } from "../../monitoring/analytics";
-import type { BootstrapPayload, CartSummary, StoreSettings } from "./types";
+import type {
+  BootstrapPayload,
+  BrandItem,
+  CartSummary,
+  CategoryNode,
+  StoreSettings,
+} from "./types";
 
 const CART_TOKEN_KEY = "mf:cart-token:v1";
 
@@ -79,6 +85,34 @@ const DEFAULT_SETTINGS: StoreSettings = {
   payment_sandbox_mode: true,
 };
 
+export const DEFAULT_MENU_CATEGORIES: CategoryNode[] = [
+  { id: 45, name: "Alongamento Unhas", slug: "alongamento-unhas", image_path: null, children: [] },
+  { id: 80, name: "Esmalte em Gel", slug: "esmalte-em-gel", image_path: null, children: [] },
+  { id: 79, name: "Esmalte", slug: "esmalte", image_path: null, children: [] },
+  { id: 67, name: "Cuidados Unhas", slug: "cuidados-unhas", image_path: null, children: [] },
+  { id: 6, name: "Maquinários", slug: "maquinarios", image_path: null, children: [] },
+  { id: 72, name: "Decoração", slug: "decoracao", image_path: null, children: [] },
+  { id: 1, name: "Acessórios", slug: "acessorios", image_path: null, children: [] },
+  { id: 12, name: "Kits", slug: "kits", image_path: null, children: [] },
+  { id: 95, name: "Cílios e Sobrancelhas", slug: "cilios-e-sobrancelhas", image_path: null, children: [] },
+  { id: 104, name: "Depilação", slug: "depilacao", image_path: null, children: [] },
+  { id: 112, name: "Descartáveis", slug: "descartaveis", image_path: null, children: [] },
+  { id: 119, name: "Higiene e Esterilização", slug: "higiene-e-esterilizacao", image_path: null, children: [] },
+];
+
+export const DEFAULT_BRANDS: BrandItem[] = [
+  { id: 13, name: "Bella Rosa", slug: "bella-rosa", logo_path: null, is_featured: false },
+  { id: 11, name: "Depil Bella", slug: "depil-bella", logo_path: null, is_featured: false },
+  { id: 14, name: "Depimiel", slug: "depimiel", logo_path: null, is_featured: false },
+  { id: 15, name: "Inoven", slug: "inoven", logo_path: null, is_featured: false },
+  { id: 16, name: "Lá Benig", slug: "la-benig", logo_path: null, is_featured: false },
+  { id: 19, name: "Lutex", slug: "lutex", logo_path: null, is_featured: false },
+  { id: 17, name: "Makiaj", slug: "makiaj", logo_path: null, is_featured: false },
+  { id: 18, name: "Q Bella", slug: "q-bella", logo_path: null, is_featured: false },
+  { id: 12, name: "Radar", slug: "radar", logo_path: null, is_featured: false },
+  { id: 10, name: "Stork", slug: "stork", logo_path: null, is_featured: false },
+];
+
 export function readCartToken(): string | null {
   try {
     if (typeof localStorage === "undefined") return null;
@@ -108,10 +142,10 @@ export function cartHeaders(
 
 const [bootstrapData, setBootstrapData] = createSignal<BootstrapPayload>({
   settings: DEFAULT_SETTINGS,
-  menu_categories: [],
+  menu_categories: DEFAULT_MENU_CATEGORIES,
   promo_products: [],
   recommended_products: [],
-  brands: [],
+  brands: DEFAULT_BRANDS,
   footer_pages: [],
   featured_coupon: null,
 });

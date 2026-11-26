@@ -49,6 +49,12 @@ export function ErrorState(props: {
           {props.busy ? "Tentando…" : "Tentar novamente"}
         </button>
       </Show>
+      <a
+        href="/"
+        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-800 shadow-sm transition-colors hover:bg-zinc-50"
+      >
+        Ir para a página inicial
+      </a>
     </StatePanel>
   );
 }
