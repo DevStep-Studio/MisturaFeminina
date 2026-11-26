@@ -50,35 +50,47 @@ interface AgentReply {
 }
 
 const QUICK_AGENT_QUESTIONS = [
-  "Quais produtos recebem visitas e não geram compras?",
-  "Quais produtos estão com dados incompletos para o Shopping?",
-  "Como evoluíram as vendas e os acessos no período?",
-  "Quais campanhas merecem revisão?",
+  {
+    label: "Produtos sem conversão",
+    prompt: "Quais produtos recebem visitas e não geram compras?",
+  },
+  {
+    label: "Pendências do Shopping",
+    prompt: "Quais produtos estão com dados incompletos para o Shopping?",
+  },
+  {
+    label: "Evolução de vendas",
+    prompt: "Como evoluíram as vendas e os acessos no período?",
+  },
+  {
+    label: "Revisão de campanhas",
+    prompt: "Quais campanhas merecem revisão?",
+  },
 ];
 
 function integrationBadge(status?: string | null) {
   switch (status) {
     case "connected":
       return {
-        label: "Conectada",
+        label: "Ativo",
         cls: "border-emerald-200 bg-emerald-50 text-emerald-800",
         dot: "bg-emerald-500",
       };
     case "configured":
       return {
-        label: "Parcial / Tag ativa",
+        label: "Tag ativa",
         cls: "border-[#dfc3e6] bg-[#faf5fb] text-[#62298d]",
         dot: "bg-[#93509e]",
       };
     case "error":
       return {
-        label: "Com erro",
+        label: "Atenção",
         cls: "border-red-200 bg-red-50 text-red-800",
         dot: "bg-red-500",
       };
     default:
       return {
-        label: "Pendente de configuração",
+        label: "Pendente",
         cls: "border-amber-200 bg-amber-50 text-amber-900",
         dot: "bg-amber-500",
       };
@@ -621,301 +633,212 @@ export function AdminAiMarketingAgentPanel() {
           SECTION 1: VISÃO GERAL & AGENTE DE MARKETING
       ================================================================== */}
       <Show when={tab() === "visao_geral"}>
-        <div class="space-y-6">
-          {/* Real Integration Status Cards */}
+        <div class="space-y-5">
+          {/* Canais e Integrações — Barra compacta e moderna */}
           <section aria-label="Estado real das integrações">
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 class="text-sm font-extrabold tracking-tight text-zinc-900 sm:text-base">
-                Estado Real das Integrações
-              </h2>
+            <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                Canais e Integrações
+              </span>
               <Show when={overview()?.period}>
                 {(p) => (
-                  <span class="text-xs text-zinc-500">
-                    Período analisado:{" "}
-                    <strong class="text-zinc-800">{p().label}</strong> (
-                    {p().start_date} a {p().end_date})
+                  <span class="text-[11px] text-zinc-400">
+                    Período: <strong class="font-semibold text-zinc-700">{p().label}</strong> ({p().start_date} a {p().end_date})
                   </span>
                 )}
               </Show>
             </div>
 
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {/* GA4 Status Card */}
-              {(() => {
-                const st = () =>
-                  overview()?.integrations_status?.ga4?.status ??
-                  "not_configured";
-                const badge = () => integrationBadge(st());
-                return (
-                  <article class="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4">
-                    <div>
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs font-bold text-zinc-500">
-                          Google Analytics 4
-                        </span>
-                        <span
-                          class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${badge().cls}`}
-                        >
-                          <span
-                            class={`h-1.5 w-1.5 rounded-full ${badge().dot}`}
-                          />
-                          {badge().label}
-                        </span>
-                      </div>
-                      <p class="mt-2 text-xs leading-relaxed text-zinc-600">
-                        {overview()?.integrations_status?.ga4?.message ||
-                          "Verificando estado do GA4..."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setTab("ga4")}
-                      class="mt-3 self-start text-xs font-bold text-[#62298d] hover:underline"
-                    >
-                      Abrir Analytics →
-                    </button>
-                  </article>
-                );
-              })()}
+            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              {/* GA4 */}
+              <button
+                type="button"
+                onClick={() => setTab("ga4")}
+                class="group flex items-center justify-between gap-3 rounded-xl border border-zinc-200/90 bg-white p-3 text-left transition hover:border-[#93509e] hover:shadow-xs"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-orange-50 text-orange-600 group-hover:bg-[#f6ecf9] group-hover:text-[#93509e] transition">
+                    <LineChart class="h-4 w-4" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="truncate text-xs font-bold text-zinc-900 group-hover:text-[#62298d]">Google Analytics 4</p>
+                    <p class="truncate text-[11px] text-zinc-500">
+                      {overview()?.integrations_status?.ga4?.status === "connected"
+                        ? "Sessões e e-commerce"
+                        : "Medição de visitas"}
+                    </p>
+                  </div>
+                </div>
+                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${integrationBadge(overview()?.integrations_status?.ga4?.status).cls}`}>
+                  <span class={`h-1.5 w-1.5 rounded-full ${integrationBadge(overview()?.integrations_status?.ga4?.status).dot}`} />
+                  {integrationBadge(overview()?.integrations_status?.ga4?.status).label}
+                </span>
+              </button>
 
-              {/* Google Ads Status Card */}
-              {(() => {
-                const st = () =>
-                  overview()?.integrations_status?.google_ads?.status ??
-                  "not_configured";
-                const badge = () => integrationBadge(st());
-                return (
-                  <article class="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4">
-                    <div>
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs font-bold text-zinc-500">
-                          Google Ads (Leitura)
-                        </span>
-                        <span
-                          class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${badge().cls}`}
-                        >
-                          <span
-                            class={`h-1.5 w-1.5 rounded-full ${badge().dot}`}
-                          />
-                          {badge().label}
-                        </span>
-                      </div>
-                      <p class="mt-2 text-xs leading-relaxed text-zinc-600">
-                        {overview()?.integrations_status?.google_ads?.message ||
-                          "Verificando estado do Google Ads..."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setTab("google_ads")}
-                      class="mt-3 self-start text-xs font-bold text-[#62298d] hover:underline"
-                    >
-                      Abrir Google Ads →
-                    </button>
-                  </article>
-                );
-              })()}
+              {/* Google Ads */}
+              <button
+                type="button"
+                onClick={() => setTab("google_ads")}
+                class="group flex items-center justify-between gap-3 rounded-xl border border-zinc-200/90 bg-white p-3 text-left transition hover:border-[#93509e] hover:shadow-xs"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-[#f6ecf9] group-hover:text-[#93509e] transition">
+                    <Megaphone class="h-4 w-4" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="truncate text-xs font-bold text-zinc-900 group-hover:text-[#62298d]">Google Ads</p>
+                    <p class="truncate text-[11px] text-zinc-500">
+                      {overview()?.integrations_status?.google_ads?.status === "connected"
+                        ? "Campanhas e ROAS"
+                        : "Modo leitura"}
+                    </p>
+                  </div>
+                </div>
+                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${integrationBadge(overview()?.integrations_status?.google_ads?.status).cls}`}>
+                  <span class={`h-1.5 w-1.5 rounded-full ${integrationBadge(overview()?.integrations_status?.google_ads?.status).dot}`} />
+                  {integrationBadge(overview()?.integrations_status?.google_ads?.status).label}
+                </span>
+              </button>
 
-              {/* Google Shopping / Merchant Center Status Card */}
-              {(() => {
-                const apiStatus = () =>
-                  overview()?.integrations_status?.google_shopping?.status ??
-                  "not_configured";
-                const badge = () => integrationBadge(apiStatus());
-                const readyCnt = () =>
-                  overview()?.integrations_status?.google_shopping
-                    ?.ready_products_count ?? 0;
-                const incCnt = () =>
-                  overview()?.integrations_status?.google_shopping
-                    ?.incomplete_products_count ?? 0;
-                return (
-                  <article class="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4">
-                    <div>
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs font-bold text-zinc-500">
-                          Merchant Center API
-                        </span>
-                        <span
-                          class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${badge().cls}`}
-                        >
-                          <span
-                            class={`h-1.5 w-1.5 rounded-full ${badge().dot}`}
-                          />
-                          {badge().label}
-                        </span>
-                      </div>
-                      <p class="mt-2 text-xs leading-relaxed text-zinc-600">
-                        Feed XML ativo:{" "}
-                        <strong class="text-zinc-900">
-                          {readyCnt()} prontos
-                        </strong>{" "}
-                        e{" "}
-                        <strong class="text-amber-800">
-                          {incCnt()} pendentes
-                        </strong>{" "}
-                        no catálogo.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setTab("shopping")}
-                      class="mt-3 self-start text-xs font-bold text-[#62298d] hover:underline"
-                    >
-                      Abrir Google Shopping →
-                    </button>
-                  </article>
-                );
-              })()}
+              {/* Google Shopping */}
+              <button
+                type="button"
+                onClick={() => setTab("shopping")}
+                class="group flex items-center justify-between gap-3 rounded-xl border border-zinc-200/90 bg-white p-3 text-left transition hover:border-[#93509e] hover:shadow-xs"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-[#f6ecf9] group-hover:text-[#93509e] transition">
+                    <ShoppingBag class="h-4 w-4" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="truncate text-xs font-bold text-zinc-900 group-hover:text-[#62298d]">Merchant Center</p>
+                    <p class="truncate text-[11px] text-zinc-500">
+                      {overview()?.integrations_status?.google_shopping?.ready_products_count ?? 0} pronto(s) no XML
+                    </p>
+                  </div>
+                </div>
+                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${integrationBadge(overview()?.integrations_status?.google_shopping?.status).cls}`}>
+                  <span class={`h-1.5 w-1.5 rounded-full ${integrationBadge(overview()?.integrations_status?.google_shopping?.status).dot}`} />
+                  {integrationBadge(overview()?.integrations_status?.google_shopping?.status).label}
+                </span>
+              </button>
 
-              {/* AI Motor Status Card */}
-              {(() => {
-                const ai = () => overview()?.integrations_status?.ai_agent;
-                const badge = () =>
-                  integrationBadge(ai()?.status ?? "not_configured");
-                return (
-                  <article class="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-4">
-                    <div>
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="text-xs font-bold text-zinc-500">
-                          Motor Generativo IA
-                        </span>
-                        <span
-                          class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${badge().cls}`}
-                        >
-                          <span
-                            class={`h-1.5 w-1.5 rounded-full ${badge().dot}`}
-                          />
-                          {badge().label}
-                        </span>
-                      </div>
-                      <p class="mt-2 text-xs leading-relaxed text-zinc-600">
-                        {ai()?.has_api_key
-                          ? `Modelo ${ai()?.model || "OpenAI"} conectado para síntese.`
-                          : "Sem OPENAI_API_KEY: o Agente responde em modo diagnóstico determinístico com 100% dos dados reais."}
-                      </p>
-                    </div>
-                    <Link
-                      to="/admin/ia"
-                      search={{ tab: "configuracoes" }}
-                      class="mt-3 self-start text-xs font-bold text-[#62298d] hover:underline"
-                    >
-                      Configurações de IA →
-                    </Link>
-                  </article>
-                );
-              })()}
+              {/* Motor IA */}
+              <Link
+                to="/admin/ia"
+                search={{ tab: "configuracoes" }}
+                class="group flex items-center justify-between gap-3 rounded-xl border border-zinc-200/90 bg-white p-3 text-left transition hover:border-[#93509e] hover:shadow-xs"
+              >
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-purple-50 text-purple-600 group-hover:bg-[#f6ecf9] group-hover:text-[#93509e] transition">
+                    <Sparkles class="h-4 w-4" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="truncate text-xs font-bold text-zinc-900 group-hover:text-[#62298d]">Motor IA</p>
+                    <p class="truncate text-[11px] text-zinc-500">
+                      {overview()?.integrations_status?.ai_agent?.has_api_key ? "OpenAI conectada" : "Diagnóstico real"}
+                    </p>
+                  </div>
+                </div>
+                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${integrationBadge(overview()?.integrations_status?.ai_agent?.status).cls}`}>
+                  <span class={`h-1.5 w-1.5 rounded-full ${integrationBadge(overview()?.integrations_status?.ai_agent?.status).dot}`} />
+                  {integrationBadge(overview()?.integrations_status?.ai_agent?.status).label}
+                </span>
+              </Link>
             </div>
           </section>
 
-          {/* Real Store & Marketing KPIs */}
-          <section
-            aria-label="Indicadores verificados no período"
-            class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
-          >
-            <div class="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p class="text-xs font-semibold text-zinc-500">
-                Receita Líquida da Loja
+          {/* Indicadores do Período */}
+          <section aria-label="Indicadores verificados no período" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Receita Líquida */}
+            <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
+              <span class="text-xs font-semibold text-zinc-500">Receita Líquida</span>
+              <p class="mt-1 text-2xl font-black text-zinc-900">
+                {overview() ? formatCents(overview()?.kpis?.net_store_revenue_cents ?? 0) : "—"}
               </p>
-              <p class="mt-1 text-2xl font-extrabold text-zinc-900">
-                {overview()
-                  ? formatCents(overview()?.kpis?.net_store_revenue_cents ?? 0)
-                  : "—"}
-              </p>
-              <p class="mt-1 text-xs text-zinc-500">
-                Bruta:{" "}
-                {formatCents(overview()?.kpis?.store_revenue_cents ?? 0)} •
-                Estornos: {formatCents(overview()?.kpis?.refunded_cents ?? 0)}
+              <p class="mt-1 text-[11px] text-zinc-500">
+                Bruta: {formatCents(overview()?.kpis?.store_revenue_cents ?? 0)} • Estornos: {formatCents(overview()?.kpis?.refunded_cents ?? 0)}
               </p>
             </div>
 
-            <div class="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p class="text-xs font-semibold text-zinc-500">
-                Pedidos Válidos no Período
-              </p>
-              <p class="mt-1 text-2xl font-extrabold text-zinc-900">
+            {/* Pedidos Válidos */}
+            <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
+              <span class="text-xs font-semibold text-zinc-500">Pedidos Confirmados</span>
+              <p class="mt-1 text-2xl font-black text-zinc-900">
                 {overview() ? (overview()?.kpis?.store_orders_count ?? 0) : "—"}
               </p>
-              <p class="mt-1 text-xs text-zinc-500">
-                Ticket médio:{" "}
-                {formatCents(overview()?.kpis?.ticket_medio_cents ?? 0)} (ant.:{" "}
-                {overview()?.kpis?.previous_orders_count ?? 0} ped.)
+              <p class="mt-1 text-[11px] text-zinc-500">
+                Ticket médio: <strong class="font-medium text-zinc-700">{formatCents(overview()?.kpis?.ticket_medio_cents ?? 0)}</strong>
               </p>
             </div>
 
-            <div class="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p class="text-xs font-semibold text-zinc-500">
-                Acessos / Sessões (GA4)
-              </p>
-              <p class="mt-1 text-2xl font-extrabold text-zinc-900">
-                {overview()?.kpis?.total_sessions !== null &&
-                overview()?.kpis?.total_sessions !== undefined
+            {/* Acessos / Sessões (GA4) */}
+            <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
+              <span class="text-xs font-semibold text-zinc-500">Acessos / Sessões (GA4)</span>
+              <p class="mt-1 text-2xl font-black text-zinc-900">
+                {overview()?.integrations_status?.ga4?.status === "connected" && (overview()?.kpis?.total_sessions ?? 0) > 0
                   ? overview()?.kpis?.total_sessions
-                  : "Pendente"}
+                  : "—"}
               </p>
-              <p class="mt-1 text-xs text-zinc-500">
-                {overview()?.kpis?.total_sessions !== null &&
-                overview()?.kpis?.total_sessions !== undefined
-                  ? `Conversão: ${overview()?.kpis?.conversion_rate_pct ?? 0}%`
-                  : "Conecte o GA4 para ler sessões históricas"}
+              <p class="mt-1 text-[11px] text-zinc-500">
+                {overview()?.integrations_status?.ga4?.status === "connected" &&
+                (overview()?.kpis?.total_sessions ?? 0) >= (overview()?.kpis?.store_orders_count ?? 0) &&
+                (overview()?.kpis?.conversion_rate_pct ?? 0) <= 100
+                  ? `Conversão: ${overview()?.kpis?.conversion_rate_pct}%`
+                  : "Conecte o GA4 para métricas de visitas"}
               </p>
             </div>
 
-            <div class="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p class="text-xs font-semibold text-zinc-500">
-                Investimento Google Ads
-              </p>
-              <p class="mt-1 text-2xl font-extrabold text-zinc-900">
-                {overview()?.kpis?.google_ads_spend_cents !== null &&
-                overview()?.kpis?.google_ads_spend_cents !== undefined
+            {/* Google Ads */}
+            <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
+              <span class="text-xs font-semibold text-zinc-500">Investimento Google Ads</span>
+              <p class="mt-1 text-2xl font-black text-zinc-900">
+                {overview()?.kpis?.google_ads_spend_cents != null
                   ? formatCents(overview()?.kpis?.google_ads_spend_cents)
-                  : "Pendente"}
+                  : "R$ 0,00"}
               </p>
-              <p class="mt-1 text-xs text-zinc-500">
-                {overview()?.kpis?.google_ads_roas !== null &&
-                overview()?.kpis?.google_ads_roas !== undefined
-                  ? `ROAS Google Ads: ${overview()?.kpis?.google_ads_roas}x`
-                  : "Nenhum dado simulado exibido"}
+              <p class="mt-1 text-[11px] text-zinc-500">
+                {overview()?.kpis?.google_ads_roas != null
+                  ? `ROAS: ${overview()?.kpis?.google_ads_roas}x`
+                  : "Nenhum investimento sincronizado"}
               </p>
             </div>
           </section>
 
-          {/* Interactive Marketing Agent Q&A */}
-          <section
-            aria-label="Agente de Marketing e Google"
-            class="rounded-2xl border border-[#dfc3e6] bg-gradient-to-br from-[#faf5fb] to-white p-4 sm:p-6"
-          >
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div class="flex items-center gap-2.5">
-                <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#62298d] text-white">
+          {/* Agente de Marketing & Diagnósticos */}
+          <section aria-label="Agente de Marketing e Google" class="rounded-2xl border border-zinc-200/90 bg-white p-4 sm:p-5 shadow-xs">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-100 pb-3.5">
+              <div class="flex items-center gap-3">
+                <div class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#62298d] text-white shadow-xs">
                   <Bot class="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 class="text-base font-extrabold text-zinc-900">
-                    Agente de Marketing da Mistura Feminina
-                  </h2>
-                  <p class="text-xs text-zinc-600">
-                    Respostas baseadas exclusivamente em dados reais da loja,
-                    catálogo e integrações ativas — separando fatos de sugestões.
+                  <h3 class="text-sm font-bold text-zinc-900 sm:text-base">
+                    Agente de Marketing & Diagnósticos
+                  </h3>
+                  <p class="text-xs text-zinc-500">
+                    Respostas baseadas exclusivamente em dados reais da loja, catálogo e canais.
                   </p>
                 </div>
               </div>
-              <span class="inline-flex items-center gap-1.5 self-start rounded-full border border-[#dfc3e6] bg-white px-3 py-1 text-[11px] font-bold text-[#62298d]">
+              <span class="inline-flex items-center gap-1.5 self-start rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
                 <ShieldCheck class="h-3.5 w-3.5" />
-                Zero alteração automática de verba
+                Leitura segura • Sem alteração de verba
               </span>
             </div>
 
-            {/* Quick question buttons */}
-            <div class="mt-4 flex flex-wrap gap-2">
+            {/* Quick question chips */}
+            <div class="mt-3.5 flex flex-wrap items-center gap-2">
+              <span class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mr-1">Sugestões:</span>
               <For each={QUICK_AGENT_QUESTIONS}>
                 {(q) => (
                   <button
                     type="button"
                     disabled={askingAgent()}
-                    onClick={() => void askMarketingAgent(q)}
-                    class="rounded-xl border border-[#dfc3e6] bg-white px-3 py-2 text-left text-xs font-semibold text-[#62298d] transition hover:border-[#93509e] hover:bg-[#f6ecf9] disabled:opacity-50"
+                    onClick={() => void askMarketingAgent(q.prompt)}
+                    class="rounded-lg border border-zinc-200 bg-zinc-50/80 px-2.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:border-[#93509e] hover:bg-[#faf5fb] hover:text-[#62298d] disabled:opacity-50"
                   >
-                    {q}
+                    {q.label}
                   </button>
                 )}
               </For>
@@ -927,42 +850,65 @@ export function AdminAiMarketingAgentPanel() {
                 e.preventDefault();
                 void askMarketingAgent();
               }}
-              class="mt-3 flex flex-col gap-2 sm:flex-row"
+              class="mt-3 flex gap-2"
             >
-              <input
-                type="text"
-                value={questionInput()}
-                onInput={(e) => setQuestionInput(e.currentTarget.value)}
-                placeholder="Pergunte sobre visitas sem compra, feed do Shopping, vendas no período ou campanhas..."
-                aria-label="Pergunta para o Agente de Marketing"
-                class="h-11 min-w-0 flex-1 rounded-xl border border-zinc-300 bg-white px-3.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none"
-              />
+              <div class="relative flex-1">
+                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  value={questionInput()}
+                  onInput={(e) => setQuestionInput(e.currentTarget.value)}
+                  placeholder="Faça uma pergunta sobre vendas, produtos sem conversão, Shopping ou campanhas..."
+                  aria-label="Pergunta para o Agente de Marketing"
+                  class="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50/50 pl-9 pr-3.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-[#93509e] focus:bg-white focus:outline-none transition sm:text-sm"
+                />
+              </div>
               <button
                 type="submit"
                 disabled={askingAgent() || !questionInput().trim()}
-                class="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#93509e] px-5 text-sm font-bold text-white transition hover:bg-[#7c3f87] disabled:opacity-50"
+                class="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#93509e] px-4 text-xs font-bold text-white transition hover:bg-[#7c3f87] disabled:opacity-50 sm:text-sm"
               >
-                <Send class="h-4 w-4" />
+                <Send class="h-3.5 w-3.5" />
                 <span>{askingAgent() ? "Analisando..." : "Perguntar"}</span>
               </button>
             </form>
 
-            {/* Structured Agent Response */}
+            {/* Structured Agent Response or Executive Cards */}
             <Show
               when={latestAgentReply()}
               fallback={
-                <div class="mt-4 rounded-xl border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700">
-                  <strong class="text-zinc-900">Resumo do período atual:</strong>{" "}
-                  {overview()?.ai_period_summary ||
-                    "Selecione uma pergunta rápida acima para gerar um diagnóstico completo com Fatos Confirmados, Limitações e Sugestões."}
+                <div class="mt-4 rounded-xl border border-zinc-100 bg-zinc-50/60 p-3.5 sm:p-4">
+                  <p class="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-2.5">
+                    Resumo do Período Atual
+                  </p>
+                  <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-3 text-xs">
+                    <div class="rounded-lg bg-white p-3 border border-zinc-200/60 shadow-2xs">
+                      <p class="font-bold text-zinc-900">Vendas & Conversão</p>
+                      <p class="mt-1 text-zinc-600">
+                        <strong class="text-zinc-800">{overview()?.kpis?.store_orders_count ?? 0} pedidos válidos</strong> somando {formatCents(overview()?.kpis?.net_store_revenue_cents ?? 0)}.
+                      </p>
+                    </div>
+                    <div class="rounded-lg bg-white p-3 border border-zinc-200/60 shadow-2xs">
+                      <p class="font-bold text-zinc-900">Google Shopping</p>
+                      <p class="mt-1 text-zinc-600">
+                        <strong class="text-zinc-800">{overview()?.integrations_status?.google_shopping?.ready_products_count ?? 0} produto(s)</strong> pronto(s) no feed XML oficial.
+                      </p>
+                    </div>
+                    <div class="rounded-lg bg-white p-3 border border-zinc-200/60 shadow-2xs">
+                      <p class="font-bold text-zinc-900">Canais de Aquisição</p>
+                      <p class="mt-1 text-zinc-600">
+                        Aguardando credenciais do GA4 e Ads para diagnóstico cruzado.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               }
             >
               {(reply) => (
-                <div class="mt-5 space-y-4 rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5">
+                <div class="mt-4 space-y-3.5 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-4">
                   <Show when={reply().ai_status?.missing_requirement}>
                     {(miss) => (
-                      <div class="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
+                      <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                         <strong>Modo determinístico ativo:</strong> {miss()}
                       </div>
                     )}
@@ -970,15 +916,15 @@ export function AdminAiMarketingAgentPanel() {
 
                   {/* Facts */}
                   <div>
-                    <h3 class="flex items-center gap-1.5 text-xs font-extrabold tracking-wide text-emerald-800 uppercase">
-                      <CheckCircle2 class="h-4 w-4" />
+                    <h4 class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-emerald-800">
+                      <CheckCircle2 class="h-3.5 w-3.5" />
                       Fatos Confirmados nos Dados Reais
-                    </h3>
-                    <ul class="mt-2 space-y-1.5 text-xs leading-relaxed text-zinc-800 sm:text-sm">
+                    </h4>
+                    <ul class="mt-2 space-y-1.5 text-xs text-zinc-800 sm:text-sm">
                       <For each={reply().facts}>
                         {(fact) => (
-                          <li class="rounded-lg bg-emerald-50/60 px-3 py-2">
-                            <span class="mr-1.5 inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-bold text-emerald-900">
+                          <li class="rounded-lg bg-white border border-emerald-100 px-3 py-2 shadow-2xs">
+                            <span class="mr-1.5 inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">
                               {fact.source}
                             </span>
                             {fact.text}
@@ -991,11 +937,11 @@ export function AdminAiMarketingAgentPanel() {
                   {/* Limitations */}
                   <Show when={(reply().limitations?.length ?? 0) > 0}>
                     <div>
-                      <h3 class="flex items-center gap-1.5 text-xs font-extrabold tracking-wide text-amber-800 uppercase">
-                        <AlertCircle class="h-4 w-4" />
+                      <h4 class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-amber-800">
+                        <AlertCircle class="h-3.5 w-3.5" />
                         Limitações dos Dados Disponíveis
-                      </h3>
-                      <ul class="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-zinc-700">
+                      </h4>
+                      <ul class="mt-2 list-disc space-y-1 pl-5 text-xs text-zinc-600">
                         <For each={reply().limitations}>
                           {(lim) => <li>{lim}</li>}
                         </For>
@@ -1005,14 +951,14 @@ export function AdminAiMarketingAgentPanel() {
 
                   {/* Suggestions */}
                   <div>
-                    <h3 class="flex items-center gap-1.5 text-xs font-extrabold tracking-wide text-[#62298d] uppercase">
-                      <TrendingUp class="h-4 w-4" />
+                    <h4 class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#62298d]">
+                      <TrendingUp class="h-3.5 w-3.5" />
                       Sugestões do Agente (Revisão Humana)
-                    </h3>
-                    <ul class="mt-2 space-y-1.5 text-xs leading-relaxed text-zinc-800 sm:text-sm">
+                    </h4>
+                    <ul class="mt-2 space-y-1.5 text-xs text-zinc-800 sm:text-sm">
                       <For each={reply().suggestions}>
                         {(sug) => (
-                          <li class="rounded-lg border border-[#eadbf0] bg-[#faf5fb] px-3 py-2">
+                          <li class="rounded-lg border border-[#eadbf0] bg-white px-3 py-2 shadow-2xs">
                             {sug}
                           </li>
                         )}
