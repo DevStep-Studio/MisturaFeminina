@@ -352,18 +352,23 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
   const filter = () => String(props.section.config?.filter ?? "featured");
   const isCountdownOffers = () =>
     filter() === "offers" ||
-    Boolean(props.section.config?.show_view_all) ||
     props.section.key === "offers_week";
   const isBorderless = () =>
-    isCountdownOffers() || Boolean(props.section.config?.borderless);
+    Boolean(props.section.config?.borderless);
   const showFeaturedBadge = () =>
     filter() === "featured" ||
     Boolean(props.section.config?.show_featured_badge);
+  const showViewAll = () =>
+    props.section.config?.show_view_all !== false;
   const viewAllHref = () => {
     const cta = props.section.config?.cta_url;
     if (typeof cta === "string" && cta.length > 0) return cta;
     if (filter() === "offers") return "/promocoes";
     if (filter() === "new_arrivals") return "/novidades";
+    const catSlug = props.section.config?.category_slug;
+    if (filter() === "category" && typeof catSlug === "string" && catSlug.length > 0) {
+      return `/categoria/${catSlug}`;
+    }
     return "/buscar";
   };
 
@@ -379,36 +384,30 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
         }`}
       >
         <div class="mx-auto w-[96%] max-w-[1520px]">
-          <Show
-            when={isCountdownOffers()}
-            fallback={
-              <SectionHeading
-                title={props.section.title || "Destaques"}
-                subtitle={props.section.subtitle}
-              />
+          <SectionHeading
+            align="left"
+            title={props.section.title || "Destaques"}
+            subtitle={
+              props.section.subtitle ||
+              (isCountdownOffers()
+                ? "Produtos com os melhores preços do mercado, confira já!"
+                : undefined)
             }
-          >
-            <SectionHeading
-              align="left"
-              title={props.section.title || "Confira nossas ofertas da semana"}
-              subtitle={
-                props.section.subtitle ||
-                "Produtos com os melhores preços do mercado, confira já!"
-              }
-              action={
+            action={
+              <Show when={showViewAll()}>
                 <Link
                   to={viewAllHref()}
-                  class="group inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-5 py-2 text-[13px] font-semibold text-[#93509e] shadow-2xs transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.18)]"
+                  class="group inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#93509e] bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-[12px] sm:text-[13px] font-semibold text-[#93509e] shadow-2xs transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[#93509e] hover:text-white hover:shadow-[0_6px_16px_rgba(147,80,158,0.18)]"
                 >
-                  <span>Ver tudo</span>
+                  <span>Ver todos</span>
                   <ChevronRight
                     class="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
                     aria-hidden="true"
                   />
                 </Link>
-              }
-            />
-          </Show>
+              </Show>
+            }
+          />
 
           <div class="relative">
             <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
@@ -423,22 +422,22 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
               </For>
             </div>
 
-            <Show when={products().length > 1}>
+            <Show when={products().length > 2}>
               <button
                 type="button"
                 onClick={() => setOffset((o) => o - 1)}
                 aria-label={`Produtos anteriores em ${props.section.title || "vitrine"}`}
-                class="absolute left-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:left-1.5"
+                class="absolute -left-2 sm:-left-3.5 top-[40%] z-10 inline-flex h-[36px] w-[36px] sm:h-[44px] sm:w-[44px] -translate-y-1/2 items-center justify-center rounded-full border border-[#93509e]/30 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95"
               >
-                <ChevronLeft class="h-5 w-5" aria-hidden="true" />
+                <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 onClick={() => setOffset((o) => o + 1)}
                 aria-label={`Próximos produtos em ${props.section.title || "vitrine"}`}
-                class="absolute right-1 top-[42%] inline-flex h-[44px] w-[43px] -translate-y-1/2 items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition hover:bg-[#93509e] hover:text-white sm:right-1.5"
+                class="absolute -right-2 sm:-right-3.5 top-[40%] z-10 inline-flex h-[36px] w-[36px] sm:h-[44px] sm:w-[44px] -translate-y-1/2 items-center justify-center rounded-full border border-[#93509e]/30 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95"
               >
-                <ChevronRight class="h-5 w-5" aria-hidden="true" />
+                <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
               </button>
             </Show>
           </div>

@@ -183,6 +183,9 @@ class StorefrontController extends Controller
                     break;
                 case 'product_showcase':
                     $maxInstallments = (int) ($cfg['max_installments'] ?? 3);
+                    $limit = (int) ($cfg['limit'] ?? 8);
+                    $products = collect();
+
                     if (! empty($cfg['product_skus']) && is_array($cfg['product_skus'])) {
                         $skus = array_values(array_filter(array_map('strval', $cfg['product_skus'])));
                         $bySku = Product::query()
@@ -191,34 +194,56 @@ class StorefrontController extends Controller
                             ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')->with('attributeValues.attribute')])
                             ->get()
                             ->keyBy('sku');
-                        $payload = collect($skus)
+                        $products = collect($skus)
                             ->map(fn (string $sku) => $bySku->get($sku))
-                            ->filter()
-                            ->map(fn (Product $p): array => CatalogController::serializeProductCard($p, $maxInstallments))
-                            ->values();
-                    } else {
+                            ->filter();
+                    }
+
+                    // Se não houver SKUs específicos ou se retornou menos de 4 itens, consulta dinamicamente pelo catálogo real
+                    if ($products->count() < 4) {
                         $query = Product::query()
                             ->where('is_active', true)
                             ->with(['brand:id,name,slug', 'images', 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')->with('attributeValues.attribute')]);
+
+                        // Exclui produtos já carregados via SKU para não duplicar
+                        if ($products->isNotEmpty()) {
+                            $query->whereNotIn('id', $products->pluck('id')->all());
+                        }
 
                         $filter = (string) ($cfg['filter'] ?? 'featured');
                         match ($filter) {
                             'offers' => $query->whereNotNull('promo_price_cents')->whereColumn('promo_price_cents', '<', 'price_cents'),
                             'new_arrivals' => $query->where('is_new_arrival', true),
-                            'best_sellers' => $query->where('is_best_seller', true)->orderByDesc('sales_count'),
-                            'category' => $query->whereHas('categories', fn ($q) => $q->where('slug', (string) ($cfg['category_slug'] ?? ''))),
+                            'best_sellers' => $query->orderByDesc('sales_count')->orderByDesc('is_best_seller'),
+                            'category' => (function () use ($query, $cfg): void {
+                                $catSlug = (string) ($cfg['category_slug'] ?? '');
+                                $cat = Category::query()->where('is_active', true)->where('slug', $catSlug)->first();
+                                if ($cat) {
+                                    $catIds = $this->categoryHierarchy->getDescendantIds((int) $cat->id, activeOnly: true);
+                                    $query->whereHas('categories', fn ($q) => $q->whereIn('categories.id', $catIds));
+                                } else {
+                                    $query->whereHas('categories', fn ($q) => $q->where('slug', $catSlug));
+                                }
+                            })(),
                             'brand' => $query->whereHas('brand', fn ($q) => $q->where('slug', (string) ($cfg['brand_slug'] ?? ''))),
-                            default => $query->where('is_featured', true),
+                            default => $query->orderByDesc('is_featured'),
                         };
 
-                        $payload = $query
+                        $additionalProducts = $query
+                            ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id AND pi.is_primary = 1) THEN 0 ELSE 1 END ASC')
                             ->orderByRaw('CASE WHEN EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = products.id AND pv.is_active = 1 AND pv.archived_at IS NULL AND (pv.stock_qty - pv.reserved_qty) > 0) THEN 0 ELSE 1 END ASC')
+                            ->orderByDesc('is_featured')
+                            ->orderByDesc('sales_count')
                             ->orderByDesc('id')
-                            ->limit((int) ($cfg['limit'] ?? 8))
-                            ->get()
-                            ->map(fn (Product $p): array => CatalogController::serializeProductCard($p, $maxInstallments))
-                            ->values();
+                            ->limit($limit - $products->count())
+                            ->get();
+
+                        $products = $products->concat($additionalProducts);
                     }
+
+                    $payload = $products
+                        ->map(fn (Product $p): array => CatalogController::serializeProductCard($p, $maxInstallments))
+                        ->values();
                     break;
                 case 'brand_showcase':
                     $payload = Brand::query()
