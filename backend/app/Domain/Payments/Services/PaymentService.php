@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Payments\Services;
 
+use App\Domain\Orders\Services\OrderEmailService;
 use App\Domain\Shared\Enums\PaymentMethod;
 use App\Domain\Shared\Enums\PaymentStatus;
 use App\Models\Order;
@@ -72,6 +73,8 @@ class PaymentService
                 'environment' => $payment->environment,
                 ...$diagnostic,
             ]);
+
+            app(OrderEmailService::class)->paymentUnconfirmed($payment->fresh());
 
             return $payment->fresh();
         }

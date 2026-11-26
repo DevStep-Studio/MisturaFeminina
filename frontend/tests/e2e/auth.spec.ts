@@ -18,9 +18,11 @@ async function backend(
     logoutStatus: number;
   }> = {},
 ) {
-  await page.addInitScript(() =>
-    localStorage.setItem("devstep:analytics-consent:v1", "denied"),
-  );
+  await page.addInitScript(() => {
+    localStorage.setItem("devstep:analytics-consent:v1", "denied");
+    localStorage.setItem("mf:analytics-consent:v1", "denied");
+    sessionStorage.setItem("mf:promo-popup-dismissed:v2", "1");
+  });
   const state = {
     authenticated: false,
     available: true,
@@ -42,6 +44,22 @@ async function backend(
           : { status: 401 },
     ),
   );
+  await page.route("**/api/v1/account/overview", (r) =>
+    r.fulfill({
+      json: {
+        data: {
+          user: { ...user, phone: null, cpf_cnpj: null },
+          orders: [],
+          addresses: [],
+          wishlist: [],
+        },
+      },
+    }),
+  );
+  await page.route("**/api/v1/storefront/bootstrap", (r) =>
+    r.fulfill({ status: 503 }),
+  );
+  await page.route("**/api/v1/cart", (r) => r.fulfill({ status: 503 }));
   await page.route("**/sanctum/csrf-cookie", async (r) => {
     state.csrf++;
     await page.context().addCookies([
@@ -81,6 +99,70 @@ async function enter(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
 }
 
+async function publicStorefront(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("mf:analytics-consent:v1", "denied");
+    sessionStorage.setItem("mf:promo-popup-dismissed:v2", "1");
+  });
+  await page.route("**/api/v1/storefront/bootstrap", (r) =>
+    r.fulfill({ status: 503 }),
+  );
+  await page.route("**/api/v1/cart", (r) => r.fulfill({ status: 503 }));
+  await page.route("**/api/v1/catalog/products**", (r) =>
+    r.fulfill({
+      json: {
+        data: {
+          products: [],
+          meta: { current_page: 1, last_page: 1, total: 0 },
+        },
+      },
+    }),
+  );
+}
+
+test("storefront restores the signed-in account after refresh and in a new tab", async ({
+  page,
+}) => {
+  await backend(page, { authenticated: true });
+  await publicStorefront(page);
+  await page.goto("/promocoes");
+  await expect(
+    page.getByRole("button", { name: "Conta de Ana", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Conta de Ana", exact: true }),
+  ).toBeVisible();
+
+  const other = await page.context().newPage();
+  await backend(other, { authenticated: true });
+  await publicStorefront(other);
+  await other.goto("/buscar");
+  await expect(
+    other.getByRole("button", { name: "Conta de Ana", exact: true }),
+  ).toBeVisible();
+  await other.close();
+});
+
+test("storefront does not restore an account when the server session has expired", async ({
+  page,
+}) => {
+  const state = await backend(page, { authenticated: true });
+  await publicStorefront(page);
+  await page.goto("/promocoes");
+  await expect(
+    page.getByRole("button", { name: "Conta de Ana", exact: true }),
+  ).toBeVisible();
+  state.authenticated = false;
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Minha Conta", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Conta de Ana", exact: true }),
+  ).toHaveCount(0);
+});
+
 test("private entry validates the session, logs in with CSRF and survives refresh", async ({
   page,
 }) => {
@@ -88,6 +170,8 @@ test("private entry validates the session, logs in with CSRF and survives refres
   await page.goto("/app");
   await expect(page).toHaveURL(/\/login\?redirect=%2Fapp/);
   await enter(page);
+  await expect(page).toHaveURL(/\/minha-conta$/);
+  await page.goto("/app");
   await expect(
     page.getByRole("heading", { name: "Sessão autenticada" }),
   ).toBeVisible();
@@ -129,13 +213,17 @@ test("optional MFA verifies identity before private access", async ({
   expect(state.authenticated).toBe(false);
   await page.getByLabel("Código de verificação").fill("123456");
   await page.getByRole("button", { name: "Verificar código" }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(/\/minha-conta$/);
+  await page.goto("/app");
+  await expect(
+    page.getByRole("heading", { name: "Sessão autenticada" }),
+  ).toBeVisible();
 });
 test("unsafe redirects stay in the application", async ({ page }) => {
   await backend(page);
   await page.goto("/login?redirect=https://evil.example");
   await enter(page);
-  await expect(page).toHaveURL("http://127.0.0.1:3100/app");
+  await expect(page).toHaveURL("http://127.0.0.1:3100/minha-conta");
 });
 test("session expiry removes private content", async ({ page }) => {
   const state = await backend(page, { authenticated: true });
@@ -223,15 +311,11 @@ test("initial loading is visible before JavaScript and during slow session valid
     await r.fallback();
   });
   await page.goto("/app", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText("Carregando aplicação…")).toBeVisible();
+  await expect(page.locator("#startup")).toBeVisible();
   const request = page.waitForRequest("**/api/v1/me");
   releaseBootstrap();
   await request;
-  await expect(
-    page
-      .getByText(/Carregando aplicação…|Validando sua sessão…|Carregando…/)
-      .first(),
-  ).toBeVisible();
+  await expect(page.getByRole("status").first()).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Sessão autenticada" }),
   ).toHaveCount(0);

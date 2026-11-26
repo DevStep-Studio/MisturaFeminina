@@ -1,28 +1,30 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ $headline }}</title>
-</head>
-<body style="margin:0;padding:24px;background:#f8f7f8;font-family:Arial,sans-serif;color:#18181b;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;">
-        <div style="background:#8b2252;color:#ffffff;padding:20px 24px;">
-            <strong style="font-size:18px;">Mistura Feminina Cosméticos</strong>
+@extends('emails.layout')
+@section('title', $email['headline'].' | Mistura Feminina')
+@section('preheader', $email['body'])
+@section('content')
+        <h1 style="font-size:23px;line-height:1.3;">{{ $email['headline'] }}</h1>
+        <p>Olá, {{ $email['customer_name'] }}!</p>
+        <p>{{ $email['body'] }}</p>
+        <div style="background:#faf7fb;padding:16px;border-radius:8px;">
+            <strong>Pedido {{ $email['order_number'] }}</strong><br>
+            Status: {{ $email['status_label'] }}
+            @if(!empty($email['payment_status']))<br>Pagamento: {{ $email['payment_status'] }}@endif
         </div>
-        <div style="padding:24px;">
-            <h1 style="margin:0 0 12px;font-size:20px;color:#18181b;">{{ $headline }}</h1>
-            <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">Olá, {{ $order->customer_name }}.</p>
-            <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">{{ $bodyText }}</p>
-            <div style="background:#f8f7f8;border:1px solid #e4e4e7;border-radius:6px;padding:14px 16px;margin-bottom:16px;">
-                <div style="font-size:13px;"><strong>Pedido:</strong> {{ $order->order_number }}</div>
-                <div style="font-size:13px;margin-top:4px;"><strong>Status:</strong> {{ $order->status->value }}</div>
-                <div style="font-size:13px;margin-top:4px;"><strong>Total:</strong> R$ {{ number_format($order->total_cents / 100, 2, ',', '.') }}</div>
-            </div>
-            <p style="margin:0;font-size:13px;color:#52525b;">
-                Acompanhe seu pedido em: {{ rtrim(config('app.frontend_url'), '/') }}/pedido/{{ $order->public_token }}/confirmacao
-            </p>
-        </div>
-    </div>
-</body>
-</html>
-
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;" role="presentation">
+            @foreach($email['items'] as $item)
+            <tr><td style="padding:10px 0;border-bottom:1px solid #eee;">{{ $item['quantity'] }} × {{ $item['name'] }}<br><small>{{ $item['variant'] }}</small></td><td style="text-align:right;white-space:nowrap;border-bottom:1px solid #eee;">R$ {{ number_format($item['total_cents'] / 100, 2, ',', '.') }}</td></tr>
+            @endforeach
+        </table>
+        <p>Frete: R$ {{ number_format($email['shipping_cents'] / 100, 2, ',', '.') }}<br>
+        @if($email['discount_cents'])Desconto: R$ {{ number_format($email['discount_cents'] / 100, 2, ',', '.') }}<br>@endif
+        <strong>Total: R$ {{ number_format($email['total_cents'] / 100, 2, ',', '.') }}</strong></p>
+        @if(!empty($email['tracking_code']) || !empty($email['tracking_description']) || !empty($email['tracking_url']))
+        <h2 style="font-size:18px;">Acompanhe a entrega</h2>
+        @if(!empty($email['carrier']))<p>Transportadora: {{ $email['carrier'] }}</p>@endif
+        @if(!empty($email['tracking_code']))<p>Código de rastreio: <strong>{{ $email['tracking_code'] }}</strong></p>@endif
+        @if(!empty($email['tracking_description']))<p>{{ $email['tracking_description'] }}<br>{{ $email['tracking_location'] ?? '' }}</p>@endif
+        @if($email['tracking_url'] || $email['tracking_page_url'])<p><a href="{{ $email['tracking_url'] ?: $email['tracking_page_url'] }}" style="color:#93509e;">Rastrear entrega</a></p>@endif
+        @endif
+        @if($email['order_url'])@include('emails.button', ['url' => $email['order_url'], 'label' => 'Acompanhar pedido'])@endif
+@endsection
+@section('footer', 'Este é um aviso automático sobre seu pedido na Mistura Feminina.')

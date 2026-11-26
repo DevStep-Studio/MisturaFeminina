@@ -7,6 +7,7 @@ namespace App\Domain\Checkout\Services;
 use App\Domain\Cart\Services\CartService;
 use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Orders\Services\OrderCostService;
+use App\Domain\Orders\Services\OrderEmailService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Payments\Services\PaymentSettings;
 use App\Domain\Payments\Services\WebhookProcessorService;
@@ -14,7 +15,6 @@ use App\Domain\Shared\Enums\OrderStatus;
 use App\Domain\Shared\Enums\PaymentMethod;
 use App\Domain\Shared\Enums\PaymentStatus;
 use App\Domain\Shipping\Services\ShippingQuoteService;
-use App\Mail\OrderStatusMail;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Coupon;
@@ -28,7 +28,6 @@ use App\Models\ShippingQuote;
 use App\Models\StockReservation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -211,12 +210,12 @@ class CheckoutService
                 'shipping_quote_id' => null,
             ]);
 
+            app(OrderEmailService::class)->statusChanged($order);
+
             return $order;
         });
 
         if (($input['defer_payment'] ?? false) && $order->payment_provider === 'mercadopago') {
-            Mail::to($order->customer_email)->queue(new OrderStatusMail($order, 'Pedido registrado — Conclua o pagamento', 'Seu pedido foi reservado. Acesse o link abaixo para concluir o pagamento no formulário seguro.'));
-
             return ['order' => $order->fresh(['items', 'latestPayment', 'statusHistories', 'shipment']), 'payment' => $order->latestPayment];
         }
         $method = PaymentMethod::from((string) $input['payment_method']);
@@ -233,12 +232,6 @@ class CheckoutService
             $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Rejected, 0, $payment->failure_reason ?? 'Pagamento recusado');
         } elseif ($payment->status === PaymentStatus::Expired) {
             $this->webhooks->applyPaymentTransition($payment, PaymentStatus::Expired, 0, 'Pagamento expirado');
-        } else {
-            $headline = $method === PaymentMethod::Pix ? 'Pedido criado — Aguardando Pix' : 'Pedido criado — Pagamento em processamento';
-            $body = $method === PaymentMethod::Pix
-                ? 'Utilize o QR Code ou código Copia e Cola na página do pedido para concluir seu pagamento em até 30 minutos.'
-                : 'Seu pagamento está sendo processado pelo provedor. Avisaremos assim que houver confirmação.';
-            Mail::to($order->customer_email)->queue(new OrderStatusMail($order, $headline, $body));
         }
 
         return ['order' => $order->fresh(['items', 'latestPayment', 'statusHistories', 'shipment']), 'payment' => $payment->fresh()];

@@ -6,11 +6,14 @@ use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Security\Services\RbacSeederService;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Jobs\ProcessPaymentEvent;
+use App\Jobs\SendOrderEmailNotification;
 use App\Models\Order;
+use App\Models\OrderEmailNotification;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Models\Role;
 use App\Models\User;
+use Database\Seeders\OfficialCategoriesSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -212,7 +215,7 @@ Artisan::command('mistura:backup', function (): int {
                 }
                 $batch = [];
                 $colsHeader = null;
-                while (($row = $stmt->fetch(\PDO::FETCH_ASSOC)) !== false) {
+                while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
                     if ($colsHeader === null) {
                         $colsHeader = implode(', ', array_map(
                             static fn (string $c): string => '`'.str_replace('`', '``', $c).'`',
@@ -295,9 +298,28 @@ Schedule::command('mistura:reconcile-payments')->everyFiveMinutes()->withoutOver
 Schedule::command('mistura:ai-replenishment-analyze')->dailyAt('06:00')->withoutOverlapping();
 
 Artisan::command('catalog:seed-categories', function (): int {
-    $seeder = new \Database\Seeders\OfficialCategoriesSeeder;
+    $seeder = new OfficialCategoriesSeeder;
     $stats = $seeder->seedOfficialCategories();
     $this->info("Categorias oficiais processadas: {$stats['created']} criada(s), {$stats['reused']} reaproveitada(s) (total oficial: {$stats['total_official']}).");
 
     return 0;
 })->purpose('Cadastra de forma idempotente as categorias e subcategorias oficiais da Mistura Feminina.');
+
+Artisan::command('mistura:retry-order-emails {--limit=100}', function (): int {
+    $notifications = OrderEmailNotification::query()
+        ->whereNull('sent_at')->where('attempts', '<', 3)
+        ->where(fn ($query) => $query->whereNull('last_attempt_at')->orWhere('last_attempt_at', '<=', now()->subMinutes(5)))
+        ->oldest('id')->limit(max(1, min(1000, (int) $this->option('limit'))))->get();
+    foreach ($notifications as $notification) {
+        try {
+            SendOrderEmailNotification::dispatch($notification->id);
+        } catch (Throwable) {
+            $this->warn('Envio pendente para notificação #'.$notification->id);
+        }
+    }
+    $this->info('Notificações processadas: '.$notifications->count());
+
+    return 0;
+})->purpose('Tenta novamente e-mails de pedidos ainda não enviados, com até três tentativas.');
+
+Schedule::command('mistura:retry-order-emails')->everyFiveMinutes()->withoutOverlapping();

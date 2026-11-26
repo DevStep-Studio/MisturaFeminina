@@ -6,15 +6,16 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Admin\Services\TodayWorkService;
 use App\Domain\Catalog\Services\InventoryService;
+use App\Domain\Marketing\Services\GoogleAnalyticsService;
 use App\Domain\Orders\Services\OrderAfterSalesService;
 use App\Domain\Orders\Services\OrderCostService;
+use App\Domain\Orders\Services\OrderEmailService;
 use App\Domain\Orders\Services\ProfitAndCostAnalyticsService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Domain\Shared\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
-use App\Mail\OrderStatusMail;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderReturn;
@@ -26,7 +27,6 @@ use App\Models\TrackingEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 class AdminOrderController extends Controller
@@ -174,14 +174,6 @@ class AdminOrderController extends Controller
             $request,
         );
 
-        if ($oldStatus !== $newStatus) {
-            Mail::to($order->customer_email)->queue(new OrderStatusMail(
-                $order->fresh(),
-                'Atualização do pedido '.$order->order_number,
-                'Status atualizado para: '.$newStatus->label().(! empty($validated['note']) ? ' — '.$validated['note'] : ''),
-            ));
-        }
-
         return response()->json(['data' => $order->fresh(['items', 'statusHistories', 'shipment'])]);
     }
 
@@ -199,70 +191,85 @@ class AdminOrderController extends Controller
             'mark_delivered' => ['boolean'],
         ]);
 
-        $order = Order::query()->with('shipment')->findOrFail($id);
-        $serviceSnapshot = $order->shipping_service_snapshot ?? [];
+        $order = DB::transaction(function () use ($request, $id, $validated): Order {
+            $order = Order::query()->with('shipment')->lockForUpdate()->findOrFail($id);
+            $initialStatus = $order->status;
+            $serviceSnapshot = $order->shipping_service_snapshot ?? [];
 
-        /** @var Shipment $shipment */
-        $shipment = $order->shipment ?: Shipment::query()->create([
-            'order_id' => $order->id,
-            'carrier' => $validated['carrier'] ?? ($serviceSnapshot['carrier'] ?? 'Transportadora'),
-            'service_code' => (string) ($serviceSnapshot['service_code'] ?? 'PAC'),
-            'service_name' => $validated['service_name'] ?? ($serviceSnapshot['service_name'] ?? 'Entrega'),
-            'label_status' => 'pending',
-            'weight_grams' => 500,
-        ]);
-
-        $updates = array_filter([
-            'carrier' => $validated['carrier'] ?? null,
-            'service_name' => $validated['service_name'] ?? null,
-            'tracking_code' => $validated['tracking_code'] ?? null,
-            'tracking_url' => $validated['tracking_url'] ?? null,
-            'label_status' => $validated['label_status'] ?? null,
-        ], fn ($v) => $v !== null);
-
-        if (! empty($validated['mark_shipped']) && $shipment->shipped_at === null) {
-            $updates['shipped_at'] = now();
-            if ($order->status !== OrderStatus::Shipped && $order->status !== OrderStatus::Delivered) {
-                $old = $order->status;
-                $order->update(['status' => OrderStatus::Shipped]);
-                OrderStatusHistory::query()->create([
-                    'order_id' => $order->id,
-                    'user_id' => $request->user()?->id,
-                    'from_status' => $old->value,
-                    'to_status' => OrderStatus::Shipped->value,
-                    'note' => 'Pedido despachado (rastreio: '.($validated['tracking_code'] ?? $shipment->tracking_code ?? 'N/I').')',
-                ]);
-            }
-        }
-
-        if (! empty($validated['mark_delivered']) && $shipment->delivered_at === null) {
-            $updates['delivered_at'] = now();
-            if ($order->status !== OrderStatus::Delivered) {
-                $old = $order->status;
-                $order->update(['status' => OrderStatus::Delivered]);
-                OrderStatusHistory::query()->create([
-                    'order_id' => $order->id,
-                    'user_id' => $request->user()?->id,
-                    'from_status' => $old->value,
-                    'to_status' => OrderStatus::Delivered->value,
-                    'note' => 'Pedido marcado como entregue',
-                ]);
-            }
-        }
-
-        $shipment->update($updates);
-
-        if (! empty($validated['tracking_description'])) {
-            TrackingEvent::query()->create([
-                'shipment_id' => $shipment->id,
-                'occurred_at' => now(),
-                'status' => ! empty($validated['mark_delivered']) ? 'delivered' : (! empty($validated['mark_shipped']) ? 'in_transit' : 'updated'),
-                'location' => $validated['tracking_location'] ?? null,
-                'description' => $validated['tracking_description'],
+            /** @var Shipment $shipment */
+            $shipment = $order->shipment ?: Shipment::query()->create([
+                'order_id' => $order->id,
+                'carrier' => $validated['carrier'] ?? ($serviceSnapshot['carrier'] ?? 'Transportadora'),
+                'service_code' => (string) ($serviceSnapshot['service_code'] ?? 'PAC'),
+                'service_name' => $validated['service_name'] ?? ($serviceSnapshot['service_name'] ?? 'Entrega'),
+                'label_status' => 'pending',
+                'weight_grams' => 500,
             ]);
-        }
 
-        $this->audit->record('order.shipment_updated', $request->user(), 'order', $order->id, null, $updates, $request);
+            $updates = array_filter([
+                'carrier' => $validated['carrier'] ?? null,
+                'service_name' => $validated['service_name'] ?? null,
+                'tracking_code' => $validated['tracking_code'] ?? null,
+                'tracking_url' => $validated['tracking_url'] ?? null,
+                'label_status' => $validated['label_status'] ?? null,
+            ], fn ($v) => $v !== null);
+
+            $shipment->fill($updates);
+            $trackingChanged = $shipment->isDirty(['carrier', 'tracking_code', 'tracking_url']);
+            $shipment->save();
+
+            if (! empty($validated['mark_shipped']) && $shipment->shipped_at === null) {
+                $updates['shipped_at'] = now();
+                if ($order->status !== OrderStatus::Shipped && $order->status !== OrderStatus::Delivered) {
+                    $old = $order->status;
+                    $order->update(['status' => OrderStatus::Shipped]);
+                    OrderStatusHistory::query()->create([
+                        'order_id' => $order->id,
+                        'user_id' => $request->user()?->id,
+                        'from_status' => $old->value,
+                        'to_status' => OrderStatus::Shipped->value,
+                        'note' => 'Pedido despachado (rastreio: '.($validated['tracking_code'] ?? $shipment->tracking_code ?? 'N/I').')',
+                    ]);
+                }
+            }
+
+            if (! empty($validated['mark_delivered']) && $shipment->delivered_at === null) {
+                $updates['delivered_at'] = now();
+                if ($order->status !== OrderStatus::Delivered) {
+                    $old = $order->status;
+                    $order->update(['status' => OrderStatus::Delivered]);
+                    OrderStatusHistory::query()->create([
+                        'order_id' => $order->id,
+                        'user_id' => $request->user()?->id,
+                        'from_status' => $old->value,
+                        'to_status' => OrderStatus::Delivered->value,
+                        'note' => 'Pedido marcado como entregue',
+                    ]);
+                }
+            }
+
+            $shipment->update($updates);
+
+            $event = null;
+            $lastEvent = $shipment->trackingEvents()->latest('id')->first();
+            if (! empty($validated['tracking_description']) && ($lastEvent?->description !== $validated['tracking_description'] || $lastEvent?->location !== ($validated['tracking_location'] ?? null))) {
+                $event = TrackingEvent::query()->create([
+                    'shipment_id' => $shipment->id,
+                    'occurred_at' => now(),
+                    'status' => ! empty($validated['mark_delivered']) ? 'delivered' : (! empty($validated['mark_shipped']) ? 'in_transit' : 'updated'),
+                    'location' => $validated['tracking_location'] ?? null,
+                    'description' => $validated['tracking_description'],
+                ]);
+            }
+
+            $this->audit->record('order.shipment_updated', $request->user(), 'order', $order->id, null, $updates, $request);
+
+            if ($initialStatus === $order->status && ($trackingChanged || $event)) {
+                app(OrderEmailService::class)->shipmentUpdated($order, 'shipment:'.$shipment->id.':'.hash('sha256', json_encode([$shipment->tracking_code, $shipment->tracking_url, $shipment->carrier, $event?->id], JSON_THROW_ON_ERROR)), $event?->description, $event?->location);
+            }
+
+            return $order;
+        });
 
         return response()->json(['data' => $order->fresh(['shipment.trackingEvents', 'statusHistories'])]);
     }
@@ -394,7 +401,7 @@ class AdminOrderController extends Controller
         $freshOrder = $order->fresh(['payments', 'refunds', 'statusHistories', 'returns.items', 'items']);
         if ($amountCents > 0 && $freshOrder !== null) {
             $latestRefundId = $freshOrder->refunds->sortByDesc('id')->first()?->id;
-            app(\App\Domain\Marketing\Services\GoogleAnalyticsService::class)
+            app(GoogleAnalyticsService::class)
                 ->recordOrderRefund($freshOrder, $amountCents, $latestRefundId);
         }
 
@@ -438,7 +445,7 @@ class AdminOrderController extends Controller
         $cep = (string) ($rawAddress['cep'] ?? $rawAddress['zipcode'] ?? '');
         $digitsCep = preg_replace('/\D/', '', $cep);
         $formattedCep = strlen($digitsCep) === 8
-            ? substr($digitsCep, 0, 5) . '-' . substr($digitsCep, 5, 3)
+            ? substr($digitsCep, 0, 5).'-'.substr($digitsCep, 5, 3)
             : $cep;
 
         $normalizedAddress = [
@@ -457,7 +464,7 @@ class AdminOrderController extends Controller
         $senderOriginCep = StoreSetting::where('key', 'origin_cep')->value('value')['val'] ?? '01001-000';
         $senderCepDigits = preg_replace('/\D/', '', (string) $senderOriginCep);
         $formattedSenderCep = strlen($senderCepDigits) === 8
-            ? substr($senderCepDigits, 0, 5) . '-' . substr($senderCepDigits, 5, 3)
+            ? substr($senderCepDigits, 0, 5).'-'.substr($senderCepDigits, 5, 3)
             : (string) $senderOriginCep;
 
         $sender = [
@@ -535,7 +542,7 @@ class AdminOrderController extends Controller
         ]);
 
         $digits = preg_replace('/\D/', '', $validated['cep']);
-        $formattedCep = substr($digits, 0, 5) . '-' . substr($digits, 5, 3);
+        $formattedCep = substr($digits, 0, 5).'-'.substr($digits, 5, 3);
         $validated['cep'] = $formattedCep;
 
         $snapshot = array_merge((array) ($order->shipping_address_snapshot ?? []), $validated);

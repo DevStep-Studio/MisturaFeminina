@@ -1,19 +1,19 @@
-export interface BrickController {
-  unmount: () => Promise<void> | void;
+export interface TokenizedCard {
+  card_token: string;
+  payment_method_id: string;
+  issuer_id?: string;
+  installments: 1;
 }
-export interface BrickForm {
-  token?: string;
-  payment_method_id?: string;
-  issuer_id?: string | number;
+export interface CardFormController {
+  unmount: () => Promise<void> | void;
+  getCardFormData: () => {
+    token?: string;
+    paymentMethodId?: string;
+    issuerId?: string | number;
+  };
 }
 export interface MercadoPagoInstance {
-  bricks: () => {
-    create: (
-      kind: "payment",
-      id: string,
-      settings: unknown,
-    ) => Promise<BrickController>;
-  };
+  cardForm: (settings: unknown) => CardFormController;
 }
 declare global {
   interface Window {

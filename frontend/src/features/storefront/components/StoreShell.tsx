@@ -1,4 +1,4 @@
-import { type ParentProps, onCleanup, onMount } from "solid-js";
+import { type ParentProps, onCleanup, onMount, Show } from "solid-js";
 import { loadStorefrontBootstrap, refreshCart } from "../store";
 import { BenefitsBar } from "./BenefitsBar";
 import { CartDrawer } from "./CartDrawer";
@@ -8,7 +8,7 @@ import { PromoPopup } from "./PromoPopup";
 import { StoreFooter } from "./StoreFooter";
 import { StoreHeader } from "./StoreHeader";
 
-export function StoreShell(props: ParentProps) {
+export function StoreShell(props: ParentProps<{ promotions?: boolean }>) {
   onMount(() => {
     void loadStorefrontBootstrap();
     void refreshCart();
@@ -37,13 +37,17 @@ export function StoreShell(props: ParentProps) {
 
       observeElements();
 
-      const mutationObserver = typeof MutationObserver !== "undefined"
-        ? new MutationObserver(() => observeElements())
-        : null;
+      const mutationObserver =
+        typeof MutationObserver !== "undefined"
+          ? new MutationObserver(() => observeElements())
+          : null;
 
       const mainContent = document.getElementById("main-content");
       if (mainContent && mutationObserver) {
-        mutationObserver.observe(mainContent, { childList: true, subtree: true });
+        mutationObserver.observe(mainContent, {
+          childList: true,
+          subtree: true,
+        });
       }
 
       onCleanup(() => {
@@ -69,7 +73,9 @@ export function StoreShell(props: ParentProps) {
       <StoreFooter />
       <ProductComparatorBar />
       <CartDrawer />
-      <PromoPopup />
+      <Show when={props.promotions !== false}>
+        <PromoPopup />
+      </Show>
       <MobileBottomNav />
     </div>
   );

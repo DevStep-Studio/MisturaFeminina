@@ -66,6 +66,7 @@ async function setup(page: Page, provider = "mercadopago", enabled = true) {
     ],
   };
   const state = {
+    order,
     orders: [] as Record<string, unknown>[],
     charges: [] as Record<string, unknown>[],
     payment: null as null | Record<string, unknown>,
@@ -119,6 +120,17 @@ async function setup(page: Page, provider = "mercadopago", enabled = true) {
         status: "pending",
         checkout_url: "https://sandbox.asaas.com/i/mistura-test",
       };
+    if (provider === "mercadopago" && !body.defer_payment) {
+      state.charges.push(body);
+      state.payment = {
+        id: 1,
+        provider,
+        method: body.payment_method,
+        status: body.payment_method === "credit_card" ? "approved" : "pending",
+        pix_copy_paste:
+          body.payment_method === "pix" ? "000201-pix-test" : null,
+      };
+    }
     return r.fulfill({ json: { data: { order, payment: state.payment } } });
   });
   await page.route(`**/api/v1/orders/track/${token}`, (r) =>
@@ -151,55 +163,340 @@ async function fill(page: Page) {
   await page.locator("#co-city").fill("São Paulo");
   await page.locator("#co-uf").fill("SP");
 }
-test("Mercado Pago uses Brick without raw card fields or client amounts", async ({
+
+test("checkout receives a restored session without overwriting manually entered contact data", async ({
   page,
 }) => {
-  const state = await setup(page);
+  await setup(page);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/v1/me", async (r) => {
+    await gate;
+    return r.fulfill({
+      json: {
+        data: {
+          id: 1,
+          name: "Ana",
+          email: "ana@example.com",
+          roles: [],
+          permissions: [],
+        },
+      },
+    });
+  });
+  await page.route("**/api/v1/account/addresses", (r) =>
+    r.fulfill({ json: { data: [] } }),
+  );
+  await page.goto("/checkout");
+  await page
+    .getByLabel("Nome completo", { exact: false })
+    .fill("Contato informado manualmente");
+  release();
+  await expect(page.locator("#co-email")).toHaveValue("ana@example.com");
+  await expect(page.getByLabel("Nome completo", { exact: false })).toHaveValue(
+    "Contato informado manualmente",
+  );
+  await expect(
+    page.getByRole("button", { name: "Conta de Ana", exact: true }),
+  ).toBeVisible();
+});
+
+async function cardFormMock(page: Page) {
   await page.addInitScript(() => {
+    const metrics = { mounts: 0, unmounts: 0 };
+    Object.assign(window, { cardFormMetrics: metrics });
     window.MercadoPago = class {
-      bricks() {
+      cardForm(settings: unknown) {
+        const options = settings as {
+          iframe: boolean;
+          form: Record<string, { id: string }> & { id: string };
+          callbacks: { onReady: () => void; onSubmit: (event: Event) => void };
+        };
+        if (!options.iframe) throw new Error("Hosted fields required");
+        metrics.mounts++;
+        const generation = metrics.mounts;
+        const frames = ["cardNumber", "expirationDate", "securityCode"].map(
+          (field) => {
+            const iframe = document.createElement("iframe");
+            iframe.style.cssText = "width:100%;height:100%;border:0";
+            iframe.title = `Campo seguro ${field}`;
+            document.getElementById(options.form[field].id)?.append(iframe);
+            return iframe;
+          },
+        );
+        for (const [field, value] of [
+          ["issuer", "123"],
+          ["installments", "1"],
+          ["identificationType", "CPF"],
+        ]) {
+          const select = document.getElementById(
+            options.form[field].id,
+          ) as HTMLSelectElement;
+          select.replaceChildren(new Option(value, value));
+        }
+        const form = document.getElementById(options.form.id)!;
+        const listener = (event: Event) => options.callbacks.onSubmit(event);
+        form.addEventListener("submit", listener);
+        options.callbacks.onReady();
         return {
-          create: async (_kind: string, id: string, settings: unknown) => {
-            const options = settings as {
-              callbacks: {
-                onReady: () => void;
-                onSubmit: (value: unknown) => Promise<void>;
-              };
-            };
-            const button = document.createElement("button");
-            button.textContent = "Pagar no Brick de teste";
-            button.onclick = () =>
-              void options.callbacks.onSubmit({
-                formData: { payment_method_id: "pix", amount: 1 },
-              });
-            document.getElementById(id)?.append(button);
-            options.callbacks.onReady();
-            return { unmount: () => button.remove() };
+          getCardFormData: () => ({
+            token: `test-card-token-${generation}`,
+            paymentMethodId: "master",
+            issuerId: "123",
+          }),
+          unmount: () => {
+            metrics.unmounts++;
+            frames.forEach((frame) => frame.remove());
+            form.removeEventListener("submit", listener);
           },
         };
       }
     };
   });
-  await fill(page);
-  await expect(
-    page.getByLabel("Número do cartão", { exact: true }),
-  ).toHaveCount(0);
+}
+
+async function fillRetryCard(page: Page) {
   await page
-    .getByRole("button", { name: /Finalizar|Confirmar|Concluir/, exact: false })
-    .last()
+    .getByLabel("E-mail do pagador", { exact: true })
+    .fill("buyer@example.com");
+  await page
+    .getByLabel("CPF ou CNPJ do pagador", { exact: true })
+    .fill("52998224725");
+  await page
+    .getByLabel("Nome no cartão", { exact: true })
+    .fill("Cliente de teste");
+}
+
+test("card rejection survives status refresh and requires an explicit new attempt", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.order.payment_method = "credit_card";
+  await cardFormMock(page);
+  const keys: string[] = [];
+  let releaseCharge!: () => void;
+  const chargeGate = new Promise<void>((resolve) => {
+    releaseCharge = resolve;
+  });
+  await page.route(`**/api/v1/orders/${token}/refresh-payment`, (r) =>
+    r.fulfill({ json: {} }),
+  );
+  await page.route(`**/api/v1/orders/${token}/retry-payment`, async (r) => {
+    keys.push(r.request().headers()["x-idempotency-key"]);
+    state.charges.push(r.request().postDataJSON());
+    if (keys.length === 1) await chargeGate;
+    state.payment = {
+      id: keys.length,
+      provider: "mercadopago",
+      method: "credit_card",
+      status: keys.length === 1 ? "rejected" : "approved",
+      failure_reason:
+        keys.length === 1 ? "O cartão não possui limite suficiente." : null,
+    };
+    return r.fulfill({
+      json: { data: { order: state.order, payment: state.payment } },
+    });
+  });
+  await page.goto(`/pedido/${token}/confirmacao`);
+  const holder = page.getByLabel("Nome no cartão");
+  await fillRetryCard(page);
+  await page
+    .getByRole("button", { name: "Atualizar status", exact: true })
+    .click();
+  await expect(holder).toHaveValue("Cliente de teste");
+  await page
+    .getByRole("button", { name: "Pagar com cartão" })
+    .evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+    });
+  await expect.poll(() => state.charges.length).toBe(1);
+  releaseCharge();
+  await expect(
+    page.getByRole("button", { name: "Tentar novamente", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "limite suficiente" }).first(),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Atualizar status", exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: "Pagar no Brick de teste" }),
+    page.getByRole("alert").filter({ hasText: "limite suficiente" }).first(),
   ).toBeVisible();
-  expect(state.orders[0]?.defer_payment).toBe(true);
-  await page.getByRole("button", { name: "Pagar no Brick de teste" }).click();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { cardFormMetrics: { mounts: number } })
+          .cardFormMetrics.mounts,
+    ),
+  ).toBe(1);
+  await page
+    .getByRole("button", { name: "Tentar novamente", exact: true })
+    .click();
+  await expect(holder).toHaveValue("");
+  await holder.fill("Cliente de teste");
+  await page.getByRole("button", { name: "Pagar com cartão" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Pagamento confirmado, Ana!" }),
+  ).toBeVisible();
+  expect(state.charges).toHaveLength(2);
+  expect(keys[0]).not.toBe(keys[1]);
+});
+
+for (const outcome of [
+  "failed",
+  "unknown",
+  "processing",
+  "pending",
+  "validation",
+  "network",
+] as const) {
+  test(`card ${outcome} does not treat HTTP success as approval or reset the form`, async ({
+    page,
+  }) => {
+    const state = await setup(page);
+    state.order.payment_method = "credit_card";
+    await cardFormMock(page);
+    await page.route(`**/api/v1/orders/${token}/retry-payment`, (r) => {
+      state.charges.push(r.request().postDataJSON());
+      if (outcome === "network") return r.abort();
+      if (outcome === "validation")
+        return r.fulfill({
+          status: 422,
+          json: { errors: { payment_data: ["Dados inválidos"] } },
+        });
+      state.payment = {
+        id: 1,
+        provider: "mercadopago",
+        method: "credit_card",
+        status: outcome,
+        failure_reason:
+          outcome === "failed"
+            ? "Os dados do pagamento não foram aceitos pelo provedor."
+            : null,
+      };
+      return r.fulfill({
+        json: { data: { order: state.order, payment: state.payment } },
+      });
+    });
+    await page.goto(`/pedido/${token}/confirmacao`);
+    await fillRetryCard(page);
+    await page.getByRole("button", { name: "Pagar com cartão" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Pagamento confirmado, Ana!" }),
+    ).toHaveCount(0);
+    if (outcome === "failed" || outcome === "validation") {
+      await expect(
+        page.getByRole("button", { name: "Tentar novamente", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole("alert").first()).toBeVisible();
+      expect(
+        await page.evaluate(
+          () =>
+            (window as unknown as { cardFormMetrics: { mounts: number } })
+              .cardFormMetrics.mounts,
+        ),
+      ).toBe(1);
+    } else {
+      await expect(
+        page
+          .getByText(
+            "Estamos confirmando o pagamento com o provedor. Atualize o status antes de tentar novamente.",
+            { exact: false },
+          )
+          .first(),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Tentar novamente", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Pagar com cartão" }),
+      ).toBeHidden();
+    }
+    expect(state.charges).toHaveLength(1);
+  });
+}
+
+test("Pix is generated directly by checkout without loading card SDK or Bricks", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await fill(page);
+  await page
+    .getByRole("button", { name: "Confirmar pedido", exact: true })
+    .click();
   await expect(page.getByLabel("Código Pix copia e cola")).toHaveValue(
     "000201-pix-test",
   );
+  expect(state.orders[0]?.defer_payment).toBe(false);
   expect(state.charges).toHaveLength(1);
-  expect(JSON.stringify(state.charges[0])).not.toContain('"amount"');
-  await page.screenshot({ path: "/tmp/mf-checkout-pix.png", fullPage: true });
+  await expect(
+    page.locator('script[src="https://sdk.mercadopago.com/js/v2"]'),
+  ).toHaveCount(0);
 });
+
+test("transparent card checkout sends a token and creates one order with no raw card data", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await cardFormMock(page);
+  await fill(page);
+  await page
+    .getByRole("button", { name: "Cartão de Crédito", exact: false })
+    .click();
+  await expect(
+    page.locator('[aria-label="Dados do cartão"] iframe'),
+  ).toHaveCount(3);
+  await expect(page.getByLabel("Nome no cartão", { exact: true })).toHaveValue(
+    "Ana Teste",
+  );
+  await expect(page.locator("form form")).toHaveCount(0);
+  await page.screenshot({
+    path: "/tmp/mf-transparent-checkout-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const checkoutBounds = await page.locator("#store-checkout").boundingBox();
+  expect(checkoutBounds!.x + checkoutBounds!.width).toBeLessThanOrEqual(390);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "/tmp/mf-transparent-checkout-mobile.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Confirmar e pagar", exact: true })
+    .evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+    });
+  await expect(
+    page.getByRole("heading", { name: "Pagamento confirmado, Ana!" }),
+  ).toBeVisible();
+  expect(state.orders).toHaveLength(1);
+  expect(state.charges).toHaveLength(1);
+  expect(state.orders[0].defer_payment).toBe(false);
+  expect(state.orders[0].payment_data).toMatchObject({
+    card_token: "test-card-token-1",
+    payment_method_id: "master",
+    installments: 1,
+  });
+  const request = JSON.stringify(state.orders[0]);
+  for (const field of [
+    "card_number",
+    "security_code",
+    "expiration_date",
+    "transaction_amount",
+  ])
+    expect(request).not.toContain(field);
+});
+
 test("Asaas boleto only redirects after order confirmation", async ({
   page,
 }) => {

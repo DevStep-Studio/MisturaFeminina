@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Domain\Orders\Services\OrderEmailService;
+use App\Domain\Wholesale\Services\WholesalePricingService;
+use App\Models\Order;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -16,11 +19,16 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->scoped(\App\Domain\Wholesale\Services\WholesalePricingService::class);
+        $this->app->scoped(WholesalePricingService::class);
     }
 
     public function boot(): void
     {
+        Order::updated(function (Order $order): void {
+            if ($order->wasChanged('status')) {
+                app(OrderEmailService::class)->statusChanged($order);
+            }
+        });
         RateLimiter::for('api', fn ($r) => Limit::perMinute(180)->by($r->user()?->id ?: $r->ip()));
         RateLimiter::for('public', fn ($r) => Limit::perMinute(180)->by($r->ip()));
         RateLimiter::for('checkout', fn ($r) => Limit::perMinute(20)->by($r->user()?->id ?: $r->ip()));

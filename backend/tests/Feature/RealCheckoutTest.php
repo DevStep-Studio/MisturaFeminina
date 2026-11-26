@@ -17,8 +17,8 @@ use Database\Seeders\DemoStoreSeeder;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
@@ -101,7 +101,25 @@ test('provider errors preserve only safe diagnostics and return a useful payment
     'forbidden credentials' => [403, 'failed', 'autenticar'],
     'validation error' => [422, 'failed', 'dados do pagamento'],
     'provider unavailable' => [500, 'unknown', 'confirmando'],
+    'provider request timeout' => [408, 'unknown', 'confirmando'],
+    'provider rate limit' => [429, 'unknown', 'confirmando'],
 ]);
+
+test('an unreadable successful provider response cannot allow another charge', function (): void {
+    prepareRealStore();
+    $cart = checkoutCart();
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Http::fake(['api.mercadopago.com/v1/payments' => Http::response('Unusable response with private data', 200)]);
+    $created = $this->withHeader('X-Cart-Token', $cart['token'])->postJson('/api/v1/checkout', $cart['body'])
+        ->assertCreated()->assertJsonPath('data.payment.status', 'unknown');
+    $payment = Payment::firstOrFail();
+    expect($payment->raw_sanitized_response['http_status'])->toBe(200);
+    expect(json_encode($payment->raw_sanitized_response))->not->toContain('private data');
+    $orderToken = $created->json('data.order.public_token');
+    $this->postJson("/api/v1/orders/$orderToken/retry-payment", ['payment_method' => 'pix'])->assertConflict();
+    Http::assertSentCount(1);
+});
 
 test('a provider timeout remains uncertain and blocks another charge', function (): void {
     prepareRealStore();

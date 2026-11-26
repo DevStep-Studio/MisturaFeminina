@@ -15,7 +15,7 @@ import {
   onMount,
 } from "solid-js";
 import { StoreShell } from "../../../features/storefront/components/StoreShell";
-import { PaymentBrick } from "../../../features/storefront/PaymentBrick";
+import { PaymentForm } from "../../../features/storefront/PaymentForm";
 import {
   invoiceUrl,
   paymentConfig,
@@ -203,9 +203,9 @@ function OrderConfirmationPage() {
   }
 
   return (
-    <StoreShell>
+    <StoreShell promotions={false}>
       <div class="mx-auto max-w-4xl px-4 py-8">
-        <Show when={data.loading}>
+        <Show when={data.loading && !data()}>
           <div class="h-72 animate-pulse rounded-2xl bg-zinc-100" />
         </Show>
 
@@ -390,7 +390,9 @@ function OrderConfirmationPage() {
                   <Show
                     when={
                       payment()?.status === "unknown" ||
-                      payment()?.status === "processing"
+                      payment()?.status === "processing" ||
+                      (payment()?.status === "pending" &&
+                        order().payment_method === "credit_card")
                     }
                   >
                     <p
@@ -414,10 +416,11 @@ function OrderConfirmationPage() {
                       <h2 class="mb-3 text-base font-bold">
                         Concluir pagamento com segurança
                       </h2>
-                      <PaymentBrick
+                      <PaymentForm
                         publicKey={payments()!.public_key!}
                         order={order()}
                         method={order().payment_method}
+                        failureReason={payment()?.failure_reason}
                         onUpdated={reloadOrder}
                       />
                     </div>

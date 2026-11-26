@@ -8,12 +8,10 @@ use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Orders\Services\OrderCostService;
 use App\Domain\Shared\Enums\OrderStatus;
 use App\Domain\Shared\Enums\PaymentStatus;
-use App\Mail\OrderStatusMail;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 
 class WebhookProcessorService
 {
@@ -24,7 +22,7 @@ class WebhookProcessorService
 
     public function applyPaymentTransition(Payment $payment, PaymentStatus $newStatus, int $feeCents = 0, string $note = ''): void
     {
-        $notifyPayload = DB::transaction(function () use ($payment, $newStatus, $feeCents, $note): ?array {
+        DB::transaction(function () use ($payment, $newStatus, $feeCents, $note): ?array {
             /** @var Order $order */
             $order = Order::query()->whereKey($payment->order_id)->lockForUpdate()->firstOrFail();
             /** @var Payment $lockedPayment */
@@ -93,20 +91,5 @@ class WebhookProcessorService
             return null;
         });
 
-        if ($notifyPayload !== null) {
-            /** @var Order $updatedOrder */
-            $updatedOrder = $notifyPayload['order'];
-            /** @var OrderStatus $status */
-            $status = $notifyPayload['status'];
-            [$headline, $body] = match ($status) {
-                OrderStatus::Paid => ['Pagamento aprovado!', 'Seu pagamento foi confirmado e seu pedido já está em separação.'],
-                OrderStatus::PaymentFailed => ['Pagamento não concluído', 'Não foi possível aprovar seu pagamento. Você pode tentar novamente com outro meio.'],
-                OrderStatus::Expired => ['Pagamento expirado', 'O prazo do pagamento expirou e os itens reservados voltaram ao estoque.'],
-                OrderStatus::Cancelled => ['Pedido cancelado', 'Seu pedido foi cancelado conforme registro do pagamento.'],
-                OrderStatus::Refunded => ['Pagamento reembolsado', 'O estorno do seu pedido foi registrado.'],
-                default => ['Atualização do pedido', 'O status do seu pedido foi atualizado para '.$status->value.'.'],
-            };
-            Mail::to($updatedOrder->customer_email)->queue(new OrderStatusMail($updatedOrder, $headline, $body));
-        }
     }
 }

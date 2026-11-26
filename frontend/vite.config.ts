@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from "vite";
+import { fileURLToPath } from "node:url";
 import solid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
@@ -13,7 +14,7 @@ export default defineConfig(({ mode, command }) => ({
     manifest: true,
     sourcemap: process.env.GENERATE_SOURCEMAPS === "true" ? "hidden" : false,
   },
-  resolve: { alias: { "@": new URL("./src", import.meta.url).pathname } },
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   plugins: [
     tanstackRouter({ target: "solid", autoCodeSplitting: true }),
     solid(),

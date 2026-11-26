@@ -1,24 +1,15 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <title>Produto disponível</title>
-</head>
-<body style="margin:0;padding:24px;background:#f8f7f8;font-family:Arial,sans-serif;color:#18181b;">
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;">
-        <div style="background:#8b2252;color:#ffffff;padding:20px 24px;">
-            <strong style="font-size:18px;">Mistura Feminina Cosméticos</strong>
-        </div>
-        <div style="padding:24px;">
-            <h1 style="margin:0 0 12px;font-size:20px;color:#18181b;">Boa notícia! O produto voltou ao estoque</h1>
-            <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">
-                <strong>{{ $product->name }}</strong> ({{ $variant->name }}) está disponível novamente para compra.
-            </p>
-            <p style="margin:0;font-size:14px;">
-                Acesse: {{ rtrim(config('app.frontend_url'), '/') }}/produto/{{ $product->slug }}
-            </p>
-        </div>
+@extends('emails.layout')
+@section('title', 'Produto disponível novamente | Mistura Feminina')
+@section('preheader', 'Boa notícia! '.$product->name.' voltou ao estoque.')
+@section('content')
+    <p style="margin:0 0 8px;color:#93509e;font-size:12px;font-weight:bold;letter-spacing:1px;">DE VOLTA À LOJA</p>
+    <h1 style="margin:0 0 20px;font-size:25px;line-height:1.3;">Seu favorito voltou!</h1>
+    <p>Boa notícia! O produto que você estava esperando está disponível novamente para compra.</p>
+    <div style="padding:16px;background:#faf7fb;border:1px solid #eadfeb;border-radius:8px;">
+        <strong>{{ $product->name }}</strong><br>{{ $variant->name }}
     </div>
-</body>
-</html>
-
+    @php($productUrl = rtrim(config('app.frontend_url'), '/').'/produto/'.$product->slug)
+    @include('emails.button', ['url' => $productUrl, 'label' => 'Ver produto na loja'])
+    <p style="font-size:12px;color:#75657c;">Se o botão não funcionar, acesse:<br><a href="{{ $productUrl }}" style="color:#93509e;word-break:break-all;">{{ $productUrl }}</a></p>
+@endsection
+@section('footer', 'Você recebeu este e-mail porque pediu para ser avisado sobre a reposição deste produto.')

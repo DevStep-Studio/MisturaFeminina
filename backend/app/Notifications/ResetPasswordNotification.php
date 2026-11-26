@@ -5,6 +5,7 @@ namespace App\Notifications;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\MailMessage;
 
 class ResetPasswordNotification extends ResetPassword implements ShouldQueue
 {
@@ -18,6 +19,16 @@ class ResetPasswordNotification extends ResetPassword implements ShouldQueue
     {
         parent::__construct($token);
         $this->afterCommit();
+    }
+
+    protected function buildMailMessage($url): MailMessage
+    {
+        return (new MailMessage)
+            ->subject('Redefina sua senha | Mistura Feminina')
+            ->view('emails.reset-password', [
+                'resetUrl' => $url,
+                'expireMinutes' => (int) config('auth.passwords.'.config('auth.defaults.passwords').'.expire'),
+            ]);
     }
 
     public function backoff(): array

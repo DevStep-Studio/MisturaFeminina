@@ -7,7 +7,15 @@ import {
 import CreditCard from "lucide-solid/icons/credit-card";
 import Lock from "lucide-solid/icons/lock";
 import QrCode from "lucide-solid/icons/qr-code";
-import { For, Show, createResource, createSignal, onMount } from "solid-js";
+import {
+  For,
+  Show,
+  createResource,
+  createSignal,
+  onMount,
+  createEffect,
+  on,
+} from "solid-js";
 import { ShippingQuoteWidget } from "../features/storefront/components/ShippingQuoteWidget";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import {
@@ -31,6 +39,8 @@ import {
   trackBeginCheckout,
 } from "../monitoring/analytics";
 import { session } from "../security/session";
+import { CardPaymentFields } from "../features/storefront/CardPaymentFields";
+import type { TokenizedCard } from "../features/storefront/mercado-pago";
 
 export const Route = createFileRoute("/checkout")({
   head: () =>
@@ -81,6 +91,10 @@ function CheckoutPage() {
   const [cepLoading, setCepLoading] = createSignal(false);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [cardReady, setCardReady] = createSignal(false);
+  const [checkoutUncertain, setCheckoutUncertain] = createSignal(false);
+  const usesCardForm = () =>
+    payments()?.provider === "mercadopago" && method() === "credit_card";
   const [assistedToken, setAssistedToken] = createSignal<string | null>(null);
   const [idempotencyKey] = createSignal(
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -128,19 +142,32 @@ function CheckoutPage() {
         });
       }
     });
-    const u = session.user();
-    if (session.status() === "authenticated" && u) {
-      setName(u.name || "");
-      setEmail(u.email || "");
-      void api<{ data: SavedAddress[] }>("/account/addresses")
-        .then((res) => {
-          const list = res.data ?? [];
-          setSavedAddresses(list);
-          if (list[0]) applyAddress(list[0]);
-        })
-        .catch(() => {});
-    }
   });
+
+  createEffect(
+    on(
+      () => (session.status() === "authenticated" ? session.user()?.id : null),
+      (userId) => {
+        const u = session.user();
+        if (userId == null || !u) return;
+        if (!name().trim()) setName(u.name || "");
+        if (!email().trim()) setEmail(u.email || "");
+        void api<{ data: SavedAddress[] }>("/account/addresses")
+          .then((res) => {
+            if (
+              session.status() !== "authenticated" ||
+              session.user()?.id !== userId
+            )
+              return;
+            const list = res.data ?? [];
+            setSavedAddresses(list);
+            if (list[0] && !street().trim() && !number().trim())
+              applyAddress(list[0]);
+          })
+          .catch(() => {});
+      },
+    ),
+  );
 
   function applyAddress(addr: SavedAddress) {
     setCep(formatCep(addr.cep));
@@ -183,8 +210,8 @@ function CheckoutPage() {
     }
   }
 
-  async function submitCheckout(e: Event) {
-    e.preventDefault();
+  async function submitCheckout(paymentData?: TokenizedCard) {
+    if (submitting() || checkoutUncertain()) return;
     setError(null);
     const c = cart();
     if (!c || c.items.length === 0) {
@@ -199,8 +226,13 @@ function CheckoutPage() {
     }
 
     setSubmitting(true);
+    let requestSent = false;
     try {
       if (!payments()?.enabled) throw new Error("Pagamentos indisponíveis.");
+      if (usesCardForm() && !paymentData?.card_token) {
+        setError("Preencha os dados do cartão para continuar.");
+        return;
+      }
       if (
         !c.shipping_quote?.quote_id ||
         c.shipping_cep !== cleanCep ||
@@ -218,6 +250,7 @@ function CheckoutPage() {
         payment_type: method(),
         items: mapCartItemsToGa4(c.items),
       });
+      requestSent = true;
       const res = await api<{
         data: {
           order: { public_token: string };
@@ -245,7 +278,8 @@ function CheckoutPage() {
             state: stateUf().trim().toUpperCase(),
           },
           payment_method: method(),
-          defer_payment: payments()?.provider === "mercadopago",
+          defer_payment: false,
+          payment_data: paymentData,
           notes_customer: notes().trim() || undefined,
           assisted_order_token: assistedToken() || undefined,
         },
@@ -270,6 +304,17 @@ function CheckoutPage() {
         params: { token: res.data.order.public_token },
       });
     } catch (err) {
+      if (
+        requestSent &&
+        (!(err instanceof ApiError) ||
+          ![400, 401, 403, 419, 422].includes(err.status))
+      ) {
+        setCheckoutUncertain(true);
+        setError(
+          "Não foi possível obter a confirmação do pedido. Consulte o resultado antes de tentar novamente.",
+        );
+        return;
+      }
       if (err instanceof ApiError) {
         const firstValidation = Object.values(err.validation).flat()[0];
         setError(firstValidation || err.message);
@@ -284,7 +329,7 @@ function CheckoutPage() {
   }
 
   return (
-    <StoreShell>
+    <StoreShell promotions={false}>
       <div class="mx-auto max-w-7xl px-4 py-8">
         <div class="mb-6 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-4">
           <div>
@@ -321,8 +366,15 @@ function CheckoutPage() {
           }
         >
           {(c) => (
-            <form onSubmit={submitCheckout} class="grid gap-8 lg:grid-cols-12">
-              <div class="space-y-6 lg:col-span-8">
+            <form
+              id="store-checkout"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!usesCardForm()) void submitCheckout();
+              }}
+              class="grid grid-cols-1 gap-8 lg:grid-cols-12"
+            >
+              <div class="min-w-0 space-y-6 lg:col-span-8">
                 {/* 1. Identification */}
                 <section class="rounded-xl border border-zinc-200 bg-white p-5">
                   <div class="mb-4 flex items-center justify-between">
@@ -648,10 +700,32 @@ function CheckoutPage() {
                     <Barcode class="h-6 w-6 text-[var(--mf-primary)]" />
                     <span class="text-sm font-bold">Boleto bancário</span>
                   </button>
+                  <Show
+                    when={
+                      usesCardForm() &&
+                      payments()?.enabled &&
+                      payments()?.public_key
+                    }
+                  >
+                    <CardPaymentFields
+                      formId="store-checkout"
+                      publicKey={payments()!.public_key!}
+                      amountCents={c().total_cents}
+                      customerName={name()}
+                      customerEmail={email()}
+                      customerDocument={cpf()}
+                      onReady={setCardReady}
+                      onSubmit={submitCheckout}
+                    />
+                  </Show>
                   <p class="mt-4 text-xs text-zinc-600">
                     {payments()?.provider === "asaas"
                       ? "Após confirmar o pedido, você será direcionada à fatura oficial do Asaas."
-                      : "Após confirmar o pedido, conclua no formulário seguro do Mercado Pago."}
+                      : method() === "credit_card"
+                        ? "Confira seus dados e confirme o pagamento abaixo."
+                        : method() === "pix"
+                          ? "O código Pix será exibido assim que você confirmar o pedido."
+                          : "O boleto será gerado após a confirmação do pedido."}
                   </p>
                   <Show when={!payments.loading && !payments()?.enabled}>
                     <p role="alert" class="mt-3 text-sm text-red-700">
@@ -680,7 +754,7 @@ function CheckoutPage() {
               </div>
 
               {/* Order summary sidebar */}
-              <aside class="space-y-4 lg:col-span-4">
+              <aside class="min-w-0 space-y-4 lg:col-span-4">
                 <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
                   <h2 class="text-base font-bold text-zinc-900">
                     Resumo do Pedido
@@ -736,15 +810,34 @@ function CheckoutPage() {
                       {error()}
                     </p>
                   </Show>
+                  <Show when={checkoutUncertain()}>
+                    <p role="alert" class="mt-3 text-sm text-amber-900">
+                      A confirmação do pedido está pendente. Consulte seus
+                      pedidos antes de enviar outra compra.
+                    </p>
+                    <Link
+                      to="/rastrear-pedido"
+                      class="mt-2 block text-sm font-semibold text-[var(--mf-primary)] underline"
+                    >
+                      Consultar pedido
+                    </Link>
+                  </Show>
 
                   <button
                     type="submit"
-                    disabled={submitting() || !payments()?.enabled}
+                    disabled={
+                      submitting() ||
+                      checkoutUncertain() ||
+                      !payments()?.enabled ||
+                      (usesCardForm() && !cardReady())
+                    }
                     class="mt-5 flex h-12 w-full items-center justify-center rounded-lg bg-[var(--mf-primary)] px-5 text-sm font-bold text-white transition hover:bg-[var(--mf-primary-hover)] disabled:opacity-60"
                   >
                     {submitting()
                       ? "Processando pedido..."
-                      : "Confirmar pedido"}
+                      : usesCardForm()
+                        ? "Confirmar e pagar"
+                        : "Confirmar pedido"}
                   </button>
                 </div>
               </aside>

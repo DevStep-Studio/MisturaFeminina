@@ -23,8 +23,7 @@ class GatewayFailure extends \RuntimeException
         public readonly bool $uncertain = false,
         public readonly ?int $httpStatus = null,
         public readonly array $providerCodes = [],
-    )
-    {
+    ) {
         parent::__construct('Não foi possível confirmar a operação com o provedor. Consulte o pedido antes de tentar novamente.');
     }
 
@@ -52,7 +51,7 @@ class GatewayFailure extends \RuntimeException
             return 'O serviço de pagamento não pôde autenticar a operação. Entre em contato com a loja.';
         }
         if (in_array($this->httpStatus, [400, 422], true)) {
-            return 'Os dados do pagamento não foram aceitos pelo provedor. Confira os dados e, no sandbox, utilize os dados de teste.';
+            return 'Os dados do pagamento não foram aceitos pelo provedor. Confira os dados informados ou entre em contato com a loja.';
         }
 
         return $this->getMessage();

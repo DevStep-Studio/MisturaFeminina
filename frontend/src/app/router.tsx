@@ -53,6 +53,8 @@ export function initializeNavigation() {
   const interval = setInterval(() => {
     if (session.user() && document.visibilityState === "visible") revalidate();
   }, 60_000);
+  // Public routes also need to restore the session from the server cookie.
+  void getCurrentUser().catch(() => {});
   return () => {
     disposeAnalytics();
     unsubscribe();
