@@ -1382,6 +1382,7 @@ class AdminCatalogController extends Controller
             'csv_content' => ['nullable', 'string'],
             'file' => ['nullable', 'file', 'mimes:csv,txt,tsv,xlsx', 'max:5120'],
             'dry_run' => ['boolean'],
+            'skip_invalid' => ['boolean'],
             'category_overrides' => ['nullable'],
         ]);
 
@@ -1396,6 +1397,7 @@ class AdminCatalogController extends Controller
         }
 
         $dryRun = $request->boolean('dry_run', true);
+        $skipInvalid = $request->boolean('skip_invalid', false);
         if ($request->hasFile('file')) {
             $file = $request->file('file');
             $ext = strtolower((string) ($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'csv'));
@@ -1404,27 +1406,31 @@ class AdminCatalogController extends Controller
                     (string) $file->getRealPath(),
                     $dryRun,
                     $request->user(),
-                    $overrides
+                    $overrides,
+                    $skipInvalid,
                 );
             } else {
                 $content = (string) file_get_contents((string) $file->getRealPath());
-                $report = $this->csv->importCsv($content, $dryRun, $request->user(), $overrides);
+                $report = $this->csv->importCsv($content, $dryRun, $request->user(), $overrides, $skipInvalid);
             }
         } else {
             $content = $validated['csv_content'] ?? null;
             if (! $content) {
                 return response()->json(['message' => 'Envie uma planilha (.xlsx/.csv) ou conteúdo CSV válido.'], 422);
             }
-            $report = $this->csv->importCsv($content, $dryRun, $request->user(), $overrides);
+            $report = $this->csv->importCsv($content, $dryRun, $request->user(), $overrides, $skipInvalid);
         }
 
         $this->audit->record('catalog.csv_import', $request->user(), 'catalog', null, null, [
             'dry_run' => $dryRun,
+            'skip_invalid' => $skipInvalid,
             'created' => $report['created'],
             'updated' => $report['updated'],
+            'pending_count' => $report['pending_count'] ?? 0,
         ], $request);
-        if (! $dryRun) {
+        if (! $report['dry_run']) {
             $this->bulkRules->flushStorefrontCaches();
+            $this->categoryHierarchy->clearCaches();
         }
 
         return response()->json(['data' => $report]);

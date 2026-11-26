@@ -30,7 +30,11 @@ class CategoryPathResolver
      */
     public static function splitPath(string $raw): array
     {
-        $parts = preg_split('/\s*(?:>|→|»|\||\/)\s*/u', trim($raw)) ?: [];
+        $trimmed = trim($raw);
+        $pattern = preg_match('/[>→»]/u', $trimmed)
+            ? '/\s*(?:>|→|»)\s*/u'
+            : '/\s*(?:>|→|»|\||\/)\s*/u';
+        $parts = preg_split($pattern, $trimmed) ?: [];
 
         return array_values(array_filter(array_map(fn (string $p): string => trim($p), $parts), fn (string $p): bool => $p !== ''));
     }
@@ -47,7 +51,7 @@ class CategoryPathResolver
      *   suggestions: list<array{id: int, name: string, slug: string, full_path: string, score: float}>
      * }
      */
-    public function resolve(?string $rawCategory, ?Collection $categories = null): array
+    public function resolve(?string $rawCategory, ?Collection $categories = null, ?string $productName = null): array
     {
         $raw = trim((string) $rawCategory);
         if ($raw === '') {
@@ -78,6 +82,20 @@ class CategoryPathResolver
                 'norm_full_path' => implode(' > ', $normSegments),
                 'segments' => $normSegments,
             ];
+        }
+
+        // Contextual spreadsheet group / product refinement against existing official categories (never creates duplicates)
+        $aliasPath = $this->resolveContextualAliasPath(
+            self::normalizeSegment($raw),
+            self::normalizeSegment((string) $productName),
+        );
+        if ($aliasPath !== null) {
+            $aliasNorm = implode(' > ', array_map([self::class, 'normalizeSegment'], explode(' > ', $aliasPath)));
+            foreach ($indexed as $item) {
+                if ($item['norm_full_path'] === $aliasNorm) {
+                    return $this->matchedResult($raw, $item);
+                }
+            }
         }
 
         $inputSegments = array_map([self::class, 'normalizeSegment'], self::splitPath($raw));
@@ -289,5 +307,150 @@ class CategoryPathResolver
         }
 
         return $chain;
+    }
+
+    /**
+     * Maps common supplier/spreadsheet category labels and product context to the exact official
+     * Mistura Feminina / Jack Cosméticos path without auto-creating duplicate categories.
+     */
+    private function resolveContextualAliasPath(string $normCategory, string $normProductName): ?string
+    {
+        return match ($normCategory) {
+            'lixas e polidores' => 'Acessórios > Lixas',
+            'acetonas e removedores' => 'Cuidados Unhas > Acetona',
+            'pinceis para unhas' => 'Acessórios > Pincéis',
+            'unhas posticas' => 'Alongamento Unhas > Unhas',
+            'moldes e tips' => str_contains($normProductName, 'molde')
+                ? 'Alongamento Unhas > Moldes Para Unha'
+                : 'Alongamento Unhas > Unhas',
+            'alicates e instrumentos' => (
+                str_contains($normProductName, 'bisturi')
+                || str_contains($normProductName, 'espatula')
+                || str_contains($normProductName, 'palito de inox')
+            )
+                ? 'Acessórios > Bisturi / Espátulas'
+                : 'Acessórios > Alicates e Cortadores',
+            'preparadores e finalizadores' => $this->resolvePreparadorPath($normProductName),
+            'geis para unhas' => $this->resolveGelPath($normProductName),
+            'colas e adesivos' => str_contains($normProductName, 'cilios')
+                ? 'Cílios e Sobrancelhas > Colas para Cílios'
+                : 'Alongamento Unhas > Colas',
+            'algodao e descartaveis' => $this->resolveAlgodaoDescartaveisPath($normProductName),
+            'cuidados com as unhas' => (
+                str_contains($normProductName, 'oleo') && str_contains($normProductName, 'cuticula')
+            )
+                ? 'Cuidados Unhas > Cuidados Unhas e Cutículas > Óleo para Cutículas'
+                : ((
+                    str_contains($normProductName, 'hidratante')
+                    || str_contains($normProductName, 'cuticula')
+                    || str_contains($normProductName, 'amolecedor')
+                )
+                    ? 'Cuidados Unhas > Cuidados Unhas e Cutículas'
+                    : 'Cuidados Unhas'),
+            'acessorios de beleza' => (
+                str_contains($normProductName, 'mostruario')
+                || str_contains($normProductName, 'expositor')
+            )
+                ? 'Acessórios > Expositores e Mostruários'
+                : 'Acessórios > Outros',
+            'cilios' => $this->resolveCiliosPath($normProductName),
+            default => null,
+        };
+    }
+
+    private function resolvePreparadorPath(string $normProductName): string
+    {
+        if (str_contains($normProductName, 'regulador de ph') || str_contains($normProductName, 'regulador ph')) {
+            return 'Alongamento Unhas > Regulador de Ph';
+        }
+        if (str_contains($normProductName, 'primer')) {
+            return 'Alongamento Unhas > Primer';
+        }
+        if (str_contains($normProductName, 'oleo para lixamento')) {
+            return 'Alongamento Unhas > Óleo para Lixamento';
+        }
+        if (str_contains($normProductName, 'ultra bond')) {
+            return 'Alongamento Unhas > Ultra Bond';
+        }
+        if (str_contains($normProductName, 'tip blender') || str_contains($normProductName, 'tips blender')) {
+            return 'Alongamento Unhas > Tip Blender';
+        }
+        if (str_contains($normProductName, 'top coat')) {
+            return 'Alongamento Unhas > Top Coat';
+        }
+        if (str_contains($normProductName, 'magic remover')) {
+            return 'Alongamento Unhas > Magic Remover';
+        }
+        if (str_contains($normProductName, 'base coat')) {
+            return 'Alongamento Unhas > Base Coat';
+        }
+        if (str_contains($normProductName, 'bond aid')) {
+            return 'Alongamento Unhas > Bond Aid';
+        }
+
+        return 'Alongamento Unhas > Prep';
+    }
+
+    private function resolveGelPath(string $normProductName): string
+    {
+        if (str_contains($normProductName, 'fiber')) {
+            return 'Alongamento Unhas > Fiber Gel';
+        }
+        if (str_contains($normProductName, 'soft gel')) {
+            return 'Alongamento Unhas > Soft Gel';
+        }
+        if (str_contains($normProductName, 'polygel')) {
+            return 'Alongamento Unhas > Polygel';
+        }
+        if (str_contains($normProductName, 'base bomba')) {
+            return 'Alongamento Unhas > Base Bomba';
+        }
+        if (str_contains($normProductName, 'base em gel') || str_contains($normProductName, 'base gel')) {
+            return 'Alongamento Unhas > Base Gel';
+        }
+
+        return 'Alongamento Unhas > Gel';
+    }
+
+    private function resolveAlgodaoDescartaveisPath(string $normProductName): string
+    {
+        if (str_contains($normProductName, 'algodao') && ! str_contains($normProductName, 'palito')) {
+            return 'Cuidados Unhas > Algodão';
+        }
+        if (str_contains($normProductName, 'palito')) {
+            return 'Descartáveis > Palitos';
+        }
+        if (str_contains($normProductName, 'pano') || str_contains($normProductName, 'toalha')) {
+            return 'Descartáveis > Toalhas Descartáveis';
+        }
+        if (str_contains($normProductName, 'abaixador') || str_contains($normProductName, 'espatula')) {
+            return 'Descartáveis > Espátulas Descartáveis';
+        }
+        if (str_contains($normProductName, 'luva')) {
+            return 'Descartáveis > Luvas';
+        }
+        if (str_contains($normProductName, 'mascara')) {
+            return 'Descartáveis > Máscaras';
+        }
+
+        return 'Descartáveis > Outros Descartáveis';
+    }
+
+    private function resolveCiliosPath(string $normProductName): string
+    {
+        if (str_contains($normProductName, 'escovinha')) {
+            return 'Cílios e Sobrancelhas > Escovinhas';
+        }
+        if (str_contains($normProductName, 'pinca')) {
+            return 'Cílios e Sobrancelhas > Pinças';
+        }
+        if (str_contains($normProductName, 'cola')) {
+            return 'Cílios e Sobrancelhas > Colas para Cílios';
+        }
+        if (str_contains($normProductName, 'fita') || str_contains($normProductName, 'pad')) {
+            return 'Cílios e Sobrancelhas > Acessórios';
+        }
+
+        return 'Cílios e Sobrancelhas > Cílios';
     }
 }

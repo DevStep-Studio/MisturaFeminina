@@ -14,6 +14,8 @@ import type { CategoryOption } from "./types";
 
 interface ImportPreviewRow {
   row: number;
+  sheet?: string;
+  sheet_row?: number;
   sku: string;
   name: string;
   price_cents: number;
@@ -36,8 +38,18 @@ interface ImportPreviewRow {
 interface ImportReport {
   dry_run: boolean;
   total_rows: number;
+  valid_rows?: number;
   created: number;
   updated: number;
+  pending_count?: number;
+  pending_rows?: Array<{
+    row: number;
+    sheet?: string;
+    sheet_row?: number;
+    name: string;
+    raw_category?: string;
+    reason: string;
+  }>;
   errors: Array<{ row: number; message: string }>;
   preview: ImportPreviewRow[];
 }
@@ -78,7 +90,7 @@ export function CatalogSpreadsheetImportPanel(props: {
     ),
   );
 
-  async function runImport(dryRun: boolean) {
+  async function runImport(dryRun: boolean, skipInvalid = false) {
     if (!selectedFile() && !csvContent().trim()) {
       setErrorMsg("Envie uma planilha Excel (.xlsx) / CSV ou cole o conteúdo da tabela.");
       return;
@@ -93,6 +105,7 @@ export function CatalogSpreadsheetImportPanel(props: {
         const fd = new FormData();
         fd.append("file", selectedFile()!);
         fd.append("dry_run", dryRun ? "1" : "0");
+        fd.append("skip_invalid", skipInvalid ? "1" : "0");
         fd.append("category_overrides", JSON.stringify(categoryOverrides()));
         res = await api<{ data: ImportReport }>("/admin/catalog/import-csv", {
           method: "POST",
@@ -104,20 +117,24 @@ export function CatalogSpreadsheetImportPanel(props: {
           body: {
             csv_content: csvContent(),
             dry_run: dryRun,
+            skip_invalid: skipInvalid,
             category_overrides: categoryOverrides(),
           },
         });
       }
 
       setReport(res.data);
-      if (!dryRun && res.data.errors.length === 0) {
+      if (!res.data.dry_run) {
+        const pend = res.data.pending_count ?? res.data.errors.length;
         setSuccessMsg(
-          `Importação concluída: ${res.data.created} criado(s), ${res.data.updated} atualizado(s).`,
+          `Importação concluída: ${res.data.created} criado(s), ${res.data.updated} atualizado(s)${
+            pend > 0 ? `, ${pend} mantido(s) como pendente(s)` : ""
+          }.`,
         );
         await props.onImported();
       } else if (!dryRun && res.data.errors.length > 0) {
         setErrorMsg(
-          "A importação foi bloqueada porque ainda existem inconsistências ou categorias sem vínculo. Revise a prévia abaixo.",
+          "A planilha possui linhas pendentes. Corrija-as abaixo ou clique em 'Importar válidos e manter pendentes'.",
         );
       }
     } catch (err) {
@@ -264,10 +281,25 @@ export function CatalogSpreadsheetImportPanel(props: {
           variant="primary"
           loading={busy()}
           disabled={!report() || (report()?.errors.length ?? 0) > 0}
-          onClick={() => void runImport(false)}
+          onClick={() => void runImport(false, false)}
         >
           Confirmar importação
         </AdminButton>
+        <Show
+          when={
+            report() &&
+            (report()?.errors.length ?? 0) > 0 &&
+            (report()?.created ?? 0) + (report()?.updated ?? 0) > 0
+          }
+        >
+          <AdminButton
+            variant="primary"
+            loading={busy()}
+            onClick={() => void runImport(false, true)}
+          >
+            Importar válidos e manter pendentes
+          </AdminButton>
+        </Show>
       </div>
 
       <Show when={errorMsg()}>

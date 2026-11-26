@@ -518,3 +518,108 @@ test('importacao de planilha xlsx e csv resolve caminhos hierarquicos, normaliza
         @unlink($xlsxPath);
     }
 });
+
+test('importacao multi-abas xlsx mapeia grupos contextuais sem criar categorias, registra linhas sem preco como pendentes e nao duplica produtos na reexecucao', function (): void {
+    Category::query()->delete();
+    Product::query()->delete();
+    $this->seed(OfficialCategoriesSeeder::class);
+
+    $staff = createCategoryStaff('multi-sheet-admin@misturafeminina.com.br');
+    $this->actingAs($staff);
+
+    // Build a real 2-sheet XLSX ("Produtos" + "Conferir preços") matching produtos_mistura_feminina_videos.xlsx
+    $tmp = tempnam(sys_get_temp_dir(), 'mf-multi-').'.xlsx';
+    $zip = new ZipArchive;
+    $zip->open($tmp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $shared = [
+        'Nome', 'Valor', 'Categoria', 'Motivo',
+        'Lixa Mini Buff Bella Rosa 100/180', 'Lixas e Polidores',
+        'Alicate de Cutícula Mundial 777', 'Alicates e Instrumentos',
+        'Bisturi para Calosidade Xlim',
+        'Primer Ácido Any Lovy 10 ml', 'Preparadores e Finalizadores',
+        'Base em Gel Fiber Any Lovy 9 g', 'Géis para Unhas',
+        'Lixa OPI Caixão 100/180', 'A legenda não apresenta o preço.',
+    ];
+    $ssXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'.count($shared).'" uniqueCount="'.count($shared).'">';
+    foreach ($shared as $s) {
+        $ssXml .= '<si><t>'.htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8').'</t></si>';
+    }
+    $ssXml .= '</sst>';
+
+    $idx = fn (string $s): int => (int) array_search($s, $shared, true);
+    $sheet1Xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+        .'<row r="1"><c r="A1" t="s"><v>'.$idx('Nome').'</v></c><c r="B1" t="s"><v>'.$idx('Valor').'</v></c><c r="C1" t="s"><v>'.$idx('Categoria').'</v></c></row>'
+        .'<row r="2"><c r="A2" t="s"><v>'.$idx('Lixa Mini Buff Bella Rosa 100/180').'</v></c><c r="B2"><v>1.5</v></c><c r="C2" t="s"><v>'.$idx('Lixas e Polidores').'</v></c></row>'
+        .'<row r="3"><c r="A3" t="s"><v>'.$idx('Alicate de Cutícula Mundial 777').'</v></c><c r="B3"><v>39.9</v></c><c r="C3" t="s"><v>'.$idx('Alicates e Instrumentos').'</v></c></row>'
+        .'<row r="4"><c r="A4" t="s"><v>'.$idx('Bisturi para Calosidade Xlim').'</v></c><c r="B4"><v>9.99</v></c><c r="C4" t="s"><v>'.$idx('Alicates e Instrumentos').'</v></c></row>'
+        .'<row r="5"><c r="A5" t="s"><v>'.$idx('Primer Ácido Any Lovy 10 ml').'</v></c><c r="B5"><v>29.9</v></c><c r="C5" t="s"><v>'.$idx('Preparadores e Finalizadores').'</v></c></row>'
+        .'<row r="6"><c r="A6" t="s"><v>'.$idx('Base em Gel Fiber Any Lovy 9 g').'</v></c><c r="B6"><v>29.9</v></c><c r="C6" t="s"><v>'.$idx('Géis para Unhas').'</v></c></row>'
+        .'</sheetData></worksheet>';
+
+    $sheet2Xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+        .'<row r="1"><c r="A1" t="s"><v>'.$idx('Nome').'</v></c><c r="B1" t="s"><v>'.$idx('Valor').'</v></c><c r="C1" t="s"><v>'.$idx('Categoria').'</v></c><c r="D1" t="s"><v>'.$idx('Motivo').'</v></c></row>'
+        .'<row r="2"><c r="A2" t="s"><v>'.$idx('Lixa OPI Caixão 100/180').'</v></c><c r="C2" t="s"><v>'.$idx('Lixas e Polidores').'</v></c><c r="D2" t="s"><v>'.$idx('A legenda não apresenta o preço.').'</v></c></row>'
+        .'</sheetData></worksheet>';
+
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>');
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Produtos" sheetId="1" r:id="rId1"/><sheet name="Conferir preços" sheetId="2" r:id="rId2"/></sheets></workbook>');
+    $zip->addFromString('xl/sharedStrings.xml', $ssXml);
+    $zip->addFromString('xl/worksheets/sheet1.xml', $sheet1Xml);
+    $zip->addFromString('xl/worksheets/sheet2.xml', $sheet2Xml);
+    $zip->close();
+
+    try {
+        $res = $this->post('/api/v1/admin/catalog/import-csv', [
+            'file' => new UploadedFile($tmp, 'produtos_mistura_feminina_videos.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true),
+            'dry_run' => false,
+            'skip_invalid' => true,
+        ])->assertOk()->json('data');
+
+        expect($res['dry_run'])->toBeFalse();
+        expect($res['total_rows'])->toBe(6);
+        expect($res['created'])->toBe(5);
+        expect($res['updated'])->toBe(0);
+        expect($res['pending_count'])->toBe(1);
+        expect($res['pending_rows'][0]['sheet'])->toBe('Conferir preços');
+        expect($res['pending_rows'][0]['name'])->toBe('Lixa OPI Caixão 100/180');
+        expect($res['pending_rows'][0]['reason'])->toContain('A legenda não apresenta o preço.');
+
+        // Decimal prices preserved accurately without inventing cost, stock, images, or variations
+        $lixa = Product::query()->where('name', 'Lixa Mini Buff Bella Rosa 100/180')->firstOrFail();
+        expect($lixa->price_cents)->toBe(150);
+        expect($lixa->cost_cents)->toBeNull();
+        expect($lixa->images()->count())->toBe(0);
+        expect($lixa->variants()->firstOrFail()->stock_qty)->toBe(0);
+        expect($lixa->categories()->firstOrFail()->slug)->toBe('lixas');
+
+        $alicate = Product::query()->where('name', 'Alicate de Cutícula Mundial 777')->firstOrFail();
+        expect($alicate->price_cents)->toBe(3990);
+        expect($alicate->categories()->firstOrFail()->slug)->toBe('alicates-e-cortadores');
+
+        $bisturi = Product::query()->where('name', 'Bisturi para Calosidade Xlim')->firstOrFail();
+        expect($bisturi->price_cents)->toBe(999);
+        expect($bisturi->categories()->firstOrFail()->slug)->toBe('bisturi-espatulas');
+
+        $primer = Product::query()->where('name', 'Primer Ácido Any Lovy 10 ml')->firstOrFail();
+        expect($primer->categories()->firstOrFail()->slug)->toBe('primer');
+
+        $fiber = Product::query()->where('name', 'Base em Gel Fiber Any Lovy 9 g')->firstOrFail();
+        expect($fiber->categories()->firstOrFail()->slug)->toBe('fiber-gel');
+
+        // Re-importing the exact same XLSX updates in-place with ZERO duplicates!
+        $res2 = $this->post('/api/v1/admin/catalog/import-csv', [
+            'file' => new UploadedFile($tmp, 'produtos_mistura_feminina_videos.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true),
+            'dry_run' => false,
+            'skip_invalid' => true,
+        ])->assertOk()->json('data');
+
+        expect($res2['created'])->toBe(0);
+        expect($res2['updated'])->toBe(5);
+        expect(Product::query()->count())->toBe(5);
+        expect(Category::query()->count())->toBe(101);
+    } finally {
+        @unlink($tmp);
+    }
+});

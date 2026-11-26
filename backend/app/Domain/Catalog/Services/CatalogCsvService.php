@@ -86,32 +86,44 @@ class CatalogCsvService
     }
 
     /**
-     * @param  array<string, int|string>  $categoryOverrides
-     * @return array{dry_run: bool, total_rows: int, created: int, updated: int, errors: list<array{row: int, message: string}>, preview: list<array<string, mixed>>}
+     * @param  array<int|string, int|string>  $categoryOverrides
+     * @return array<string, mixed>
      */
-    public function importXlsxFile(string $filePath, bool $dryRun = true, ?User $actor = null, array $categoryOverrides = []): array
-    {
-        $matrix = $this->parseXlsxToMatrix($filePath);
-        if (count($matrix) < 2) {
+    public function importXlsxFile(
+        string $filePath,
+        bool $dryRun = true,
+        ?User $actor = null,
+        array $categoryOverrides = [],
+        bool $skipInvalid = false,
+    ): array {
+        $sheets = $this->parseXlsxSheets($filePath);
+        if ($sheets === []) {
             return [
                 'dry_run' => true,
                 'total_rows' => 0,
                 'created' => 0,
                 'updated' => 0,
+                'pending_count' => 0,
+                'pending_rows' => [],
                 'errors' => [['row' => 1, 'message' => 'Planilha Excel (.xlsx) vazia ou sem cabeçalho.']],
                 'preview' => [],
             ];
         }
 
-        return $this->importMatrix($matrix, $dryRun, $actor, $categoryOverrides);
+        return $this->importSheets($sheets, $dryRun, $actor, $categoryOverrides, $skipInvalid);
     }
 
     /**
-     * @param  array<string, int|string>  $categoryOverrides
-     * @return array{dry_run: bool, total_rows: int, created: int, updated: int, errors: list<array{row: int, message: string}>, preview: list<array<string, mixed>>}
+     * @param  array<int|string, int|string>  $categoryOverrides
+     * @return array<string, mixed>
      */
-    public function importCsv(string $csvContent, bool $dryRun = true, ?User $actor = null, array $categoryOverrides = []): array
-    {
+    public function importCsv(
+        string $csvContent,
+        bool $dryRun = true,
+        ?User $actor = null,
+        array $categoryOverrides = [],
+        bool $skipInvalid = false,
+    ): array {
         $lines = preg_split('/\r\n|\r|\n/', trim($csvContent)) ?: [];
         if (count($lines) < 2) {
             return [
@@ -119,6 +131,8 @@ class CatalogCsvService
                 'total_rows' => 0,
                 'created' => 0,
                 'updated' => 0,
+                'pending_count' => 0,
+                'pending_rows' => [],
                 'errors' => [['row' => 1, 'message' => 'Arquivo CSV vazio ou sem cabeçalho.']],
                 'preview' => [],
             ];
@@ -133,163 +147,295 @@ class CatalogCsvService
             $matrix[] = array_map(fn ($v): string => trim((string) $v), str_getcsv($line, $delimiter));
         }
 
-        return $this->importMatrix($matrix, $dryRun, $actor, $categoryOverrides);
+        return $this->importSheets(
+            [['sheet' => 'CSV', 'matrix' => $matrix]],
+            $dryRun,
+            $actor,
+            $categoryOverrides,
+            $skipInvalid,
+        );
     }
 
     /**
      * @param  list<list<string>>  $matrix
-     * @param  array<string, int|string>  $categoryOverrides
-     * @return array{dry_run: bool, total_rows: int, created: int, updated: int, errors: list<array{row: int, message: string}>, preview: list<array<string, mixed>>}
+     * @param  array<int|string, int|string>  $categoryOverrides
+     * @return array<string, mixed>
      */
-    public function importMatrix(array $matrix, bool $dryRun = true, ?User $actor = null, array $categoryOverrides = []): array
-    {
+    public function importMatrix(
+        array $matrix,
+        bool $dryRun = true,
+        ?User $actor = null,
+        array $categoryOverrides = [],
+        bool $skipInvalid = false,
+    ): array {
         if (count($matrix) < 2) {
             return [
                 'dry_run' => true,
                 'total_rows' => 0,
                 'created' => 0,
                 'updated' => 0,
+                'pending_count' => 0,
+                'pending_rows' => [],
                 'errors' => [['row' => 1, 'message' => 'Planilha vazia ou sem cabeçalho.']],
                 'preview' => [],
             ];
         }
 
-        $headers = array_map(fn (string $h): string => Str::ascii(mb_strtolower(trim($h))), $matrix[0]);
+        return $this->importSheets(
+            [['sheet' => 'Planilha', 'matrix' => $matrix]],
+            $dryRun,
+            $actor,
+            $categoryOverrides,
+            $skipInvalid,
+        );
+    }
 
-        $costColumnCents = $this->findHeaderKey($headers, ['cost_cents']);
-        $costColumnBrl = $this->findHeaderKey($headers, ['custo_unitario', 'custo unitario (r$)', 'custo unitario', 'cost_brl', 'custo', 'cost']);
-        $nameCol = $this->findHeaderKey($headers, ['name', 'nome', 'produto', 'nome_produto', 'nome do produto']);
-        $catCol = $this->findHeaderKey($headers, ['categories', 'categoria', 'category', 'categorias']);
-        $skuCol = $this->findHeaderKey($headers, ['sku', 'codigo', 'cod', 'referencia']);
-
+    /**
+     * @param  list<array{sheet: string, matrix: list<list<string>>}>  $sheets
+     * @param  array<int|string, int|string>  $categoryOverrides
+     * @return array<string, mixed>
+     */
+    private function importSheets(
+        array $sheets,
+        bool $dryRun,
+        ?User $actor,
+        array $categoryOverrides,
+        bool $skipInvalid,
+    ): array {
         $allCategories = Category::query()->orderBy('sort_order')->orderBy('name')->get();
         $categoriesById = $allCategories->keyBy('id');
 
+        // Pre-index existing non-deleted catalog products by normalized name and GTIN to prevent duplicates
+        $existingCatalog = Product::query()->get();
+        $productsByNormName = [];
+        $productsByGtin = [];
+        foreach ($existingCatalog as $prod) {
+            $norm = CategoryHierarchyService::normalizeName((string) $prod->name);
+            if ($norm !== '') {
+                $productsByNormName[$norm][] = $prod;
+            }
+            $gtinVal = trim((string) ($prod->gtin ?? ''));
+            if ($gtinVal !== '') {
+                $productsByGtin[$gtinVal][] = $prod;
+            }
+        }
+
         $errors = [];
+        $pendingRows = [];
         $preview = [];
+        $rows = [];
         $seenVariantSkus = [];
+        $seenAutoNames = [];
         $created = 0;
         $updated = 0;
         $anyCostProvided = false;
+        $globalRowNum = 1;
 
-        $rows = [];
-        for ($i = 1, $len = count($matrix); $i < $len; $i++) {
-            $cols = $matrix[$i];
-            if (array_filter($cols, fn (string $c): bool => trim($c) !== '') === []) {
+        foreach ($sheets as $sheetEntry) {
+            $sheetName = $sheetEntry['sheet'];
+            $matrix = $sheetEntry['matrix'];
+            if (count($matrix) < 2) {
                 continue;
             }
-            $assoc = [];
-            foreach ($headers as $idx => $key) {
-                $assoc[$key] = trim((string) ($cols[$idx] ?? ''));
-            }
-            $rowNum = $i + 1;
 
-            $rawName = $nameCol !== null ? ($assoc[$nameCol] ?? '') : ($assoc['name'] ?? '');
-            $rawSku = $skuCol !== null ? ($assoc[$skuCol] ?? '') : ($assoc['sku'] ?? '');
-            $sku = $rawSku !== '' ? strtoupper($rawSku) : '';
+            $headers = array_map(fn (string $h): string => Str::ascii(mb_strtolower(trim($h))), $matrix[0]);
+            $costColumnCents = $this->findHeaderKey($headers, ['cost_cents']);
+            $costColumnBrl = $this->findHeaderKey($headers, ['custo_unitario', 'custo unitario (r$)', 'custo unitario', 'cost_brl', 'custo', 'cost']);
+            $nameCol = $this->findHeaderKey($headers, ['name', 'nome', 'produto', 'nome_produto', 'nome do produto']);
+            $catCol = $this->findHeaderKey($headers, ['categories', 'categoria', 'category', 'categorias']);
+            $skuCol = $this->findHeaderKey($headers, ['sku', 'codigo', 'cod', 'referencia']);
+            $gtinCol = $this->findHeaderKey($headers, ['gtin', 'ean', 'codigo_barras', 'codigo de barras', 'barcode']);
+            $reasonCol = $this->findHeaderKey($headers, ['motivo', 'observacao', 'obs', 'pendencia']);
+            $priceHeaderPresent = $this->findHeaderKey($headers, ['price_cents', 'preco_venda', 'preco de venda', 'preco', 'valor', 'price_brl', 'price']) !== null;
 
-            if ($sku === '' && $rawName !== '') {
-                // Allow simplified sheets with (Nome, Valor, Categoria) without manual SKU column
-                $skuPrefix = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($rawName)) ?: 'PRD', 0, 6));
-                $sku = "{$skuPrefix}-".str_pad((string) $rowNum, 3, '0', STR_PAD_LEFT);
-            }
-
-            $variantSku = strtoupper(($assoc['variant_sku'] ?? '') ?: $sku);
-            $priceCents = $this->parsePriceField($assoc);
-
-            $existingProduct = $sku !== '' ? Product::query()->where('sku', $sku)->first() : null;
-            $existingVariant = $variantSku !== '' ? ProductVariant::query()->where('sku', $variantSku)->first() : null;
-
-            if ($priceCents === 0 && $existingVariant) {
-                $priceCents = $existingVariant->price_cents;
-            } elseif ($priceCents === 0 && $existingProduct) {
-                $priceCents = $existingProduct->price_cents;
-            }
-
-            $rawCategory = $catCol !== null ? ($assoc[$catCol] ?? '') : '';
-            $catResolution = $this->resolveCategoriesForRow($rawCategory, $rowNum, $allCategories, $categoriesById, $categoryOverrides);
-
-            $rowErrors = [];
-            if ($sku === '' || ($rawName === '' && ! $existingProduct) || $priceCents <= 0) {
-                $rowErrors[] = 'Nome e valor (> R$ 0,00) são obrigatórios (SKU é opcional e gerado se ausente).';
-            }
-            if (isset($seenVariantSkus[$variantSku])) {
-                $rowErrors[] = "SKU de variação duplicado no arquivo: {$variantSku}.";
-            }
-            if ($catResolution['has_unresolved']) {
-                $rowErrors[] = $catResolution['error_message'];
-            }
-
-            // Parse cost cell independently — NEVER copy sale price to cost_cents
-            $costProvided = false;
-            $parsedCostCents = null;
-            if ($costColumnBrl !== null && ($assoc[$costColumnBrl] ?? '') !== '') {
-                $costProvided = true;
-                $parsedCostCents = $this->parseBrazilianCost($assoc[$costColumnBrl]);
-                if ($parsedCostCents === -1) {
-                    $rowErrors[] = "Custo unitário inválido para SKU {$variantSku}: \"{$assoc[$costColumnBrl]}\".";
+            for ($i = 1, $len = count($matrix); $i < $len; $i++) {
+                $cols = $matrix[$i];
+                if (array_filter($cols, fn (string $c): bool => trim($c) !== '') === []) {
+                    continue;
                 }
-            } elseif ($costColumnCents !== null && ($assoc[$costColumnCents] ?? '') !== '') {
-                $rawCostCents = $assoc[$costColumnCents];
-                if (! preg_match('/^\d+$/', $rawCostCents)) {
-                    $rowErrors[] = "Valor em cost_cents inválido para SKU {$variantSku}.";
-                } else {
+
+                $globalRowNum++;
+                $sheetRowNum = $i + 1;
+                $assoc = [];
+                foreach ($headers as $idx => $key) {
+                    $assoc[$key] = trim((string) ($cols[$idx] ?? ''));
+                }
+
+                $rawName = $nameCol !== null ? ($assoc[$nameCol] ?? '') : ($assoc['name'] ?? '');
+                $rawSku = $skuCol !== null ? ($assoc[$skuCol] ?? '') : ($assoc['sku'] ?? '');
+                $rawGtin = $gtinCol !== null ? ($assoc[$gtinCol] ?? '') : '';
+                $sheetNote = $reasonCol !== null ? ($assoc[$reasonCol] ?? '') : '';
+                $sku = $rawSku !== '' ? strtoupper($rawSku) : '';
+
+                $rowErrors = [];
+                $existingProduct = null;
+
+                if ($sku !== '') {
+                    $existingProduct = Product::query()->where('sku', $sku)->first();
+                } elseif ($rawGtin !== '') {
+                    $gtinMatches = $productsByGtin[$rawGtin] ?? [];
+                    if (count($gtinMatches) > 1) {
+                        $rowErrors[] = "Correspondência incerta: múltiplos produtos encontrados com o código de barras \"{$rawGtin}\".";
+                    } elseif (count($gtinMatches) === 1) {
+                        $existingProduct = $gtinMatches[0];
+                        $sku = (string) $existingProduct->sku;
+                    }
+                } elseif ($rawName !== '') {
+                    $normName = CategoryHierarchyService::normalizeName($rawName);
+                    $nameMatches = $productsByNormName[$normName] ?? [];
+                    if (count($nameMatches) > 1) {
+                        $rowErrors[] = "Correspondência incerta: mais de um produto existente coincide com \"{$rawName}\". Informe o SKU.";
+                    } elseif (count($nameMatches) === 1) {
+                        $existingProduct = $nameMatches[0];
+                        $sku = (string) $existingProduct->sku;
+                    }
+                }
+
+                if ($sku === '' && $rawName !== '') {
+                    $sku = $this->generateDeterministicSku($rawName);
+                }
+
+                $variantSku = strtoupper(($assoc['variant_sku'] ?? '') ?: $sku);
+                $existingVariant = $variantSku !== '' ? ProductVariant::query()->where('sku', $variantSku)->first() : null;
+
+                $priceCents = $this->parsePriceField($assoc);
+                if ($priceCents === 0 && ! $priceHeaderPresent) {
+                    if ($existingVariant) {
+                        $priceCents = $existingVariant->price_cents;
+                    } elseif ($existingProduct) {
+                        $priceCents = $existingProduct->price_cents;
+                    }
+                }
+
+                $rawCategory = $catCol !== null ? ($assoc[$catCol] ?? '') : '';
+                $catResolution = $this->resolveCategoriesForRow(
+                    $rawCategory,
+                    $globalRowNum,
+                    $rawName !== '' ? $rawName : ($existingProduct ? (string) $existingProduct->name : ''),
+                    $allCategories,
+                    $categoriesById,
+                    $categoryOverrides,
+                );
+
+                if ($sku === '' || ($rawName === '' && ! $existingProduct) || $priceCents <= 0) {
+                    $missingMsg = 'Nome e valor (> R$ 0,00) são obrigatórios (SKU é opcional e gerado se ausente).';
+                    if ($priceCents <= 0 && $sheetNote !== '') {
+                        $missingMsg = "Valor obrigatório ausente — {$sheetNote}";
+                    }
+                    $rowErrors[] = $missingMsg;
+                }
+
+                if ($rawSku === '' && empty($assoc['variant_sku']) && $rawName !== '') {
+                    $normKey = CategoryHierarchyService::normalizeName($rawName);
+                    if (isset($seenAutoNames[$normKey])) {
+                        $rowErrors[] = "Produto duplicado na própria planilha: \"{$rawName}\".";
+                    }
+                    $seenAutoNames[$normKey] = true;
+                } elseif ($variantSku !== '' && isset($seenVariantSkus[$variantSku])) {
+                    $rowErrors[] = "SKU de variação duplicado no arquivo: {$variantSku}.";
+                }
+
+                if ($catResolution['has_unresolved']) {
+                    $rowErrors[] = $catResolution['error_message'];
+                }
+
+                // Parse cost cell independently — NEVER copy sale price to cost_cents
+                $costProvided = false;
+                $parsedCostCents = null;
+                if ($costColumnBrl !== null && ($assoc[$costColumnBrl] ?? '') !== '') {
                     $costProvided = true;
-                    $parsedCostCents = (int) $rawCostCents;
+                    $parsedCostCents = $this->parseBrazilianCost($assoc[$costColumnBrl]);
+                    if ($parsedCostCents === -1) {
+                        $rowErrors[] = "Custo unitário inválido para SKU {$variantSku}: \"{$assoc[$costColumnBrl]}\".";
+                    }
+                } elseif ($costColumnCents !== null && ($assoc[$costColumnCents] ?? '') !== '') {
+                    $rawCostCents = $assoc[$costColumnCents];
+                    if (! preg_match('/^\d+$/', $rawCostCents)) {
+                        $rowErrors[] = "Valor em cost_cents inválido para SKU {$variantSku}.";
+                    } else {
+                        $costProvided = true;
+                        $parsedCostCents = (int) $rawCostCents;
+                    }
                 }
+
+                if ($costProvided) {
+                    $anyCostProvided = true;
+                }
+
+                if ($variantSku !== '') {
+                    $seenVariantSkus[$variantSku] = true;
+                }
+
+                $effectiveName = $rawName !== '' ? $rawName : ($existingProduct ? $existingProduct->name : '');
+
+                if ($rowErrors !== []) {
+                    $reasonJoined = implode(' | ', $rowErrors);
+                    foreach ($rowErrors as $msg) {
+                        $errors[] = [
+                            'row' => $globalRowNum,
+                            'sheet' => $sheetName,
+                            'sheet_row' => $sheetRowNum,
+                            'name' => $effectiveName,
+                            'message' => count($sheets) > 1 ? "[{$sheetName} #{$sheetRowNum}] {$msg}" : $msg,
+                        ];
+                    }
+                    $pendingRows[] = [
+                        'row' => $globalRowNum,
+                        'sheet' => $sheetName,
+                        'sheet_row' => $sheetRowNum,
+                        'name' => $effectiveName,
+                        'raw_category' => $rawCategory,
+                        'matched_categories' => $catResolution['matched_labels'],
+                        'reason' => $reasonJoined,
+                    ];
+                } else {
+                    $assoc['_row'] = $globalRowNum;
+                    $assoc['_sheet'] = $sheetName;
+                    $assoc['_sheet_row'] = $sheetRowNum;
+                    $assoc['_sku'] = $sku;
+                    $assoc['_gtin'] = $rawGtin !== '' ? $rawGtin : null;
+                    $assoc['_variant_sku'] = $variantSku;
+                    $assoc['_name'] = $effectiveName;
+                    $assoc['_price_cents'] = $priceCents;
+                    $assoc['_cost_provided'] = $costProvided;
+                    $assoc['_cost_cents'] = $parsedCostCents;
+                    $assoc['_resolved_category_ids'] = $catResolution['category_ids'];
+                    $assoc['_primary_category_id'] = $catResolution['primary_category_id'];
+                    $assoc['_existing_product_id'] = $existingProduct?->id;
+                    $rows[] = $assoc;
+                }
+
+                $oldCost = $existingVariant
+                    ? $existingVariant->effectiveCostCents()
+                    : $existingProduct?->cost_cents;
+                $newCost = $costProvided ? $parsedCostCents : $oldCost;
+
+                $preview[] = [
+                    'row' => $globalRowNum,
+                    'sheet' => $sheetName,
+                    'sheet_row' => $sheetRowNum,
+                    'sku' => $sku,
+                    'variant_sku' => $variantSku,
+                    'name' => $effectiveName,
+                    'price_cents' => $priceCents,
+                    'stock_qty' => ($assoc['stock_qty'] ?? '') !== '' ? (int) $assoc['stock_qty'] : ($existingVariant ? $existingVariant->stock_qty : 0),
+                    'exists' => $existingProduct !== null || $existingVariant !== null,
+                    'raw_category' => $rawCategory,
+                    'category_status' => $catResolution['status'],
+                    'matched_categories' => $catResolution['matched_labels'],
+                    'category_ids' => $catResolution['category_ids'],
+                    'category_suggestions' => $catResolution['suggestions'],
+                    'row_errors' => $rowErrors,
+                    'cost_provided' => $costProvided,
+                    'old_cost_cents' => $oldCost,
+                    'new_cost_cents' => $newCost,
+                    'old_cost_display' => $this->formatCostDisplay($oldCost),
+                    'new_cost_display' => $this->formatCostDisplay($newCost),
+                    'cost_action' => $costProvided
+                        ? ($parsedCostCents === 0 ? 'set_zero' : 'updated')
+                        : 'preserved',
+                ];
             }
-
-            if ($costProvided) {
-                $anyCostProvided = true;
-            }
-
-            foreach ($rowErrors as $msg) {
-                $errors[] = ['row' => $rowNum, 'message' => $msg];
-            }
-
-            $seenVariantSkus[$variantSku] = true;
-            $assoc['_row'] = $rowNum;
-            $assoc['_sku'] = $sku;
-            $assoc['_variant_sku'] = $variantSku;
-            $assoc['_name'] = $rawName !== '' ? $rawName : ($existingProduct ? $existingProduct->name : '');
-            $assoc['_price_cents'] = $priceCents;
-            $assoc['_cost_provided'] = $costProvided;
-            $assoc['_cost_cents'] = $parsedCostCents;
-            $assoc['_resolved_category_ids'] = $catResolution['category_ids'];
-            $assoc['_primary_category_id'] = $catResolution['primary_category_id'];
-
-            if ($rowErrors === []) {
-                $rows[] = $assoc;
-            }
-
-            $oldCost = $existingVariant
-                ? $existingVariant->effectiveCostCents()
-                : $existingProduct?->cost_cents;
-            $newCost = $costProvided ? $parsedCostCents : $oldCost;
-
-            $preview[] = [
-                'row' => $rowNum,
-                'sku' => $sku,
-                'variant_sku' => $variantSku,
-                'name' => $assoc['_name'],
-                'price_cents' => $priceCents,
-                'stock_qty' => ($assoc['stock_qty'] ?? '') !== '' ? (int) $assoc['stock_qty'] : ($existingVariant ? $existingVariant->stock_qty : 0),
-                'exists' => $existingProduct !== null || $existingVariant !== null,
-                'raw_category' => $rawCategory,
-                'category_status' => $catResolution['status'],
-                'matched_categories' => $catResolution['matched_labels'],
-                'category_ids' => $catResolution['category_ids'],
-                'category_suggestions' => $catResolution['suggestions'],
-                'row_errors' => $rowErrors,
-                'cost_provided' => $costProvided,
-                'old_cost_cents' => $oldCost,
-                'new_cost_cents' => $newCost,
-                'old_cost_display' => $this->formatCostDisplay($oldCost),
-                'new_cost_display' => $this->formatCostDisplay($newCost),
-                'cost_action' => $costProvided
-                    ? ($parsedCostCents === 0 ? 'set_zero' : 'updated')
-                    : 'preserved',
-            ];
         }
 
         if ($anyCostProvided && $actor !== null && ! $actor->hasPermission('catalog.cost.write')) {
@@ -298,16 +444,21 @@ class CatalogCsvService
             ]);
         }
 
-        if ($dryRun || count($errors) > 0) {
-            $wouldUpdate = count(array_filter($preview, fn (array $p): bool => (bool) $p['exists']));
+        $validPreviewRows = array_filter($preview, fn (array $p): bool => $p['row_errors'] === []);
+        $wouldUpdate = count(array_filter($validPreviewRows, fn (array $p): bool => (bool) $p['exists']));
+        $wouldCreate = count($validPreviewRows) - $wouldUpdate;
 
+        if ($dryRun || (! $skipInvalid && count($errors) > 0)) {
             return [
                 'dry_run' => true,
                 'total_rows' => count($preview),
-                'created' => count($preview) - $wouldUpdate,
+                'valid_rows' => count($validPreviewRows),
+                'created' => $wouldCreate,
                 'updated' => $wouldUpdate,
+                'pending_count' => count($pendingRows),
+                'pending_rows' => $pendingRows,
                 'errors' => $errors,
-                'preview' => array_slice($preview, 0, 100),
+                'preview' => array_slice($preview, 0, 200),
             ];
         }
 
@@ -323,8 +474,10 @@ class CatalogCsvService
                     $brandId = $brand->id;
                 }
 
-                $existing = Product::query()->where('sku', $row['_sku'])->first();
-                $slug = ! empty($row['slug']) ? Str::slug($row['slug']) : Str::slug($row['_name'].'-'.$row['_sku']);
+                $existing = ! empty($row['_existing_product_id'])
+                    ? Product::query()->find((int) $row['_existing_product_id'])
+                    : Product::query()->where('sku', $row['_sku'])->first();
+
                 $priceCents = (int) $row['_price_cents'];
                 $promoCents = ! empty($row['promo_price_cents']) ? (int) $row['promo_price_cents'] : null;
                 $weightGrams = max(50, (int) (($row['weight_grams'] ?? '') ?: 200));
@@ -342,6 +495,9 @@ class CatalogCsvService
                         'weight_grams' => $weightGrams,
                         'is_active' => $isActive,
                     ];
+                    if (! empty($row['_gtin']) && empty($existing->gtin)) {
+                        $prodUpdate['gtin'] = $row['_gtin'];
+                    }
                     if ($costProvided && $isPrimaryVariantRow) {
                         $prodUpdate['cost_cents'] = $costCents;
                     }
@@ -349,11 +505,15 @@ class CatalogCsvService
                     $product = $existing;
                     $updated++;
                 } else {
+                    $slug = $this->resolveAvailableProductSlug(
+                        ! empty($row['slug']) ? (string) $row['slug'] : (string) $row['_name']
+                    );
                     $product = Product::query()->create([
                         'brand_id' => $brandId,
                         'name' => $row['_name'],
                         'slug' => $slug,
                         'sku' => $row['_sku'],
+                        'gtin' => $row['_gtin'] ?? null,
                         'product_type' => ProductType::Simple,
                         'cost_cents' => ($costProvided && $isPrimaryVariantRow) ? $costCents : null,
                         'price_cents' => $priceCents,
@@ -376,6 +536,10 @@ class CatalogCsvService
                 }
 
                 $existingVariant = ProductVariant::query()->where('sku', $row['_variant_sku'])->first();
+                if (! $existingVariant && $existing && $isPrimaryVariantRow) {
+                    $existingVariant = $product->variants()->where('is_default', true)->first();
+                }
+
                 $hasStockCol = array_key_exists('stock_qty', $row) && $row['stock_qty'] !== '';
                 $newStockQty = $hasStockCol ? max(0, (int) $row['stock_qty']) : ($existingVariant ? $existingVariant->stock_qty : 0);
 
@@ -433,12 +597,47 @@ class CatalogCsvService
 
         return [
             'dry_run' => false,
-            'total_rows' => count($rows),
+            'total_rows' => count($preview),
+            'valid_rows' => count($rows),
             'created' => $created,
             'updated' => $updated,
+            'pending_count' => count($pendingRows),
+            'pending_rows' => $pendingRows,
             'errors' => $errors,
-            'preview' => array_slice($preview, 0, 100),
+            'preview' => array_slice($preview, 0, 200),
         ];
+    }
+
+    private function generateDeterministicSku(string $name): string
+    {
+        $norm = CategoryHierarchyService::normalizeName($name);
+        $prefix = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', Str::ascii($name)) ?: 'PRD', 0, 6));
+        $hash = strtoupper(substr(sprintf('%08x', crc32($norm)), 0, 4));
+        $base = "MF-{$prefix}-{$hash}";
+        $candidate = $base;
+        $suffix = 2;
+        while (
+            Product::query()->where('sku', $candidate)->exists()
+            || ProductVariant::query()->where('sku', $candidate)->exists()
+        ) {
+            $candidate = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $candidate;
+    }
+
+    private function resolveAvailableProductSlug(string $source): string
+    {
+        $base = Str::slug($source) ?: 'produto';
+        $candidate = $base;
+        $suffix = 2;
+        while (Product::query()->where('slug', $candidate)->exists()) {
+            $candidate = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $candidate;
     }
 
     /**
@@ -450,6 +649,7 @@ class CatalogCsvService
     private function resolveCategoriesForRow(
         string $rawCategory,
         int $rowNum,
+        string $productName,
         $allCategories,
         $categoriesById,
         array $overrides,
@@ -491,10 +691,9 @@ class CatalogCsvService
 
         $matchedIds = [];
         $matchedLabels = [];
-        $suggestions = [];
 
         foreach ($tokens as $token) {
-            $res = $this->categoryResolver->resolve($token, $allCategories);
+            $res = $this->categoryResolver->resolve($token, $allCategories, $productName);
             if ($res['status'] === 'matched' && $res['matched_category'] !== null) {
                 $matchedIds[] = (int) $res['matched_category']['id'];
                 $matchedLabels[] = (string) $res['matched_category']['full_path'];
@@ -529,10 +728,15 @@ class CatalogCsvService
         ];
     }
 
-    /** @return list<list<string>> */
-    private function parseXlsxToMatrix(string $path): array
+    /**
+     * Reads all worksheets inside an .xlsx workbook in sheet order (supports both default
+     * and prefixed OpenXML namespaces like <x:worksheet> as well as UTF-8 BOM headers).
+     *
+     * @return list<array{sheet: string, matrix: list<list<string>>}>
+     */
+    private function parseXlsxSheets(string $path): array
     {
-        if (! class_exists(\ZipArchive::class)) {
+        if (! class_exists(\ZipArchive::class) || ! class_exists(\DOMDocument::class)) {
             return [];
         }
 
@@ -541,51 +745,110 @@ class CatalogCsvService
             return [];
         }
 
+        $loadDom = static function (string $rawXml): ?\DOMDocument {
+            $clean = preg_replace('/^\xEF\xBB\xBF/', '', $rawXml) ?? $rawXml;
+            $dom = new \DOMDocument;
+            if (! @$dom->loadXML($clean, LIBXML_NONET | LIBXML_NOCDATA)) {
+                return null;
+            }
+
+            return $dom;
+        };
+
         $sharedStrings = [];
         $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
         if (is_string($sharedXml)) {
-            $sx = @simplexml_load_string($sharedXml);
-            if ($sx !== false) {
-                foreach ($sx->si as $si) {
-                    if (isset($si->t)) {
-                        $sharedStrings[] = (string) $si->t;
-                    } elseif (isset($si->r)) {
-                        $buf = '';
-                        foreach ($si->r as $r) {
-                            $buf .= (string) ($r->t ?? '');
-                        }
-                        $sharedStrings[] = $buf;
+            $sDom = $loadDom($sharedXml);
+            if ($sDom !== null) {
+                foreach ($sDom->getElementsByTagNameNS('*', 'si') as $si) {
+                    $buf = '';
+                    foreach ($si->getElementsByTagNameNS('*', 't') as $tNode) {
+                        $buf .= $tNode->textContent;
+                    }
+                    $sharedStrings[] = $buf;
+                }
+            }
+        }
+
+        $sheetTargets = [];
+        $wbXml = $zip->getFromName('xl/workbook.xml');
+        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
+        if (is_string($wbXml) && is_string($relsXml)) {
+            $wbDom = $loadDom($wbXml);
+            $relsDom = $loadDom($relsXml);
+            if ($wbDom !== null && $relsDom !== null) {
+                $relMap = [];
+                foreach ($relsDom->getElementsByTagNameNS('*', 'Relationship') as $rel) {
+                    $id = $rel->getAttribute('Id');
+                    $target = ltrim($rel->getAttribute('Target'), '/');
+                    if ($id !== '' && $target !== '') {
+                        $relMap[$id] = str_starts_with($target, 'xl/') ? $target : "xl/{$target}";
+                    }
+                }
+                foreach ($wbDom->getElementsByTagNameNS('*', 'sheet') as $sh) {
+                    $name = $sh->getAttribute('name') ?: 'Planilha';
+                    $rId = $sh->getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id')
+                        ?: $sh->getAttribute('r:id');
+                    if ($rId !== '' && isset($relMap[$rId])) {
+                        $sheetTargets[] = ['name' => $name, 'path' => $relMap[$rId]];
                     }
                 }
             }
         }
 
-        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        if ($sheetTargets === []) {
+            $sheetTargets[] = ['name' => 'Planilha 1', 'path' => 'xl/worksheets/sheet1.xml'];
+        }
+
+        $sheets = [];
+        foreach ($sheetTargets as $target) {
+            $sheetXml = $zip->getFromName($target['path']);
+            if (! is_string($sheetXml)) {
+                continue;
+            }
+            $sheetDom = $loadDom($sheetXml);
+            if ($sheetDom === null) {
+                continue;
+            }
+            $matrix = $this->parseWorksheetDom($sheetDom, $sharedStrings);
+            if (count($matrix) >= 2) {
+                $sheets[] = ['sheet' => $target['name'], 'matrix' => $matrix];
+            }
+        }
+
         $zip->close();
 
-        if (! is_string($sheetXml)) {
-            return [];
-        }
+        return $sheets;
+    }
 
-        $sx = @simplexml_load_string($sheetXml);
-        if ($sx === false || ! isset($sx->sheetData->row)) {
-            return [];
-        }
-
+    /**
+     * @param  list<string>  $sharedStrings
+     * @return list<list<string>>
+     */
+    private function parseWorksheetDom(\DOMDocument $dom, array $sharedStrings): array
+    {
         $matrix = [];
-        foreach ($sx->sheetData->row as $xmlRow) {
+        foreach ($dom->getElementsByTagNameNS('*', 'row') as $xmlRow) {
             $rowCells = [];
-            foreach ($xmlRow->c as $cell) {
-                $ref = (string) ($cell['r'] ?? '');
+            foreach ($xmlRow->getElementsByTagNameNS('*', 'c') as $cell) {
+                $ref = $cell->getAttribute('r');
                 $colIdx = $this->excelColumnToIndex($ref);
-                $type = (string) ($cell['t'] ?? '');
+                $type = $cell->getAttribute('t');
                 $val = '';
-                if ($type === 's') {
-                    $val = $sharedStrings[(int) $cell->v] ?? '';
-                } elseif ($type === 'inlineStr') {
-                    $val = (string) ($cell->is->t ?? '');
+                if ($type === 'inlineStr') {
+                    $buf = '';
+                    foreach ($cell->getElementsByTagNameNS('*', 't') as $tNode) {
+                        $buf .= $tNode->textContent;
+                    }
+                    $val = $buf;
                 } else {
-                    $val = (string) ($cell->v ?? '');
+                    $vNode = $cell->getElementsByTagNameNS('*', 'v')->item(0);
+                    $rawV = $vNode !== null ? $vNode->textContent : '';
+                    if ($type === 's') {
+                        $val = $rawV !== '' ? ($sharedStrings[(int) $rawV] ?? '') : '';
+                    } else {
+                        $val = $rawV;
+                    }
                 }
                 while (count($rowCells) < $colIdx) {
                     $rowCells[] = '';
