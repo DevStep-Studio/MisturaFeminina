@@ -735,6 +735,7 @@ class CatalogController extends Controller
             'in_stock' => $variant->availableStock() > 0,
             'is_default' => $variant->is_default,
             'image_path' => $variant->effectiveImagePath(),
+            'inherits_image' => (bool) $variant->inherits_image,
             'waiting_restock_count' => (int) ($variant->getAttribute('pending_restock_count') ?? 0),
             'attributes' => $variant->attributeValues->map(fn ($av): array => [
                 'attribute_id' => $av->attribute_id,

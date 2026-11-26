@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RequirePermission
 {
-    public function handle(Request $request, Closure $next, string $permission): Response
+    public function handle(Request $request, Closure $next, string ...$permissions): Response
     {
         $user = $request->user();
         if (! $user) {
@@ -21,7 +21,18 @@ class RequirePermission
             return response()->json(['message' => 'Conta desativada.'], 403);
         }
 
-        if (! $user->hasPermission($permission)) {
+        $hasAny = false;
+        foreach ($permissions as $permGroup) {
+            foreach (explode('|', $permGroup) as $perm) {
+                $trimmed = trim($perm);
+                if ($trimmed !== '' && $user->hasPermission($trimmed)) {
+                    $hasAny = true;
+                    break 2;
+                }
+            }
+        }
+
+        if (! $hasAny) {
             return response()->json(['message' => 'Acesso negado para esta operação.'], 403);
         }
 

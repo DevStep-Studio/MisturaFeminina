@@ -10,6 +10,7 @@ import Layers from "lucide-solid/icons/layers";
 import Plus from "lucide-solid/icons/plus";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import Trash2 from "lucide-solid/icons/trash";
+import Upload from "lucide-solid/icons/upload";
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
@@ -56,6 +57,212 @@ function parseBrToCentsNullable(raw: string): { valid: boolean; cents: number | 
   const num = Number(clean);
   if (!Number.isFinite(num) || num <= 0) return { valid: false, cents: null };
   return { valid: true, cents: Math.round(num * 100) };
+}
+
+function VariationRowPhotoControl(props: {
+  row: VariationRowDraft;
+  parentImagePath?: string;
+  onUpdate: (data: { image_path: string; inherits_image: boolean }) => void;
+  compact?: boolean;
+}) {
+  let fileInputRef: HTMLInputElement | undefined;
+  const [uploading, setUploading] = createSignal(false);
+  const [uploadError, setUploadError] = createSignal<string | null>(null);
+  const [showManualUrl, setShowManualUrl] = createSignal(false);
+
+  const hasCustomPhoto = () =>
+    !props.row.inherits_image && Boolean(props.row.image_path && props.row.image_path.trim());
+
+  const displayedImage = () => {
+    if (hasCustomPhoto()) {
+      return props.row.image_path.trim();
+    }
+    return props.parentImagePath ? props.parentImagePath.trim() : null;
+  };
+
+  async function handleFileChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    setUploadError(null);
+
+    // Validation
+    const allowedExts = [".png", ".jpg", ".jpeg", ".webp"];
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+    const lowerName = file.name.toLowerCase();
+    const isExtValid = allowedExts.some((ext) => lowerName.endsWith(ext));
+    const isMimeValid = allowedTypes.includes(file.type);
+
+    if (!isExtValid && !isMimeValid) {
+      setUploadError("Formato não suportado. Envie apenas imagens PNG, JPG ou WebP.");
+      if (input) input.value = "";
+      return;
+    }
+
+    const maxBytes = 5 * 1024 * 1024; // 5 MB
+    if (file.size > maxBytes) {
+      setUploadError("A imagem excede o tamanho máximo de 5 MB.");
+      if (input) input.value = "";
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", "products");
+
+      const res = await api<{ data: { path: string } }>("/admin/media/upload", {
+        method: "POST",
+        body: fd,
+      });
+
+      props.onUpdate({
+        image_path: res.data.path,
+        inherits_image: false,
+      });
+    } catch (err) {
+      setUploadError(
+        err instanceof Error
+          ? err.message
+          : "Erro ao enviar imagem. Verifique a conexão e tente novamente.",
+      );
+    } finally {
+      setUploading(false);
+      if (input) input.value = "";
+    }
+  }
+
+  function handleRemoveCustomPhoto() {
+    props.onUpdate({
+      image_path: "",
+      inherits_image: true,
+    });
+    setUploadError(null);
+  }
+
+  return (
+    <div class={`flex flex-col gap-1 ${props.compact ? "min-w-[195px]" : "w-full"}`}>
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+        class="hidden"
+        onChange={handleFileChange}
+      />
+
+      <div class="flex items-center gap-1.5">
+        {/* Thumbnail Preview */}
+        <div
+          class="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded border border-zinc-200 bg-white shadow-xs hover:border-[#93509e]"
+          onClick={() => fileInputRef?.click()}
+          title={
+            hasCustomPhoto()
+              ? `Foto própria de ${props.row.name} (clique para substituir)`
+              : `Usando foto principal do produto (clique para enviar foto própria)`
+          }
+        >
+          <Show
+            when={displayedImage()}
+            fallback={<ImageIcon class="h-3.5 w-3.5 text-zinc-300" />}
+          >
+            <img
+              src={assetUrl(displayedImage()!)}
+              alt={props.row.name}
+              class="h-full w-full object-contain"
+            />
+          </Show>
+
+          <Show when={uploading()}>
+            <div class="absolute inset-0 flex items-center justify-center bg-white/80">
+              <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#93509e] border-t-transparent" />
+            </div>
+          </Show>
+        </div>
+
+        {/* Actions & Status */}
+        <div class="flex flex-1 flex-wrap items-center gap-1 text-[10px]">
+          <Show
+            when={hasCustomPhoto()}
+            fallback={
+              <>
+                <button
+                  type="button"
+                  disabled={uploading()}
+                  onClick={() => fileInputRef?.click()}
+                  class="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 bg-white px-2 py-0.5 font-semibold text-zinc-700 hover:border-[#93509e] hover:text-[#93509e] disabled:opacity-50"
+                  title="Enviar foto exclusiva desta variação (PNG, JPG ou WebP)"
+                >
+                  <Upload class="h-2.5 w-2.5" />
+                  + Foto
+                </button>
+                <span class="text-zinc-500 text-[10px]" title="Herdando foto principal do produto">
+                  Herdar principal
+                </span>
+              </>
+            }
+          >
+            <span class="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1 py-0.2 font-bold text-emerald-700 text-[9px]">
+              Própria
+            </span>
+            <button
+              type="button"
+              disabled={uploading()}
+              onClick={() => fileInputRef?.click()}
+              class="rounded px-1 font-semibold text-[#93509e] hover:underline disabled:opacity-50"
+              title="Substituir imagem"
+            >
+              Trocar
+            </button>
+            <button
+              type="button"
+              onClick={handleRemoveCustomPhoto}
+              class="rounded p-0.5 text-zinc-400 hover:text-red-600"
+              title="Remover foto própria e usar a foto principal do produto"
+              aria-label={`Remover foto de ${props.row.name}`}
+            >
+              <Trash2 class="h-3 w-3" />
+            </button>
+          </Show>
+
+          <button
+            type="button"
+            onClick={() => setShowManualUrl(!showManualUrl())}
+            class="text-[9px] text-zinc-400 hover:text-zinc-600 ml-auto"
+            title="Editar ou colar URL manual"
+          >
+            {showManualUrl() ? "Ocultar URL" : "URL"}
+          </button>
+        </div>
+      </div>
+
+      {/* Upload Error */}
+      <Show when={uploadError()}>
+        <span class="text-[10px] leading-tight text-red-600">{uploadError()}</span>
+      </Show>
+
+      {/* Manual URL Input */}
+      <Show when={showManualUrl()}>
+        <div class="flex items-center gap-1 pt-0.5">
+          <input
+            type="text"
+            aria-label={`URL manual da foto de ${props.row.name}`}
+            placeholder="/storage/products/..."
+            value={props.row.inherits_image ? "" : props.row.image_path}
+            onInput={(e) => {
+              const v = e.currentTarget.value;
+              props.onUpdate({
+                image_path: v,
+                inherits_image: v.trim() === "",
+              });
+            }}
+            class="h-6 w-full rounded border border-zinc-200 bg-white px-1.5 text-[10px]"
+          />
+        </div>
+      </Show>
+    </div>
+  );
 }
 
 export function VariationMatrixBuilder(props: {
@@ -1383,35 +1590,13 @@ export function VariationMatrixBuilder(props: {
                               class="h-8 w-16 rounded border border-zinc-300 bg-white px-1.5 text-right tabular-nums"
                             />
                           </td>
-                          <td class="px-2 py-2 space-y-1">
-                            <div class="flex items-center gap-1.5">
-                              <div class="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded border border-zinc-200 bg-white">
-                                <Show
-                                  when={row.image_path || props.parentImagePath}
-                                  fallback={<ImageIcon class="h-3.5 w-3.5 text-zinc-300" />}
-                                >
-                                  <img
-                                    src={assetUrl(row.inherits_image ? props.parentImagePath : (row.image_path || props.parentImagePath))}
-                                    alt={row.name}
-                                    class="h-full w-full object-contain"
-                                  />
-                                </Show>
-                              </div>
-                              <input
-                                type="text"
-                                aria-label={`Foto de ${row.name}`}
-                                placeholder="Herdar principal"
-                                value={row.inherits_image ? "" : row.image_path}
-                                onInput={(e) => {
-                                  const v = e.currentTarget.value;
-                                  updateRow(row.row_key, {
-                                    image_path: v,
-                                    inherits_image: v.trim() === "",
-                                  });
-                                }}
-                                class="h-7 w-28 rounded border border-zinc-300 bg-white px-1.5 text-[11px]"
-                              />
-                            </div>
+                          <td class="px-2 py-2">
+                            <VariationRowPhotoControl
+                              row={row}
+                              parentImagePath={props.parentImagePath}
+                              compact={true}
+                              onUpdate={(patch) => updateRow(row.row_key, patch)}
+                            />
                           </td>
                           <td class="px-1.5 py-2 text-right">
                             <Show
@@ -1640,19 +1825,12 @@ export function VariationMatrixBuilder(props: {
                                 />
                               </div>
                               <div>
-                                <label class="block text-[10px] font-semibold text-zinc-500">Foto própria (opcional)</label>
-                                <input
-                                  type="text"
-                                  placeholder="Herdar principal"
-                                  value={row.inherits_image ? "" : row.image_path}
-                                  onInput={(e) => {
-                                    const v = e.currentTarget.value;
-                                    updateRow(row.row_key, {
-                                      image_path: v,
-                                      inherits_image: v.trim() === "",
-                                    });
-                                  }}
-                                  class="mt-0.5 h-8 w-full rounded border border-zinc-300 px-2 text-xs"
+                                <label class="block text-[10px] font-semibold text-zinc-500 mb-1">Foto da variação</label>
+                                <VariationRowPhotoControl
+                                  row={row}
+                                  parentImagePath={props.parentImagePath}
+                                  compact={false}
+                                  onUpdate={(patch) => updateRow(row.row_key, patch)}
                                 />
                               </div>
                             </div>

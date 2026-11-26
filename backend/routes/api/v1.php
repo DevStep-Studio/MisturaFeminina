@@ -196,7 +196,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
 
         // Content, Media, Banners, Home Builder, CMS Pages
         Route::get('media', [AdminContentController::class, 'listMedia'])->middleware('permission:content.view');
-        Route::post('media/upload', [AdminContentController::class, 'uploadMedia'])->middleware('permission:banners.write');
+        Route::post('media/upload', [AdminContentController::class, 'uploadMedia'])->middleware('permission:banners.write|catalog.write');
         Route::get('banners', [AdminContentController::class, 'listBanners'])->middleware('permission:content.view');
         Route::post('banners', [AdminContentController::class, 'storeBanner'])->middleware('permission:banners.write');
         Route::put('banners/{id}', [AdminContentController::class, 'updateBanner'])->middleware('permission:banners.write');

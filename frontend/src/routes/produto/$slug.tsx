@@ -681,19 +681,37 @@ function ProductDetailPage() {
           const installmentValue = () =>
             Math.ceil(totalPriceCents() / installments());
           const galleryImages = () => {
-            if (p().images.length > 0) return p().images;
-            if (p().primary_image) {
+            const base =
+              p().images && p().images.length > 0
+                ? [...p().images]
+                : p().primary_image
+                  ? [
+                      {
+                        id: 0,
+                        path: p().primary_image!,
+                        alt_text: p().primary_image_alt || p().name,
+                        is_primary: true,
+                        sort_order: 0,
+                      },
+                    ]
+                  : [];
+
+            // Se a variação ativa possui foto própria que não está na lista base, insere na primeira posição da galeria
+            const vImg = activeVariant()?.image_path;
+            if (vImg && !base.some((img) => img.path === vImg)) {
               return [
                 {
-                  id: 0,
-                  path: p().primary_image!,
-                  alt_text: p().primary_image_alt || p().name,
-                  is_primary: true,
-                  sort_order: 0,
+                  id: -1,
+                  path: vImg,
+                  alt_text: activeVariant()?.name ? `${p().name} — ${activeVariant()!.name}` : p().name,
+                  is_primary: false,
+                  sort_order: -1,
                 },
+                ...base,
               ];
             }
-            return [];
+
+            return base;
           };
           const stepGalleryImage = (delta: number) => {
             const imgs = galleryImages();
@@ -978,12 +996,37 @@ function ProductDetailPage() {
                                                 : "border-[#E5DAE9] bg-white text-[#2E0C49] hover:border-[#93509e]"
                                         }`}
                                       >
-                                        <Show when={val.color_hex}>
-                                          <span
-                                            aria-hidden="true"
-                                            class="h-3.5 w-3.5 shrink-0 rounded-full border border-black/15"
-                                            style={{ background: val.color_hex! }}
-                                          />
+                                        <Show
+                                          when={(() => {
+                                            const match = p().variants.find(
+                                              (v) =>
+                                                v.option_values?.some(
+                                                  (ov) =>
+                                                    ov.attribute_slug === axis.slug &&
+                                                    (ov.value_slug === val.slug || ov.value === val.value),
+                                                ) && Boolean(v.image_path),
+                                            );
+                                            return match?.image_path ?? null;
+                                          })()}
+                                          fallback={
+                                            <Show when={val.color_hex}>
+                                              <span
+                                                aria-hidden="true"
+                                                class="h-3.5 w-3.5 shrink-0 rounded-full border border-black/15"
+                                                style={{ background: val.color_hex! }}
+                                              />
+                                            </Show>
+                                          }
+                                        >
+                                          {(vImg) => (
+                                            <ProductImage
+                                              src={vImg()}
+                                              alt={val.value}
+                                              width="16"
+                                              height="16"
+                                              class="h-4 w-4 shrink-0 rounded object-contain border border-zinc-200 bg-white"
+                                            />
+                                          )}
                                         </Show>
                                         <span>{val.value}</span>
                                         <Show

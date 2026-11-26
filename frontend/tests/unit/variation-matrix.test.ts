@@ -256,6 +256,95 @@ describe("Optional Variations Domain Matrix Helpers", () => {
     expect(dupInit.rows[0]?.stock_qty).toBe(0);
     expect(dupInit.rows[0]?.cost_cents).toBe(6000);
   });
+
+  it("preserves variation photos, distinguishes custom vs inherited images and builds persistence payload accurately", () => {
+    const rawProduct: AdminProductRow = {
+      id: 200,
+      name: "Gel Any Lovy",
+      slug: "gel-any-lovy",
+      sku: "GEL-ANY",
+      price_cents: 4990,
+      promo_price_cents: null,
+      weight_grams: 100,
+      short_description: null,
+      description: null,
+      brand_id: 1,
+      is_featured: false,
+      is_new_arrival: false,
+      has_variants: true,
+      product_type: "variable",
+      is_active: true,
+      variants: [
+        {
+          id: 301,
+          sku: "GEL-ANY-NAT",
+          name: "Natural",
+          price_cents: 4990,
+          stock_qty: 10,
+          reserved_qty: 0,
+          image_path: "/storage/products/gel-natural.webp",
+          inherits_image: false,
+        },
+        {
+          id: 302,
+          sku: "GEL-ANY-COV",
+          name: "Cover Nude",
+          price_cents: 4990,
+          stock_qty: 8,
+          reserved_qty: 0,
+          effective_image_path: "/storage/products/gel-cover.png",
+          inherits_image: false,
+        },
+        {
+          id: 303,
+          sku: "GEL-ANY-BAS",
+          name: "Base",
+          price_cents: 4990,
+          stock_qty: 5,
+          reserved_qty: 0,
+          image_path: null,
+          inherits_image: true,
+        },
+      ],
+    };
+
+    const state = reconstructInitialVariationState(rawProduct, false);
+    expect(state.hasVariants).toBe(true);
+    expect(state.rows).toHaveLength(3);
+
+    // Row 1: custom photo Natural
+    expect(state.rows[0]?.image_path).toBe("/storage/products/gel-natural.webp");
+    expect(state.rows[0]?.inherits_image).toBe(false);
+
+    // Row 2: custom photo Cover Nude from effective_image_path
+    expect(state.rows[1]?.image_path).toBe("/storage/products/gel-cover.png");
+    expect(state.rows[1]?.inherits_image).toBe(false);
+
+    // Row 3: inherits primary photo
+    expect(state.rows[2]?.image_path).toBe("");
+    expect(state.rows[2]?.inherits_image).toBe(true);
+
+    // Build persistence payload
+    const payload = buildVariationPersistencePayload({
+      hasVariants: true,
+      attributes: state.attributes,
+      rows: state.rows,
+      parentPriceCents: 4990,
+      parentPromoPriceCents: null,
+      simpleStockQty: 0,
+    });
+
+    expect(payload.variants).toBeDefined();
+    expect(payload.variants).toHaveLength(3);
+
+    // Variant 1 retains image_path
+    expect(payload.variants![0]?.image_path).toBe("/storage/products/gel-natural.webp");
+    expect(payload.variants![0]?.inherits_image).toBe(false);
+
+    // Variant 3 sends image_path null and inherits_image true
+    expect(payload.variants![2]?.image_path).toBeNull();
+    expect(payload.variants![2]?.inherits_image).toBe(true);
+  });
 });
 
 describe("Storefront Variation Axis Selection & Availability", () => {
