@@ -5,7 +5,6 @@ import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
 import Search from "lucide-solid/icons/search";
 import ShoppingCart from "lucide-solid/icons/shopping-cart";
-import Sparkles from "lucide-solid/icons/sparkles";
 import { formatCents } from "@/lib/format";
 import { computeWholesaleUnitPrice, type WholesaleTier } from "../wholesale";
 import type { ProductVariantData } from "../types";
@@ -173,11 +172,7 @@ export function MultiShadePurchaseGrid(props: MultiShadePurchaseGridProps) {
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <span class="inline-flex items-center gap-1 rounded-full bg-[#F3E2F6] px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#93509e]">
-            <Sparkles class="h-3 w-3" />
-            Atacado e Profissionais
-          </span>
-          <h2 class="mt-1.5 text-base font-extrabold text-[#2E0C49]">
+          <h2 class="text-base font-extrabold text-[#2E0C49]">
             Escolha suas cores ({props.variants.length} tonalidades)
           </h2>
           <p class="text-xs text-[#5B486B]">
