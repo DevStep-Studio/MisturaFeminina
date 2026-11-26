@@ -168,6 +168,23 @@ describe("Storefront Responsive & Wholesale Logic Suite", () => {
     expect(homeSrc).toContain("mobileSrc={banner.mobile_image_path}");
   });
 
+  it("guarantees hero carousel is full-bleed with dynamic 3:1 aspect ratio and no lateral bars", () => {
+    const homeSrc = readFileSync(
+      resolve(__dirname, "../../src/routes/index.tsx"),
+      "utf8",
+    );
+    const heroSection = homeSrc.slice(
+      homeSrc.indexOf("function HeroCarouselBlock"),
+      homeSrc.indexOf("function renderCouponSubtitle"),
+    );
+    expect(heroSection).toContain("aspect-[3/1]");
+    expect(heroSection).toContain("object-cover");
+    expect(heroSection).not.toContain("max-w-[1600px]");
+    expect(heroSection).not.toContain("bg-[#7c3f87]");
+    expect(heroSection).not.toContain("max-h-[686px]");
+    expect(heroSection).not.toContain("object-contain");
+  });
+
   it("keeps login page free of admin demo credential prefill buttons or hardcoded credentials", () => {
     const loginSrc = readFileSync(
       resolve(__dirname, "../../src/features/auth/components/login-page.tsx"),

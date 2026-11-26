@@ -115,7 +115,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
     <Show when={props.banners.length > 0}>
       <section
         aria-label="Destaques principais"
-        class="relative overflow-hidden bg-[#7c3f87]"
+        class="relative w-full overflow-hidden"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         onFocusIn={() => setPaused(true)}
@@ -131,14 +131,18 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                 mobileSrc={banner().mobile_image_path}
                 alt={banner().alt_text || banner().title}
                 eager
-                imageClass="mx-auto block h-auto max-h-[72svh] w-full object-contain sm:max-h-[686px]"
+                class="block h-full w-full"
+                imageClass="block h-full w-full object-cover select-none"
               />
             );
 
             return (
-              <div class="relative mx-auto max-w-[1600px]">
+              <div
+                class="relative w-full aspect-[3/1] overflow-hidden"
+                style={{ "aspect-ratio": "3 / 1" }}
+              >
                 <Show when={banner().cta_url} fallback={img}>
-                  <a href={banner().cta_url!} class="block">
+                  <a href={banner().cta_url!} class="block h-full w-full">
                     {img}
                   </a>
                 </Show>
@@ -148,7 +152,7 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                     type="button"
                     onClick={prevSlide}
                     aria-label="Banner anterior"
-                    class="absolute left-0 top-1/2 inline-flex h-8 w-5 -translate-y-1/2 items-center justify-center rounded-r-md bg-black/25 text-white backdrop-blur-[2px] transition-colors hover:bg-[#93509e] sm:left-1.5 sm:size-8 sm:rounded-lg sm:border sm:border-[#93509e]/70 sm:bg-white/90 sm:text-[#93509e] sm:shadow-xs sm:hover:text-white lg:left-4 lg:size-10"
+                    class="absolute left-1.5 top-1/2 z-10 inline-flex h-8 w-5 -translate-y-1/2 items-center justify-center rounded-r-md bg-black/25 text-white backdrop-blur-[2px] transition-colors hover:bg-[#93509e] sm:left-3 sm:size-9 sm:rounded-lg sm:border sm:border-[#93509e]/70 sm:bg-white/90 sm:text-[#93509e] sm:shadow-xs sm:hover:text-white sm:hover:bg-[#93509e] lg:left-5 lg:size-10"
                   >
                     <ChevronLeft class="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                   </button>
@@ -156,12 +160,12 @@ function HeroCarouselBlock(props: { banners: BannerData[] }) {
                     type="button"
                     onClick={nextSlide}
                     aria-label="Próximo banner"
-                    class="absolute right-0 top-1/2 inline-flex h-8 w-5 -translate-y-1/2 items-center justify-center rounded-l-md bg-black/25 text-white backdrop-blur-[2px] transition-colors hover:bg-[#93509e] sm:right-1.5 sm:size-8 sm:rounded-lg sm:border sm:border-[#93509e]/70 sm:bg-white/90 sm:text-[#93509e] sm:shadow-xs sm:hover:text-white lg:right-4 lg:size-10"
+                    class="absolute right-1.5 top-1/2 z-10 inline-flex h-8 w-5 -translate-y-1/2 items-center justify-center rounded-l-md bg-black/25 text-white backdrop-blur-[2px] transition-colors hover:bg-[#93509e] sm:right-3 sm:size-9 sm:rounded-lg sm:border sm:border-[#93509e]/70 sm:bg-white/90 sm:text-[#93509e] sm:shadow-xs sm:hover:text-white sm:hover:bg-[#93509e] lg:right-5 lg:size-10"
                   >
                     <ChevronRight class="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                   </button>
 
-                  <div class="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 gap-1.5 sm:bottom-2.5 sm:gap-2">
+                  <div class="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 sm:bottom-3 sm:gap-2">
                     <For each={props.banners}>
                       {(_, idx) => (
                         <button
