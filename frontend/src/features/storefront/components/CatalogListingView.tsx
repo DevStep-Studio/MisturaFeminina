@@ -47,9 +47,12 @@ export function CatalogBanner(props: {
     <Show when={hasCustomBanner()}>
       <section
         aria-label="Banner do catálogo"
-        class="relative overflow-hidden bg-[#7c3f87]"
+        class="relative w-full overflow-hidden bg-transparent"
       >
-        <div class="relative mx-auto max-w-[1600px]">
+        <div
+          class="relative w-full aspect-[3/1] overflow-hidden"
+          style={{ "aspect-ratio": "3 / 1" }}
+        >
           <Show
             when={props.href}
             fallback={
@@ -58,17 +61,19 @@ export function CatalogBanner(props: {
                 mobileSrc={props.mobileSrc}
                 alt={props.alt}
                 eager
-                imageClass="mx-auto block h-auto max-h-[60svh] w-full object-contain sm:max-h-[420px]"
+                class="block h-full w-full"
+                imageClass="block h-full w-full object-cover select-none"
               />
             }
           >
-            <a href={props.href!} class="block">
+            <a href={props.href!} class="block h-full w-full">
               <BannerImage
                 src={props.src}
                 mobileSrc={props.mobileSrc}
                 alt={props.alt}
                 eager
-                imageClass="mx-auto block h-auto max-h-[60svh] w-full object-contain sm:max-h-[420px]"
+                class="block h-full w-full"
+                imageClass="block h-full w-full object-cover select-none"
               />
             </a>
           </Show>

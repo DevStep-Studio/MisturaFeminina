@@ -185,6 +185,26 @@ describe("Storefront Responsive & Wholesale Logic Suite", () => {
     expect(heroSection).not.toContain("object-contain");
   });
 
+  it("guarantees catalog and category promotional banner is full-bleed with 3:1 aspect ratio and no lateral bars", () => {
+    const catalogSrc = readFileSync(
+      resolve(
+        __dirname,
+        "../../src/features/storefront/components/CatalogListingView.tsx",
+      ),
+      "utf8",
+    );
+    const bannerFn = catalogSrc.slice(
+      catalogSrc.indexOf("export function CatalogBanner"),
+      catalogSrc.indexOf("interface FacetItem"),
+    );
+    expect(bannerFn).toContain("aspect-[3/1]");
+    expect(bannerFn).toContain("object-cover");
+    expect(bannerFn).not.toContain("max-w-[1600px]");
+    expect(bannerFn).not.toContain("bg-[#7c3f87]");
+    expect(bannerFn).not.toContain("max-h-[420px]");
+    expect(bannerFn).not.toContain("object-contain");
+  });
+
   it("keeps login page free of admin demo credential prefill buttons or hardcoded credentials", () => {
     const loginSrc = readFileSync(
       resolve(__dirname, "../../src/features/auth/components/login-page.tsx"),
