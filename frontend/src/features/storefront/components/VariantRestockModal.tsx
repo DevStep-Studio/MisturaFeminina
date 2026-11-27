@@ -57,9 +57,7 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
     e.preventDefault();
     if (!props.variant) return;
     if (isAvailable()) {
-      setError(
-        `Esta tonalidade já está disponível para compra imediata (${props.variant.available_stock ?? 1} un. em estoque).`,
-      );
+      setError(null);
       setStockAvailableNow(true);
       return;
     }
@@ -103,12 +101,13 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
             ? err.payload.message
             : undefined);
         const finalMsg = validationMsg || err.message;
-        setError(finalMsg);
 
         if (
           finalMsg.toLowerCase().includes("já está disponível") ||
-          finalMsg.toLowerCase().includes("já está em estoque")
+          finalMsg.toLowerCase().includes("já está em estoque") ||
+          finalMsg.toLowerCase().includes("disponível em estoque")
         ) {
+          setError(null);
           setStockAvailableNow(true);
           if (props.variant) {
             props.variant.in_stock = true;
@@ -116,6 +115,8 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
               props.variant.available_stock = 1;
             }
           }
+        } else {
+          setError(finalMsg);
         }
       } else {
         setError("Não foi possível registrar seu aviso agora.");
@@ -179,22 +180,25 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
           </Show>
 
           <Show when={isAvailable()}>
-            <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-900">
-              <p class="font-bold">Esta tonalidade já está em estoque!</p>
-              <p class="mt-0.5 text-[11px] text-emerald-800">
-                Disponível para compra imediata ({props.variant?.available_stock && props.variant.available_stock > 0 ? `${props.variant.available_stock} un.` : "em estoque"}). Não é necessário solicitar aviso.
+            <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900">
+              <div class="flex items-center gap-2">
+                <CheckCircle2 class="h-5 w-5 text-emerald-600 shrink-0" />
+                <p class="text-sm font-bold text-emerald-950">Esta tonalidade já está em estoque!</p>
+              </div>
+              <p class="mt-2 text-xs text-emerald-800 leading-relaxed">
+                Disponível para compra imediata ({props.variant?.available_stock && props.variant.available_stock > 0 ? `${props.variant.available_stock} un.` : "em estoque"}). Não é necessário solicitar aviso de reposição.
               </p>
-              <div class="mt-2.5 flex items-center gap-2">
+              <div class="mt-4 flex items-center gap-2">
                 <a
                   href={`/produto/${props.productSlug}`}
-                  class="inline-flex h-8 items-center justify-center rounded-lg bg-[#93509e] px-4 text-xs font-bold text-white transition-colors hover:bg-[#7c3f87]"
+                  class="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-[#93509e] px-4 text-xs font-bold text-white transition-colors hover:bg-[#7c3f87]"
                 >
                   Ver produto e comprar
                 </a>
                 <button
                   type="button"
                   onClick={() => props.onClose()}
-                  class="h-8 rounded-lg border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                  class="h-9 rounded-lg border border-zinc-300 bg-white px-4 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Fechar
                 </button>
@@ -202,139 +206,141 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
             </div>
           </Show>
 
-          <Show
-            when={!success()}
-            fallback={
-              <div class="mt-5 space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-                <CheckCircle2 class="mx-auto h-9 w-9 text-emerald-600" />
-                <p class="text-sm font-bold text-emerald-950">{success()}</p>
-                <button
-                  type="button"
-                  onClick={() => props.onClose()}
-                  class="h-10 w-full rounded-lg bg-[#93509e] text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#7c3f87]"
-                >
-                  Continuar comprando
-                </button>
-              </div>
-            }
-          >
-            <form
-              onSubmit={(e) => void submitAlert(e)}
-              class="mt-4 space-y-3.5"
+          <Show when={!isAvailable()}>
+            <Show
+              when={!success()}
+              fallback={
+                <div class="mt-5 space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+                  <CheckCircle2 class="mx-auto h-9 w-9 text-emerald-600" />
+                  <p class="text-sm font-bold text-emerald-950">{success()}</p>
+                  <button
+                    type="button"
+                    onClick={() => props.onClose()}
+                    class="h-10 w-full rounded-lg bg-[#93509e] text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#7c3f87]"
+                  >
+                    Continuar comprando
+                  </button>
+                </div>
+              }
             >
-              <Show when={props.whatsappEnabled}>
-                <div class="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setChannel("email")}
-                    class={`flex h-9 items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors ${
-                      channel() === "email"
-                        ? "border-[#93509e] bg-[#FDF2FD] text-[#93509e]"
-                        : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <Mail class="h-3.5 w-3.5" />
-                    E-mail
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setChannel("whatsapp")}
-                    class={`flex h-9 items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors ${
-                      channel() === "whatsapp"
-                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                        : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
-                    }`}
-                  >
-                    <MessageCircle class="h-3.5 w-3.5" />
-                    WhatsApp
-                  </button>
-                </div>
-              </Show>
+              <form
+                onSubmit={(e) => void submitAlert(e)}
+                class="mt-4 space-y-3.5"
+              >
+                <Show when={props.whatsappEnabled}>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setChannel("email")}
+                      class={`flex h-9 items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors ${
+                        channel() === "email"
+                          ? "border-[#93509e] bg-[#FDF2FD] text-[#93509e]"
+                          : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+                      }`}
+                    >
+                      <Mail class="h-3.5 w-3.5" />
+                      E-mail
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChannel("whatsapp")}
+                      class={`flex h-9 items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors ${
+                        channel() === "whatsapp"
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                          : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+                      }`}
+                    >
+                      <MessageCircle class="h-3.5 w-3.5" />
+                      WhatsApp
+                    </button>
+                  </div>
+                </Show>
 
-              <div>
-                <label class="mb-1 block text-xs font-semibold text-zinc-700">
-                  Seu nome (opcional)
+                <div>
+                  <label class="mb-1 block text-xs font-semibold text-zinc-700">
+                    Seu nome (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={name()}
+                    onInput={(e) => setName(e.currentTarget.value)}
+                    placeholder="Ex.: Maria / Studio Unhas"
+                    class="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[#93509e] focus:outline-none"
+                  />
+                </div>
+
+                <Show when={channel() === "email"}>
+                  <div>
+                    <label class="mb-1 block text-xs font-semibold text-zinc-700">
+                      E-mail para notificação *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={email()}
+                      onInput={(e) => setEmail(e.currentTarget.value)}
+                      placeholder="voce@seusalao.com.br"
+                      class="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[#93509e] focus:outline-none"
+                    />
+                  </div>
+                </Show>
+
+                <Show when={channel() === "whatsapp"}>
+                  <div>
+                    <label class="mb-1 block text-xs font-semibold text-zinc-700">
+                      WhatsApp com DDD *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={phone()}
+                      onInput={(e) => setPhone(e.currentTarget.value)}
+                      placeholder="(11) 99999-9999"
+                      class="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[#93509e] focus:outline-none"
+                    />
+                  </div>
+                </Show>
+
+                <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-zinc-50 p-2.5 text-[11px] leading-relaxed text-zinc-600">
+                  <input
+                    type="checkbox"
+                    checked={consent()}
+                    onChange={(e) => setConsent(e.currentTarget.checked)}
+                    class="mt-0.5 h-4 w-4 rounded border-zinc-300 accent-[#93509e]"
+                  />
+                  <span>
+                    Autorizo o envio de uma única notificação quando esta
+                    tonalidade for reposta (LGPD).
+                  </span>
                 </label>
-                <input
-                  type="text"
-                  value={name()}
-                  onInput={(e) => setName(e.currentTarget.value)}
-                  placeholder="Ex.: Maria / Studio Unhas"
-                  class="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[#93509e] focus:outline-none"
-                />
-              </div>
 
-              <Show when={channel() === "email"}>
-                <div>
-                  <label class="mb-1 block text-xs font-semibold text-zinc-700">
-                    E-mail para notificação *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email()}
-                    onInput={(e) => setEmail(e.currentTarget.value)}
-                    placeholder="voce@seusalao.com.br"
-                    class="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[#93509e] focus:outline-none"
-                  />
+                <Show when={error()}>
+                  <p
+                    role="alert"
+                    class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
+                  >
+                    {error()}
+                  </p>
+                </Show>
+
+                <div class="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => props.onClose()}
+                    class="h-10 flex-1 rounded-lg border border-zinc-300 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy()}
+                    class="h-10 flex-1 rounded-lg bg-[#93509e] text-xs font-bold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
+                  >
+                    {busy() ? "Enviando..." : "Me avise"}
+                  </button>
                 </div>
-              </Show>
-
-              <Show when={channel() === "whatsapp"}>
-                <div>
-                  <label class="mb-1 block text-xs font-semibold text-zinc-700">
-                    WhatsApp com DDD *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone()}
-                    onInput={(e) => setPhone(e.currentTarget.value)}
-                    placeholder="(11) 99999-9999"
-                    class="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:border-[#93509e] focus:outline-none"
-                  />
-                </div>
-              </Show>
-
-              <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-zinc-50 p-2.5 text-[11px] leading-relaxed text-zinc-600">
-                <input
-                  type="checkbox"
-                  checked={consent()}
-                  onChange={(e) => setConsent(e.currentTarget.checked)}
-                  class="mt-0.5 h-4 w-4 rounded border-zinc-300 accent-[#93509e]"
-                />
-                <span>
-                  Autorizo o envio de uma única notificação quando esta
-                  tonalidade for reposta (LGPD).
-                </span>
-              </label>
-
-              <Show when={error()}>
-                <p
-                  role="alert"
-                  class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
-                >
-                  {error()}
-                </p>
-              </Show>
-
-              <div class="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => props.onClose()}
-                  class="h-10 flex-1 rounded-lg border border-zinc-300 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy() || isAvailable()}
-                  class="h-10 flex-1 rounded-lg bg-[#93509e] text-xs font-bold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
-                >
-                  {busy() ? "Enviando..." : "Me avise"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </Show>
           </Show>
         </div>
       </div>

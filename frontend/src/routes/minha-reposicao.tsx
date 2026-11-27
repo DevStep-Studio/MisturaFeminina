@@ -171,11 +171,12 @@ function MinhaReposicaoPage() {
   }
 
   function openRestockForItem(item: ReplenishmentItemData) {
-    if (item.available_stock > 0 || item.in_stock) {
+    if (Boolean(item.in_stock) || Number(item.available_stock || 0) > 0) {
       setFeedback({
         type: "ok",
-        text: `O item "${item.product_name}" já está disponível para compra imediata!`,
+        text: `O item "${item.product_name}" já está em estoque e disponível para compra!`,
       });
+      void fetchReplenishmentLists();
       return;
     }
     setRestockTarget({
@@ -617,8 +618,8 @@ function MinhaReposicaoPage() {
                                 <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                                   <Show
                                     when={
-                                      !item.in_stock &&
-                                      item.available_stock <= 0
+                                      !Boolean(item.in_stock) &&
+                                      Number(item.available_stock || 0) <= 0
                                     }
                                   >
                                     <button
@@ -702,7 +703,10 @@ function MinhaReposicaoPage() {
         productName={restockTarget()?.name ?? ""}
         variant={restockTarget()?.variant ?? null}
         whatsappEnabled={false}
-        onClose={() => setRestockTarget(null)}
+        onClose={() => {
+          setRestockTarget(null);
+          void fetchReplenishmentLists();
+        }}
       />
     </StoreShell>
   );

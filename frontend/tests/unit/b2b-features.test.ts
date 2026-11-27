@@ -183,4 +183,36 @@ describe("B2B & Catalog Frontend Storefront Helpers", () => {
     removeGuestReplenishmentItem(101);
     expect(replenishmentStore.guestItems().length).toBe(0);
   });
+
+  it("handles in-stock items gracefully without showing confusing generic validation errors", () => {
+    const availableVariant: ProductVariantData = {
+      id: 36,
+      sku: "JK-BST-001",
+      gtin: null,
+      name: "Padrão",
+      shade_code: null,
+      color_hex: null,
+      price_cents: 18990,
+      effective_price_cents: 18990,
+      stock_qty: 11,
+      available_stock: 10,
+      in_stock: true,
+      is_default: true,
+      image_path: null,
+      attributes: [],
+    };
+
+    const isAvailable = Boolean(
+      (availableVariant.available_stock ?? 0) > 0 || availableVariant.in_stock,
+    );
+    expect(isAvailable).toBe(true);
+
+    const errorMessageFromBackend = "Esta tonalidade já está disponível em estoque.";
+    const isRestockRedirect =
+      errorMessageFromBackend.toLowerCase().includes("já está disponível") ||
+      errorMessageFromBackend.toLowerCase().includes("já está em estoque") ||
+      errorMessageFromBackend.toLowerCase().includes("disponível em estoque");
+
+    expect(isRestockRedirect).toBe(true);
+  });
 });

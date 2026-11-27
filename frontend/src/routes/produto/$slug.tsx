@@ -622,11 +622,16 @@ function ProductDetailPage() {
       setRestockEmail("");
       setRestockName("");
     } catch (err) {
-      setRestockMsg(
-        err instanceof ApiError
-          ? err.message
-          : "Não foi possível registrar seu aviso.",
-      );
+      if (err instanceof ApiError) {
+        const validationMsg =
+          Object.values(err.validation || {}).flat()[0] ||
+          (typeof err.payload?.message === "string"
+            ? err.payload.message
+            : undefined);
+        setRestockMsg(validationMsg || err.message);
+      } else {
+        setRestockMsg("Não foi possível registrar seu aviso.");
+      }
     } finally {
       setRestockBusy(false);
     }
