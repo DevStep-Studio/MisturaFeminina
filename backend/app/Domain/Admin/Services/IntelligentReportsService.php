@@ -55,6 +55,24 @@ class IntelligentReportsService
         }
 
         $terms = [$rawTerm];
+
+        $defaultManicureSynonyms = [
+            'broca' => ['motor', 'lixadeira', 'caneta', 'lixa'],
+            'brocas' => ['motor', 'lixadeira', 'caneta', 'lixas'],
+            'lixadeira' => ['motor', 'caneta', 'broca'],
+            'caneta' => ['motor', 'lixadeira'],
+            'prep' => ['preparador', 'higienizador', 'any lovy'],
+            'top coat' => ['finalizador', 'selante', 'top lirio'],
+            'molde f1' => ['molde para unha', 'kaisa', 'unhas posticas'],
+            'tips' => ['tip', 'unhas posticas', 'bailarina'],
+            'tip' => ['tips', 'unhas posticas', 'bailarina'],
+        ];
+        if (isset($defaultManicureSynonyms[$normalized])) {
+            foreach ($defaultManicureSynonyms[$normalized] as $t) {
+                $terms[] = $t;
+            }
+        }
+
         $synonyms = SearchSynonym::query()->where('is_active', true)->get();
         foreach ($synonyms as $syn) {
             $synTerm = Str::ascii(mb_strtolower($syn->term));

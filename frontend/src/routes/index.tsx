@@ -279,70 +279,223 @@ function rotateList<T>(list: T[], offset: number): T[] {
   return [...list.slice(shift), ...list.slice(0, shift)];
 }
 
+interface ManicureCategoryItem {
+  id: number | string;
+  name: string;
+  slug?: string;
+  href?: string;
+  image: string;
+  badge?: string;
+  subtitle?: string;
+}
+
+const MANICURE_ESSENTIAL_CATEGORIES: ManicureCategoryItem[] = [
+  {
+    id: "alongamento",
+    name: "Alongamento Unhas",
+    slug: "alongamento-unhas",
+    image: "/categories/alongamento-unhas.png",
+    subtitle: "Géis, Polygel, Moldes",
+  },
+  {
+    id: "esmalte-gel",
+    name: "Esmalte em Gel",
+    slug: "esmalte-em-gel",
+    image: "/categories/esmaltes-em-gel.png",
+    subtitle: "Alta Duração & Brilho",
+  },
+  {
+    id: "prep",
+    name: "Preparação & Top Coat",
+    slug: "alongamento-unhas",
+    image: "/categories/prep.png",
+    subtitle: "Prep, Primer e Selante",
+  },
+  {
+    id: "lixas",
+    name: "Lixas & Brocas",
+    slug: "acessorios",
+    image: "/categories/lixas.png",
+    subtitle: "OPI, Diamantadas, Refil",
+  },
+  {
+    id: "alicates",
+    name: "Alicates & Corte",
+    slug: "acessorios",
+    image: "/categories/alicates-cortadores.png",
+    subtitle: "Cutículas e Espátulas",
+  },
+  {
+    id: "maquinarios",
+    name: "Cabines & Motores",
+    slug: "maquinarios",
+    image: "/categories/cabines.png",
+    subtitle: "Cabines Sun UV/LED",
+  },
+  {
+    id: "decoracao",
+    name: "Decoração & Nail Art",
+    slug: "decoracao",
+    image: "/categories/alongamento-unhas.png",
+    subtitle: "Glitters e Pedrarias",
+  },
+  {
+    id: "cuidados",
+    name: "Cuidados & Higiene",
+    slug: "cuidados-unhas",
+    image: "/categories/cuidados-unhas.png",
+    subtitle: "Cutículas e Limpeza",
+  },
+  {
+    id: "kits",
+    name: "Kits Manicure",
+    slug: "kits",
+    image: "/categories/kits.png",
+    subtitle: "Iniciante e Avançado",
+  },
+  {
+    id: "atacado",
+    name: "Atacado & Reposição",
+    href: "/atacado",
+    image: "/categories/descartaveis.png",
+    badge: "Até 25% OFF",
+    subtitle: "Preços Profissionais",
+  },
+];
+
 function CategoryCirclesBlock(props: {
   section: HomeSectionData;
   categories: CategoryNode[];
 }) {
   const [offset, setOffset] = createSignal(0);
 
-  const visibleCategories = () => rotateList(props.categories, offset());
+  // Combina as categorias da loja com as categorias essenciais da manicure
+  const resolvedCategories = (): ManicureCategoryItem[] => {
+    if (props.categories && props.categories.length > 0) {
+      // Cria mapa de imagens padronizadas para slugs conhecidos
+      const imageBySlug: Record<string, string> = {
+        "alongamento-unhas": "/categories/alongamento-unhas.png",
+        "esmalte-em-gel": "/categories/esmaltes-em-gel.png",
+        "esmalte": "/categories/esmaltes-em-gel.png",
+        "maquinarios": "/categories/cabines.png",
+        "acessorios": "/categories/lixas.png",
+        "cuidados-unhas": "/categories/cuidados-unhas.png",
+        "decoracao": "/categories/alongamento-unhas.png",
+        "kits": "/categories/kits.png",
+        "descartaveis": "/categories/descartaveis.png",
+        "cilios-e-sobrancelhas": "/categories/cilios-sobrancelhas.png",
+      };
+
+      const fromApi: ManicureCategoryItem[] = props.categories.slice(0, 9).map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        image: cat.image_path ? assetUrl(cat.image_path) : (imageBySlug[cat.slug] || "/categories/alongamento-unhas.png"),
+      }));
+
+      // Adiciona o item de atacado como 10ª categoria obrigatória
+      fromApi.push({
+        id: "atacado-card",
+        name: "Atacado & Reposição",
+        href: "/atacado",
+        image: "/categories/descartaveis.png",
+        badge: "Até 25% OFF",
+        subtitle: "Preço Profissional",
+      });
+
+      return fromApi;
+    }
+
+    return MANICURE_ESSENTIAL_CATEGORIES;
+  };
+
+  const visibleCategories = () => rotateList(resolvedCategories(), offset());
 
   return (
-    <Show when={props.categories.length > 0}>
-      <section class="mf-scroll-reveal bg-white pt-6 pb-8 sm:pt-8 sm:pb-10">
-        <div class="mx-auto w-[96%] max-w-[1520px]">
-          <SectionHeading
-            title={props.section.title || "Navegue por Categorias"}
-            subtitle={props.section.subtitle}
-          />
+    <section class="mf-scroll-reveal bg-white pt-6 pb-8 sm:pt-8 sm:pb-10">
+      <div class="mx-auto w-[96%] max-w-[1520px]">
+        <SectionHeading
+          title={props.section.title || "Navegue por Categorias"}
+          subtitle={
+            props.section.subtitle ||
+            "Produtos profissionais para alongamento, esmaltação e atendimento em manicure"
+          }
+        />
 
-          <div class="relative">
-            <div class="grid grid-cols-3 gap-5 sm:grid-cols-4 sm:gap-7 lg:grid-cols-6 lg:gap-10 xl:gap-12">
-              <For each={visibleCategories().slice(0, 6)}>
-                {(cat) => (
-                  <Link
-                    to="/categoria/$slug"
-                    params={{ slug: cat.slug }}
-                    class="mf-card-stagger group flex flex-col items-center text-center focus-visible:outline-none"
-                  >
-                    <div class="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border border-[#EAE4F2] bg-white shadow-[0_2px_10px_rgba(43,10,80,0.04)] transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:border-[#93509e]/50 group-hover:shadow-[0_14px_28px_-6px_rgba(147,80,158,0.22)] group-hover:ring-4 group-hover:ring-[#93509e]/10 group-focus-visible:ring-2 group-focus-visible:ring-[#93509e]">
+        <div class="relative">
+          {/* Grid responsivo: 3 colunas em mobile, 5 colunas em tablet, 5 ou 6 colunas em desktop */}
+          <div class="grid grid-cols-2 gap-3 min-[480px]:grid-cols-3 sm:grid-cols-4 sm:gap-6 lg:grid-cols-5 xl:gap-8">
+            <For each={visibleCategories().slice(0, 5)}>
+              {(cat) => {
+                const linkContent = (
+                  <div class="mf-card-stagger group flex flex-col items-center text-center focus-visible:outline-none cursor-pointer">
+                    <div class="relative flex aspect-square w-full max-w-[140px] sm:max-w-[170px] items-center justify-center overflow-hidden rounded-full border border-[#EAE4F2] bg-[#FCF8FD] p-2 shadow-[0_2px_12px_rgba(43,10,80,0.05)] transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:border-[#93509e]/60 group-hover:shadow-[0_14px_28px_-6px_rgba(147,80,158,0.24)] group-hover:ring-4 group-hover:ring-[#93509e]/10 group-focus-visible:ring-2 group-focus-visible:ring-[#93509e]">
                       <img
-                        src={assetUrl(cat.image_path)}
+                        src={cat.image}
                         alt={cat.name}
-                        class="aspect-square h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.08]"
+                        class="aspect-square h-full w-full object-contain transition-transform duration-500 ease-out group-hover:scale-[1.08]"
                         loading="lazy"
                       />
+                      <Show when={cat.badge}>
+                        <span class="absolute bottom-1.5 inline-flex items-center rounded-full bg-[#93509e] px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold text-white shadow-xs">
+                          {cat.badge}
+                        </span>
+                      </Show>
                     </div>
-                    <span class="mt-3 inline-flex items-center justify-center rounded-lg px-3.5 py-1 text-[13px] font-bold leading-normal text-[#93509e] transition-all duration-300 ease-out group-hover:bg-[#93509e] group-hover:text-white sm:text-[14px]">
+                    <span class="mt-2.5 inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-[13px] font-bold leading-tight text-[#2E0C49] transition-all duration-300 ease-out group-hover:text-[#93509e] sm:text-[14px]">
                       {cat.name}
                     </span>
-                  </Link>
-                )}
-              </For>
-            </div>
+                    <Show when={cat.subtitle}>
+                      <span class="mt-0.5 hidden text-[11px] font-medium text-zinc-500 sm:block">
+                        {cat.subtitle}
+                      </span>
+                    </Show>
+                  </div>
+                );
 
-            <Show when={props.categories.length > 1}>
-              <button
-                type="button"
-                onClick={() => setOffset((o) => o - 1)}
-                aria-label="Categorias anteriores"
-                class="absolute left-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition-all duration-200 hover:bg-[#93509e] hover:text-white active:scale-95"
-              >
-                <ChevronLeft class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setOffset((o) => o + 1)}
-                aria-label="Próximas categorias"
-                class="absolute right-0 top-[calc(50%-18px)] z-10 inline-flex h-[44px] w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg border border-[#93509e] bg-white text-[#93509e] shadow-sm transition-all duration-200 hover:bg-[#93509e] hover:text-white active:scale-95"
-              >
-                <ChevronRight class="h-5 w-5 stroke-[2.2]" aria-hidden="true" />
-              </button>
-            </Show>
+                return (
+                  <Show
+                    when={cat.href}
+                    fallback={
+                      <Link
+                        to="/categoria/$slug"
+                        params={{ slug: cat.slug || "alongamento-unhas" }}
+                        class="block"
+                      >
+                        {linkContent}
+                      </Link>
+                    }
+                  >
+                    <a href={cat.href!} class="block">
+                      {linkContent}
+                    </a>
+                  </Show>
+                );
+              }}
+            </For>
           </div>
+
+          <Show when={resolvedCategories().length > 5}>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o - 1)}
+              aria-label="Categorias anteriores"
+              class="absolute -left-2 top-[35%] z-10 inline-flex h-[38px] w-[38px] sm:h-[44px] sm:w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#93509e]/30 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95"
+            >
+              <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5 stroke-[2.2]" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o + 1)}
+              aria-label="Próximas categorias"
+              class="absolute -right-2 top-[35%] z-10 inline-flex h-[38px] w-[38px] sm:h-[44px] sm:w-[44px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#93509e]/30 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95"
+            >
+              <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5 stroke-[2.2]" aria-hidden="true" />
+            </button>
+          </Show>
         </div>
-      </section>
-    </Show>
+      </div>
+    </section>
   );
 }
 
@@ -355,22 +508,54 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
       : [];
   const filter = () => String(props.section.config?.filter ?? "featured");
   const isCountdownOffers = () =>
-    filter() === "offers" ||
-    props.section.key === "offers_week";
-  const isBorderless = () =>
-    Boolean(props.section.config?.borderless);
+    filter() === "offers" || props.section.key === "offers_week";
+  const isBorderless = () => Boolean(props.section.config?.borderless);
   const showFeaturedBadge = () =>
     filter() === "featured" ||
     Boolean(props.section.config?.show_featured_badge);
-  const showViewAll = () =>
-    props.section.config?.show_view_all !== false;
+  const showViewAll = () => props.section.config?.show_view_all !== false;
+
+  // Quantidade de produtos com desconto comprovado real no banco
+  const promoCount = () =>
+    products().filter(
+      (p) => p.effective_price_cents < p.price_cents && p.discount_percent > 0,
+    ).length;
+
+  // Título editorial legítimo e comercial conforme diretrizes
+  const displayTitle = () => {
+    if (props.section.title) {
+      if (isCountdownOffers() && promoCount() === 0) {
+        return "Seleção da Mistura";
+      }
+      return props.section.title;
+    }
+    if (isCountdownOffers()) {
+      return promoCount() > 0 ? "Ofertas Especiais" : "Seleção da Mistura";
+    }
+    return "Destaques do Catálogo";
+  };
+
+  const displaySubtitle = () => {
+    if (props.section.subtitle) return props.section.subtitle;
+    if (isCountdownOffers()) {
+      return promoCount() > 0
+        ? "Produtos com desconto especial no catálogo"
+        : "Os produtos preferidos das manicures e clientes da Mistura";
+    }
+    return undefined;
+  };
+
   const viewAllHref = () => {
     const cta = props.section.config?.cta_url;
     if (typeof cta === "string" && cta.length > 0) return cta;
     if (filter() === "offers") return "/promocoes";
     if (filter() === "new_arrivals") return "/novidades";
     const catSlug = props.section.config?.category_slug;
-    if (filter() === "category" && typeof catSlug === "string" && catSlug.length > 0) {
+    if (
+      filter() === "category" &&
+      typeof catSlug === "string" &&
+      catSlug.length > 0
+    ) {
       return `/categoria/${catSlug}`;
     }
     return "/buscar";
@@ -382,21 +567,16 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
     <Show when={products().length > 0}>
       <section
         class={`mf-scroll-reveal ${
-          isCountdownOffers()
-            ? "bg-[#F3F3F3] pb-[24px] pt-[30px]"
+          isCountdownOffers() && promoCount() > 0
+            ? "bg-[#FAF5FB] border-y border-[#F3E2F6] pb-[26px] pt-[30px]"
             : "bg-white py-8 sm:py-10"
         }`}
       >
         <div class="mx-auto w-[96%] max-w-[1520px]">
           <SectionHeading
             align="left"
-            title={props.section.title || "Destaques"}
-            subtitle={
-              props.section.subtitle ||
-              (isCountdownOffers()
-                ? "Produtos com os melhores preços do mercado, confira já!"
-                : undefined)
-            }
+            title={displayTitle()}
+            subtitle={displaySubtitle()}
             action={
               <Show when={showViewAll()}>
                 <Link
@@ -414,7 +594,17 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
           />
 
           <div class="relative">
-            <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+            <div
+              class={`grid gap-3 sm:gap-5 ${
+                products().length === 1
+                  ? "grid-cols-1 max-w-sm mx-auto"
+                  : products().length === 2
+                  ? "grid-cols-2 max-w-2xl mx-auto"
+                  : products().length === 3
+                  ? "grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto"
+                  : "grid-cols-2 lg:grid-cols-4"
+              }`}
+            >
               <For each={visibleProducts().slice(0, 4)}>
                 {(product) => (
                   <ProductCard
@@ -426,11 +616,11 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
               </For>
             </div>
 
-            <Show when={products().length > 2}>
+            <Show when={products().length > 4}>
               <button
                 type="button"
                 onClick={() => setOffset((o) => o - 1)}
-                aria-label={`Produtos anteriores em ${props.section.title || "vitrine"}`}
+                aria-label={`Produtos anteriores em ${displayTitle()}`}
                 class="absolute -left-2 sm:-left-3.5 top-[40%] z-10 inline-flex h-[36px] w-[36px] sm:h-[44px] sm:w-[44px] -translate-y-1/2 items-center justify-center rounded-full border border-[#93509e]/30 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95"
               >
                 <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
@@ -438,7 +628,7 @@ function ProductShowcaseBlock(props: { section: HomeSectionData }) {
               <button
                 type="button"
                 onClick={() => setOffset((o) => o + 1)}
-                aria-label={`Próximos produtos em ${props.section.title || "vitrine"}`}
+                aria-label={`Próximos produtos em ${displayTitle()}`}
                 class="absolute -right-2 sm:-right-3.5 top-[40%] z-10 inline-flex h-[36px] w-[36px] sm:h-[44px] sm:w-[44px] -translate-y-1/2 items-center justify-center rounded-full border border-[#93509e]/30 bg-white text-[#93509e] shadow-md transition hover:bg-[#93509e] hover:text-white active:scale-95"
               >
                 <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
@@ -729,8 +919,8 @@ function getDefaultHomeSections(): HomeSectionData[] {
       id: 1003,
       key: "fallback-categories",
       type: "category_circles",
-      title: "Navegue por Departamentos",
-      subtitle: "Conheça nossas principais categorias de beleza e unhas",
+      title: "Navegue por Categorias",
+      subtitle: "Produtos profissionais para alongamento, esmaltação e atendimento em manicure",
       config: {},
       data: [
         { id: 45, name: "Alongamento Unhas", slug: "alongamento-unhas", image_path: null },

@@ -62,26 +62,48 @@ export function StoreHeader() {
   });
 
   const settings = () => storefrontStore.settings();
-  const categories = () => storefrontStore.bootstrap().menu_categories;
+  const categories = () => {
+    const raw = storefrontStore.bootstrap().menu_categories;
+    if (!raw.length) return raw;
+    // Prioriza a ordem da jornada da manicure
+    const priorityOrder = [
+      "alongamento-unhas",
+      "esmalte-em-gel",
+      "esmalte",
+      "maquinarios",
+      "acessorios",
+      "cuidados-unhas",
+      "decoracao",
+      "kits",
+      "descartaveis",
+      "higiene-e-esterilizacao",
+      "cilios-e-sobrancelhas",
+      "depilacao",
+    ];
+    return [...raw].sort((a, b) => {
+      const idxA = priorityOrder.indexOf(a.slug);
+      const idxB = priorityOrder.indexOf(b.slug);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  };
   const megaMenuColumns = () => {
     const cats = categories();
     if (!cats.length) return [];
     const bySlug = new Map(cats.map((c) => [c.slug, c]));
 
-    const col1Slugs = ["acessorios", "maquinarios"];
-    const col2Slugs = ["alongamento-unhas"];
-    const col3Slugs = [
+    const col1Slugs = ["alongamento-unhas"];
+    const col2Slugs = ["esmalte-em-gel", "esmalte"];
+    const col3Slugs = ["maquinarios", "acessorios"];
+    const col4Slugs = [
       "cuidados-unhas",
       "decoracao",
-      "esmalte",
-      "esmalte-em-gel",
-    ];
-    const col4Slugs = [
       "kits",
-      "cilios-e-sobrancelhas",
-      "depilacao",
       "descartaveis",
       "higiene-e-esterilizacao",
+      "cilios-e-sobrancelhas",
     ];
 
     const used = new Set<string>();
@@ -860,6 +882,15 @@ export function StoreHeader() {
             >
               <Boxes class="size-4 shrink-0 text-[#93509e]" aria-hidden="true" />
               <span>Atacado</span>
+            </Link>
+
+            {/* Reposição Rápida Link */}
+            <Link
+              to="/minha-reposicao"
+              onClick={closeAllMenus}
+              class="hidden sm:inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-dashed border-[#DFC4E6] bg-[#FAF3FC] px-2.5 py-1.5 text-[12px] font-bold text-[#7C2784] transition-colors hover:bg-[#F3E2F6]"
+            >
+              <span>Reposição</span>
             </Link>
 
             {/* Promoções Pill & Mega-Panel */}

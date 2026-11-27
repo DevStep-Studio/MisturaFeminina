@@ -4,13 +4,15 @@ import ArrowRight from "lucide-solid/icons/arrow-right";
 import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
 import ShoppingBag from "lucide-solid/icons/shopping-bag";
+import Sparkles from "lucide-solid/icons/sparkles";
 import Tag from "lucide-solid/icons/tag";
 import Trash2 from "lucide-solid/icons/trash";
-import { For, Show, createSignal, onMount } from "solid-js";
+import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { ShippingQuoteWidget } from "../features/storefront/components/ShippingQuoteWidget";
 import { CartShareWidget } from "../features/storefront/components/CartShareWidget";
 import { StoreShell } from "../features/storefront/components/StoreShell";
 import {
+  addCartItem,
   applyCartCoupon,
   refreshCart,
   removeCartCoupon,
@@ -19,12 +21,14 @@ import {
   storefrontStore,
   updateCartItemQty,
 } from "../features/storefront/store";
-import { ApiError } from "../lib/api";
+import type { ProductCardData } from "../features/storefront/types";
+import { ApiError, api } from "../lib/api";
 import { formatCents } from "../lib/format";
 import { seoHead } from "../lib/seo";
 import {
   mapCartItemsToGa4,
   trackAddShippingInfo,
+  trackAddToCart,
   trackRemoveFromCart,
   trackViewCart,
 } from "../monitoring/analytics";
@@ -40,6 +44,149 @@ export const Route = createFileRoute("/carrinho")({
     }),
   component: CartPage,
 });
+
+function CartQuickAddEssentials() {
+  const [addingId, setAddingId] = createSignal<number | null>(null);
+  const [addedIds, setAddedIds] = createSignal<number[]>([]);
+
+  const [essentials] = createResource(async () => {
+    try {
+      const res = await api<{ data: { products: ProductCardData[] } }>(
+        "/catalog/products?per_page=12",
+        { authenticated: false },
+      );
+      const list = res.data?.products ?? [];
+      // Produtos de reposição rápida e ticket acessível (até R$ 35) com estoque
+      return list
+        .filter((p) => p.in_stock && p.effective_price_cents <= 3500)
+        .slice(0, 4);
+    } catch {
+      return [];
+    }
+  });
+
+  const handleQuickAdd = async (p: ProductCardData) => {
+    if (!p.default_variant_id) return;
+    setAddingId(p.id);
+    try {
+      await addCartItem(p.default_variant_id, 1, true);
+      setAddedIds((prev) => [...prev, p.id]);
+      trackAddToCart({
+        currency: "BRL",
+        value: p.effective_price_cents / 100,
+        items: [
+          {
+            item_id: p.sku,
+            item_name: p.name,
+            price: p.effective_price_cents / 100,
+            quantity: 1,
+          },
+        ],
+      });
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  return (
+    <Show when={essentials() && essentials()!.length > 0}>
+      <div class="mt-6 rounded-2xl border border-[#ECD4EF] bg-[#FDF8FD] p-4 sm:p-5">
+        <div class="flex items-center gap-2">
+          <Sparkles class="size-4 text-[#93509e]" />
+          <h3 class="text-sm font-extrabold text-[#2E0C49]">
+            Aproveite o mesmo frete: itens essenciais de reposição rápida
+          </h3>
+        </div>
+        <p class="mt-1 text-xs text-zinc-600">
+          Lixas, óleos, palitos e preparadores indispensáveis no seu atendimento
+        </p>
+
+        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <For each={essentials()}>
+            {(p) => {
+              const isAdded = () => addedIds().includes(p.id);
+              const isAdding = () => addingId() === p.id;
+              return (
+                <div class="flex flex-col justify-between rounded-xl border border-zinc-200/80 bg-white p-2.5 shadow-2xs transition hover:border-[#93509e]/40">
+                  <div>
+                    <div class="aspect-square w-full overflow-hidden bg-white p-1">
+                      <ProductImage
+                        src={p.primary_image}
+                        alt={p.name}
+                        class="h-full w-full object-contain"
+                      />
+                    </div>
+                    <p
+                      class="mt-1.5 line-clamp-2 text-xs font-semibold text-[#2E0C49]"
+                      title={p.name}
+                    >
+                      {p.name}
+                    </p>
+                  </div>
+                  <div class="mt-2 flex items-center justify-between gap-1 border-t border-zinc-100 pt-2">
+                    <span class="text-xs font-extrabold text-[#8E237C]">
+                      {formatCents(p.effective_price_cents)}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isAdding() || isAdded() || !p.in_stock}
+                      onClick={() => void handleQuickAdd(p)}
+                      class={`h-7 rounded-md px-2 text-[11px] font-bold transition ${
+                        isAdded()
+                          ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "bg-[#93509e] text-white hover:bg-[#7c3f87]"
+                      }`}
+                    >
+                      {isAdded()
+                        ? "Adicionado"
+                        : isAdding()
+                        ? "..."
+                        : "+ Adicionar"}
+                    </button>
+                  </div>
+                </div>
+              );
+            }}
+          </For>
+        </div>
+      </div>
+    </Show>
+  );
+}
+
+function WholesaleAndReplenishmentBanner() {
+  return (
+    <div class="mt-6 rounded-2xl border border-[#DFC4E6] bg-[#FAF3FC] p-4 sm:p-5">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <span class="inline-flex items-center gap-1 rounded bg-[#93509e] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+            Para Manicures & Atacado
+          </span>
+          <h4 class="mt-1.5 text-sm font-bold text-[#2E0C49]">
+            Economize até 25% no Atacado ou monte sua Lista de Reposição
+          </h4>
+          <p class="mt-0.5 text-xs text-zinc-600">
+            Compre em maior volume com desconto progressivo ou salve sua reposição para pedir em 1 clique.
+          </p>
+        </div>
+        <div class="flex shrink-0 gap-2">
+          <Link
+            to="/atacado"
+            class="inline-flex items-center justify-center rounded-lg border border-[#93509e] bg-white px-3 py-1.5 text-xs font-bold text-[#93509e] transition hover:bg-[#93509e] hover:text-white"
+          >
+            Ver Atacado
+          </Link>
+          <Link
+            to="/minha-reposicao"
+            class="inline-flex items-center justify-center rounded-lg bg-[#93509e] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#7c3f87]"
+          >
+            Lista de Reposição
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CartPage() {
   const [couponInput, setCouponInput] = createSignal("");
@@ -100,21 +247,36 @@ function CartPage() {
         <Show
           when={cart() && cart()!.items.length > 0 ? cart() : null}
           fallback={
-            <div class="mt-8 flex flex-col items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-16 text-center">
-              <ShoppingBag class="h-12 w-12 text-zinc-400" />
-              <h2 class="mt-4 text-lg font-bold text-zinc-900">
-                Seu carrinho está vazio
-              </h2>
-              <p class="mt-1 max-w-sm text-sm text-zinc-600">
-                Adicione cosméticos, esmaltes, cuidados faciais ou acessórios
-                para continuar.
-              </p>
-              <Link
-                to="/promocoes"
-                class="mt-6 rounded-lg bg-[var(--mf-primary)] px-6 py-3 text-sm font-semibold text-white hover:bg-[var(--mf-primary-hover)]"
-              >
-                Ver promoções da loja
-              </Link>
+            <div class="mt-8 space-y-6">
+              <div class="flex flex-col items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-16 text-center">
+                <ShoppingBag class="h-12 w-12 text-zinc-400" />
+                <h2 class="mt-4 text-lg font-bold text-zinc-900">
+                  Seu carrinho está vazio
+                </h2>
+                <p class="mt-1 max-w-sm text-sm text-zinc-600">
+                  Adicione cosméticos, esmaltes, preparadores ou comece pelas reposições essenciais da sua bancada.
+                </p>
+                <div class="mt-6 flex flex-wrap justify-center gap-3">
+                  <Link
+                    to="/promocoes"
+                    class="rounded-lg bg-[var(--mf-primary)] px-6 py-3 text-sm font-semibold text-white hover:bg-[var(--mf-primary-hover)]"
+                  >
+                    Ver promoções da loja
+                  </Link>
+                  <Link
+                    to="/atacado"
+                    class="rounded-lg border border-[var(--mf-primary)] bg-white px-6 py-3 text-sm font-semibold text-[var(--mf-primary)] hover:bg-[var(--mf-primary)]/5"
+                  >
+                    Comprar no Atacado
+                  </Link>
+                </div>
+              </div>
+
+              {/* Itens Essenciais de Reposição Rápida no Carrinho Vazio */}
+              <CartQuickAddEssentials />
+
+              {/* Banner de Atacado & Lista de Reposição */}
+              <WholesaleAndReplenishmentBanner />
             </div>
           }
         >
@@ -284,6 +446,12 @@ function CartPage() {
                     )}
                   </For>
                 </ul>
+
+                {/* Itens Essenciais de Reposição Rápida */}
+                <CartQuickAddEssentials />
+
+                {/* Banner de Atacado & Lista de Reposição */}
+                <WholesaleAndReplenishmentBanner />
               </div>
 
               {/* Summary column */}

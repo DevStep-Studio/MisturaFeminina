@@ -200,8 +200,10 @@ class CatalogController extends Controller
                 foreach ($expandedTerms as $searchCandidate) {
                     $outer->orWhere('sku', 'like', "%{$searchCandidate}%")
                         ->orWhere('name', 'like', "%{$searchCandidate}%")
+                        ->orWhere('tags', 'like', "%{$searchCandidate}%")
                         ->orWhereHas('variants', fn ($vq) => $vq->where('sku', 'like', "%{$searchCandidate}%")->orWhere('name', 'like', "%{$searchCandidate}%")->orWhere('shade_code', 'like', "%{$searchCandidate}%"))
-                        ->orWhereHas('brand', fn ($bq) => $bq->where('name', 'like', "%{$searchCandidate}%"));
+                        ->orWhereHas('brand', fn ($bq) => $bq->where('name', 'like', "%{$searchCandidate}%"))
+                        ->orWhereHas('categories', fn ($cq) => $cq->where('name', 'like', "%{$searchCandidate}%")->orWhere('slug', 'like', "%{$searchCandidate}%"));
                 }
 
                 if (count($terms) > 0) {

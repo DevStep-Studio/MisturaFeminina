@@ -46,6 +46,7 @@ import {
 } from "../../features/storefront/store";
 import { session } from "../../security/session";
 import type {
+  ProductCardData,
   ProductDetailData,
   ProductVariantData,
 } from "../../features/storefront/types";
@@ -202,6 +203,158 @@ export const Route = createFileRoute("/produto/$slug")({
   },
   component: ProductDetailPage,
 });
+
+function CompleteAtendimentoSection(props: {
+  product: ProductDetailData;
+}) {
+  const [addingId, setAddingId] = createSignal<number | null>(null);
+  const [addedIds, setAddedIds] = createSignal<number[]>([]);
+
+  const [complementaryProducts] = createResource(
+    () => props.product,
+    async (p) => {
+      try {
+        const text = `${p.name} ${(p.categories ?? []).map((c) => c.name).join(" ")}`.toLowerCase();
+        let queryTerm = "prep";
+        if (text.includes("gel") && !text.includes("cabine")) {
+          queryTerm = "prep";
+        } else if (text.includes("cabine")) {
+          queryTerm = "gel";
+        } else if (text.includes("motor") || text.includes("lixadeira") || text.includes("caneta")) {
+          queryTerm = "caneta";
+        } else if (text.includes("unha") || text.includes("postica") || text.includes("tip") || text.includes("molde")) {
+          queryTerm = "lixa";
+        } else if (text.includes("esmalte")) {
+          queryTerm = "top coat";
+        }
+
+        const res = await api<{ data: { products: ProductCardData[] } }>(
+          `/catalog/search?q=${encodeURIComponent(queryTerm)}`,
+          { authenticated: false },
+        );
+        const list = (res.data?.products ?? []).filter((item) => item.id !== p.id && item.in_stock);
+        if (list.length > 0) {
+          return list.slice(0, 4);
+        }
+        // Fallback resiliente usando related_products se a busca retornar vazia
+        return (p.related_products ?? []).slice(0, 4);
+      } catch {
+        return (p.related_products ?? []).slice(0, 4);
+      }
+    },
+  );
+
+  const handleAddComplementary = async (item: ProductCardData) => {
+    if (!item.default_variant_id) return;
+    setAddingId(item.id);
+    try {
+      await addCartItem(item.default_variant_id, 1, true);
+      setAddedIds((prev) => [...prev, item.id]);
+      trackAddToCart({
+        currency: "BRL",
+        value: item.effective_price_cents / 100,
+        items: [
+          {
+            item_id: item.sku,
+            item_name: item.name,
+            price: item.effective_price_cents / 100,
+            item_brand: item.brand?.name,
+            quantity: 1,
+          },
+        ],
+      });
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  return (
+    <Show when={complementaryProducts() && complementaryProducts()!.length > 0}>
+      <section class="mt-12 rounded-2xl border border-[#ECD4EF] bg-[#FDF9FE] p-5 sm:p-7 shadow-xs">
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div class="inline-flex items-center gap-1.5 rounded-full bg-[#93509e]/10 px-2.5 py-0.5 text-[11px] font-extrabold text-[#7C2784]">
+              <Sparkles class="size-3.5" aria-hidden="true" />
+              <span>Complete seu Atendimento Profissional</span>
+            </div>
+            <h2 class="mt-1 text-lg font-extrabold text-[#2E0C49] sm:text-xl">
+              Combine com este produto
+            </h2>
+            <p class="text-xs text-zinc-600 sm:text-sm">
+              Itens indispensáveis frequentemente utilizados em conjunto para um resultado impecável
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          <For each={complementaryProducts()}>
+            {(item) => {
+              const isAdded = () => addedIds().includes(item.id);
+              const isAdding = () => addingId() === item.id;
+
+              return (
+                <div class="flex flex-col justify-between rounded-xl border border-zinc-200/80 bg-white p-3 shadow-2xs transition-all hover:border-[#93509e]/40 hover:shadow-xs">
+                  <div>
+                    <Link
+                      to="/produto/$slug"
+                      params={{ slug: item.slug }}
+                      class="block aspect-square overflow-hidden bg-white p-1"
+                    >
+                      <ProductImage
+                        src={item.primary_image}
+                        alt={item.name}
+                        width="160"
+                        height="160"
+                        class="h-full w-full object-contain"
+                      />
+                    </Link>
+                    <Link
+                      to="/produto/$slug"
+                      params={{ slug: item.slug }}
+                      class="mt-2 block line-clamp-2 text-xs font-semibold text-[#2E0C49] hover:text-[#93509e]"
+                      title={item.name}
+                    >
+                      {item.name}
+                    </Link>
+                  </div>
+
+                  <div class="mt-3 pt-2 border-t border-zinc-100">
+                    <p class="text-sm font-extrabold text-[#8E237C]">
+                      {formatCents(item.effective_price_cents)}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isAdding() || isAdded() || !item.in_stock}
+                      onClick={() => void handleAddComplementary(item)}
+                      class={`mt-2 flex h-8 w-full items-center justify-center gap-1 rounded-lg text-xs font-bold transition-all ${
+                        isAdded()
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-[#93509e] text-white hover:bg-[#7c3f87]"
+                      }`}
+                    >
+                      <Show
+                        when={isAdded()}
+                        fallback={
+                          <>
+                            <Plus class="size-3.5" />
+                            <span>{isAdding() ? "Adicionando..." : "Adicionar junto"}</span>
+                          </>
+                        }
+                      >
+                        <CheckCircle2 class="size-3.5" />
+                        <span>Adicionado!</span>
+                      </Show>
+                    </button>
+                  </div>
+                </div>
+              );
+            }}
+          </For>
+        </div>
+      </section>
+    </Show>
+  );
+}
 
 function ProductDetailPage() {
   const params = Route.useParams();
@@ -1949,6 +2102,9 @@ function ProductDetailPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Bloco de Cross-sell: Complete seu Atendimento */}
+                <CompleteAtendimentoSection product={p()} />
 
                 {/* Produtos relacionados */}
                 <Show
