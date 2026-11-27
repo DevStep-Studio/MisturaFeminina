@@ -114,3 +114,31 @@ it('allows uploading review photo with validation', function (): void {
     $res->assertJsonStructure(['data' => ['path']]);
     expect($res->json('data.path'))->toContain('reviews/');
 });
+
+it('allows admin to store authorized external review without verified purchase flag', function (): void {
+    $admin = User::query()->where('email', 'admin@misturafeminina.local')->firstOrFail();
+    $product = Product::query()->where('is_active', true)->firstOrFail();
+
+    $res = $this->actingAs($admin)->postJson('/api/v1/admin/reviews/external', [
+        'product_id' => $product->id,
+        'author_name' => 'Renata Calheiros',
+        'rating' => 4,
+        'title' => 'Excelente sucção e acabamento',
+        'body' => 'Muito bom para a mesa de manicure. Remove toda a poeira com eficiência.',
+        'source_name' => 'Jack Cosméticos',
+        'source_url' => 'https://jackcosmeticos.com.br/produtos/coletor-de-po-sc808-1',
+        'variant_name' => 'Bivolt',
+        'photos' => ['/storage/reviews/coletor-mesa.webp'],
+        'status' => 'approved',
+    ]);
+
+    $res->assertStatus(201);
+    $review = Review::query()->where('product_id', $product->id)->latest('id')->first();
+    expect($review)->not->toBeNull();
+    expect($review->is_external)->toBeTrue();
+    expect($review->is_verified_purchase)->toBeFalse();
+    expect($review->author_name)->toBe('Renata C.');
+    expect($review->source_name)->toBe('Jack Cosméticos');
+    expect($review->source_url)->toBe('https://jackcosmeticos.com.br/produtos/coletor-de-po-sc808-1');
+    expect($review->status)->toBe('approved');
+});

@@ -192,6 +192,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::get('catalog/export-csv', [AdminCatalogController::class, 'exportCsv'])->middleware('permission:catalog.view');
         Route::post('catalog/import-csv', [AdminCatalogController::class, 'importCsv'])->middleware('permission:catalog.write');
         Route::get('reviews', [AdminCatalogController::class, 'listReviews'])->middleware('permission:marketing.view');
+        Route::post('reviews/external', [AdminCatalogController::class, 'storeExternalReview'])->middleware('permission:catalog.write');
         Route::patch('reviews/{id}', [AdminCatalogController::class, 'moderateReview'])->middleware('permission:reviews.moderate');
         Route::get('restock-requests', [AdminCatalogController::class, 'listRestockRequests'])->middleware('permission:catalog.view');
         Route::get('restock-alerts/summary', [AdminCatalogController::class, 'restockSummary'])->middleware('permission:catalog.view');

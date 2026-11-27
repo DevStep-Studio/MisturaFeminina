@@ -1484,6 +1484,49 @@ class AdminCatalogController extends Controller
         return response()->json(['data' => $review]);
     }
 
+    public function storeExternalReview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'author_name' => ['required', 'string', 'max:100'],
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'title' => ['nullable', 'string', 'max:160'],
+            'body' => ['required', 'string', 'min:5', 'max:2000'],
+            'source_name' => ['required', 'string', 'max:120'],
+            'source_url' => ['nullable', 'string', 'url', 'max:500'],
+            'variant_name' => ['nullable', 'string', 'max:120'],
+            'photos' => ['nullable', 'array', 'max:5'],
+            'photos.*' => ['string', 'max:500'],
+            'status' => ['nullable', Rule::in(['approved', 'pending', 'rejected'])],
+        ]);
+
+        $nameParts = preg_split('/\s+/', trim((string) $validated['author_name'])) ?: ['Cliente'];
+        $cleanAuthorName = count($nameParts) > 1
+            ? $nameParts[0] . ' ' . mb_substr($nameParts[count($nameParts) - 1], 0, 1) . '.'
+            : ($nameParts[0] ?: 'Cliente');
+
+        $review = Review::query()->create([
+            'product_id' => (int) $validated['product_id'],
+            'user_id' => null,
+            'author_name' => $cleanAuthorName,
+            'author_email' => null,
+            'rating' => (int) $validated['rating'],
+            'title' => $validated['title'] ?? null,
+            'body' => $validated['body'],
+            'photos' => ! empty($validated['photos']) ? array_values(array_filter($validated['photos'])) : null,
+            'is_verified_purchase' => false,
+            'is_external' => true,
+            'source_name' => $validated['source_name'],
+            'source_url' => $validated['source_url'] ?? null,
+            'variant_name' => $validated['variant_name'] ?? null,
+            'status' => $validated['status'] ?? 'approved',
+        ]);
+
+        Cache::flush();
+
+        return response()->json(['data' => $review], 201);
+    }
+
     public function listRestockRequests(): JsonResponse
     {
         $requests = RestockRequest::query()

@@ -313,6 +313,14 @@ function AdminProductsPage() {
     },
   );
 
+  const [reviewSourceFilter, setReviewSourceFilter] = createSignal<"all" | "internal" | "external">("all");
+  const filteredReviews = createMemo(() => {
+    const list = reviews() ?? [];
+    if (reviewSourceFilter() === "internal") return list.filter((r) => !r.is_external);
+    if (reviewSourceFilter() === "external") return list.filter((r) => r.is_external);
+    return list;
+  });
+
   const productList = () => productsPage()?.data ?? [];
   const totalResults = () => productsPage()?.total ?? 0;
   const activeFilterCount = () => countActiveCatalogFilters(filters());
@@ -1241,11 +1249,62 @@ function AdminProductsPage() {
       {/* VIEW: REVIEWS */}
       <Show when={currentView() === "avaliacoes"}>
         <section class="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 class="mb-3 text-base font-bold text-zinc-900">
-            Moderação de avaliações
-          </h2>
-          <ul class="divide-y divide-zinc-200 text-sm">
-            <For each={reviews() ?? []}>
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-3">
+            <div>
+              <h2 class="text-base font-bold text-zinc-900">
+                Moderação de avaliações
+              </h2>
+              <p class="text-xs text-zinc-500">
+                Gerencie e modere avaliações de clientes e depoimentos autorizados de fontes externas.
+              </p>
+            </div>
+            <div class="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setReviewSourceFilter("all")}
+                class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                  reviewSourceFilter() === "all"
+                    ? "bg-white text-[#93509e] shadow-2xs"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                Todas ({reviews()?.length ?? 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewSourceFilter("internal")}
+                class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                  reviewSourceFilter() === "internal"
+                    ? "bg-white text-[#93509e] shadow-2xs"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                Clientes ({reviews()?.filter((r) => !r.is_external).length ?? 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewSourceFilter("external")}
+                class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                  reviewSourceFilter() === "external"
+                    ? "bg-white text-[#93509e] shadow-2xs"
+                    : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                Externas ({reviews()?.filter((r) => r.is_external).length ?? 0})
+              </button>
+            </div>
+          </div>
+
+          <Show
+            when={filteredReviews().length > 0}
+            fallback={
+              <p class="py-6 text-center text-xs text-zinc-500">
+                Nenhuma avaliação encontrada para o filtro selecionado.
+              </p>
+            }
+          >
+            <ul class="divide-y divide-zinc-200 text-sm">
+              <For each={filteredReviews()}>
               {(rev) => (
                 <li class="flex flex-wrap items-start justify-between gap-3 py-3">
                   <div class="space-y-1.5 max-w-2xl">
@@ -1328,7 +1387,8 @@ function AdminProductsPage() {
               )}
             </For>
           </ul>
-        </section>
+        </Show>
+      </section>
       </Show>
 
       {/* VIEW: SPREADSHEET (XLSX / CSV) IMPORT/EXPORT */}
