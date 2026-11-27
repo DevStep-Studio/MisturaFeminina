@@ -82,7 +82,9 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
       );
     } catch (err) {
       if (err instanceof ApiError) {
-        const validationMsg = Object.values(err.validation || {}).flat()[0];
+        const validationMsg =
+          Object.values(err.validation || {}).flat()[0] ||
+          (typeof err.payload?.message === "string" ? err.payload.message : undefined);
         setError(validationMsg || err.message);
       } else {
         setError("Não foi possível registrar seu aviso agora.");
