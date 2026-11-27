@@ -86,6 +86,7 @@ Route::post('checkout/assisted/{token}/load-cart', [AdminOperationsController::c
 Route::get('orders/track/{publicToken}', [CheckoutController::class, 'trackByToken']);
 Route::post('orders/track-lookup', [CheckoutController::class, 'trackLookup'])->middleware('throttle:20,1');
 Route::post('orders/{publicToken}/retry-payment', [CheckoutController::class, 'retryPayment'])->middleware('throttle:10,1');
+Route::post('orders/{publicToken}/cancel', [CheckoutController::class, 'cancelByToken'])->middleware('throttle:10,1');
 
 // Payment Webhooks & Sandbox Simulator
 Route::post('webhooks/mercadopago', [WebhookController::class, 'mercadoPago'])->middleware('throttle:120,1');
@@ -110,6 +111,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
         Route::delete('addresses/{id}', [AccountController::class, 'destroyAddress']);
         Route::get('orders', [AccountController::class, 'orders']);
         Route::get('orders/{orderNumber}', [AccountController::class, 'showOrder']);
+        Route::post('orders/{orderNumber}/cancel', [AccountController::class, 'cancelOrder'])->middleware('throttle:10,1');
         Route::get('wishlist', [AccountController::class, 'listWishlist']);
         Route::post('wishlist/toggle', [AccountController::class, 'toggleWishlist']);
         Route::get('replenishment-lists', [AccountController::class, 'listReplenishmentLists']);

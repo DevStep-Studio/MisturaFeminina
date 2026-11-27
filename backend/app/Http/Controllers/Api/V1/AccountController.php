@@ -5,18 +5,22 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Cart\Services\CartService;
+use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Catalog\Services\ReplenishmentService;
 use App\Domain\Catalog\Services\RestockNotificationService;
 use App\Domain\Security\Services\AuditLogger;
 use App\Domain\Security\Services\TotpService;
+use App\Domain\Shared\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\LgpdRequest;
 use App\Models\Order;
+use App\Models\OrderStatusHistory;
 use App\Models\RestockRequest;
 use App\Models\User;
 use App\Models\Wishlist;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -31,6 +35,7 @@ class AccountController extends Controller
         private readonly ReplenishmentService $replenishment,
         private readonly CartService $carts,
         private readonly RestockNotificationService $restock,
+        private readonly InventoryService $inventory,
     ) {}
 
     public function overview(Request $request): JsonResponse
@@ -197,6 +202,94 @@ class AccountController extends Controller
         });
 
         return response()->json(['data' => $order]);
+    }
+
+    public function cancelOrder(Request $request, string $orderNumber): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        $order = Order::query()
+            ->where('user_id', $user->id)
+            ->where('order_number', $orderNumber)
+            ->firstOrFail();
+
+        $this->performCustomerOrderCancellation(
+            $order,
+            $validated['reason'] ?? 'Cancelamento solicitado pelo cliente na Minha Conta',
+            $user,
+            $request
+        );
+
+        return response()->json([
+            'message' => 'Pedido cancelado com sucesso.',
+            'data' => [
+                'order_number' => $order->order_number,
+                'status' => $order->fresh()->status->value,
+                'cancelled_at' => $order->fresh()->cancelled_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    private function performCustomerOrderCancellation(Order $order, string $reason, ?User $user, Request $request): void
+    {
+        if ($order->status === OrderStatus::Cancelled) {
+            throw ValidationException::withMessages([
+                'order' => ['Este pedido já se encontra cancelado.'],
+            ]);
+        }
+
+        if ($order->status === OrderStatus::Paid) {
+            throw ValidationException::withMessages([
+                'order' => ['O pagamento deste pedido já foi confirmado. Para solicitar o cancelamento e reembolso, entre em contato com nosso atendimento pelo WhatsApp ou e-mail.'],
+            ]);
+        }
+
+        if (in_array($order->status, [OrderStatus::Preparing, OrderStatus::Shipped, OrderStatus::Delivered], true)) {
+            throw ValidationException::withMessages([
+                'order' => ['O pedido não pode ser cancelado pois já está em processo de expedição ou entrega. Entre em contato com nosso atendimento para suporte.'],
+            ]);
+        }
+
+        if (! in_array($order->status, [OrderStatus::PendingPayment, OrderStatus::PaymentFailed], true)) {
+            throw ValidationException::withMessages([
+                'order' => ['Este pedido não pode ser cancelado no status atual (' . $order->status->label() . ').'],
+            ]);
+        }
+
+        $oldStatus = $order->status;
+
+        DB::transaction(function () use ($order, $oldStatus, $reason, $user): void {
+            $order->update([
+                'status' => OrderStatus::Cancelled,
+                'cancelled_at' => now(),
+                'notes_internal' => trim(($order->notes_internal ?? '') . "\n" . 'Cancelado pelo cliente: ' . $reason),
+            ]);
+
+            OrderStatusHistory::query()->create([
+                'order_id' => $order->id,
+                'user_id' => $user?->id,
+                'from_status' => $oldStatus->value,
+                'to_status' => OrderStatus::Cancelled->value,
+                'note' => 'Cancelado pelo cliente: ' . $reason,
+            ]);
+
+            $this->inventory->releaseReservation($order, 'Cancelado pelo cliente');
+        });
+
+        $this->audit->record(
+            'order.customer_cancelled',
+            $user,
+            'order',
+            $order->id,
+            ['status' => $oldStatus->value],
+            ['status' => OrderStatus::Cancelled->value, 'reason' => $reason],
+            $request,
+        );
     }
 
     public function listWishlist(Request $request): JsonResponse

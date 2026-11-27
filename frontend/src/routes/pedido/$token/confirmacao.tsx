@@ -202,6 +202,37 @@ function OrderConfirmationPage() {
     }
   }
 
+  async function handleCancelPublicOrder() {
+    const o = data()?.order;
+    if (!o) return;
+    if (
+      !window.confirm(
+        `Deseja realmente cancelar o pedido ${o.order_number}? Esta ação liberará a reserva dos itens.`,
+      )
+    ) {
+      return;
+    }
+    setActionBusy(true);
+    setActionMsg(null);
+    try {
+      await api(`/orders/${params().token}/cancel`, {
+        method: "POST",
+        authenticated: false,
+        body: { reason: "Cancelado pelo cliente via página do pedido" },
+      });
+      setActionMsg("Pedido cancelado com sucesso.");
+      await refetch();
+    } catch (err) {
+      setActionMsg(
+        err instanceof ApiError
+          ? err.message
+          : "Não foi possível cancelar o pedido no momento.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   return (
     <StoreShell promotions={false}>
       <div class="mx-auto max-w-4xl px-4 py-8">
@@ -532,6 +563,20 @@ function OrderConfirmationPage() {
                     >
                       Voltar à loja
                     </Link>
+                    <Show
+                      when={["pending_payment", "payment_failed"].includes(
+                        order().status,
+                      )}
+                    >
+                      <button
+                        type="button"
+                        disabled={actionBusy()}
+                        onClick={() => void handleCancelPublicOrder()}
+                        class="rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
+                      >
+                        {actionBusy() ? "Cancelando..." : "Cancelar este pedido"}
+                      </button>
+                    </Show>
                   </div>
                 </section>
               </div>

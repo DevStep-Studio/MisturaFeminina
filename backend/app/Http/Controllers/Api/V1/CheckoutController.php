@@ -5,19 +5,25 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Cart\Services\CartService;
+use App\Domain\Catalog\Services\InventoryService;
 use App\Domain\Checkout\Services\CheckoutService;
 use App\Domain\Orders\Services\AssistedOrderService;
 use App\Domain\Payments\Services\PaymentService;
 use App\Domain\Payments\Services\PaymentSettings;
+use App\Domain\Security\Services\AuditLogger;
+use App\Domain\Shared\Enums\OrderStatus;
 use App\Domain\Shared\Enums\PaymentMethod;
 use App\Http\Controllers\Controller;
 use App\Models\AnalyticsEvent;
 use App\Models\Order;
+use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CheckoutController extends Controller
 {
@@ -25,6 +31,8 @@ class CheckoutController extends Controller
         private readonly CartService $carts,
         private readonly CheckoutService $checkout,
         private readonly AssistedOrderService $assistedOrders,
+        private readonly InventoryService $inventory,
+        private readonly AuditLogger $audit,
     ) {}
 
     public function config(): JsonResponse
@@ -192,6 +200,80 @@ class CheckoutController extends Controller
             'data' => [
                 'order' => $this->serializePublicOrder($order->fresh(['items', 'latestPayment', 'statusHistories', 'shipment.trackingEvents'])),
                 'payment' => $this->serializePayment($payment),
+            ],
+        ]);
+    }
+
+    public function cancelByToken(Request $request, string $publicToken): JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $order = Order::query()
+            ->where('public_token', $publicToken)
+            ->firstOrFail();
+
+        if ($order->status === OrderStatus::Cancelled) {
+            throw ValidationException::withMessages([
+                'order' => ['Este pedido já se encontra cancelado.'],
+            ]);
+        }
+
+        if ($order->status === OrderStatus::Paid) {
+            throw ValidationException::withMessages([
+                'order' => ['O pagamento deste pedido já foi confirmado. Para solicitar o cancelamento e reembolso, entre em contato com nosso atendimento pelo WhatsApp ou e-mail.'],
+            ]);
+        }
+
+        if (in_array($order->status, [OrderStatus::Preparing, OrderStatus::Shipped, OrderStatus::Delivered], true)) {
+            throw ValidationException::withMessages([
+                'order' => ['O pedido não pode ser cancelado pois já está em processo de expedição ou entrega. Entre em contato com nosso atendimento para suporte.'],
+            ]);
+        }
+
+        if (! in_array($order->status, [OrderStatus::PendingPayment, OrderStatus::PaymentFailed], true)) {
+            throw ValidationException::withMessages([
+                'order' => ['Este pedido não pode ser cancelado no status atual (' . $order->status->label() . ').'],
+            ]);
+        }
+
+        $reason = $validated['reason'] ?? 'Cancelado pelo cliente via página do pedido';
+        $oldStatus = $order->status;
+        $user = $request->user();
+
+        DB::transaction(function () use ($order, $oldStatus, $reason, $user): void {
+            $order->update([
+                'status' => OrderStatus::Cancelled,
+                'cancelled_at' => now(),
+                'notes_internal' => trim(($order->notes_internal ?? '') . "\n" . 'Cancelado pelo cliente via link do pedido: ' . $reason),
+            ]);
+
+            OrderStatusHistory::query()->create([
+                'order_id' => $order->id,
+                'user_id' => $user?->id,
+                'from_status' => $oldStatus->value,
+                'to_status' => OrderStatus::Cancelled->value,
+                'note' => 'Cancelado pelo cliente via link: ' . $reason,
+            ]);
+
+            $this->inventory->releaseReservation($order, 'Cancelado pelo cliente via link público');
+        });
+
+        $this->audit->record(
+            'order.public_token_cancelled',
+            $user,
+            'order',
+            $order->id,
+            ['status' => $oldStatus->value],
+            ['status' => OrderStatus::Cancelled->value, 'reason' => $reason],
+            $request,
+        );
+
+        return response()->json([
+            'message' => 'Pedido cancelado com sucesso.',
+            'data' => [
+                'order' => $this->serializePublicOrder($order->fresh(['items', 'latestPayment', 'statusHistories', 'shipment.trackingEvents'])),
             ],
         ]);
     }

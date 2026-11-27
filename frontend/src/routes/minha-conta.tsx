@@ -285,6 +285,31 @@ function MyAccountPage() {
     }
   }
 
+  async function cancelCustomerOrder(orderNumber: string) {
+    if (
+      !window.confirm(
+        `Deseja realmente cancelar o pedido ${orderNumber}? Esta ação liberará os itens reservados.`,
+      )
+    ) {
+      return;
+    }
+    setNotice(null);
+    try {
+      await api(`/account/orders/${orderNumber}/cancel`, {
+        method: "POST",
+        body: { reason: "Cancelado pelo cliente na Minha Conta" },
+      });
+      await fetchOverview();
+      setNotice(`Pedido ${orderNumber} cancelado com sucesso.`);
+    } catch (err) {
+      setNotice(
+        err instanceof ApiError
+          ? err.message
+          : "Não foi possível cancelar o pedido no momento.",
+      );
+    }
+  }
+
   async function handleLogout() {
     await logout();
     await navigate({ to: "/" });
@@ -462,7 +487,7 @@ function MyAccountPage() {
                                     Status: {orderStatusLabel(ord.status)}
                                   </p>
                                 </div>
-                                <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-3">
                                   <span class="font-bold text-zinc-900">
                                     {formatCents(ord.total_cents)}
                                   </span>
@@ -473,6 +498,21 @@ function MyAccountPage() {
                                   >
                                     Ver detalhes
                                   </Link>
+                                  <Show
+                                    when={["pending_payment", "payment_failed"].includes(
+                                      ord.status,
+                                    )}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void cancelCustomerOrder(ord.order_number)
+                                      }
+                                      class="rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </Show>
                                 </div>
                               </li>
                             )}
