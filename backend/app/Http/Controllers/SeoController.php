@@ -9,6 +9,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\ContentPage;
 use App\Models\Product;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -244,9 +245,10 @@ class SeoController extends Controller
         return response(implode("\n", $md), 200, ['Content-Type' => 'text/markdown; charset=UTF-8']);
     }
 
-    public function merchantFeed(GoogleMerchantFeedService $feedService): Response
+    public function merchantFeed(Request $request, GoogleMerchantFeedService $feedService): Response
     {
-        $content = $feedService->renderXml();
+        $force = $request->boolean('refresh') || $request->has('force');
+        $content = $feedService->renderXml($force);
 
         return response($content, 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
     }
