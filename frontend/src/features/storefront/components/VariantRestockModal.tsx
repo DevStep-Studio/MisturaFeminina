@@ -26,6 +26,7 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
+  const [stockAvailableNow, setStockAvailableNow] = createSignal(false);
 
   createEffect(() => {
     if (props.open) {
@@ -36,16 +37,30 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
       }
       setError(null);
       setSuccess(null);
+      setStockAvailableNow(
+        Boolean(
+          props.variant &&
+            ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock),
+        ),
+      );
     }
   });
+
+  const isAvailable = () =>
+    stockAvailableNow() ||
+    Boolean(
+      props.variant &&
+        ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock),
+    );
 
   async function submitAlert(e: Event) {
     e.preventDefault();
     if (!props.variant) return;
-    if ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock) {
+    if (isAvailable()) {
       setError(
         `Esta tonalidade já está disponível para compra imediata (${props.variant.available_stock ?? 1} un. em estoque).`,
       );
+      setStockAvailableNow(true);
       return;
     }
     if (!consent()) {
@@ -84,8 +99,24 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
       if (err instanceof ApiError) {
         const validationMsg =
           Object.values(err.validation || {}).flat()[0] ||
-          (typeof err.payload?.message === "string" ? err.payload.message : undefined);
-        setError(validationMsg || err.message);
+          (typeof err.payload?.message === "string"
+            ? err.payload.message
+            : undefined);
+        const finalMsg = validationMsg || err.message;
+        setError(finalMsg);
+
+        if (
+          finalMsg.toLowerCase().includes("já está disponível") ||
+          finalMsg.toLowerCase().includes("já está em estoque")
+        ) {
+          setStockAvailableNow(true);
+          if (props.variant) {
+            props.variant.in_stock = true;
+            if ((props.variant.available_stock ?? 0) <= 0) {
+              props.variant.available_stock = 1;
+            }
+          }
+        }
       } else {
         setError("Não foi possível registrar seu aviso agora.");
       }
@@ -147,12 +178,27 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
             )}
           </Show>
 
-          <Show when={props.variant && ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock)}>
-            <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+          <Show when={isAvailable()}>
+            <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-900">
               <p class="font-bold">Esta tonalidade já está em estoque!</p>
               <p class="mt-0.5 text-[11px] text-emerald-800">
-                Disponível para compra imediata ({props.variant!.available_stock} un.). Não é necessário solicitar aviso.
+                Disponível para compra imediata ({props.variant?.available_stock && props.variant.available_stock > 0 ? `${props.variant.available_stock} un.` : "em estoque"}). Não é necessário solicitar aviso.
               </p>
+              <div class="mt-2.5 flex items-center gap-2">
+                <a
+                  href={`/produto/${props.productSlug}`}
+                  class="inline-flex h-8 items-center justify-center rounded-lg bg-[#93509e] px-4 text-xs font-bold text-white transition-colors hover:bg-[#7c3f87]"
+                >
+                  Ver produto e comprar
+                </a>
+                <button
+                  type="button"
+                  onClick={() => props.onClose()}
+                  class="h-8 rounded-lg border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
           </Show>
 
@@ -282,7 +328,7 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={busy() || Boolean(props.variant && ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock))}
+                  disabled={busy() || isAvailable()}
                   class="h-10 flex-1 rounded-lg bg-[#93509e] text-xs font-bold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
                 >
                   {busy() ? "Enviando..." : "Me avise"}

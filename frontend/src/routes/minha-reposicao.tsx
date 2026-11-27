@@ -171,6 +171,13 @@ function MinhaReposicaoPage() {
   }
 
   function openRestockForItem(item: ReplenishmentItemData) {
+    if (item.available_stock > 0 || item.in_stock) {
+      setFeedback({
+        type: "ok",
+        text: `O item "${item.product_name}" já está disponível para compra imediata!`,
+      });
+      return;
+    }
     setRestockTarget({
       slug: item.product_slug,
       name: item.product_name,
