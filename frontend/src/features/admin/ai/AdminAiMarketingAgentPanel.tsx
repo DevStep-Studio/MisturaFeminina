@@ -690,13 +690,21 @@ export function AdminAiMarketingAgentPanel() {
                     <p class="truncate text-[11px] text-zinc-500">
                       {overview()?.integrations_status?.google_ads?.status === "connected"
                         ? "Campanhas e ROAS"
-                        : "Modo leitura"}
+                        : "Não conectado"}
                     </p>
                   </div>
                 </div>
-                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${integrationBadge(overview()?.integrations_status?.google_ads?.status).cls}`}>
-                  <span class={`h-1.5 w-1.5 rounded-full ${integrationBadge(overview()?.integrations_status?.google_ads?.status).dot}`} />
-                  {integrationBadge(overview()?.integrations_status?.google_ads?.status).label}
+                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                  overview()?.integrations_status?.google_ads?.status === "connected"
+                    ? integrationBadge("connected").cls
+                    : "bg-zinc-100 text-zinc-600 border-zinc-200"
+                }`}>
+                  <span class={`h-1.5 w-1.5 rounded-full ${
+                    overview()?.integrations_status?.google_ads?.status === "connected"
+                      ? integrationBadge("connected").dot
+                      : "bg-zinc-400"
+                  }`} />
+                  {overview()?.integrations_status?.google_ads?.status === "connected" ? "Ativo" : "Não conectado"}
                 </span>
               </button>
 
@@ -713,7 +721,7 @@ export function AdminAiMarketingAgentPanel() {
                   <div class="min-w-0">
                     <p class="truncate text-xs font-bold text-zinc-900 group-hover:text-[#62298d]">Merchant Center</p>
                     <p class="truncate text-[11px] text-zinc-500">
-                      {overview()?.integrations_status?.google_shopping?.ready_products_count ?? 0} pronto(s) no XML
+                      {overview()?.integrations_status?.google_shopping?.ready_products_count ?? 0} no XML • {overview()?.integrations_status?.google_shopping?.incomplete_products_count ?? 0} pendentes
                     </p>
                   </div>
                 </div>
@@ -736,13 +744,21 @@ export function AdminAiMarketingAgentPanel() {
                   <div class="min-w-0">
                     <p class="truncate text-xs font-bold text-zinc-900 group-hover:text-[#62298d]">Motor IA</p>
                     <p class="truncate text-[11px] text-zinc-500">
-                      {overview()?.integrations_status?.ai_agent?.has_api_key ? "OpenAI conectada" : "Diagnóstico real"}
+                      {overview()?.integrations_status?.ai_agent?.has_api_key ? "OpenAI conectada" : "Diagnóstico real local"}
                     </p>
                   </div>
                 </div>
-                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${integrationBadge(overview()?.integrations_status?.ai_agent?.status).cls}`}>
-                  <span class={`h-1.5 w-1.5 rounded-full ${integrationBadge(overview()?.integrations_status?.ai_agent?.status).dot}`} />
-                  {integrationBadge(overview()?.integrations_status?.ai_agent?.status).label}
+                <span class={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                  overview()?.integrations_status?.ai_agent?.has_api_key
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-purple-50 text-purple-700 border-purple-200"
+                }`}>
+                  <span class={`h-1.5 w-1.5 rounded-full ${
+                    overview()?.integrations_status?.ai_agent?.has_api_key
+                      ? "bg-emerald-500"
+                      : "bg-purple-500"
+                  }`} />
+                  {overview()?.integrations_status?.ai_agent?.has_api_key ? "Ativo" : "Diagnóstico local"}
                 </span>
               </Link>
             </div>
@@ -781,10 +797,10 @@ export function AdminAiMarketingAgentPanel() {
                   : "—"}
               </p>
               <p class="mt-1 text-[11px] text-zinc-500">
-                {overview()?.integrations_status?.ga4?.status === "connected" &&
-                (overview()?.kpis?.total_sessions ?? 0) >= (overview()?.kpis?.store_orders_count ?? 0) &&
-                (overview()?.kpis?.conversion_rate_pct ?? 0) <= 100
-                  ? `Conversão: ${overview()?.kpis?.conversion_rate_pct}%`
+                {overview()?.integrations_status?.ga4?.status === "connected"
+                  ? (overview()?.kpis?.total_sessions ?? 0) > 0
+                    ? `GA4 Data API ativa • ${overview()?.kpis?.total_sessions} sessões reais`
+                    : "GA4 conectado • Aguardando primeiras visitas"
                   : "Conecte o GA4 para métricas de visitas"}
               </p>
             </div>
@@ -793,14 +809,20 @@ export function AdminAiMarketingAgentPanel() {
             <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
               <span class="text-xs font-semibold text-zinc-500">Investimento Google Ads</span>
               <p class="mt-1 text-2xl font-black text-zinc-900">
-                {overview()?.kpis?.google_ads_spend_cents != null
-                  ? formatCents(overview()?.kpis?.google_ads_spend_cents)
-                  : "R$ 0,00"}
+                {overview()?.integrations_status?.google_ads?.status === "connected"
+                  ? overview()?.kpis?.google_ads_spend_cents != null
+                    ? formatCents(overview()?.kpis?.google_ads_spend_cents)
+                    : "Sem dados"
+                  : "—"}
               </p>
               <p class="mt-1 text-[11px] text-zinc-500">
-                {overview()?.kpis?.google_ads_roas != null
-                  ? `ROAS: ${overview()?.kpis?.google_ads_roas}x`
-                  : "Nenhum investimento sincronizado"}
+                {overview()?.integrations_status?.google_ads?.status === "connected"
+                  ? overview()?.kpis?.google_ads_spend_cents === 0
+                    ? "Investimento zero no período"
+                    : overview()?.kpis?.google_ads_roas != null
+                      ? `ROAS: ${overview()?.kpis?.google_ads_roas}x`
+                      : "Sem campanhas com gasto"
+                  : "Não conectado (aguarda credenciais)"}
               </p>
             </div>
           </section>
@@ -891,13 +913,15 @@ export function AdminAiMarketingAgentPanel() {
                     <div class="rounded-lg bg-white p-3 border border-zinc-200/60 shadow-2xs">
                       <p class="font-bold text-zinc-900">Google Shopping</p>
                       <p class="mt-1 text-zinc-600">
-                        <strong class="text-zinc-800">{overview()?.integrations_status?.google_shopping?.ready_products_count ?? 0} produto(s)</strong> pronto(s) no feed XML oficial.
+                        <strong class="text-zinc-800">{overview()?.integrations_status?.google_shopping?.ready_products_count ?? 0} produto(s)</strong> pronto(s) no feed XML oficial • {overview()?.integrations_status?.google_shopping?.incomplete_products_count ?? 0} aguardam foto real.
                       </p>
                     </div>
                     <div class="rounded-lg bg-white p-3 border border-zinc-200/60 shadow-2xs">
                       <p class="font-bold text-zinc-900">Canais de Aquisição</p>
                       <p class="mt-1 text-zinc-600">
-                        Aguardando credenciais do GA4 e Ads para diagnóstico cruzado.
+                        {overview()?.integrations_status?.ga4?.status === "connected"
+                          ? `GA4 ativo (${overview()?.kpis?.total_sessions ?? 0} visitas reais). Google Ads não conectado.`
+                          : "Aguardando credenciais do GA4 e Ads para diagnóstico cruzado."}
                       </p>
                     </div>
                   </div>

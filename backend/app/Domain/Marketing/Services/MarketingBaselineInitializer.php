@@ -72,8 +72,8 @@ class MarketingBaselineInitializer
                 'platform' => 'google_merchant_center',
                 'name' => 'Google Shopping / Merchant Center',
                 'status' => 'not_configured',
-                'account_id' => null,
-                'account_name' => null,
+                'account_id' => '5917949103',
+                'account_name' => 'Mistura Feminina',
                 'property_id' => null,
                 'pixel_id' => null,
                 'settings' => [
@@ -82,7 +82,7 @@ class MarketingBaselineInitializer
                     'scheduled_fetch_ready' => true,
                 ],
                 'last_healthcheck_status' => 'not_configured',
-                'last_healthcheck_message' => 'Feed XML público ativo para busca programada. Conecte Merchant ID + Service Account JSON para consultar aprovações direto na API do Google.',
+                'last_healthcheck_message' => 'Conta Merchant Center 5917949103 identificada com domínio verificado e reivindicado. Feed XML público pronto para busca programada.',
             ],
             [
                 'platform' => 'google_search_console',
