@@ -11,7 +11,7 @@ import Plus from "lucide-solid/icons/plus";
 import RotateCcw from "lucide-solid/icons/rotate-ccw";
 import Trash2 from "lucide-solid/icons/trash";
 import Upload from "lucide-solid/icons/upload";
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal, createUniqueId } from "solid-js";
 import { api } from "../../../lib/api";
 import { assetUrl } from "../../../lib/format";
 import { formatCentsToBrInput } from "../admin-helpers";
@@ -65,6 +65,7 @@ function VariationRowPhotoControl(props: {
   onUpdate: (data: { image_path: string; inherits_image: boolean }) => void;
   compact?: boolean;
 }) {
+  const inputId = `var-photo-${props.row.row_key}-${createUniqueId()}`;
   let fileInputRef: HTMLInputElement | undefined;
   const [uploading, setUploading] = createSignal(false);
   const [uploadError, setUploadError] = createSignal<string | null>(null);
@@ -80,11 +81,7 @@ function VariationRowPhotoControl(props: {
     return props.parentImagePath ? props.parentImagePath.trim() : null;
   };
 
-  async function handleFileChange(e: Event) {
-    const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
+  async function processFile(file: File, inputEl?: HTMLInputElement) {
     setUploadError(null);
 
     // Validation
@@ -96,14 +93,14 @@ function VariationRowPhotoControl(props: {
 
     if (!isExtValid && !isMimeValid) {
       setUploadError("Formato não suportado. Envie apenas imagens PNG, JPG ou WebP.");
-      if (input) input.value = "";
+      if (inputEl) inputEl.value = "";
       return;
     }
 
     const maxBytes = 5 * 1024 * 1024; // 5 MB
     if (file.size > maxBytes) {
       setUploadError("A imagem excede o tamanho máximo de 5 MB.");
-      if (input) input.value = "";
+      if (inputEl) inputEl.value = "";
       return;
     }
 
@@ -130,8 +127,16 @@ function VariationRowPhotoControl(props: {
       );
     } finally {
       setUploading(false);
-      if (input) input.value = "";
+      if (inputEl) inputEl.value = "";
+      if (fileInputRef) fileInputRef.value = "";
     }
+  }
+
+  async function handleFileChange(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    await processFile(file, input);
   }
 
   function handleRemoveCustomPhoto() {
@@ -145,23 +150,37 @@ function VariationRowPhotoControl(props: {
   return (
     <div class={`flex flex-col gap-1 ${props.compact ? "min-w-[195px]" : "w-full"}`}>
       <input
+        id={inputId}
         type="file"
         ref={fileInputRef}
         accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
-        class="hidden"
+        class="sr-only"
         onChange={handleFileChange}
+        onClick={(e) => {
+          e.currentTarget.value = "";
+        }}
       />
 
       <div class="flex items-center gap-1.5">
         {/* Thumbnail Preview */}
-        <div
-          class="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded border border-zinc-200 bg-white shadow-xs hover:border-[#93509e]"
-          onClick={() => fileInputRef?.click()}
+        <label
+          for={inputId}
+          class="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded border border-zinc-200 bg-white shadow-xs hover:border-[#93509e] select-none"
           title={
             hasCustomPhoto()
               ? `Foto própria de ${props.row.name} (clique para substituir)`
               : `Usando foto principal do produto (clique para enviar foto própria)`
           }
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const f = e.dataTransfer?.files?.[0];
+            if (f) void processFile(f, fileInputRef);
+          }}
         >
           <Show
             when={displayedImage()}
@@ -179,7 +198,7 @@ function VariationRowPhotoControl(props: {
               <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#93509e] border-t-transparent" />
             </div>
           </Show>
-        </div>
+        </label>
 
         {/* Actions & Status */}
         <div class="flex flex-1 flex-wrap items-center gap-1 text-[10px]">
@@ -187,16 +206,14 @@ function VariationRowPhotoControl(props: {
             when={hasCustomPhoto()}
             fallback={
               <>
-                <button
-                  type="button"
-                  disabled={uploading()}
-                  onClick={() => fileInputRef?.click()}
-                  class="inline-flex items-center gap-1 rounded border border-dashed border-zinc-300 bg-white px-2 py-0.5 font-semibold text-zinc-700 hover:border-[#93509e] hover:text-[#93509e] disabled:opacity-50"
+                <label
+                  for={inputId}
+                  class="inline-flex cursor-pointer items-center gap-1 rounded border border-dashed border-zinc-300 bg-white px-2 py-0.5 font-semibold text-zinc-700 hover:border-[#93509e] hover:text-[#93509e] select-none"
                   title="Enviar foto exclusiva desta variação (PNG, JPG ou WebP)"
                 >
                   <Upload class="h-2.5 w-2.5" />
                   + Foto
-                </button>
+                </label>
                 <span class="text-zinc-500 text-[10px]" title="Herdando foto principal do produto">
                   Herdar principal
                 </span>
@@ -206,15 +223,13 @@ function VariationRowPhotoControl(props: {
             <span class="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1 py-0.2 font-bold text-emerald-700 text-[9px]">
               Própria
             </span>
-            <button
-              type="button"
-              disabled={uploading()}
-              onClick={() => fileInputRef?.click()}
-              class="rounded px-1 font-semibold text-[#93509e] hover:underline disabled:opacity-50"
+            <label
+              for={inputId}
+              class="cursor-pointer rounded px-1 font-semibold text-[#93509e] hover:underline select-none"
               title="Substituir imagem"
             >
               Trocar
-            </button>
+            </label>
             <button
               type="button"
               onClick={handleRemoveCustomPhoto}
