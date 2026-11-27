@@ -13,6 +13,7 @@ import ShieldCheck from "lucide-solid/icons/shield-check";
 import Sparkles from "lucide-solid/icons/sparkles";
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { assetUrl, whatsappUrl } from "../../../lib/format";
+import { trackContactClick } from "../../../monitoring/analytics";
 import { storefrontStore } from "../store";
 import { selfServiceStore } from "../selfServiceSupport";
 import { openPrivacyModal, PrivacyModal } from "../../../components/privacy/privacy-modal";
@@ -161,6 +162,7 @@ export function StoreFooter() {
                 href={whatsHref()}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackContactClick("whatsapp")}
                 aria-label="WhatsApp da Mistura Feminina"
                 class="inline-flex size-9 items-center justify-center rounded-xl border border-[#25D366] bg-[#25D366] text-white shadow-2xs transition hover:border-[#1da851] hover:bg-[#1da851]"
               >
@@ -311,6 +313,7 @@ export function StoreFooter() {
                   href={whatsHref()}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => trackContactClick("whatsapp")}
                   class="inline-flex items-center gap-2 transition-colors hover:text-white"
                 >
                   <Phone

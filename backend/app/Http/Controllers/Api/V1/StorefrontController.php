@@ -364,7 +364,7 @@ class StorefrontController extends Controller
     {
         $validated = $request->validate([
             'session_id' => ['required', 'string', 'max:100'],
-            'event_name' => ['required', 'string', 'in:page_view,view_item,add_to_cart,remove_from_cart,begin_checkout,purchase,refund,search'],
+            'event_name' => ['required', 'string', 'in:page_view,view_item,add_to_cart,remove_from_cart,view_cart,begin_checkout,add_shipping_info,add_payment_info,purchase,refund,search,contact_click,wholesale_inquiry,restock_alert'],
             'path' => ['nullable', 'string', 'max:300'],
             'order_id' => ['nullable', 'integer'],
             'utm_source' => ['nullable', 'string', 'max:100'],

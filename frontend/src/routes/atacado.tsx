@@ -26,6 +26,7 @@ import {
 import { api } from "../lib/api";
 import { formatCents, whatsappUrl } from "../lib/format";
 import { buildBreadcrumbSchema, seoHead } from "../lib/seo";
+import { trackContactClick, trackEvent } from "../monitoring/analytics";
 
 export const Route = createFileRoute("/atacado")({
   head: () =>
@@ -231,6 +232,13 @@ function WholesaleStorefrontPage() {
     });
 
     const url = whatsappUrl(number, message);
+    trackContactClick("whatsapp");
+    trackEvent("wholesale_inquiry", {
+      channel: "whatsapp",
+      total_qty: summary.totalQty,
+      total_cents: summary.totalCents,
+      items_count: summary.items.length,
+    });
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
@@ -241,6 +249,11 @@ function WholesaleStorefrontPage() {
 
     try {
       await api.post("/wholesale/reseller-request", resellerForm());
+      trackContactClick("form");
+      trackEvent("wholesale_inquiry", {
+        type: "reseller_registration",
+        has_cnpj: Boolean(resellerForm().cnpj_cpf),
+      });
       setFeedback({
         type: "ok",
         text: "Solicitação enviada com sucesso! Nossa equipe entrará em contato para liberar suas condições exclusivas.",

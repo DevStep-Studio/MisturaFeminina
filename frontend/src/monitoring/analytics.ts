@@ -47,10 +47,16 @@ const FORWARDED_STOREFRONT_EVENTS = new Set([
   "view_item",
   "add_to_cart",
   "remove_from_cart",
+  "view_cart",
   "begin_checkout",
+  "add_shipping_info",
+  "add_payment_info",
   "purchase",
   "refund",
   "search",
+  "contact_click",
+  "wholesale_inquiry",
+  "restock_alert",
 ]);
 
 export function isValidGa4MeasurementId(raw?: string | null): boolean {

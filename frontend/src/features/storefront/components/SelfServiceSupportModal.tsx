@@ -18,6 +18,7 @@ import Boxes from "lucide-solid/icons/boxes";
 import UserIcon from "lucide-solid/icons/user";
 import ExternalLink from "lucide-solid/icons/external-link";
 import { whatsappUrl } from "../../../lib/format";
+import { trackContactClick } from "../../../monitoring/analytics";
 import { storefrontStore } from "../store";
 import {
   SELF_SERVICE_TOPICS,
@@ -590,6 +591,7 @@ export function SelfServiceSupportModal() {
                 href={whatsHelpUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackContactClick("whatsapp")}
                 class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#1da851] active:scale-95"
               >
                 <MessageCircle class="size-4" aria-hidden="true" />
