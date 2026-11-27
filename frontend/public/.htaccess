@@ -1,5 +1,5 @@
 Options -MultiViews -Indexes
-DirectoryIndex index.html
+DirectoryIndex index.php index.html
 ErrorDocument 404 default
 
 <IfModule mod_mime.c>
@@ -37,5 +37,5 @@ RewriteRule ^ - [END]
 RewriteRule ^assets(?:/|$) - [R=404,END]
 RewriteRule \.[^/]+$ - [R=404,END]
 
-# Browser routes are resolved by the frontend router.
-RewriteRule ^ index.html [END]
+# Browser and bot routes are resolved dynamically with SEO prerender and accurate canonical
+RewriteRule ^ index.php [END]
