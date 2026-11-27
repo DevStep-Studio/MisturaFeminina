@@ -350,7 +350,7 @@ export function AdminLayout(
     <Show when={allowed()} fallback={<StatusPage status={403} />}>
       <div class="mf-admin-shell flex min-h-screen bg-[#f6f7f9] text-zinc-900">
         {/* Desktop Light Sidebar */}
-        <aside class="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white lg:flex">
+        <aside class="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white lg:flex sticky top-0 h-screen">
           <div class="flex h-16 items-center justify-between gap-2 border-b border-zinc-200 px-4">
             <Link to="/admin" class="flex min-w-0 items-center gap-2">
               {renderBrandMark()}

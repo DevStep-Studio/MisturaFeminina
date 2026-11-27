@@ -4,6 +4,7 @@ import ExternalLink from "lucide-solid/icons/external-link";
 import Package from "lucide-solid/icons/package";
 import Plus from "lucide-solid/icons/plus";
 import Printer from "lucide-solid/icons/printer";
+import Search from "lucide-solid/icons/search";
 import Tag from "lucide-solid/icons/tag";
 import {
   For,
@@ -236,6 +237,13 @@ function AdminOrdersPage() {
     },
   );
 
+  createEffect(() => {
+    const list = orders();
+    if (list && list.length > 0 && selectedId() === null) {
+      setSelectedId(list[0].id);
+    }
+  });
+
   const [detail, { refetch: refetchDetail }] = createResource(
     selectedId,
     async (id) => {
@@ -419,95 +427,96 @@ function AdminOrdersPage() {
       title="Pedidos e Expedição"
       subtitle="Acompanhe pagamentos, imprima romaneios e informe códigos de rastreio"
       permission="orders.view"
-    >
-      {/* Filter Tabs, Operational Queues, Assisted Orders & Search */}
-      <div class="mb-5 space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200/80 bg-white p-1.5 shadow-2xs">
-            <For
-              each={[
-                { id: "", label: "Todos os Pedidos" },
-                { id: "paid", label: "Para Separar (Pago)" },
-                { id: "preparing", label: "Em Separação" },
-                { id: "shipped", label: "Enviados" },
-                { id: "delivered", label: "Entregues" },
-                { id: "pending_payment", label: "Aguardando Pagamento" },
-                { id: "cancelled", label: "Cancelados" },
-              ]}
-            >
-              {(tab) => (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpFilter("");
-                    setStatusFilter(tab.id);
-                  }}
-                  class={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                    !opFilter() && statusFilter() === tab.id
-                      ? "bg-[#93509e] text-white shadow-xs"
-                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              )}
-            </For>
-
-            <span class="mx-1 h-4 w-px bg-zinc-200" aria-hidden="true" />
-
-            <button
-              type="button"
-              onClick={() =>
-                setOpFilter((prev) =>
-                  prev === "ship_today" ? "" : "ship_today",
-                )
-              }
-              class={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                opFilter() === "ship_today"
-                  ? "bg-emerald-700 text-white shadow-xs"
-                  : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-              }`}
-            >
-              Para postar hoje
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setOpFilter((prev) => (prev === "issues" ? "" : "issues"))
-              }
-              class={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                opFilter() === "issues"
-                  ? "bg-red-700 text-white shadow-xs"
-                  : "bg-red-50 text-red-700 hover:bg-red-100"
-              }`}
-            >
-              <AlertTriangle class="size-3.5" />
-              Com problemas
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setOpFilter((prev) => (prev === "wholesale" ? "" : "wholesale"))
-              }
-              class={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                opFilter() === "wholesale"
-                  ? "bg-purple-800 text-white shadow-xs"
-                  : "bg-purple-50 text-purple-800 hover:bg-purple-100"
-              }`}
-            >
-              Atacado
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setAssistedOpen((v) => !v)}
-            class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-[#93509e] px-4 text-xs font-bold text-white shadow-xs hover:bg-[#7c3f87]"
-          >
-            <Plus class="size-4" />
+      headerActions={
+        <button
+          type="button"
+          onClick={() => setAssistedOpen((v) => !v)}
+          class="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#93509e] px-3.5 text-xs font-bold text-white shadow-xs hover:bg-[#7c3f87] transition-all"
+        >
+          <Plus class="size-3.5" />
+          <span>
             {assistedOpen()
               ? "Fechar Pedido Assistido"
               : "Criar pedido assistido (WhatsApp)"}
+          </span>
+        </button>
+      }
+    >
+      {/* Filter Tabs, Operational Queues, Assisted Orders & Search */}
+      <div class="mb-5 space-y-3">
+        <div class="flex items-center gap-1.5 overflow-x-auto rounded-xl border border-zinc-200/80 bg-white p-1.5 shadow-2xs scrollbar-none">
+          <For
+            each={[
+              { id: "", label: "Todos os Pedidos" },
+              { id: "paid", label: "Para Separar (Pago)" },
+              { id: "preparing", label: "Em Separação" },
+              { id: "shipped", label: "Enviados" },
+              { id: "delivered", label: "Entregues" },
+              { id: "pending_payment", label: "Aguardando Pagamento" },
+              { id: "cancelled", label: "Cancelados" },
+            ]}
+          >
+            {(tab) => (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpFilter("");
+                  setStatusFilter(tab.id);
+                }}
+                class={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
+                  !opFilter() && statusFilter() === tab.id
+                    ? "bg-[#93509e] text-white shadow-xs"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                }`}
+              >
+                {tab.label}
+              </button>
+            )}
+          </For>
+
+          <span class="mx-1 h-4 w-px shrink-0 bg-zinc-200" aria-hidden="true" />
+
+          <button
+            type="button"
+            onClick={() =>
+              setOpFilter((prev) =>
+                prev === "ship_today" ? "" : "ship_today",
+              )
+            }
+            class={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-all ${
+              opFilter() === "ship_today"
+                ? "bg-emerald-700 text-white shadow-xs"
+                : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+            }`}
+          >
+            Para postar hoje
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setOpFilter((prev) => (prev === "issues" ? "" : "issues"))
+            }
+            class={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-all ${
+              opFilter() === "issues"
+                ? "bg-red-700 text-white shadow-xs"
+                : "bg-red-50 text-red-700 hover:bg-red-100"
+            }`}
+          >
+            <AlertTriangle class="size-3.5" />
+            <span>Com problemas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setOpFilter((prev) => (prev === "wholesale" ? "" : "wholesale"))
+            }
+            class={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-all ${
+              opFilter() === "wholesale"
+                ? "bg-purple-800 text-white shadow-xs"
+                : "bg-purple-50 text-purple-800 hover:bg-purple-100"
+            }`}
+          >
+            <span>Atacado</span>
           </button>
         </div>
 
@@ -519,12 +528,13 @@ function AdminOrdersPage() {
         </Show>
 
         <div class="relative">
+          <Search class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
           <input
             type="search"
             placeholder="Buscar por número do pedido, nome do cliente ou e-mail..."
             value={searchTerm()}
             onInput={(e) => setSearchTerm(e.currentTarget.value)}
-            class="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3.5 text-sm placeholder-zinc-400 shadow-2xs focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/20"
+            class="h-10 w-full rounded-xl border border-zinc-200 bg-white pl-10 pr-4 text-sm placeholder-zinc-400 shadow-2xs focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/20"
           />
         </div>
       </div>
@@ -551,12 +561,23 @@ function AdminOrdersPage() {
                 </tr>
               </thead>
               <tbody class="divide-y divide-zinc-100">
-                <For each={orders() ?? []}>
+                <For
+                  each={orders() ?? []}
+                  fallback={
+                    <tr>
+                      <td colspan="4" class="p-8 text-center text-sm text-zinc-500">
+                        Nenhum pedido encontrado para os filtros selecionados.
+                      </td>
+                    </tr>
+                  }
+                >
                   {(ord) => (
                     <tr
                       onClick={() => setSelectedId(ord.id)}
-                      class={`cursor-pointer hover:bg-zinc-50 ${
-                        selectedId() === ord.id ? "bg-zinc-100" : ""
+                      class={`cursor-pointer transition-colors ${
+                        selectedId() === ord.id
+                          ? "bg-[#faf4fb] border-l-4 border-l-[#93509e]"
+                          : "hover:bg-zinc-50 border-l-4 border-l-transparent"
                       }`}
                     >
                       <td class="p-3 font-bold text-zinc-900">
