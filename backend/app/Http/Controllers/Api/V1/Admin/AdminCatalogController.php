@@ -128,9 +128,10 @@ class AdminCatalogController extends Controller
                 })->all()
                 : [(($product->promo_price_cents && $product->promo_price_cents < $product->price_cents) ? $product->promo_price_cents : $product->price_cents)];
 
+            $activeVariants = $variants->filter(fn (ProductVariant $v): bool => (bool) $v->is_active)->values();
             $totalStock = (int) $variants->sum('stock_qty');
             $totalReserved = (int) $variants->sum('reserved_qty');
-            $totalAvailable = (int) $variants->sum(fn (ProductVariant $v): int => max(0, $v->stock_qty - $v->reserved_qty));
+            $totalAvailable = (int) $activeVariants->sum(fn (ProductVariant $v): int => max(0, $v->stock_qty - $v->reserved_qty));
             $outOfStockCount = (int) $variants->filter(fn (ProductVariant $v): bool => ($v->stock_qty - $v->reserved_qty) <= 0)->count();
 
             if ($canViewCost) {
@@ -142,6 +143,7 @@ class AdminCatalogController extends Controller
             $payload['is_archived'] = $product->trashed();
             $payload['has_variants'] = $product->usesVariations();
             $payload['archived_variants_count'] = $allVariants->count() - $variants->count();
+            $payload['inactive_variants_count'] = $variants->count() - $activeVariants->count();
             foreach ($allVariants as $vIdx => $vModel) {
                 if (isset($payload['variants'][$vIdx])) {
                     $payload['variants'][$vIdx]['is_archived'] = $vModel->isArchived();

@@ -149,7 +149,24 @@ class CatalogController extends Controller
 
         $collection = (string) $request->query('collection', '');
         if ($collection === 'ofertas' || $collection === 'promocoes') {
-            $query->whereNotNull('promo_price_cents')->whereColumn('promo_price_cents', '<', 'price_cents');
+            $now = now();
+            $query->where(function (Builder $q) use ($now): void {
+                $q->where(function (Builder $pq) use ($now): void {
+                    $pq->whereNotNull('promo_price_cents')
+                        ->whereColumn('promo_price_cents', '<', 'price_cents')
+                        ->where(function (Builder $sub) use ($now): void {
+                            $sub->whereNull('promo_starts_at')->orWhere('promo_starts_at', '<=', $now);
+                        })
+                        ->where(function (Builder $sub) use ($now): void {
+                            $sub->whereNull('promo_ends_at')->orWhere('promo_ends_at', '>=', $now);
+                        });
+                })->orWhereHas('variants', function (Builder $vq): void {
+                    $vq->where('is_active', true)
+                        ->whereNull('archived_at')
+                        ->whereNotNull('promo_price_cents')
+                        ->whereColumn('promo_price_cents', '<', 'price_cents');
+                });
+            });
         } elseif ($collection === 'novidades') {
             $query->where('is_new_arrival', true);
         } elseif ($collection === 'mais-vendidos') {

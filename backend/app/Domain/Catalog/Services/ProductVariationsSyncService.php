@@ -377,6 +377,13 @@ class ProductVariationsSyncService
 
         // Guarantee at least one active non-archived variant has is_default = true if any active exists
         $activeNonArchived = $product->variants()->whereNull('archived_at')->where('is_active', true)->orderBy('sort_order')->orderBy('id')->get();
+        if ($product->is_active && $activeNonArchived->isEmpty()) {
+            $firstNonArchived = $product->variants()->whereNull('archived_at')->orderBy('sort_order')->orderBy('id')->first();
+            if ($firstNonArchived !== null) {
+                $firstNonArchived->update(['is_active' => true, 'is_default' => true]);
+                $activeNonArchived = collect([$firstNonArchived]);
+            }
+        }
         $firstActiveVariant = $activeNonArchived->first();
         if ($firstActiveVariant !== null && ! $activeNonArchived->contains('is_default', true)) {
             $firstActiveVariant->update(['is_default' => true]);
