@@ -406,6 +406,11 @@ function CategoryCirclesBlock(props: {
       return fromApi;
     }
 
+    const activeSlugs = new Set(storefrontStore.bootstrap().menu_categories.map((c) => c.slug));
+    if (activeSlugs.size > 0) {
+      return MANICURE_ESSENTIAL_CATEGORIES.filter((c) => !c.slug || activeSlugs.has(c.slug));
+    }
+
     return MANICURE_ESSENTIAL_CATEGORIES;
   };
 

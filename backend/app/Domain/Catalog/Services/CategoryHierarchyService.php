@@ -122,7 +122,8 @@ class CategoryHierarchyService
     }
 
     /**
-     * Returns full active tree (unlimited depth) cached cleanly without N+1 queries.
+     * Returns full active tree with visible products (unlimited depth) cached cleanly without N+1 queries.
+     * Prunes categories and subcategories that have no active and visible products in themselves or their subtrees.
      *
      * @return list<array<string, mixed>>
      */
@@ -137,19 +138,42 @@ class CategoryHierarchyService
                 ->orderBy('name')
                 ->get();
 
+            $pivotRows = DB::table('category_product')
+                ->join('products', 'category_product.product_id', '=', 'products.id')
+                ->where('products.is_active', true)
+                ->whereNull('products.deleted_at')
+                ->select('category_product.category_id', 'category_product.product_id')
+                ->get();
+
+            $productsByCat = [];
+            foreach ($pivotRows as $row) {
+                $productsByCat[(int) $row->category_id][(int) $row->product_id] = true;
+            }
+
             $byParent = [];
             foreach ($all as $cat) {
                 $byParent[$cat->parent_id ? (int) $cat->parent_id : 0][] = $cat;
             }
 
-            $buildBranch = function (int $parentId) use (&$buildBranch, $byParent, $menuOnly): array {
+            $buildBranch = function (int $parentId) use (&$buildBranch, $byParent, $menuOnly, $productsByCat): array {
                 $nodes = [];
                 foreach ($byParent[$parentId] ?? [] as $cat) {
                     if ($menuOnly && ! $cat->show_in_menu) {
                         continue;
                     }
+
+                    $visibleChildren = $buildBranch((int) $cat->id);
+                    $directCount = count($productsByCat[(int) $cat->id] ?? []);
+                    $hasVisibleChildren = ! empty($visibleChildren);
+
+                    // A category or subcategory is only included if it has direct active products OR visible children with active products
+                    if ($directCount === 0 && ! $hasVisibleChildren) {
+                        continue;
+                    }
+
                     $node = $cat->toArray();
-                    $node['children'] = $buildBranch((int) $cat->id);
+                    $node['children'] = $visibleChildren;
+                    $node['direct_products_count'] = $directCount;
                     $nodes[] = $node;
                 }
 
@@ -158,6 +182,53 @@ class CategoryHierarchyService
 
             return $buildBranch(0);
         });
+    }
+
+    /**
+     * Recursively searches for a category node in a tree.
+     *
+     * @param list<array<string, mixed>> $tree
+     * @return array<string, mixed>|null
+     */
+    public function findNodeInTree(array $tree, int $categoryId): ?array
+    {
+        foreach ($tree as $node) {
+            if ((int) ($node['id'] ?? 0) === $categoryId) {
+                return $node;
+            }
+            if (! empty($node['children']) && is_array($node['children'])) {
+                $found = $this->findNodeInTree($node['children'], $categoryId);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Returns slugs of all categories currently visible to the public.
+     *
+     * @return list<string>
+     */
+    public function getVisibleCategorySlugs(): array
+    {
+        $tree = $this->getPublicDirectoryTree(menuOnly: false);
+        $slugs = [];
+        $extract = function (array $nodes) use (&$extract, &$slugs): void {
+            foreach ($nodes as $n) {
+                if (! empty($n['slug'])) {
+                    $slugs[] = (string) $n['slug'];
+                }
+                if (! empty($n['children']) && is_array($n['children'])) {
+                    $extract($n['children']);
+                }
+            }
+        };
+        $extract($tree);
+
+        return array_values(array_unique($slugs));
     }
 
     /**
@@ -352,6 +423,7 @@ class CategoryHierarchyService
 
         if ($cleanIds === []) {
             $product->categories()->sync([]);
+            $this->clearCaches();
 
             return;
         }
@@ -369,6 +441,8 @@ class CategoryHierarchyService
         } else {
             $product->categories()->sync($cleanIds);
         }
+
+        $this->clearCaches();
     }
 
     /** @return array<string, mixed> */

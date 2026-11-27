@@ -42,6 +42,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Hidden(['cost_cents'])]
 class ProductVariant extends Model
 {
+    protected static function booted(): void
+    {
+        static::saved(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+            app(\App\Domain\Catalog\Services\CategoryHierarchyService::class)->clearCaches();
+        });
+
+        static::deleted(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+            app(\App\Domain\Catalog\Services\CategoryHierarchyService::class)->clearCaches();
+        });
+    }
+
     /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {

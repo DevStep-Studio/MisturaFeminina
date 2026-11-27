@@ -53,10 +53,17 @@ class Product extends Model
     {
         static::saved(function (): void {
             \App\Http\Controllers\SeoController::clearCaches();
+            app(\App\Domain\Catalog\Services\CategoryHierarchyService::class)->clearCaches();
         });
 
         static::deleted(function (): void {
             \App\Http\Controllers\SeoController::clearCaches();
+            app(\App\Domain\Catalog\Services\CategoryHierarchyService::class)->clearCaches();
+        });
+
+        static::restored(function (): void {
+            \App\Http\Controllers\SeoController::clearCaches();
+            app(\App\Domain\Catalog\Services\CategoryHierarchyService::class)->clearCaches();
         });
     }
 

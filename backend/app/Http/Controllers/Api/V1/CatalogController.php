@@ -77,6 +77,10 @@ class CatalogController extends Controller
         $categoryPayload = $category->toArray();
         $categoryPayload['ancestors'] = $ancestors;
 
+        $publicTree = $this->categoryHierarchy->getPublicDirectoryTree(menuOnly: false);
+        $node = $this->categoryHierarchy->findNodeInTree($publicTree, (int) $category->id);
+        $categoryPayload['children'] = $node['children'] ?? [];
+
         if (empty($category->banner_desktop_path)) {
             $catBanner = Banner::query()
                 ->where('is_active', true)

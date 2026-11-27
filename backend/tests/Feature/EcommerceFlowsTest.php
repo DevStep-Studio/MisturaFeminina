@@ -32,7 +32,7 @@ test('storefront bootstrap, home, search, and restock alert work end-to-end', fu
     $this->getJson('/api/v1/storefront/bootstrap')
         ->assertOk()
         ->assertJsonPath('data.settings.store_name', 'Mistura Feminina Cosméticos')
-        ->assertJsonCount(7, 'data.menu_categories');
+        ->assertJsonCount(6, 'data.menu_categories');
 
     $this->getJson('/api/v1/storefront/home')
         ->assertOk()

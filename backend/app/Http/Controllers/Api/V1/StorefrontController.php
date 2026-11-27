@@ -188,6 +188,8 @@ class StorefrontController extends Controller
                             ->limit((int) ($cfg['limit'] ?? 10))
                             ->get(['id', 'name', 'slug', 'image_path', 'icon']);
                     }
+                    $visibleSlugs = $this->categoryHierarchy->getVisibleCategorySlugs();
+                    $payload = $payload->filter(fn ($cat) => in_array($cat->slug, $visibleSlugs, true))->values();
                     break;
                 case 'product_showcase':
                     $maxInstallments = (int) ($cfg['max_installments'] ?? 3);
