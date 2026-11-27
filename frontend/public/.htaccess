@@ -24,6 +24,10 @@ RewriteEngine On
 # Gateway dinâmico do sitemap: entrega o XML oficial atualizado da API
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
 
+# Redirecionamento amigável para o feed oficial do Google Merchant Center
+RewriteRule ^feed/google-merchant\.xml$ https://api.misturafeminina.com.br/merchant-feed.xml [R=301,L]
+RewriteRule ^merchant-feed\.xml$ https://api.misturafeminina.com.br/merchant-feed.xml [R=301,L]
+
 # Serve existing files and directories before applying the SPA fallback.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
