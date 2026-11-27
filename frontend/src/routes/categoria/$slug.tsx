@@ -3,6 +3,10 @@ import ChevronRight from "lucide-solid/icons/chevron-right";
 import Search from "lucide-solid/icons/search";
 import { CatalogListingView } from "../../features/storefront/components/CatalogListingView";
 import { StoreShell } from "../../features/storefront/components/StoreShell";
+import {
+  LEGACY_CATEGORY_REDIRECTS,
+  getLegacyCategoryRedirect,
+} from "../../features/storefront/data/categoryRedirects";
 import { getCategorySeoContent } from "../../features/storefront/data/categorySeoContent";
 import { storefrontStore } from "../../features/storefront/store";
 import type { CategoryNode } from "../../features/storefront/types";
@@ -14,27 +18,14 @@ import {
   seoHead,
 } from "../../lib/seo";
 
-/**
- * Mapeamento cliente de compatibilidade para categorias migradas ou slugs legados.
- * Redireciona de forma suave e transparente sem exibir erro 404.
- */
-const LEGACY_CATEGORY_REDIRECTS: Record<string, string> = {
-  "cabines-e-estufas": "/categoria/cabines-uv-led",
-  "cabines": "/categoria/cabines-uv-led",
-  "maquinarios-cabines-e-estufas": "/categoria/cabines-uv-led",
-  "motores-lixadeiras": "/categoria/maquinarios",
-  "aspiradores-sugadores": "/categoria/maquinarios",
-  "luminarias-e-lampadas": "/categoria/maquinarios",
-  "acessorios-pro": "/categoria/maquinarios",
-  "unhas-e-esmalteria": "/categoria/acessorios",
-  "esmaltes-em-gel": "/categoria/esmalte-em-gel",
-};
+export { LEGACY_CATEGORY_REDIRECTS };
 
 export const Route = createFileRoute("/categoria/$slug")({
   loader: async ({ params }) => {
     const slug = (params.slug || "").toLowerCase().trim();
-    if (LEGACY_CATEGORY_REDIRECTS[slug]) {
-      throw redirect({ to: LEGACY_CATEGORY_REDIRECTS[slug], replace: true });
+    const clientRedirect = getLegacyCategoryRedirect(slug);
+    if (clientRedirect) {
+      throw redirect({ to: clientRedirect, replace: true });
     }
 
     try {

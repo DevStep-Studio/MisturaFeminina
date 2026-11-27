@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  LEGACY_CATEGORY_REDIRECTS,
+  getLegacyCategoryRedirect,
+} from "../../src/features/storefront/data/categoryRedirects";
+import {
   type AdminCategoryNode,
   buildCategoryHierarchyOptions,
   buildCategoryTree,
@@ -77,5 +81,24 @@ describe("category-helpers", () => {
       2,
     );
     expect(optionsExcludingBrocas.map((o) => o.value)).toEqual(["4", "1"]);
+  });
+
+  it("redirects legacy category slugs to standardized target paths", () => {
+    expect(LEGACY_CATEGORY_REDIRECTS["cabines-e-estufas"]).toBe(
+      "/categoria/cabines-uv-led",
+    );
+    expect(getLegacyCategoryRedirect("cabines-e-estufas")).toBe(
+      "/categoria/cabines-uv-led",
+    );
+    expect(getLegacyCategoryRedirect("CABINES")).toBe(
+      "/categoria/cabines-uv-led",
+    );
+    expect(LEGACY_CATEGORY_REDIRECTS["maquinarios-cabines-e-estufas"]).toBe(
+      "/categoria/cabines-uv-led",
+    );
+    expect(getLegacyCategoryRedirect("esmaltes-em-gel")).toBe(
+      "/categoria/esmalte-em-gel",
+    );
+    expect(getLegacyCategoryRedirect("categoria-desconhecida")).toBeNull();
   });
 });
