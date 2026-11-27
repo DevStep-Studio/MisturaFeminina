@@ -260,10 +260,22 @@ function ProductDetailPage() {
   createEffect(() => {
     const p = product();
     if (!p) return;
+    const searchVariantParam =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("variant")
+        : null;
+    const requestedVariant = searchVariantParam
+      ? (p.variants.find(
+          (v) =>
+            String(v.id) === searchVariantParam ||
+            v.sku === searchVariantParam,
+        ) ?? null)
+      : null;
     const def =
-      p.variants.find((v) => v.is_default && v.in_stock) ??
-      p.variants.find((v) => v.in_stock) ??
-      p.variants[0];
+      requestedVariant ??
+      (p.variants.find((v) => v.is_default && v.in_stock) ??
+        p.variants.find((v) => v.in_stock) ??
+        p.variants[0]);
     setSelectedVariantId(def?.id ?? null);
     setSelectedByAxis(def ? getVariantOptionMap(def) : {});
     setActiveImage(
@@ -429,6 +441,15 @@ function ProductDetailPage() {
     }
     setQty(1);
     setRestockMsg(null);
+    if (typeof window !== "undefined" && window.history?.replaceState) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("variant", String(v.id));
+        window.history.replaceState(null, "", url.toString());
+      } catch {
+        // Ignora erros de URL em ambientes isolados
+      }
+    }
   }
 
   function selectAxisOption(axisSlug: string, optionSlug: string) {
@@ -445,6 +466,19 @@ function ProductDetailPage() {
     }
     setQty(1);
     setRestockMsg(null);
+    if (
+      resolved.variant &&
+      typeof window !== "undefined" &&
+      window.history?.replaceState
+    ) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("variant", String(resolved.variant.id));
+        window.history.replaceState(null, "", url.toString());
+      } catch {
+        // Ignora erros de URL em ambientes isolados
+      }
+    }
   }
 
   async function handleAddToCart() {

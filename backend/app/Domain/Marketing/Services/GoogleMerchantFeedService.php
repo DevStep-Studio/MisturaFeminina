@@ -86,6 +86,7 @@ class GoogleMerchantFeedService
                 'categories:id,parent_id,name,slug',
                 'images',
                 'variants' => fn ($q) => $q->where('is_active', true)->whereNull('archived_at')->orderBy('sort_order')->orderBy('id'),
+                'variants.image',
             ])
             ->orderBy('id')
             ->get();
@@ -257,8 +258,39 @@ class GoogleMerchantFeedService
                     $vInStock = $variant->isSellable();
                     $vGtin = $this->normalizeGtin($variant->gtin) ?? $productGtin;
                     $vMpn = trim((string) ($variant->supplier_code ?: $product->supplier_code ?: ''));
-                    $vWeightGrams = $variant->weight_grams ?? $product->weight_grams;
+                    $vWeightGrams = $variant->effectiveWeightGrams();
+
+                    $vOptionValues = is_array($variant->option_values)
+                        ? $variant->option_values
+                        : (is_string($variant->option_values) ? json_decode($variant->option_values, true) : []);
+
                     $vColor = trim((string) ($variant->color_family ?: $variant->shade_code ?: ''));
+                    $vSize = null;
+
+                    if (is_array($vOptionValues)) {
+                        foreach ($vOptionValues as $opt) {
+                            $attrSlug = mb_strtolower((string) ($opt['attribute_slug'] ?? $opt['attribute_name'] ?? ''));
+                            $val = trim((string) ($opt['value'] ?? ''));
+                            if ($val === '') {
+                                continue;
+                            }
+                            if (str_contains($attrSlug, 'cor') || str_contains($attrSlug, 'tonalidade') || str_contains($attrSlug, 'color') || str_contains($attrSlug, 'shade')) {
+                                if ($vColor === '') {
+                                    $vColor = $val;
+                                }
+                            } elseif (str_contains($attrSlug, 'tamanho') || str_contains($attrSlug, 'volume') || str_contains($attrSlug, 'size') || str_contains($attrSlug, 'peso') || str_contains($attrSlug, 'opcao')) {
+                                if ($vSize === null) {
+                                    $vSize = $val;
+                                }
+                            }
+                        }
+                    }
+
+                    if ($vSize === null && $vName !== '' && mb_strtolower($vName) !== 'padrão') {
+                        if ($vColor === '' || mb_strtolower($vName) !== mb_strtolower($vColor)) {
+                            $vSize = $vName;
+                        }
+                    }
 
                     $xmlLines = array_merge($xmlLines, $this->buildXmlItem([
                         'id' => $vSku,
@@ -276,7 +308,8 @@ class GoogleMerchantFeedService
                         'mpn' => $vMpn !== '' ? $vMpn : null,
                         'product_type' => $categoryPath,
                         'color' => $vColor !== '' ? $vColor : null,
-                        'weight_grams' => ($vWeightGrams !== null && (int) $vWeightGrams > 0) ? (int) $vWeightGrams : null,
+                        'size' => $vSize !== null && $vSize !== '' ? $vSize : null,
+                        'weight_grams' => ($vWeightGrams > 0) ? $vWeightGrams : null,
                     ]));
 
                     $emittedItemsCount++;
@@ -588,6 +621,9 @@ class GoogleMerchantFeedService
         }
         if (! empty($item['color'])) {
             $lines[] = '      <g:color>'.htmlspecialchars(mb_substr((string) $item['color'], 0, 100), ENT_XML1).'</g:color>';
+        }
+        if (! empty($item['size'])) {
+            $lines[] = '      <g:size>'.htmlspecialchars(mb_substr((string) $item['size'], 0, 100), ENT_XML1).'</g:size>';
         }
         if (! empty($item['weight_grams']) && (int) $item['weight_grams'] > 0) {
             $lines[] = '      <g:shipping_weight>'.((int) $item['weight_grams']).' g</g:shipping_weight>';
