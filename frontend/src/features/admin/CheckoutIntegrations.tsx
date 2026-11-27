@@ -18,6 +18,16 @@ const definitions = [
     publics: [["public_key", "Chave pública"]],
   },
   {
+    provider: "plupag",
+    title: "Plupag",
+    secrets: [
+      ["api_key", "API Key (x-api-key)"],
+      ["api_secret", "API Secret (x-api-secret)"],
+      ["webhook_secret", "Segredo do Webhook (opcional)"],
+    ],
+    publics: [["public_key", "Chave pública (Antifraude / SDK)"]],
+  },
+  {
     provider: "asaas",
     title: "Asaas",
     secrets: [
@@ -87,6 +97,7 @@ export function CheckoutIntegrations() {
             onChange={(e) => setSelected(e.currentTarget.value)}
           >
             <option value="mercadopago">Mercado Pago</option>
+            <option value="plupag">Plupag</option>
             <option value="asaas">Asaas</option>
           </select>
         </label>

@@ -40,6 +40,7 @@ import {
 } from "../monitoring/analytics";
 import { session } from "../security/session";
 import { CardPaymentFields } from "../features/storefront/CardPaymentFields";
+import { PlupagCardFields, type PlupagCardData } from "../features/storefront/PlupagCardFields";
 import type { TokenizedCard } from "../features/storefront/mercado-pago";
 
 export const Route = createFileRoute("/checkout")({
@@ -88,13 +89,34 @@ function CheckoutPage() {
   const [method, setMethod] = createSignal<"pix" | "credit_card" | "boleto">(
     "pix",
   );
+  const [selectedProvider, setSelectedProvider] = createSignal<
+    "mercadopago" | "plupag" | "asaas"
+  >("mercadopago");
+  const [plupagCardData, setPlupagCardData] =
+    createSignal<PlupagCardData | null>(null);
+  const [plupagCardReady, setPlupagCardReady] = createSignal(false);
+
+  createEffect(() => {
+    const p = payments();
+    if (p && p.provider) {
+      setSelectedProvider(p.provider);
+    }
+  });
+
+  const availableProviders = () => payments()?.available_providers ?? [];
+  const hasMultipleProviders = () => availableProviders().length > 1;
+  const isPlupag = () => selectedProvider() === "plupag";
+  const isMercadoPago = () => selectedProvider() === "mercadopago";
+
   const [cepLoading, setCepLoading] = createSignal(false);
   const [submitting, setSubmitting] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [cardReady, setCardReady] = createSignal(false);
   const [checkoutUncertain, setCheckoutUncertain] = createSignal(false);
   const usesCardForm = () =>
-    payments()?.provider === "mercadopago" && method() === "credit_card";
+    isMercadoPago() && method() === "credit_card";
+  const usesPlupagCard = () =>
+    isPlupag() && method() === "credit_card";
   const [assistedToken, setAssistedToken] = createSignal<string | null>(null);
   const [idempotencyKey] = createSignal(
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -233,6 +255,10 @@ function CheckoutPage() {
         setError("Preencha os dados do cartão para continuar.");
         return;
       }
+      if (usesPlupagCard() && (!plupagCardData() || !plupagCardReady())) {
+        setError("Preencha os dados do cartão para continuar.");
+        return;
+      }
       if (
         !c.shipping_quote?.quote_id ||
         c.shipping_cep !== cleanCep ||
@@ -277,9 +303,10 @@ function CheckoutPage() {
             city: city().trim(),
             state: stateUf().trim().toUpperCase(),
           },
+          payment_provider: selectedProvider(),
           payment_method: method(),
           defer_payment: false,
-          payment_data: paymentData,
+          payment_data: usesPlupagCard() ? plupagCardData() : paymentData,
           notes_customer: notes().trim() || undefined,
           assisted_order_token: assistedToken() || undefined,
         },
@@ -642,12 +669,40 @@ function CheckoutPage() {
 
                 {/* 3. Payment method */}
                 <section class="rounded-xl border border-zinc-200 bg-white p-5">
-                  <h2 class="mb-4 text-base font-bold text-zinc-900">
-                    3. Pagamento ·{" "}
-                    {payments()?.provider === "asaas"
-                      ? "Asaas"
-                      : "Mercado Pago"}
-                  </h2>
+                  <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <h2 class="text-base font-bold text-zinc-900">
+                      3. Pagamento ·{" "}
+                      {selectedProvider() === "plupag"
+                        ? "Plupag"
+                        : selectedProvider() === "asaas"
+                          ? "Asaas"
+                          : "Mercado Pago"}
+                    </h2>
+                    <Show when={hasMultipleProviders()}>
+                      <div class="flex items-center gap-1.5 rounded-lg bg-zinc-100 p-1 text-xs">
+                        <For each={availableProviders()}>
+                          {(prov) => (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedProvider(prov.id as any);
+                                if (prov.id === "plupag" && method() === "boleto") {
+                                  setMethod("pix");
+                                }
+                              }}
+                              class={`rounded-md px-3 py-1 font-semibold transition ${
+                                selectedProvider() === prov.id
+                                  ? "bg-white text-[var(--mf-primary)] shadow-sm font-bold"
+                                  : "text-zinc-600 hover:text-zinc-900"
+                              }`}
+                            >
+                              {prov.name}
+                            </button>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </div>
 
                   <div class="grid gap-3 sm:grid-cols-2">
                     <button
@@ -685,21 +740,25 @@ function CheckoutPage() {
                           Cartão de Crédito
                         </p>
                         <p class="text-xs text-zinc-600">
-                          Pagamento à vista no ambiente seguro
+                          {isPlupag()
+                            ? "Até 12x no cartão com antifraude"
+                            : "Pagamento à vista no ambiente seguro"}
                         </p>
                       </div>
                     </button>
                   </div>
 
-                  <button
-                    type="button"
-                    aria-pressed={method() === "boleto"}
-                    onClick={() => setMethod("boleto")}
-                    class={`mt-3 flex w-full items-center gap-3 rounded-xl border p-4 text-left ${method() === "boleto" ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]" : "border-zinc-200"}`}
-                  >
-                    <Barcode class="h-6 w-6 text-[var(--mf-primary)]" />
-                    <span class="text-sm font-bold">Boleto bancário</span>
-                  </button>
+                  <Show when={!isPlupag()}>
+                    <button
+                      type="button"
+                      aria-pressed={method() === "boleto"}
+                      onClick={() => setMethod("boleto")}
+                      class={`mt-3 flex w-full items-center gap-3 rounded-xl border p-4 text-left ${method() === "boleto" ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]" : "border-zinc-200"}`}
+                    >
+                      <Barcode class="h-6 w-6 text-[var(--mf-primary)]" />
+                      <span class="text-sm font-bold">Boleto bancário</span>
+                    </button>
+                  </Show>
                   <Show
                     when={
                       usesCardForm() &&
@@ -716,6 +775,15 @@ function CheckoutPage() {
                       customerDocument={cpf()}
                       onReady={setCardReady}
                       onSubmit={submitCheckout}
+                    />
+                  </Show>
+                  <Show when={usesPlupagCard()}>
+                    <PlupagCardFields
+                      amountCents={c().total_cents}
+                      customerName={name()}
+                      publicKey={payments()?.plupag_public_key}
+                      onReady={setPlupagCardReady}
+                      onChange={setPlupagCardData}
                     />
                   </Show>
                   <p class="mt-4 text-xs text-zinc-600">
@@ -829,13 +897,14 @@ function CheckoutPage() {
                       submitting() ||
                       checkoutUncertain() ||
                       !payments()?.enabled ||
-                      (usesCardForm() && !cardReady())
+                      (usesCardForm() && !cardReady()) ||
+                      (usesPlupagCard() && !plupagCardReady())
                     }
                     class="mt-5 flex h-12 w-full items-center justify-center rounded-lg bg-[var(--mf-primary)] px-5 text-sm font-bold text-white transition hover:bg-[var(--mf-primary-hover)] disabled:opacity-60"
                   >
                     {submitting()
                       ? "Processando pedido..."
-                      : usesCardForm()
+                      : usesCardForm() || usesPlupagCard()
                         ? "Confirmar e pagar"
                         : "Confirmar pedido"}
                   </button>

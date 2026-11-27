@@ -45,6 +45,33 @@ class WebhookController extends Controller
         return $this->receipt('asaas', (string) $request->input('payment.id'), (string) $request->input('id'));
     }
 
+    public function plupag(Request $request): JsonResponse
+    {
+        abort_if(strlen($request->getContent()) > 65536, 413);
+        $settings = app(PaymentSettings::class);
+        $secret = $settings->get('plupag', 'webhook_secret');
+        if (is_string($secret) && $secret !== '') {
+            $incomingToken = $request->header('x-webhook-token')
+                ?: $request->header('x-api-secret')
+                ?: $request->query('secret');
+            abort_unless($incomingToken && hash_equals($secret, (string) $incomingToken), 401);
+        }
+
+        $event = (string) $request->input('event');
+        if (! in_array($event, ['invoice.updated', 'invoice.created'], true)) {
+            return response()->json(['status' => 'ignored']);
+        }
+
+        $invoiceId = (string) ($request->input('data.id') ?? $request->input('data.identifier') ?? '');
+        abort_unless($invoiceId !== '' && preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $invoiceId), 422);
+
+        $eventId = (string) ($request->input('id')
+            ?? $request->input('data.identifier')
+            ?? hash('sha256', $request->getContent()));
+
+        return $this->receipt('plupag', $invoiceId, $eventId);
+    }
+
     private function receipt(string $provider, string $id, string $eventId): JsonResponse
     {
         abort_unless(preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $id) && preg_match('/^[a-zA-Z0-9_-]{1,150}$/D', $eventId), 422);

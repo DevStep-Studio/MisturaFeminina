@@ -19,17 +19,33 @@ class PaymentGateway
 
             return Http::baseUrl('https://api.mercadopago.com')->withToken($this->settings->get('mercadopago', 'access_token'))->acceptJson()->connectTimeout(5)->timeout(25)->withoutRedirecting();
         }
+        if ($provider === 'plupag') {
+            abort_unless($this->settings->get('plupag', 'api_key') && $this->settings->get('plupag', 'api_secret'), 503, 'Credenciais Plupag ausentes.');
+
+            return Http::baseUrl('https://api.plupag.com.br')
+                ->withHeaders([
+                    'x-api-key' => (string) $this->settings->get('plupag', 'api_key'),
+                    'x-api-secret' => (string) $this->settings->get('plupag', 'api_secret'),
+                ])
+                ->acceptJson()
+                ->connectTimeout(5)
+                ->timeout(25)
+                ->withoutRedirecting();
+        }
         abort_unless($this->settings->get('asaas', 'api_key'), 503, 'Credenciais Asaas ausentes.');
 
         return Http::baseUrl($environment === 'production' ? 'https://api.asaas.com/v3' : 'https://api-sandbox.asaas.com/v3')->withHeaders(['access_token' => $this->settings->get('asaas', 'api_key'), 'User-Agent' => 'DevStep-Checkout/1.0'])->acceptJson()->connectTimeout(5)->timeout(25)->withoutRedirecting();
     }
 
-    private function request(string $provider, string $environment, string $method, string $path, array $data = [], ?string $idempotency = null): array
+    private function request(string $provider, string $environment, string $method, string $path, array $data = [], ?string $idempotency = null, array $headers = []): array
     {
         try {
             $client = $this->client($provider, $environment);
             if ($idempotency) {
                 $client = $client->withHeaders(['X-Idempotency-Key' => $idempotency]);
+            }
+            if ($headers !== []) {
+                $client = $client->withHeaders($headers);
             }
             $response = $method === 'GET' ? $client->get($path, $data) : $client->post($path, $data);
         } catch (ConnectionException) {
@@ -40,6 +56,9 @@ class PaymentGateway
             $codes = [];
             if (is_array($body)) {
                 $codes[] = GatewayFailure::safeCode($body['error'] ?? null);
+                if (isset($body['message']) && is_string($body['message'])) {
+                    $codes[] = GatewayFailure::safeCode($body['message']);
+                }
                 foreach (is_array($body['cause'] ?? null) ? array_slice($body['cause'], 0, 10) : [] as $cause) {
                     $codes[] = GatewayFailure::safeCode(is_array($cause) ? ($cause['code'] ?? null) : null);
                 }
@@ -86,6 +105,86 @@ class PaymentGateway
 
             return $this->request($attempt->provider, $attempt->environment, 'POST', '/v1/payments', $payload, $attempt->idempotency_key);
         }
+
+        if ($attempt->provider === 'plupag') {
+            $method = $attempt->method->value;
+            $cleanDoc = preg_replace('/\D/', '', $buyer['document']);
+            $phoneClean = preg_replace('/\D/', '', $buyer['phone']);
+            if (strlen($phoneClean) <= 11) {
+                $phoneClean = '55'.$phoneClean;
+            }
+
+            $payload = [
+                'amount' => $order->total_cents / 100,
+                'paymentMethod' => match ($method) {
+                    'pix' => 'pix',
+                    'credit_card' => 'credit_card',
+                    'boleto' => 'bank_slip',
+                    default => 'pix',
+                },
+                'externalId' => $attempt->idempotency_key,
+                'client' => [
+                    'name' => $buyer['name'],
+                    'document' => $cleanDoc,
+                    'email' => $buyer['email'],
+                    'phone' => $phoneClean,
+                    'isLegalPerson' => strlen($cleanDoc) > 11,
+                    'address' => [
+                        'street' => (string) ($address['street'] ?? 'Rua'),
+                        'number' => (string) ($address['number'] ?? 'SN'),
+                        'complement' => ! empty($address['complement']) ? (string) $address['complement'] : null,
+                        'neighborhood' => (string) ($address['district'] ?? 'Centro'),
+                        'city' => (string) ($address['city'] ?? 'São Paulo'),
+                        'state' => strtoupper(substr((string) ($address['state'] ?? 'SP'), 0, 2)),
+                        'postalCode' => preg_replace('/\D/', '', (string) ($address['zip'] ?? '01000000')),
+                    ],
+                ],
+                'metadata' => [
+                    'orderNumber' => $order->order_number,
+                    'paymentContext' => [
+                        'operationId' => $attempt->idempotency_key,
+                        'items' => $order->items->map(fn ($item) => [
+                            'name' => $item->product_name_snapshot,
+                            'quantity' => (int) $item->quantity,
+                            'unitPrice' => (int) $item->unit_price_cents,
+                        ])->all(),
+                    ],
+                ],
+            ];
+
+            $notification = rtrim((string) config('checkout.webhook_base_url'), '/').'/api/v1/webhooks/plupag';
+            if (parse_url($notification, PHP_URL_SCHEME) === 'https') {
+                $payload['webhookUrl'] = $notification;
+            }
+
+            $extraHeaders = [];
+            if (! empty($input['session_id'])) {
+                $extraHeaders['x-session-id'] = (string) $input['session_id'];
+            }
+
+            if ($method === 'credit_card') {
+                $installments = max(1, (int) ($input['installments'] ?? 1));
+                $cardData = [
+                    'installments' => $installments,
+                ];
+
+                if (! empty($input['card_token'])) {
+                    $cardData['token'] = (string) $input['card_token'];
+                } elseif (! empty($input['card_number'])) {
+                    $cardData['cardNumber'] = preg_replace('/\D/', '', (string) $input['card_number']);
+                    $cardData['holderName'] = strtoupper((string) ($input['card_holder'] ?? $buyer['name']));
+                    $cardData['expirationMonth'] = str_pad((string) ($input['card_month'] ?? '12'), 2, '0', STR_PAD_LEFT);
+                    $cardData['expirationYear'] = (string) ($input['card_year'] ?? date('Y'));
+                    $cardData['securityCode'] = (string) ($input['card_cvv'] ?? '123');
+                    if (! empty($input['brand'])) {
+                        $cardData['brand'] = (string) $input['brand'];
+                    }
+                }
+                $payload['creditCard'] = $cardData;
+            }
+
+            return $this->request('plupag', $attempt->environment, 'POST', '/v1/invoices/recipient', $payload, $attempt->idempotency_key, $extraHeaders);
+        }
         // Search by a stable customer reference; a timeout never causes a blind payment retry.
         $reference = 'user-'.$order->user_id.'-'.substr(hash('sha256', json_encode([$buyer, $address], JSON_THROW_ON_ERROR)), 0, 24);
         try {
@@ -109,6 +208,19 @@ class PaymentGateway
 
     public function find(Payment $attempt): ?array
     {
+        if ($attempt->provider === 'plupag') {
+            if ($attempt->external_payment_id) {
+                return $this->request('plupag', $attempt->environment, 'GET', '/v1/invoices/recipient/'.$attempt->external_payment_id);
+            }
+            $response = $this->request('plupag', $attempt->environment, 'GET', '/v1/invoices/recipient', ['externalId' => $attempt->idempotency_key, 'limit' => 2]);
+            $rows = $response['data'] ?? $response['results'] ?? [];
+            if (count($rows) > 1) {
+                throw new GatewayFailure(true);
+            }
+
+            return $rows[0] ?? null;
+        }
+
         if ($attempt->external_payment_id) {
             return $this->request($attempt->provider, $attempt->environment, 'GET', $attempt->provider === 'mercadopago' ? '/v1/payments/'.$attempt->external_payment_id : '/payments/'.$attempt->external_payment_id);
         }
@@ -123,7 +235,19 @@ class PaymentGateway
 
     public function get(string $provider, string $environment, string $id): array
     {
+        if ($provider === 'plupag') {
+            return $this->request('plupag', $environment, 'GET', '/v1/invoices/recipient/'.$id);
+        }
+
         return $this->request($provider, $environment, 'GET', $provider === 'mercadopago' ? '/v1/payments/'.$id : '/payments/'.$id);
+    }
+
+    public function simulateInstallments(string $environment, float $amount, int $maxInstallments = 12): array
+    {
+        return $this->request('plupag', $environment, 'POST', '/v1/pricing/recipient/simulate-installments', [
+            'amount' => $amount,
+            'maxInstallments' => $maxInstallments,
+        ]);
     }
 
     public static function safeUrl(mixed $url, string $provider): ?string
@@ -133,7 +257,11 @@ class PaymentGateway
         }
         $parts = parse_url($url);
         $host = strtolower($parts['host'] ?? '');
-        $hosts = $provider === 'asaas' ? ['asaas.com', 'www.asaas.com', 'sandbox.asaas.com'] : ['mercadopago.com.br', 'www.mercadopago.com.br', 'www.mercadopago.com', 'mercadopago.com', 'www.mercadopago.com.ar'];
+        $hosts = match ($provider) {
+            'asaas' => ['asaas.com', 'www.asaas.com', 'sandbox.asaas.com'],
+            'plupag' => ['plupag.com.br', 'www.plupag.com.br', 'api.plupag.com.br', 'checkout.plupag.com.br', 'gatewee.com.br'],
+            default => ['mercadopago.com.br', 'www.mercadopago.com.br', 'www.mercadopago.com', 'mercadopago.com', 'www.mercadopago.com.ar'],
+        };
 
         return ($parts['scheme'] ?? '') === 'https' && ! isset($parts['user']) && ! isset($parts['pass']) && ! isset($parts['port']) && in_array($host, $hosts, true) ? $url : null;
     }

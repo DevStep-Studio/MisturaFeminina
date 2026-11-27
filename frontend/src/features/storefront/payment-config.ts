@@ -1,9 +1,19 @@
 import { api } from "../../lib/api";
-export interface PaymentConfig {
-  enabled: boolean;
-  provider: "mercadopago" | "asaas";
+export interface AvailableProvider {
+  id: "mercadopago" | "plupag" | "asaas";
+  name: string;
   environment: string;
   public_key: string | null;
+  methods: ("pix" | "credit_card" | "boleto")[];
+}
+
+export interface PaymentConfig {
+  enabled: boolean;
+  provider: "mercadopago" | "plupag" | "asaas";
+  environment: string;
+  public_key: string | null;
+  plupag_public_key?: string | null;
+  available_providers?: AvailableProvider[];
 }
 export async function paymentConfig() {
   return (

@@ -92,7 +92,9 @@ Route::post('orders/{publicToken}/cancel', [CheckoutController::class, 'cancelBy
 // Payment Webhooks & Sandbox Simulator
 Route::post('webhooks/mercadopago', [WebhookController::class, 'mercadoPago'])->middleware('throttle:120,1');
 Route::post('webhooks/asaas', [WebhookController::class, 'asaas'])->middleware('throttle:120,1');
+Route::post('webhooks/plupag', [WebhookController::class, 'plupag'])->middleware('throttle:120,1');
 Route::get('checkout/config', [CheckoutController::class, 'config']);
+Route::get('checkout/plupag/installments', [CheckoutController::class, 'plupagInstallments'])->middleware('throttle:30,1');
 Route::post('orders/{publicToken}/refresh-payment', [CheckoutController::class, 'refreshPayment'])->middleware('throttle:6,1');
 Route::post('sandbox/orders/{publicToken}/simulate-payment', [WebhookController::class, 'simulateSandboxPayment']);
 

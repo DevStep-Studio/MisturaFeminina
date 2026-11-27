@@ -32,7 +32,7 @@ class PaymentSettings
     {
         $value = app(StoreSettingsService::class)->getPublicConfig()['payment_provider'] ?? config('checkout.provider');
 
-        return in_array($value, ['mercadopago', 'asaas'], true) ? $value : 'mercadopago';
+        return in_array($value, ['mercadopago', 'plupag', 'asaas'], true) ? $value : 'mercadopago';
     }
 
     public function available(?string $provider = null): bool
@@ -41,7 +41,12 @@ class PaymentSettings
         if (! $this->get($provider, 'enabled') || ! in_array($this->get($provider, 'environment'), ['sandbox', 'production'], true)) {
             return false;
         }
-        foreach ($provider === 'mercadopago' ? ['access_token', 'public_key', 'webhook_secret'] : ['api_key', 'webhook_token'] as $key) {
+        $requiredKeys = match ($provider) {
+            'mercadopago' => ['access_token', 'public_key', 'webhook_secret'],
+            'plupag' => ['api_key', 'api_secret'],
+            default => ['api_key', 'webhook_token'],
+        };
+        foreach ($requiredKeys as $key) {
             if (! $this->get($provider, $key)) {
                 return false;
             }
@@ -50,11 +55,50 @@ class PaymentSettings
         return true;
     }
 
+    /**
+     * @return array<int, array{id: string, name: string, environment: string, public_key: string|null, methods: string[]}>
+     */
+    public function availableProviders(): array
+    {
+        $all = [
+            'mercadopago' => [
+                'id' => 'mercadopago',
+                'name' => 'Mercado Pago',
+                'environment' => $this->get('mercadopago', 'environment', 'sandbox'),
+                'public_key' => $this->get('mercadopago', 'public_key'),
+                'methods' => ['pix', 'credit_card', 'boleto'],
+            ],
+            'plupag' => [
+                'id' => 'plupag',
+                'name' => 'Plupag',
+                'environment' => $this->get('plupag', 'environment', 'sandbox'),
+                'public_key' => $this->get('plupag', 'public_key'),
+                'methods' => ['pix', 'credit_card'],
+            ],
+        ];
+
+        $active = [];
+        foreach ($all as $provider => $config) {
+            if ($this->available($provider)) {
+                $active[] = $config;
+            }
+        }
+
+        return $active;
+    }
+
     public function publicConfig(): array
     {
         $provider = $this->provider();
 
-        return ['enabled' => $this->available(), 'provider' => $provider, 'environment' => $this->get($provider, 'environment'), 'public_key' => $provider === 'mercadopago' && $this->available() ? $this->get($provider, 'public_key') : null];
+        return [
+            'enabled' => $this->available(),
+            'provider' => $provider,
+            'environment' => $this->get($provider, 'environment'),
+            'public_key' => $provider === 'mercadopago' && $this->available('mercadopago') ? $this->get('mercadopago', 'public_key') : null,
+            'plupag_public_key' => $this->available('plupag') ? $this->get('plupag', 'public_key') : null,
+            'available_providers' => $this->availableProviders(),
+        ];
     }
 
     public static function digest(array $data): string

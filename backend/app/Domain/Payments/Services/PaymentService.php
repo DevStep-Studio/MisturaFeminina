@@ -27,6 +27,9 @@ class PaymentService
         if ($provider === 'mercadopago' && $method === PaymentMethod::CreditCard) {
             abort_unless(! empty($input['card_token']) && ! empty($input['payment_method_id']) && ! in_array($input['payment_method_id'], ['pix', 'bolbradesco']), 422, 'Preencha o cartão no formulário seguro.');
         }
+        if ($provider === 'plupag' && $method === PaymentMethod::CreditCard) {
+            abort_unless(! empty($input['card_token']) || ! empty($input['card_number']), 422, 'Preencha os dados do cartão de crédito no formulário seguro.');
+        }
         $fingerprint = PaymentSettings::digest(['method' => $method->value, 'input' => $input]);
         [$payment,$created] = DB::transaction(function () use ($order, $provider, $method, $key, $fingerprint): array {
             $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
@@ -56,7 +59,7 @@ class PaymentService
                 throw $e;
             }
             $diagnostic = [
-                'api' => $provider === 'mercadopago' ? 'payments_v1' : 'asaas_v3',
+                'api' => $provider === 'mercadopago' ? 'payments_v1' : ($provider === 'plupag' ? 'plupag_v1' : 'asaas_v3'),
                 'http_status' => $e instanceof GatewayFailure ? $e->httpStatus : null,
                 'error_codes' => $e instanceof GatewayFailure ? $e->providerCodes : [],
                 'request_id' => request()->attributes->get('request_id'),
@@ -90,16 +93,42 @@ class PaymentService
     public function apply(Payment $payment, array $remote): Payment
     {
         $mp = $payment->provider === 'mercadopago';
+        $plu = $payment->provider === 'plupag';
         $id = $remote['id'] ?? null;
-        if (! is_scalar($id) || ! preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', (string) $id) || ($remote[$mp ? 'external_reference' : 'externalReference'] ?? null) !== $payment->idempotency_key || ! is_numeric($remote[$mp ? 'transaction_amount' : 'value'] ?? null) || PaymentSettings::cents($remote[$mp ? 'transaction_amount' : 'value']) !== $payment->gross_amount_cents || ($mp && ($remote['currency_id'] ?? null) !== 'BRL') || ($payment->external_payment_id && $payment->external_payment_id !== (string) $id)) {
+        $refKey = $mp ? 'external_reference' : ($plu ? 'externalId' : 'externalReference');
+        $amountKey = $mp ? 'transaction_amount' : ($plu ? 'amount' : 'value');
+
+        if (! is_scalar($id) || ! preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', (string) $id) || ($remote[$refKey] ?? null) !== $payment->idempotency_key || ! is_numeric($remote[$amountKey] ?? null) || PaymentSettings::cents($remote[$amountKey]) !== $payment->gross_amount_cents || ($mp && ($remote['currency_id'] ?? null) !== 'BRL') || ($payment->external_payment_id && $payment->external_payment_id !== (string) $id)) {
             throw new GatewayFailure(true);
         }
-        $status = $mp ? match ($remote['status'] ?? '') {
-            'approved' => PaymentStatus::Approved,'rejected' => PaymentStatus::Rejected,'cancelled' => PaymentStatus::Cancelled,'refunded' => PaymentStatus::Refunded,'charged_back' => PaymentStatus::ChargedBack,default => PaymentStatus::Pending,
-        } : match ($remote['status'] ?? '') {
-            'RECEIVED' => PaymentStatus::Approved,'CONFIRMED' => $payment->method === PaymentMethod::CreditCard ? PaymentStatus::Approved : PaymentStatus::Pending,'REFUNDED' => PaymentStatus::Refunded,'CHARGEBACK_REQUESTED','CHARGEBACK_DISPUTE','AWAITING_CHARGEBACK_REVERSAL' => PaymentStatus::ChargedBack,'DELETED' => PaymentStatus::Cancelled,'CREDIT_CARD_CAPTURE_REFUSED' => PaymentStatus::Rejected,default => PaymentStatus::Pending,
+        $status = match (true) {
+            $mp => match ($remote['status'] ?? '') {
+                'approved' => PaymentStatus::Approved,
+                'rejected' => PaymentStatus::Rejected,
+                'cancelled' => PaymentStatus::Cancelled,
+                'refunded' => PaymentStatus::Refunded,
+                'charged_back' => PaymentStatus::ChargedBack,
+                default => PaymentStatus::Pending,
+            },
+            $plu => match ($remote['status'] ?? '') {
+                'approved', 'paid' => PaymentStatus::Approved,
+                'rejected', 'failed' => PaymentStatus::Rejected,
+                'canceled', 'expired' => PaymentStatus::Cancelled,
+                'refunded' => PaymentStatus::Refunded,
+                'in_dispute' => PaymentStatus::ChargedBack,
+                default => PaymentStatus::Pending,
+            },
+            default => match ($remote['status'] ?? '') {
+                'RECEIVED' => PaymentStatus::Approved,
+                'CONFIRMED' => $payment->method === PaymentMethod::CreditCard ? PaymentStatus::Approved : PaymentStatus::Pending,
+                'REFUNDED' => PaymentStatus::Refunded,
+                'CHARGEBACK_REQUESTED', 'CHARGEBACK_DISPUTE', 'AWAITING_CHARGEBACK_REVERSAL' => PaymentStatus::ChargedBack,
+                'DELETED' => PaymentStatus::Cancelled,
+                'CREDIT_CARD_CAPTURE_REFUSED' => PaymentStatus::Rejected,
+                default => PaymentStatus::Pending,
+            },
         };
-        if (! $mp && ($remote['deleted'] ?? false)) {
+        if (! $mp && ! $plu && ($remote['deleted'] ?? false)) {
             $status = PaymentStatus::Cancelled;
         }
         $netValue = $mp ? ($remote['transaction_details']['net_received_amount'] ?? null) : ($remote['netValue'] ?? null);
@@ -111,14 +140,19 @@ class PaymentService
                 }
             }
         }
-        $updated = $mp && ! empty($remote['date_last_updated']) ? Carbon::parse($remote['date_last_updated']) : null;
+        if ($plu && isset($remote['calculatedFee']) && is_numeric($remote['calculatedFee'])) {
+            $feeCents = PaymentSettings::cents($remote['calculatedFee']);
+        }
+        $updated = $mp && ! empty($remote['date_last_updated'])
+            ? Carbon::parse($remote['date_last_updated'])
+            : ($plu && ! empty($remote['paidAt']) ? Carbon::parse($remote['paidAt']) : null);
         $pix = $remote['point_of_interaction']['transaction_data'] ?? [];
-        $url = PaymentGateway::safeUrl($remote['invoiceUrl'] ?? null, 'asaas');
-        if (! $mp && $status === PaymentStatus::Pending && ! $url) {
+        $url = $plu ? PaymentGateway::safeUrl($remote['checkoutUrl'] ?? null, 'plupag') : PaymentGateway::safeUrl($remote['invoiceUrl'] ?? null, 'asaas');
+        if (! $mp && ! $plu && $status === PaymentStatus::Pending && ! $url) {
             throw new GatewayFailure(true);
         }
 
-        return DB::transaction(function () use ($payment, $remote, $id, $mp, $status, $updated, $pix, $url, $feeCents): Payment {
+        return DB::transaction(function () use ($payment, $remote, $id, $mp, $plu, $status, $updated, $pix, $url, $feeCents): Payment {
             $order = Order::whereKey($payment->order_id)->lockForUpdate()->firstOrFail();
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
             if ($updated && $locked->provider_updated_at && $updated->lt($locked->provider_updated_at)) {
@@ -127,11 +161,41 @@ class PaymentService
             if (in_array($locked->status, [PaymentStatus::Approved, PaymentStatus::Refunded, PaymentStatus::ChargedBack], true) && in_array($status, [PaymentStatus::Pending, PaymentStatus::Rejected, PaymentStatus::Cancelled], true)) {
                 return $locked;
             }
-            $diagnostic = ['status' => $status->value, 'status_detail' => GatewayFailure::safeCode($remote['status_detail'] ?? null), 'api' => $mp ? 'payments_v1' : 'asaas_v3'];
+            $diagnostic = [
+                'status' => $status->value,
+                'status_detail' => GatewayFailure::safeCode($remote['status_detail'] ?? ($plu ? ($remote['status'] ?? null) : null)),
+                'api' => $mp ? 'payments_v1' : ($plu ? 'plupag_v1' : 'asaas_v3'),
+            ];
             if ($status === PaymentStatus::Rejected && $locked->status !== PaymentStatus::Rejected) {
                 Log::warning('payment.rejected', ['order_id' => $order->id, 'payment_id' => $locked->id, 'provider' => $locked->provider, 'environment' => $locked->environment, ...$diagnostic]);
             }
-            $locked->update(['external_payment_id' => (string) $id, 'checkout_url' => $url, 'boleto_url' => $mp ? PaymentGateway::safeUrl($remote['transaction_details']['external_resource_url'] ?? null, 'mercadopago') : null, 'barcode' => is_string($remote['barcode']['content'] ?? null) ? $remote['barcode']['content'] : null, 'pix_copy_paste' => $mp && $locked->method === PaymentMethod::Pix && is_string($pix['qr_code'] ?? null) ? $pix['qr_code'] : null, 'pix_qr_code_base64' => $mp && is_string($pix['qr_code_base64'] ?? null) && strlen($pix['qr_code_base64']) < 100000 && preg_match('/^[A-Za-z0-9+\/=]+$/D', $pix['qr_code_base64']) ? $pix['qr_code_base64'] : null, 'pix_expires_at' => $remote['date_of_expiration'] ?? null, 'provider_updated_at' => $updated, 'raw_sanitized_response' => $diagnostic, 'failure_reason' => $status === PaymentStatus::Rejected ? GatewayFailure::rejectionMessage($remote['status_detail'] ?? null) : null]);
+
+            $pixCopyPaste = match (true) {
+                $mp && $locked->method === PaymentMethod::Pix => (is_string($pix['qr_code'] ?? null) ? $pix['qr_code'] : null),
+                $plu && $locked->method === PaymentMethod::Pix => (is_string($remote['paymentData']['pixKey'] ?? null) ? $remote['paymentData']['pixKey'] : null),
+                default => null,
+            };
+
+            $pixQrBase64 = match (true) {
+                $mp && is_string($pix['qr_code_base64'] ?? null) && strlen($pix['qr_code_base64']) < 100000 && preg_match('/^[A-Za-z0-9+\/=]+$/D', $pix['qr_code_base64']) => $pix['qr_code_base64'],
+                $plu && is_string($remote['paymentData']['pixQrCode'] ?? null) && strlen($remote['paymentData']['pixQrCode']) < 100000 && preg_match('/^[A-Za-z0-9+\/=]+$/D', $remote['paymentData']['pixQrCode']) => $remote['paymentData']['pixQrCode'],
+                default => null,
+            };
+
+            $pixExpiresAt = $remote['dueDate'] ?? $remote['date_of_expiration'] ?? null;
+
+            $locked->update([
+                'external_payment_id' => (string) $id,
+                'checkout_url' => $url,
+                'boleto_url' => $mp ? PaymentGateway::safeUrl($remote['transaction_details']['external_resource_url'] ?? null, 'mercadopago') : null,
+                'barcode' => is_string($remote['barcode']['content'] ?? null) ? $remote['barcode']['content'] : null,
+                'pix_copy_paste' => $pixCopyPaste,
+                'pix_qr_code_base64' => $pixQrBase64,
+                'pix_expires_at' => $pixExpiresAt,
+                'provider_updated_at' => $updated,
+                'raw_sanitized_response' => $diagnostic,
+                'failure_reason' => $status === PaymentStatus::Rejected ? GatewayFailure::rejectionMessage($remote['status_detail'] ?? ($plu ? 'Pagamento recusado pela operadora ou antifraude.' : null)) : null,
+            ]);
             app(WebhookProcessorService::class)->applyPaymentTransition($locked, $status, $feeCents, 'Status confirmado na API do provedor');
 
             return $locked->fresh();

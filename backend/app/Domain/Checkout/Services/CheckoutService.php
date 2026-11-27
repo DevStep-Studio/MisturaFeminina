@@ -49,10 +49,18 @@ class CheckoutService
     public function submitCheckout(Cart $cart, ?User $user, array $input, string $idempotencyKey): array
     {
         $settings = app(PaymentSettings::class);
-        abort_unless($settings->available(), 503, 'Checkout indisponível. Configure os pagamentos.');
+        $requestedProvider = $input['payment_provider'] ?? null;
+        $provider = ($requestedProvider && $settings->available($requestedProvider))
+            ? $requestedProvider
+            : $settings->provider();
+
+        abort_unless($settings->available($provider), 503, 'Checkout indisponível. Configure os pagamentos.');
         abort_if(($input['payment_method'] ?? '') === 'debit_card', 422, 'Selecione Pix, crédito ou boleto.');
-        if ($settings->provider() === 'mercadopago' && $input['payment_method'] === 'credit_card' && ! ($input['defer_payment'] ?? false)) {
+        if ($provider === 'mercadopago' && $input['payment_method'] === 'credit_card' && ! ($input['defer_payment'] ?? false)) {
             abort_unless(! empty($input['payment_data']['card_token']) && ! empty($input['payment_data']['payment_method_id']), 422, 'Preencha o cartão no formulário seguro.');
+        }
+        if ($provider === 'plupag' && $input['payment_method'] === 'credit_card' && ! ($input['defer_payment'] ?? false)) {
+            abort_unless(! empty($input['payment_data']['card_token']) || ! empty($input['payment_data']['card_number']), 422, 'Preencha os dados do cartão de crédito no formulário seguro.');
         }
         $fingerprint = PaymentSettings::digest($input);
         $existingOrder = Order::where('idempotency_key', $idempotencyKey)->with('latestPayment')->first();
@@ -66,7 +74,7 @@ class CheckoutService
         $uf = strtoupper((string) $address['state']);
         $customerEmail = strtolower(trim((string) $input['customer_email']));
 
-        $order = DB::transaction(function () use ($cart, $user, $input, $address, $cep, $uf, $customerEmail, $idempotencyKey, $fingerprint, $settings): Order {
+        $order = DB::transaction(function () use ($cart, $user, $input, $address, $cep, $uf, $customerEmail, $idempotencyKey, $fingerprint, $settings, $provider): Order {
             /** @var Cart $lockedCart */
             $lockedCart = Cart::query()->whereKey($cart->id)->with(['items.product', 'items.variant', 'shippingQuote'])->lockForUpdate()->firstOrFail();
 
@@ -112,7 +120,7 @@ class CheckoutService
                 'public_token' => Str::uuid()->toString(),
                 'idempotency_key' => $idempotencyKey,
                 'checkout_cart_id' => $lockedCart->id, 'checkout_fingerprint' => $fingerprint,
-                'payment_provider' => $settings->provider(), 'payment_environment' => $settings->get($settings->provider(), 'environment'), 'payment_method' => $input['payment_method'],
+                'payment_provider' => $provider, 'payment_environment' => $settings->get($provider, 'environment'), 'payment_method' => $input['payment_method'],
                 'user_id' => $user?->id,
                 'is_guest' => $user === null,
                 'customer_name' => trim((string) $input['customer_name']),
@@ -240,10 +248,18 @@ class CheckoutService
     /**
      * @param  array<string, mixed>  $paymentInput
      */
-    public function retryPayment(Order $order, PaymentMethod $method, array $paymentInput, string $idempotencyKey): Payment
+    public function retryPayment(Order $order, PaymentMethod $method, array $paymentInput, string $idempotencyKey, ?string $provider = null): Payment
     {
         if (! in_array($order->status, [OrderStatus::PendingPayment, OrderStatus::PaymentFailed], true)) {
             throw ValidationException::withMessages(['order' => ['Este pedido não aceita nova tentativa de pagamento no status atual.']]);
+        }
+
+        if ($provider && app(PaymentSettings::class)->available($provider)) {
+            $order->update([
+                'payment_provider' => $provider,
+                'payment_environment' => app(PaymentSettings::class)->get($provider, 'environment'),
+            ]);
+            $order->refresh();
         }
 
         $existing = Payment::query()->where('idempotency_key', $idempotencyKey)->first();

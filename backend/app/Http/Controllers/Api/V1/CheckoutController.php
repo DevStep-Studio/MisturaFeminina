@@ -40,6 +40,28 @@ class CheckoutController extends Controller
         return response()->json(['data' => app(PaymentSettings::class)->publicConfig()]);
     }
 
+    public function plupagInstallments(Request $request): JsonResponse
+    {
+        $settings = app(PaymentSettings::class);
+        abort_unless($settings->available('plupag'), 503, 'Plupag não está disponível ou configurada.');
+
+        $amount = (float) $request->query('amount', 0);
+        if ($amount <= 0 && $request->has('amount_cents')) {
+            $amount = ((float) $request->query('amount_cents')) / 100;
+        }
+        abort_unless($amount > 0, 422, 'Valor inválido para simulação.');
+
+        $maxInstallments = min(24, max(1, (int) $request->query('max_installments', 12)));
+        $env = (string) $settings->get('plupag', 'environment', 'sandbox');
+
+        try {
+            $res = app(\App\Domain\Payments\Services\PaymentGateway::class)->simulateInstallments($env, $amount, $maxInstallments);
+            return response()->json(['data' => $res]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Não foi possível simular parcelas.'], 502);
+        }
+    }
+
     public function refreshPayment(string $publicToken): JsonResponse
     {
         $order = Order::where('public_token', $publicToken)->with('latestPayment')->firstOrFail();
@@ -72,13 +94,21 @@ class CheckoutController extends Controller
             'shipping_address.neighborhood' => ['required', 'string', 'max:120'],
             'shipping_address.city' => ['required', 'string', 'max:120'],
             'shipping_address.state' => ['required', Rule::in(explode(',', 'AC,AL,AP,AM,BA,CE,DF,ES,GO,MA,MT,MS,MG,PA,PB,PR,PE,PI,RJ,RN,RS,RO,RR,SC,SP,SE,TO'))],
+            'payment_provider' => ['nullable', 'string', Rule::in(['mercadopago', 'plupag', 'asaas'])],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
-            'payment_data' => ['nullable', 'array:installments,payment_method_id,card_token,card_last_four,issuer_id'],
-            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:1'],
+            'payment_data' => ['nullable', 'array:installments,payment_method_id,card_token,card_last_four,issuer_id,session_id,card_holder,card_number,card_month,card_year,card_cvv,brand'],
+            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:24'],
             'payment_data.payment_method_id' => ['nullable', 'string', 'max:40'],
             'payment_data.card_token' => ['nullable', 'string', 'max:255'],
             'payment_data.card_last_four' => ['nullable', 'string', 'max:4'],
             'payment_data.issuer_id' => ['nullable', 'string', 'max:40'],
+            'payment_data.session_id' => ['nullable', 'string', 'max:255'],
+            'payment_data.card_holder' => ['nullable', 'string', 'max:150'],
+            'payment_data.card_number' => ['nullable', 'string', 'max:25'],
+            'payment_data.card_month' => ['nullable', 'string', 'max:2'],
+            'payment_data.card_year' => ['nullable', 'string', 'max:4'],
+            'payment_data.card_cvv' => ['nullable', 'string', 'max:4'],
+            'payment_data.brand' => ['nullable', 'string', 'max:30'],
             'notes_customer' => ['nullable', 'string', 'max:500'],
             'assisted_order_token' => ['nullable', 'string', 'max:80'],
         ]);
@@ -178,12 +208,21 @@ class CheckoutController extends Controller
     public function retryPayment(Request $request, string $publicToken): JsonResponse
     {
         $validated = $request->validate([
+            'payment_provider' => ['nullable', 'string', Rule::in(['mercadopago', 'plupag', 'asaas'])],
             'payment_method' => ['required', Rule::enum(PaymentMethod::class)],
-            'payment_data' => ['nullable', 'array:installments,payment_method_id,card_token,card_last_four,issuer_id'],
-            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:1'],
+            'payment_data' => ['nullable', 'array:installments,payment_method_id,card_token,card_last_four,issuer_id,session_id,card_holder,card_number,card_month,card_year,card_cvv,brand'],
+            'payment_data.installments' => ['nullable', 'integer', 'min:1', 'max:24'],
             'payment_data.payment_method_id' => ['nullable', 'string', 'max:40'],
             'payment_data.card_token' => ['nullable', 'string', 'max:255'],
             'payment_data.card_last_four' => ['nullable', 'string', 'max:4'],
+            'payment_data.issuer_id' => ['nullable', 'string', 'max:40'],
+            'payment_data.session_id' => ['nullable', 'string', 'max:255'],
+            'payment_data.card_holder' => ['nullable', 'string', 'max:150'],
+            'payment_data.card_number' => ['nullable', 'string', 'max:25'],
+            'payment_data.card_month' => ['nullable', 'string', 'max:2'],
+            'payment_data.card_year' => ['nullable', 'string', 'max:4'],
+            'payment_data.card_cvv' => ['nullable', 'string', 'max:4'],
+            'payment_data.brand' => ['nullable', 'string', 'max:30'],
         ]);
 
         $order = Order::query()->where('public_token', $publicToken)->with('items')->firstOrFail();
@@ -194,6 +233,7 @@ class CheckoutController extends Controller
             PaymentMethod::from((string) $validated['payment_method']),
             is_array($validated['payment_data'] ?? null) ? $validated['payment_data'] : [],
             $idempotencyKey,
+            $validated['payment_provider'] ?? null,
         );
 
         return response()->json([

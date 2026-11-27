@@ -31,7 +31,7 @@ class AdminSettingsController extends Controller
     public function updateStore(Request $request): JsonResponse
     {
         $allowedKeys = array_keys(StoreSettingsService::defaults());
-        $request->validate(['payment_provider' => ['sometimes', Rule::in(['mercadopago', 'asaas'])]]);
+        $request->validate(['payment_provider' => ['sometimes', Rule::in(['mercadopago', 'plupag', 'asaas'])]]);
         $payload = $request->only($allowedKeys);
 
         if ($payload === []) {
@@ -46,7 +46,7 @@ class AdminSettingsController extends Controller
 
     public function listIntegrations(): JsonResponse
     {
-        $providers = ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai', 'google_search'];
+        $providers = ['mercadopago', 'plupag', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai', 'google_search'];
         $existing = IntegrationSetting::query()->get()->keyBy('provider');
 
         $settings = app(PaymentSettings::class);
@@ -81,7 +81,7 @@ class AdminSettingsController extends Controller
 
     public function updateIntegration(Request $request, string $provider): JsonResponse
     {
-        if (! in_array($provider, ['mercadopago', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai', 'google_search'], true)) {
+        if (! in_array($provider, ['mercadopago', 'plupag', 'asaas', 'melhorenvio', 'correios', 'smtp', 'analytics', 'openai', 'google_search'], true)) {
             return response()->json(['message' => 'Provedor inválido.'], 404);
         }
 
@@ -94,13 +94,14 @@ class AdminSettingsController extends Controller
 
         $publicKeys = match ($provider) {
             'correios' => ['origin_zip', 'services'],
-            'mercadopago' => ['public_key'],
+            'mercadopago', 'plupag' => ['public_key'],
             'openai' => ['base_url', 'support_model', 'catalog_model', 'replenishment_model'],
             'google_search' => ['driver', 'engine_id', 'serper_base_url'],
             default => [],
         };
         $secretKeys = match ($provider) {
             'mercadopago' => ['access_token', 'webhook_secret'],
+            'plupag' => ['api_key', 'api_secret', 'webhook_secret'],
             'asaas' => ['api_key', 'webhook_token'],
             'correios' => ['username', 'password', 'card', 'contract', 'regional'],
             'openai' => ['api_key', 'organization'],
@@ -165,6 +166,16 @@ class AdminSettingsController extends Controller
             $token = $setting?->encrypted_credentials['access_token'] ?? config('services.mercadopago.access_token');
             if (is_string($token) && $token !== '') {
                 $resp = Http::timeout(6)->withToken($token)->get('https://api.mercadopago.com/users/me');
+                $status = $resp->successful() ? 'connected' : 'error_http_'.$resp->status();
+            }
+        } elseif ($provider === 'plupag') {
+            $apiKey = $setting?->encrypted_credentials['api_key'] ?? config('checkout.plupag.api_key');
+            $apiSecret = $setting?->encrypted_credentials['api_secret'] ?? config('checkout.plupag.api_secret');
+            if (is_string($apiKey) && is_string($apiSecret) && $apiKey !== '' && $apiSecret !== '') {
+                $resp = Http::timeout(6)->withHeaders([
+                    'x-api-key' => $apiKey,
+                    'x-api-secret' => $apiSecret,
+                ])->get('https://api.plupag.com.br/v1/invoices/recipient', ['limit' => 1]);
                 $status = $resp->successful() ? 'connected' : 'error_http_'.$resp->status();
             }
         } elseif ($provider === 'melhorenvio') {

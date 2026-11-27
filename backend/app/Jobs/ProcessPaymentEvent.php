@@ -32,7 +32,7 @@ class ProcessPaymentEvent implements ShouldQueue
         }
         $payload = $event->payload;
         $remote = $gateway->get($event->provider, $payload['environment'], $payload['resource_id']);
-        $reference = $remote[$event->provider === 'mercadopago' ? 'external_reference' : 'externalReference'] ?? null;
+        $reference = $remote[$event->provider === 'mercadopago' ? 'external_reference' : ($event->provider === 'plupag' ? 'externalId' : 'externalReference')] ?? null;
         $payment = Payment::where('provider', $event->provider)->where('environment', $payload['environment'])->where('idempotency_key', $reference)->firstOrFail();
         $payments->apply($payment, $remote);
         $event->update(['payment_id' => $payment->id, 'status' => 'processed', 'processed_at' => now()]);
