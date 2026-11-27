@@ -405,12 +405,41 @@ class CatalogController extends Controller
         ]);
     }
 
+    public function uploadReviewPhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'image', 'max:5120'], // 5 MB max
+        ]);
+
+        $file = $request->file('file');
+        /** @var \App\Domain\Media\Services\MediaUploadService $mediaUploadService */
+        $mediaUploadService = app(\App\Domain\Media\Services\MediaUploadService::class);
+        $asset = $mediaUploadService->uploadImage(
+            $file,
+            $request->user(),
+            'Foto de avaliação de cliente',
+            'Foto enviada por comprador em avaliação',
+            'reviews',
+        );
+
+        return response()->json([
+            'data' => [
+                'path' => $asset->path,
+            ],
+        ], 201);
+    }
+
     public function storeReview(Request $request, string $slug): JsonResponse
     {
         $validated = $request->validate([
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
             'title' => ['nullable', 'string', 'max:160'],
             'body' => ['required', 'string', 'min:5', 'max:1500'],
+            'author_name' => ['nullable', 'string', 'min:2', 'max:100'],
+            'author_email' => ['nullable', 'string', 'email:rfc', 'max:190'],
+            'variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'photos' => ['nullable', 'array', 'max:3'],
+            'photos.*' => ['string', 'max:500'],
         ]);
 
         $user = $request->user();
@@ -422,19 +451,38 @@ class CatalogController extends Controller
             ->whereHas('items', fn ($q) => $q->where('product_id', $product->id))
             ->exists() : false;
 
+        $rawAuthorName = $user ? $user->name : ($validated['author_name'] ?? 'Cliente');
+        // Privacy hygiene: format as First Name + Last Initial (e.g. "Mariana S.") if multiple words
+        $nameParts = preg_split('/\s+/', trim((string) $rawAuthorName)) ?: ['Cliente'];
+        $cleanAuthorName = count($nameParts) > 1
+            ? $nameParts[0] . ' ' . mb_substr($nameParts[count($nameParts) - 1], 0, 1) . '.'
+            : ($nameParts[0] ?: 'Cliente');
+
+        $variantName = null;
+        if (! empty($validated['variant_id'])) {
+            $variant = ProductVariant::query()->where('product_id', $product->id)->find((int) $validated['variant_id']);
+            if ($variant) {
+                $variantName = $variant->name . ($variant->shade_code ? " ({$variant->shade_code})" : '');
+            }
+        }
+
         $review = Review::query()->create([
             'product_id' => $product->id,
             'user_id' => $user ? $user->id : null,
-            'author_name' => $user ? $user->name : 'Cliente',
+            'author_name' => $cleanAuthorName,
+            'author_email' => $user ? $user->email : ($validated['author_email'] ?? null),
             'rating' => (int) $validated['rating'],
             'title' => $validated['title'] ?? null,
             'body' => $validated['body'],
+            'photos' => ! empty($validated['photos']) ? array_values(array_filter($validated['photos'])) : null,
             'is_verified_purchase' => $verified,
+            'is_external' => false,
+            'variant_name' => $variantName,
             'status' => 'pending',
         ]);
 
         return response()->json([
-            'message' => 'Avaliação enviada para moderação.',
+            'message' => 'Obrigada! Sua avaliação foi enviada para moderação.',
             'data' => $review,
         ], 201);
     }

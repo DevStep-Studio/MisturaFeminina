@@ -88,6 +88,12 @@ interface ReviewRow {
   title: string | null;
   body: string;
   status: string;
+  photos?: string[] | null;
+  is_verified_purchase?: boolean;
+  is_external?: boolean;
+  source_name?: string | null;
+  source_url?: string | null;
+  variant_name?: string | null;
   product?: { name: string } | null;
 }
 
@@ -1241,32 +1247,79 @@ function AdminProductsPage() {
           <ul class="divide-y divide-zinc-200 text-sm">
             <For each={reviews() ?? []}>
               {(rev) => (
-                <li class="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div>
-                    <p class="font-bold text-zinc-900">
-                      {rev.author_name}{" "}
-                      <span class="inline-flex items-center gap-0.5 text-xs">
-                        ({rev.rating}/5 <Star class="h-3.5 w-3.5 fill-amber-500 text-amber-500" />)
-                      </span>{" "}
-                      — {rev.product?.name}
-                    </p>
-                    <p class="text-xs text-zinc-600">{rev.body}</p>
-                    <span class="text-[11px] uppercase text-zinc-500">
-                      Status: {rev.status}
-                    </span>
+                <li class="flex flex-wrap items-start justify-between gap-3 py-3">
+                  <div class="space-y-1.5 max-w-2xl">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="font-bold text-zinc-900">
+                        {rev.author_name}{" "}
+                        <span class="inline-flex items-center gap-0.5 text-xs text-amber-600">
+                          ({rev.rating}/5 <Star class="h-3.5 w-3.5 fill-amber-500 text-amber-500" />)
+                        </span>{" "}
+                        — <span class="text-[#93509e]">{rev.product?.name}</span>
+                      </p>
+                      <Show when={rev.is_verified_purchase}>
+                        <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                          Compra verificada
+                        </span>
+                      </Show>
+                      <Show when={rev.is_external}>
+                        <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 border border-zinc-200">
+                          Externa ({rev.source_name || "Fonte externa"})
+                        </span>
+                      </Show>
+                      <Show when={rev.variant_name}>
+                        <span class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">
+                          {rev.variant_name}
+                        </span>
+                      </Show>
+                    </div>
+
+                    <Show when={rev.title}>
+                      <p class="text-xs font-semibold text-[#2E0C49]">{rev.title}</p>
+                    </Show>
+
+                    <p class="text-xs text-zinc-700 leading-relaxed">{rev.body}</p>
+
+                    <Show when={rev.photos && rev.photos.length > 0}>
+                      <div class="flex items-center gap-2 pt-1">
+                        <For each={rev.photos}>
+                          {(photo) => (
+                            <a
+                              href={photo}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="relative h-12 w-12 overflow-hidden rounded-lg border border-zinc-200 hover:opacity-80 transition-opacity"
+                              title="Ver foto em tamanho real"
+                            >
+                              <img src={photo} alt="Foto do comprador" class="h-full w-full object-cover" />
+                            </a>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+
+                    <div class="flex items-center gap-2 pt-0.5 text-[11px] text-zinc-500">
+                      <span>Status: <strong class="uppercase">{rev.status}</strong></span>
+                      <Show when={rev.source_url}>
+                        <span>•</span>
+                        <a href={rev.source_url!} target="_blank" rel="noopener noreferrer" class="text-[#93509e] hover:underline">
+                          Ver link original ↗
+                        </a>
+                      </Show>
+                    </div>
                   </div>
-                  <div class="flex gap-2 text-xs">
+                  <div class="flex gap-2 text-xs shrink-0 pt-1">
                     <button
                       type="button"
                       onClick={() => void moderateReview(rev.id, "approved")}
-                      class="rounded bg-[#93509e] px-3 py-1 font-semibold text-white"
+                      class="rounded-lg bg-[#93509e] px-3.5 py-1.5 font-semibold text-white hover:bg-[#7c3f87] transition-colors"
                     >
                       Aprovar
                     </button>
                     <button
                       type="button"
                       onClick={() => void moderateReview(rev.id, "rejected")}
-                      class="rounded border border-red-200 px-3 py-1 font-semibold text-red-700"
+                      class="rounded-lg border border-red-200 px-3.5 py-1.5 font-semibold text-red-700 hover:bg-red-50 transition-colors"
                     >
                       Rejeitar
                     </button>

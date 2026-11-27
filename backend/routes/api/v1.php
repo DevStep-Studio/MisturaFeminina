@@ -55,6 +55,7 @@ Route::prefix('catalog')->group(function (): void {
     Route::post('products/{slug}/restock-alert', [CatalogController::class, 'restockAlert'])->middleware('throttle:15,1');
     Route::post('restock-alerts/{token}/cancel', [CatalogController::class, 'cancelRestockAlert'])->middleware('throttle:20,1');
     Route::post('products/{slug}/reviews', [CatalogController::class, 'storeReview'])->middleware('throttle:10,1');
+    Route::post('reviews/upload-photo', [CatalogController::class, 'uploadReviewPhoto'])->middleware('throttle:15,1');
 });
 
 // Wholesale Public Endpoints

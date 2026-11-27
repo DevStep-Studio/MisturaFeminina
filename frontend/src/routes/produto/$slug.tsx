@@ -3,15 +3,20 @@ import { createFileRoute, Link, redirect } from "@tanstack/solid-router";
 import BadgePercent from "lucide-solid/icons/badge-percent";
 import Bell from "lucide-solid/icons/bell";
 import Boxes from "lucide-solid/icons/boxes";
+import Camera from "lucide-solid/icons/camera";
+import CheckCircle2 from "lucide-solid/icons/circle-check";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import ChevronUp from "lucide-solid/icons/chevron-up";
 import CreditCard from "lucide-solid/icons/credit-card";
+import ExternalLink from "lucide-solid/icons/external-link";
+import Loader2 from "lucide-solid/icons/loader-circle";
 import Minus from "lucide-solid/icons/minus";
 import Plus from "lucide-solid/icons/plus";
 import Sparkles from "lucide-solid/icons/sparkles";
 import Star from "lucide-solid/icons/star";
 import Truck from "lucide-solid/icons/truck";
+import X from "lucide-solid/icons/x";
 import {
   For,
   Show,
@@ -248,6 +253,12 @@ function ProductDetailPage() {
   const [revRating, setRevRating] = createSignal(5);
   const [revTitle, setRevTitle] = createSignal("");
   const [revBody, setRevBody] = createSignal("");
+  const [revVariantId, setRevVariantId] = createSignal("");
+  const [revConsent, setRevConsent] = createSignal(true);
+  const [revPhotos, setRevPhotos] = createSignal<string[]>([]);
+  const [revUploadingPhoto, setRevUploadingPhoto] = createSignal(false);
+  const [revPhotoError, setRevPhotoError] = createSignal<string | null>(null);
+  const [activePhotoModal, setActivePhotoModal] = createSignal<string | null>(null);
   const [revBusy, setRevBusy] = createSignal(false);
   const [revMsg, setRevMsg] = createSignal<string | null>(null);
   const [openAccordion, setOpenAccordion] = createSignal<
@@ -621,10 +632,55 @@ function ProductDetailPage() {
     }
   }
 
+  async function handleUploadReviewPhoto(file: File) {
+    if (revPhotos().length >= 3) {
+      setRevPhotoError("Você pode anexar no máximo 3 fotos.");
+      return;
+    }
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setRevPhotoError("A imagem excede o tamanho máximo de 5 MB.");
+      return;
+    }
+    setRevPhotoError(null);
+    setRevUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await api<{ data: { path: string } }>(
+        "/catalog/reviews/upload-photo",
+        {
+          method: "POST",
+          authenticated: false,
+          body: fd,
+        },
+      );
+      if (res?.data?.path) {
+        setRevPhotos((prev) => [...prev, res.data.path]);
+      }
+    } catch (err) {
+      setRevPhotoError(
+        err instanceof ApiError
+          ? err.message
+          : "Não foi possível enviar a foto. Tente novamente.",
+      );
+    } finally {
+      setRevUploadingPhoto(false);
+    }
+  }
+
+  function removeReviewPhoto(index: number) {
+    setRevPhotos((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function submitReview(e: Event) {
     e.preventDefault();
     const p = product();
     if (!p) return;
+    if (!revConsent()) {
+      setRevMsg("Por favor, autorize a exibição da sua avaliação.");
+      return;
+    }
     setRevBusy(true);
     setRevMsg(null);
     try {
@@ -639,14 +695,20 @@ function ProductDetailPage() {
             rating: revRating(),
             title: revTitle().trim() || undefined,
             body: revBody().trim(),
+            variant_id: revVariantId() ? Number(revVariantId()) : undefined,
+            photos: revPhotos(),
           },
         },
       );
-      setRevMsg(res.message || "Avaliação enviada para moderação.");
+      setRevMsg(
+        res.message || "Obrigada! Sua avaliação com foto foi enviada para moderação.",
+      );
       setRevName("");
       setRevEmail("");
       setRevTitle("");
       setRevBody("");
+      setRevPhotos([]);
+      setRevVariantId("");
     } catch (err) {
       setRevMsg(
         err instanceof ApiError
@@ -1550,14 +1612,21 @@ function ProductDetailPage() {
                                 </p>
                               }
                             >
-                              <ul class="space-y-2.5">
+                              <ul class="space-y-3">
                                 <For each={p().reviews}>
                                   {(rev) => (
-                                    <li class="rounded-lg border border-zinc-200 bg-[#FAF7FB] p-3 text-xs">
-                                      <div class="flex items-center justify-between">
-                                        <span class="font-bold text-[#2E0C49]">
-                                          {rev.author_name}
-                                        </span>
+                                    <li class="rounded-xl border border-zinc-200 bg-[#FAF7FB] p-3.5 text-xs space-y-2">
+                                      <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <div class="flex items-center gap-2">
+                                          <span class="font-bold text-[#2E0C49]">
+                                            {rev.author_name}
+                                          </span>
+                                          <Show when={rev.created_at}>
+                                            <span class="text-[11px] text-zinc-400">
+                                              • {new Date(rev.created_at).toLocaleDateString("pt-BR")}
+                                            </span>
+                                          </Show>
+                                        </div>
                                         <span class="inline-flex items-center gap-1 font-semibold text-amber-600">
                                           {rev.rating}/5{" "}
                                           <Star
@@ -1566,14 +1635,86 @@ function ProductDetailPage() {
                                           />
                                         </span>
                                       </div>
+
+                                      {/* Badges de proveniência */}
+                                      <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                        <Show when={rev.is_verified_purchase}>
+                                          <span class="inline-flex items-center gap-1 rounded-full bg-[#F3E2F6] px-2 py-0.5 text-[10px] font-bold text-[#93509e] border border-[#E8D2F0]">
+                                            <CheckCircle2 class="size-3" />
+                                            Compra verificada na Mistura Feminina
+                                          </span>
+                                        </Show>
+                                        <Show when={rev.is_external}>
+                                          <div class="space-y-0.5">
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 border border-zinc-200">
+                                              <span>Avaliação externa</span>
+                                              <Show when={rev.source_name}>
+                                                <span>•</span>
+                                                <Show
+                                                  when={rev.source_url}
+                                                  fallback={<span>Fonte: {rev.source_name}</span>}
+                                                >
+                                                  <a
+                                                    href={rev.source_url!}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    class="inline-flex items-center gap-0.5 font-bold text-[#93509e] hover:underline"
+                                                  >
+                                                    Fonte: {rev.source_name}
+                                                    <ExternalLink class="size-2.5" />
+                                                  </a>
+                                                </Show>
+                                              </Show>
+                                            </span>
+                                            <p class="text-[10px] italic text-zinc-500">
+                                              Comentário externo de usuário. Não representa compra realizada na Mistura Feminina.
+                                            </p>
+                                          </div>
+                                        </Show>
+                                        <Show when={rev.variant_name}>
+                                          <span class="inline-block rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-medium text-zinc-600 border border-zinc-200">
+                                            Opção: {rev.variant_name}
+                                          </span>
+                                        </Show>
+                                      </div>
+
                                       <Show when={rev.title}>
-                                        <p class="mt-1 font-semibold text-[#2E0C49]">
+                                        <p class="font-bold text-[#2E0C49]">
                                           {rev.title}
                                         </p>
                                       </Show>
-                                      <p class="mt-1 text-zinc-700">
+
+                                      <p class="leading-relaxed text-zinc-700">
                                         {rev.body}
                                       </p>
+
+                                      {/* Fotos enviadas pelo comprador */}
+                                      <Show when={rev.photos && rev.photos.length > 0}>
+                                        <div class="pt-1">
+                                          <p class="mb-1.5 text-[11px] font-bold text-zinc-600">
+                                            Fotos enviadas pelo comprador:
+                                          </p>
+                                          <div class="flex flex-wrap gap-2">
+                                            <For each={rev.photos}>
+                                              {(photo) => (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setActivePhotoModal(photo)}
+                                                  class="group relative h-16 w-16 overflow-hidden rounded-lg border border-zinc-200 bg-white hover:border-[#93509e] transition-colors"
+                                                  title="Clique para ampliar a foto"
+                                                >
+                                                  <img
+                                                    src={photo}
+                                                    alt="Foto real do produto enviada pelo comprador"
+                                                    class="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                                  />
+                                                  <span class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                                                </button>
+                                              )}
+                                            </For>
+                                          </div>
+                                        </div>
+                                      </Show>
                                     </li>
                                   )}
                                 </For>
@@ -1582,96 +1723,220 @@ function ProductDetailPage() {
 
                             <form
                               onSubmit={submitReview}
-                              class="space-y-2.5 rounded-lg border border-zinc-200 bg-white p-3"
+                              class="space-y-3 rounded-xl border border-zinc-200 bg-white p-4"
                             >
-                              <p class="text-xs font-bold text-[#2E0C49]">
-                                Enviar avaliação
-                              </p>
-                              <div class="grid gap-2 sm:grid-cols-2">
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="Seu nome *"
-                                  value={revName()}
-                                  onInput={(e) =>
-                                    setRevName(e.currentTarget.value)
-                                  }
-                                  class="h-9 rounded-md border border-zinc-300 px-3 text-xs"
-                                />
-                                <input
-                                  type="email"
-                                  placeholder="Seu e-mail (opcional)"
-                                  value={revEmail()}
-                                  onInput={(e) =>
-                                    setRevEmail(e.currentTarget.value)
-                                  }
-                                  class="h-9 rounded-md border border-zinc-300 px-3 text-xs"
-                                />
-                              </div>
-                              <div class="flex items-center gap-2 text-xs">
-                                <label
-                                  for="rev-rating"
-                                  class="font-semibold text-[#2E0C49]"
-                                >
-                                  Nota:
-                                </label>
-                                <select
-                                  id="rev-rating"
-                                  value={revRating()}
-                                  onChange={(e) =>
-                                    setRevRating(Number(e.currentTarget.value))
-                                  }
-                                  class="h-9 rounded-md border border-zinc-300 bg-white px-2 text-xs"
-                                >
-                                  <option value={5}>
-                                    5 estrelas — Excelente
-                                  </option>
-                                  <option value={4}>
-                                    4 estrelas — Muito bom
-                                  </option>
-                                  <option value={3}>3 estrelas — Bom</option>
-                                  <option value={2}>
-                                    2 estrelas — Regular
-                                  </option>
-                                  <option value={1}>1 estrela — Ruim</option>
-                                </select>
-                              </div>
-                              <input
-                                type="text"
-                                placeholder="Título curto (opcional)"
-                                value={revTitle()}
-                                onInput={(e) =>
-                                  setRevTitle(e.currentTarget.value)
-                                }
-                                class="h-9 w-full rounded-md border border-zinc-300 px-3 text-xs"
-                              />
-                              <textarea
-                                rows={3}
-                                required
-                                placeholder="Conte sua experiência com o produto *"
-                                value={revBody()}
-                                onInput={(e) =>
-                                  setRevBody(e.currentTarget.value)
-                                }
-                                class="w-full rounded-md border border-zinc-300 p-2.5 text-xs"
-                              />
-                              <button
-                                type="submit"
-                                disabled={revBusy()}
-                                class="h-9 rounded-lg bg-[#93509e] px-5 text-xs font-semibold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
-                              >
-                                {revBusy()
-                                  ? "Enviando..."
-                                  : "Publicar avaliação"}
-                              </button>
-                              <Show when={revMsg()}>
-                                <p
-                                  role="status"
-                                  class="text-xs font-medium text-emerald-700"
-                                >
-                                  {revMsg()}
+                              <div>
+                                <p class="text-xs font-extrabold text-[#2E0C49]">
+                                  Compartilhe sua experiência
                                 </p>
-                              </Show>
+                                <p class="text-[11px] text-zinc-500">
+                                  Ajude outros profissionais da beleza a escolherem o produto ideal.
+                                </p>
+                              </div>
+
+                              <div class="grid gap-2.5 sm:grid-cols-2">
+                                <div>
+                                  <label for="rev-author-name" class="mb-1 block text-[11px] font-semibold text-zinc-700">
+                                    Seu nome *
+                                  </label>
+                                  <input
+                                    id="rev-author-name"
+                                    type="text"
+                                    required
+                                    placeholder="Ex.: Mariana Silva"
+                                    value={revName()}
+                                    onInput={(e) => setRevName(e.currentTarget.value)}
+                                    class="h-9 w-full rounded-lg border border-zinc-300 px-3 text-xs focus:border-[#93509e] focus:outline-none"
+                                  />
+                                  <span class="mt-0.5 block text-[10px] text-zinc-400">
+                                    Seu sobrenome será abreviado para proteger sua privacidade (ex.: Mariana S.)
+                                  </span>
+                                </div>
+                                <div>
+                                  <label for="rev-author-email" class="mb-1 block text-[11px] font-semibold text-zinc-700">
+                                    Seu e-mail (opcional)
+                                  </label>
+                                  <input
+                                    id="rev-author-email"
+                                    type="email"
+                                    placeholder="Para receber confirmação da aprovação"
+                                    value={revEmail()}
+                                    onInput={(e) => setRevEmail(e.currentTarget.value)}
+                                    class="h-9 w-full rounded-lg border border-zinc-300 px-3 text-xs focus:border-[#93509e] focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              <div class="grid gap-2.5 sm:grid-cols-2">
+                                <div>
+                                  <label for="rev-rating" class="mb-1 block text-[11px] font-semibold text-zinc-700">
+                                    Sua nota *
+                                  </label>
+                                  <select
+                                    id="rev-rating"
+                                    value={revRating()}
+                                    onChange={(e) => setRevRating(Number(e.currentTarget.value))}
+                                    class="h-9 w-full rounded-lg border border-zinc-300 bg-white px-2.5 text-xs focus:border-[#93509e] focus:outline-none"
+                                  >
+                                    <option value={5}>⭐⭐⭐⭐⭐ 5 estrelas — Excelente</option>
+                                    <option value={4}>⭐⭐⭐⭐ 4 estrelas — Muito bom</option>
+                                    <option value={3}>⭐⭐⭐ 3 estrelas — Bom</option>
+                                    <option value={2}>⭐⭐ 2 estrelas — Regular</option>
+                                    <option value={1}>⭐ 1 estrela — Ruim</option>
+                                  </select>
+                                </div>
+
+                                <Show when={(p().variants?.length ?? 0) > 1}>
+                                  <div>
+                                    <label for="rev-variant" class="mb-1 block text-[11px] font-semibold text-zinc-700">
+                                      Opção / Cor adquirida (opcional)
+                                    </label>
+                                    <select
+                                      id="rev-variant"
+                                      value={revVariantId()}
+                                      onChange={(e) => setRevVariantId(e.currentTarget.value)}
+                                      class="h-9 w-full rounded-lg border border-zinc-300 bg-white px-2.5 text-xs focus:border-[#93509e] focus:outline-none"
+                                    >
+                                      <option value="">Selecione a opção avaliada...</option>
+                                      <For each={p().variants}>
+                                        {(v) => (
+                                          <option value={String(v.id)}>
+                                            {v.name} {v.shade_code ? `(${v.shade_code})` : ""}
+                                          </option>
+                                        )}
+                                      </For>
+                                    </select>
+                                  </div>
+                                </Show>
+                              </div>
+
+                              <div>
+                                <label for="rev-title" class="mb-1 block text-[11px] font-semibold text-zinc-700">
+                                  Título do comentário (opcional)
+                                </label>
+                                <input
+                                  id="rev-title"
+                                  type="text"
+                                  placeholder="Ex.: Secagem rápida e excelente cobertura"
+                                  value={revTitle()}
+                                  onInput={(e) => setRevTitle(e.currentTarget.value)}
+                                  class="h-9 w-full rounded-lg border border-zinc-300 px-3 text-xs focus:border-[#93509e] focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label for="rev-body" class="mb-1 block text-[11px] font-semibold text-zinc-700">
+                                  Seu depoimento *
+                                </label>
+                                <textarea
+                                  id="rev-body"
+                                  rows={3}
+                                  required
+                                  placeholder="Conte como foi usar este produto na sua rotina de manicure ou salão..."
+                                  value={revBody()}
+                                  onInput={(e) => setRevBody(e.currentTarget.value)}
+                                  class="w-full rounded-lg border border-zinc-300 p-2.5 text-xs focus:border-[#93509e] focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Upload de Fotos de Avaliação */}
+                              <div class="space-y-2 rounded-lg border border-dashed border-zinc-300 bg-[#FCF8FD] p-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                  <div class="flex items-center gap-1.5">
+                                    <Camera class="size-4 text-[#93509e]" />
+                                    <span class="text-xs font-bold text-[#2E0C49]">
+                                      Fotos reais do produto (opcional)
+                                    </span>
+                                  </div>
+                                  <span class="text-[11px] text-zinc-500">
+                                    Até 3 fotos (PNG, JPG, WebP máx. 5 MB cada)
+                                  </span>
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <For each={revPhotos()}>
+                                    {(photo, idx) => (
+                                      <div class="relative h-14 w-14 overflow-hidden rounded-lg border border-zinc-200 bg-white">
+                                        <img src={photo} alt="Foto anexada" class="h-full w-full object-cover" />
+                                        <button
+                                          type="button"
+                                          onClick={() => removeReviewPhoto(idx())}
+                                          aria-label="Remover foto"
+                                          class="absolute right-0.5 top-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black"
+                                        >
+                                          <X class="size-2.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </For>
+
+                                  <Show when={revPhotos().length < 3}>
+                                    <label
+                                      class="inline-flex h-14 w-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#93509e] bg-white text-center text-[#93509e] hover:bg-[#FDF9FE] transition-colors"
+                                      title="Adicionar foto"
+                                    >
+                                      <input
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp"
+                                        class="sr-only"
+                                        disabled={revUploadingPhoto()}
+                                        onChange={(e) => {
+                                          const file = e.currentTarget.files?.[0];
+                                          if (file) void handleUploadReviewPhoto(file);
+                                          e.currentTarget.value = "";
+                                        }}
+                                      />
+                                      <Show
+                                        when={revUploadingPhoto()}
+                                        fallback={
+                                          <>
+                                            <Plus class="size-4" />
+                                            <span class="text-[9px] font-bold">Foto</span>
+                                          </>
+                                        }
+                                      >
+                                        <Loader2 class="size-4 animate-spin text-[#93509e]" />
+                                      </Show>
+                                    </label>
+                                  </Show>
+                                </div>
+
+                                <Show when={revPhotoError()}>
+                                  <p class="text-[11px] font-medium text-red-600">
+                                    {revPhotoError()}
+                                  </p>
+                                </Show>
+                              </div>
+
+                              <label class="flex cursor-pointer items-start gap-2 text-[11px] leading-relaxed text-zinc-600">
+                                <input
+                                  type="checkbox"
+                                  checked={revConsent()}
+                                  onChange={(e) => setRevConsent(e.currentTarget.checked)}
+                                  class="mt-0.5 size-3.5 rounded border-zinc-300 accent-[#93509e]"
+                                />
+                                <span>
+                                  Autorizo a exibição desta avaliação e fotos anexadas na página do produto da Mistura Feminina conforme a LGPD.
+                                </span>
+                              </label>
+
+                              <div class="flex flex-wrap items-center gap-3 pt-1">
+                                <button
+                                  type="submit"
+                                  disabled={revBusy() || revUploadingPhoto()}
+                                  class="h-9 rounded-lg bg-[#93509e] px-6 text-xs font-bold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
+                                >
+                                  {revBusy() ? "Enviando..." : "Publicar avaliação"}
+                                </button>
+                                <Show when={revMsg()}>
+                                  <p
+                                    role="status"
+                                    class="text-xs font-medium text-emerald-700"
+                                  >
+                                    {revMsg()}
+                                  </p>
+                                </Show>
+                              </div>
                             </form>
                           </div>
                         </Show>
@@ -1822,6 +2087,36 @@ function ProductDetailPage() {
             </>
           );
         }}
+      </Show>
+
+      {/* Lightbox para fotos enviadas por compradores */}
+      <Show when={activePhotoModal()}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Visualizar foto do produto"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs"
+          onClick={() => setActivePhotoModal(null)}
+        >
+          <div
+            class="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-2xl bg-black shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setActivePhotoModal(null)}
+              aria-label="Fechar foto"
+              class="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black"
+            >
+              <X class="size-4" />
+            </button>
+            <img
+              src={activePhotoModal()!}
+              alt="Foto em alta resolução enviada por comprador"
+              class="max-h-[85vh] max-w-[90vw] rounded-xl object-contain"
+            />
+          </div>
+        </div>
       </Show>
     </StoreShell>
   );

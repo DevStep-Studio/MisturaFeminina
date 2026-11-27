@@ -232,7 +232,12 @@ export interface ProductDetailData extends ProductCardData {
     rating: number;
     title: string | null;
     body: string;
+    photos?: string[] | null;
     is_verified_purchase: boolean;
+    is_external?: boolean;
+    source_name?: string | null;
+    source_url?: string | null;
+    variant_name?: string | null;
     created_at: string;
   }[];
   rating_avg: number;

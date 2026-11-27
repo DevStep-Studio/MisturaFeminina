@@ -8,9 +8,30 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['product_id', 'user_id', 'author_name', 'rating', 'title', 'body', 'is_verified_purchase', 'status'])]
+#[Fillable([
+    'product_id',
+    'user_id',
+    'author_name',
+    'author_email',
+    'rating',
+    'title',
+    'body',
+    'photos',
+    'is_verified_purchase',
+    'is_external',
+    'source_name',
+    'source_url',
+    'variant_name',
+    'status',
+])]
 class Review extends Model
 {
+    /** @var list<string> */
+    protected $hidden = [
+        'author_email',
+        'user_id',
+    ];
+
     /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
@@ -22,6 +43,8 @@ class Review extends Model
         return [
             'rating' => 'integer',
             'is_verified_purchase' => 'boolean',
+            'is_external' => 'boolean',
+            'photos' => 'array',
         ];
     }
 }
