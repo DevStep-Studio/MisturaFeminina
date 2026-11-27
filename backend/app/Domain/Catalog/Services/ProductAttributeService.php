@@ -20,6 +20,7 @@ class ProductAttributeService
     private const EQUIPMENT_SLUGS = [
         'cabines',
         'cabines-e-estufas',
+        'cabines-uv-led',
         'motores',
         'aspiradores',
         'luminarias',

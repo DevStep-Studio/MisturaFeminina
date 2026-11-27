@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
+use App\Models\SlugRedirect;
 use App\Models\User;
 use Database\Seeders\DemoStoreSeeder;
 use Database\Seeders\OfficialCategoriesSeeder;
@@ -322,6 +323,39 @@ test('seeder oficial reconcilia categorias divergentes de producao corrigindo sl
     $second = (new OfficialCategoriesSeeder)->seedOfficialCategories();
     expect($second['created'])->toBe(0);
     expect($second['reused'])->toBe(101);
+});
+
+test('redirecionamento 301 automatico para slugs legados de cabines e categorias migradas', function (): void {
+    Category::query()->where('slug', 'cabines-e-estufas')->delete();
+    Category::query()->where('slug', 'cabines-uv-led')->delete();
+    SlugRedirect::query()->where('old_slug', 'cabines-e-estufas')->delete();
+
+    // Cria a categoria alvo ativa
+    $cabinesUvLed = Category::query()->create([
+        'name' => 'Cabines UV/LED',
+        'slug' => 'cabines-uv-led',
+        'sort_order' => 1,
+        'show_in_menu' => true,
+        'is_active' => true,
+    ]);
+
+    // Acesso ao slug legado cabines-e-estufas deve retornar 301 redirecionando para cabines-uv-led
+    $this->getJson('/api/v1/catalog/categories/cabines-e-estufas')
+        ->assertStatus(301)
+        ->assertJsonPath('redirect_to', '/categoria/cabines-uv-led');
+
+    // Confere que o SlugRedirect foi persistido
+    expect(SlugRedirect::query()->where('entity_type', 'category')->where('old_slug', 'cabines-e-estufas')->first())
+        ->not->toBeNull();
+
+    // Acesso subsequente continua funcionando via SlugRedirect persistido
+    $this->getJson('/api/v1/catalog/categories/cabines-e-estufas')
+        ->assertStatus(301)
+        ->assertJsonPath('redirect_to', '/categoria/cabines-uv-led');
+
+    // Categoria inexistente sem mapeamento retorna 404
+    $this->getJson('/api/v1/catalog/categories/slug-totalmente-inexistente')
+        ->assertStatus(404);
 });
 
 test('admin CRUD protege contra duplicata no mesmo nivel, ciclos hierarquicos e exclusao com transferencia segura', function (): void {

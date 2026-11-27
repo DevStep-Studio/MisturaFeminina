@@ -25,6 +25,7 @@ class OfficialCategoriesSeeder extends Seeder
         'maquinarios' => ['acessorios-pro'],
         'aspiradores-sugadores' => ['aspiradores'],
         'cabines-e-estufas' => ['cabines', 'maquinarios-cabines-e-estufas'],
+        'cabines-uv-led' => ['cabines', 'cabines-e-estufas', 'maquinarios-cabines-e-estufas'],
         'motores-lixadeiras' => ['motores'],
         'luminarias-e-lampadas' => ['luminarias'],
         'esmalte-em-gel-anylovy' => ['esmalte-em-gel-anylovi'],

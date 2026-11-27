@@ -62,6 +62,36 @@ class CatalogController extends Controller
             if ($redirect) {
                 return response()->json(['redirect_to' => '/categoria/'.$redirect->new_slug], 301);
             }
+
+            // Fallback de compatibilidade para slugs legados e renomeados
+            $legacyCategoryMap = [
+                'cabines-e-estufas' => 'cabines-uv-led',
+                'cabines' => 'cabines-uv-led',
+                'maquinarios-cabines-e-estufas' => 'cabines-uv-led',
+                'motores-lixadeiras' => 'maquinarios',
+                'aspiradores-sugadores' => 'maquinarios',
+                'luminarias-e-lampadas' => 'maquinarios',
+                'acessorios-pro' => 'maquinarios',
+                'unhas-e-esmalteria' => 'acessorios',
+                'esmaltes-em-gel' => 'esmalte-em-gel',
+            ];
+
+            if (isset($legacyCategoryMap[$slug])) {
+                $targetSlug = $legacyCategoryMap[$slug];
+                $targetCat = Category::query()->where('slug', $targetSlug)->where('is_active', true)->first();
+                if ($targetCat) {
+                    try {
+                        SlugRedirect::query()->firstOrCreate(
+                            ['entity_type' => 'category', 'old_slug' => $slug],
+                            ['new_slug' => $targetSlug]
+                        );
+                    } catch (\Throwable) {
+                    }
+
+                    return response()->json(['redirect_to' => '/categoria/'.$targetSlug], 301);
+                }
+            }
+
             abort(404, 'Categoria não encontrada.');
         }
 

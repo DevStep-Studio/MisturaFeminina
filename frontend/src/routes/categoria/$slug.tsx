@@ -1,5 +1,8 @@
-import { createFileRoute, redirect } from "@tanstack/solid-router";
+import { Link, createFileRoute, redirect } from "@tanstack/solid-router";
+import ChevronRight from "lucide-solid/icons/chevron-right";
+import Search from "lucide-solid/icons/search";
 import { CatalogListingView } from "../../features/storefront/components/CatalogListingView";
+import { StoreShell } from "../../features/storefront/components/StoreShell";
 import { getCategorySeoContent } from "../../features/storefront/data/categorySeoContent";
 import { storefrontStore } from "../../features/storefront/store";
 import type { CategoryNode } from "../../features/storefront/types";
@@ -11,8 +14,29 @@ import {
   seoHead,
 } from "../../lib/seo";
 
+/**
+ * Mapeamento cliente de compatibilidade para categorias migradas ou slugs legados.
+ * Redireciona de forma suave e transparente sem exibir erro 404.
+ */
+const LEGACY_CATEGORY_REDIRECTS: Record<string, string> = {
+  "cabines-e-estufas": "/categoria/cabines-uv-led",
+  "cabines": "/categoria/cabines-uv-led",
+  "maquinarios-cabines-e-estufas": "/categoria/cabines-uv-led",
+  "motores-lixadeiras": "/categoria/maquinarios",
+  "aspiradores-sugadores": "/categoria/maquinarios",
+  "luminarias-e-lampadas": "/categoria/maquinarios",
+  "acessorios-pro": "/categoria/maquinarios",
+  "unhas-e-esmalteria": "/categoria/acessorios",
+  "esmaltes-em-gel": "/categoria/esmalte-em-gel",
+};
+
 export const Route = createFileRoute("/categoria/$slug")({
   loader: async ({ params }) => {
+    const slug = (params.slug || "").toLowerCase().trim();
+    if (LEGACY_CATEGORY_REDIRECTS[slug]) {
+      throw redirect({ to: LEGACY_CATEGORY_REDIRECTS[slug], replace: true });
+    }
+
     try {
       const res = await api<{ data: { category?: CategoryNode } }>(
         `/catalog/categories/${params.slug}?per_page=1`,
@@ -76,6 +100,46 @@ export const Route = createFileRoute("/categoria/$slug")({
 function CategoryPage() {
   const params = Route.useParams();
   const catMeta = Route.useLoaderData();
+
+  if (!catMeta()) {
+    return (
+      <StoreShell>
+        <div class="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6 lg:py-24">
+          <nav aria-label="Navegação estrutural" class="mb-8 flex items-center justify-center gap-1.5 text-xs text-zinc-500">
+            <Link to="/" class="hover:text-[#93509e]">Início</Link>
+            <ChevronRight class="size-3 text-zinc-400" />
+            <Link to="/categorias" class="hover:text-[#93509e]">Categorias</Link>
+            <ChevronRight class="size-3 text-zinc-400" />
+            <span class="font-medium text-zinc-700">Categoria não encontrada</span>
+          </nav>
+
+          <div class="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl bg-[#FCE7F6] text-[#93509e]">
+            <Search class="size-7" aria-hidden="true" />
+          </div>
+          <h1 class="text-2xl font-bold tracking-tight text-[#2E1049] sm:text-3xl">
+            Categoria não encontrada
+          </h1>
+          <p class="mx-auto mt-3 max-w-md text-sm text-zinc-600 sm:text-base">
+            O departamento que você tentou acessar não foi encontrado ou teve seu endereço atualizado.
+          </p>
+          <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              to="/categorias"
+              class="inline-flex items-center justify-center rounded-lg bg-[#93509e] px-5 py-2.5 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-[#7c3f87]"
+            >
+              Ver todas as categorias
+            </Link>
+            <Link
+              to="/"
+              class="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-zinc-700 shadow-xs transition-colors hover:bg-zinc-50"
+            >
+              Voltar ao início
+            </Link>
+          </div>
+        </div>
+      </StoreShell>
+    );
+  }
 
   const breadcrumbs = () => {
     const crumbs: Array<{ label: string; to?: string }> = [
