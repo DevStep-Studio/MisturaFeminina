@@ -121,3 +121,54 @@ export function parseExcelClipboard(
   }
   return results;
 }
+
+
+export interface WholesaleSelectionItem {
+  productId: number;
+  productName: string;
+  productSku: string;
+  variantId: number;
+  variantName: string;
+  variantSku: string;
+  quantity: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+}
+
+export function buildWholesaleWhatsAppMessage(options: {
+  storeName: string;
+  items: WholesaleSelectionItem[];
+  totalQty: number;
+  totalCents: number;
+}): string {
+  const { storeName, items, totalQty, totalCents } = options;
+
+  let msg = `*Pedido de Atacado — ${storeName}*\n\n`;
+  msg += `Olá! Gostaria de consultar a disponibilidade e fechar o seguinte pedido de atacado:\n\n`;
+
+  // Agrupa por produto
+  const byProduct = new Map<string, WholesaleSelectionItem[]>();
+  for (const item of items) {
+    const key = `${item.productName} (SKU: ${item.productSku})`;
+    const list = byProduct.get(key) ?? [];
+    list.push(item);
+    byProduct.set(key, list);
+  }
+
+  for (const [productTitle, variantItems] of byProduct.entries()) {
+    msg += `• *${productTitle}*\n`;
+    for (const v of variantItems) {
+      const vName =
+        v.variantName && v.variantName !== "Padrão" && v.variantName !== v.productName
+          ? v.variantName
+          : "Unidade";
+      msg += `  - ${vName}: ${v.quantity} un. (${formatBrlCurrency(v.unitPriceCents)}/un)\n`;
+    }
+  }
+
+  msg += `\n*Total de itens:* ${totalQty} ${totalQty === 1 ? "peça" : "peças"}\n`;
+  msg += `*Valor estimado:* ${formatBrlCurrency(totalCents)}\n\n`;
+  msg += `Poderiam me confirmar a disponibilidade e o valor do frete para o meu CEP?`;
+
+  return msg;
+}

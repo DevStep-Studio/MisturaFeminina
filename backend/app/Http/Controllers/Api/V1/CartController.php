@@ -207,7 +207,10 @@ class CartController extends Controller
             ];
         }
 
-        $result = $this->shipping->quoteForItems($validated['cep'], $itemsPayload, $subtotalCents, $cart);
+        $summary = $this->carts->buildSummary($cart, $request->user());
+        $netSubtotalCents = max(0, (int) $summary['subtotal_cents'] - (int) $summary['discount_cents']);
+
+        $result = $this->shipping->quoteForItems($validated['cep'], $itemsPayload, $netSubtotalCents, $cart);
         $cart->update([
             'shipping_cep' => $result['cep'],
             'shipping_quote_id' => $result['options'][0]['quote_id'] ?? null,

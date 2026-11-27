@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildWholesaleWhatsAppMessage,
   computeWholesaleUnitPrice,
   formatBrlCurrency,
   parseBrlCurrency,
@@ -86,5 +87,44 @@ MF-CAB-007\t45.00\t2`;
       priceCents: 4500,
       minQuantity: 2,
     });
+  });
+
+  it("builds clean, structured WhatsApp message for wholesale orders", () => {
+    const message = buildWholesaleWhatsAppMessage({
+      storeName: "Mistura Feminina",
+      items: [
+        {
+          productId: 1,
+          productName: "Esmalte em Gel Lumière",
+          productSku: "MF-ESM-LUM",
+          variantId: 10,
+          variantName: "Cor 01 - Branco Leitoso",
+          variantSku: "MF-ESM-LUM-01",
+          quantity: 6,
+          unitPriceCents: 850,
+          lineTotalCents: 5100,
+        },
+        {
+          productId: 1,
+          productName: "Esmalte em Gel Lumière",
+          productSku: "MF-ESM-LUM",
+          variantId: 11,
+          variantName: "Cor 02 - Nude Chic",
+          variantSku: "MF-ESM-LUM-02",
+          quantity: 6,
+          unitPriceCents: 850,
+          lineTotalCents: 5100,
+        },
+      ],
+      totalQty: 12,
+      totalCents: 10200,
+    });
+
+    expect(message).toContain("Pedido de Atacado — Mistura Feminina");
+    expect(message).toContain("Esmalte em Gel Lumière (SKU: MF-ESM-LUM)");
+    expect(message).toContain("Cor 01 - Branco Leitoso: 6 un.");
+    expect(message).toContain("Cor 02 - Nude Chic: 6 un.");
+    expect(message).toContain("*Total de itens:* 12 peças");
+    expect(message).toContain("102,00");
   });
 });

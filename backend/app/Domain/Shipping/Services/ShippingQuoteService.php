@@ -9,6 +9,7 @@ use App\Domain\Settings\Services\StoreSettingsService;
 use App\Domain\Shipping\Contracts\ShippingProvider;
 use App\Domain\Shipping\Providers\CorreiosProvider;
 use App\Domain\Shipping\Providers\MelhorEnvioProvider;
+use App\Domain\Shipping\Services\RegionalFreeShippingService;
 use App\Models\Cart;
 use App\Models\Product;
 use App\Models\ShippingQuote;
@@ -22,6 +23,7 @@ class ShippingQuoteService
         private readonly StoreSettingsService $settings,
         private readonly MelhorEnvioProvider $melhorEnvio,
         private readonly CorreiosProvider $correios,
+        private readonly RegionalFreeShippingService $regionalShipping,
     ) {}
 
     private function itemsFingerprint(array $items): string
@@ -49,33 +51,7 @@ class ShippingQuoteService
 
     public function inferUfFromCep(string $cepDigits): string
     {
-        $prefix = (int) substr($cepDigits, 0, 2);
-
-        return match (true) {
-            $prefix >= 1 && $prefix <= 19 => 'SP',
-            $prefix >= 20 && $prefix <= 28 => 'RJ',
-            $prefix === 29 => 'ES',
-            $prefix >= 30 && $prefix <= 39 => 'MG',
-            $prefix >= 40 && $prefix <= 48 => 'BA',
-            $prefix === 49 => 'SE',
-            $prefix >= 50 && $prefix <= 56 => 'PE',
-            $prefix === 57 => 'AL',
-            $prefix === 58 => 'PB',
-            $prefix === 59 => 'RN',
-            $prefix >= 60 && $prefix <= 63 => 'CE',
-            $prefix === 64 => 'PI',
-            $prefix === 65 => 'MA',
-            $prefix >= 66 && $prefix <= 68 => 'PA',
-            $prefix === 69 => 'AM',
-            $prefix >= 70 && $prefix <= 73 => 'DF',
-            $prefix >= 74 && $prefix <= 76 => 'GO',
-            $prefix === 77 => 'TO',
-            $prefix === 78 => 'MT',
-            $prefix === 79 => 'MS',
-            $prefix >= 80 && $prefix <= 87 => 'PR',
-            $prefix >= 88 && $prefix <= 89 => 'SC',
-            default => 'RS',
-        };
+        return $this->regionalShipping->inferUfFromCep($cepDigits) ?? 'SP';
     }
 
     /**
@@ -183,6 +159,11 @@ class ShippingQuoteService
             $ruleOptions,
         );
 
+        // Avaliação de Frete Grátis Regional (RJ tratado antes do Sudeste geral, etc.)
+        $regionalEval = $this->regionalShipping->evaluate($cep, $subtotalCents);
+        $regionalFreeUnlocked = $regionalEval['is_unlocked'];
+        $eligibleCodes = $regionalEval['eligible_service_codes'];
+
         $globalFreeThreshold = (int) ($config['free_shipping_threshold_cents'] ?? 29900);
         if ($globalFreeThreshold > 0 && $subtotalCents >= $globalFreeThreshold) {
             $freeShippingActive = true;
@@ -191,11 +172,39 @@ class ShippingQuoteService
         if ($cart && $fingerprint !== $this->cartFingerprint($cart)) {
             throw ValidationException::withMessages(['cart' => 'Seu carrinho mudou durante a cotação. Calcule o frete novamente.']);
         }
+
+        // Determina a opção econômica para receber frete grátis se nenhuma coincidir com os códigos
+        $lowestPriceOptionCode = null;
+        $lowestPrice = PHP_INT_MAX;
+        foreach ($combined as $opt) {
+            if (! in_array($opt['provider'], ['motoboy', 'pickup'], true) && $opt['price_cents'] < $lowestPrice) {
+                $lowestPrice = $opt['price_cents'];
+                $lowestPriceOptionCode = $opt['service_code'];
+            }
+        }
+
         $persisted = [];
         foreach ($combined as $opt) {
             $finalPrice = $opt['price_cents'];
-            if ($freeShippingActive && ! in_array($opt['provider'], ['motoboy'], true)) {
-                $finalPrice = 0;
+            $isFreeForThisOption = false;
+
+            if ($opt['provider'] !== 'motoboy' && $opt['provider'] !== 'pickup') {
+                $matchesEligible = in_array($opt['service_code'], $eligibleCodes, true)
+                    || stripos((string) $opt['service_code'], 'pac') !== false
+                    || $opt['service_code'] === $lowestPriceOptionCode;
+
+                if ($regionalFreeUnlocked && $matchesEligible) {
+                    $finalPrice = 0;
+                    $isFreeForThisOption = true;
+                } elseif ($freeShippingActive && $matchesEligible) {
+                    $finalPrice = 0;
+                    $isFreeForThisOption = true;
+                }
+            }
+
+            $serviceDisplayName = $opt['service_name'];
+            if ($isFreeForThisOption && ! stripos($serviceDisplayName, 'grátis')) {
+                $serviceDisplayName .= ' (Frete Grátis)';
             }
 
             $quote = ShippingQuote::query()->create([
@@ -203,25 +212,33 @@ class ShippingQuoteService
                 'cep' => $cep,
                 'provider' => $opt['provider'],
                 'service_code' => $opt['service_code'],
-                'service_name' => $opt['service_name'],
+                'service_name' => $serviceDisplayName,
                 'carrier' => $opt['carrier'],
                 'price_cents' => $finalPrice,
                 'estimated_days' => $opt['estimated_days'],
                 'is_fallback' => $opt['is_fallback'],
-                'raw_response' => $opt['raw'],
-                'expires_at' => now()->addMinutes(15), 'items_fingerprint' => $cart ? $fingerprint : null,
+                'raw_response' => array_merge((array) ($opt['raw'] ?? []), [
+                    'original_price_cents' => $opt['price_cents'],
+                    'is_free_shipping' => $isFreeForThisOption,
+                    'regional_rule' => $regionalEval['region_id'],
+                ]),
+                'expires_at' => now()->addMinutes(15),
+                'items_fingerprint' => $cart ? $fingerprint : null,
             ]);
 
             $persisted[] = [
-                'quote_id' => $quote->id, 'expires_at' => $quote->expires_at->toIso8601String(),
+                'quote_id' => $quote->id,
+                'expires_at' => $quote->expires_at->toIso8601String(),
                 'cep' => $quote->cep,
                 'provider' => $quote->provider,
                 'service_code' => $quote->service_code,
                 'service_name' => $quote->service_name,
                 'carrier' => $quote->carrier,
                 'price_cents' => $quote->price_cents,
+                'original_price_cents' => $opt['price_cents'],
                 'estimated_days' => $quote->estimated_days,
                 'is_fallback' => $quote->is_fallback,
+                'is_free_shipping' => $isFreeForThisOption,
             ];
         }
 
@@ -235,6 +252,7 @@ class ShippingQuoteService
             'fallback_used' => $fallbackUsed,
             'notice' => $notice,
             'options' => $persisted,
+            'regional_free_shipping' => $regionalEval,
         ];
     }
 

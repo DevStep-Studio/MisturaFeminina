@@ -3,7 +3,7 @@ import { For, Show, createEffect, createSignal } from "solid-js";
 import { ApiError, api } from "../../../lib/api";
 import { formatCep, formatCents } from "../../../lib/format";
 import { cartHeaders } from "../store";
-import type { ShippingOptionData } from "../types";
+import type { RegionalFreeShippingData, ShippingOptionData } from "../types";
 
 interface ShippingQuoteWidgetProps {
   mode: "product" | "cart";
@@ -21,6 +21,8 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
   const [quotes, setQuotes] = createSignal<ShippingOptionData[]>([]);
   const [queriedCep, setQueriedCep] = createSignal<string | null>(null);
   const [notice, setNotice] = createSignal<string | null>(null);
+  const [regionalFreeShipping, setRegionalFreeShipping] =
+    createSignal<RegionalFreeShippingData | null>(null);
 
   createEffect(() => {
     const value = props.initialCep;
@@ -52,6 +54,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
           cep: string;
           notice?: string | null;
           options: ShippingOptionData[];
+          regional_free_shipping?: RegionalFreeShippingData | null;
         };
       }>(endpoint, {
         method: "POST",
@@ -68,6 +71,7 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
       setQuotes(res.data.options ?? []);
       setQueriedCep(res.data.cep ?? digits);
       setNotice(res.data.notice ?? null);
+      setRegionalFreeShipping(res.data.regional_free_shipping ?? null);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -140,6 +144,27 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
             <p class="mt-2 text-[11px] text-zinc-600">{notice()}</p>
           </Show>
 
+          <Show when={!queriedCep() && quotes().length === 0}>
+            <div class="mt-2.5 rounded-lg border border-dashed border-[#DFC4E6] bg-[#FAF5FA] px-3 py-2 text-[11.5px] text-[#5B486B]">
+              Informe seu CEP para consultar as condições de frete grátis.
+            </div>
+          </Show>
+
+          <Show when={regionalFreeShipping()}>
+            <div
+              class={`mt-2.5 rounded-lg border p-2.5 text-xs ${
+                regionalFreeShipping()!.is_unlocked
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 font-bold"
+                  : "border-[#E8D0EB] bg-[#FAF3FC] text-[#561B61]"
+              }`}
+            >
+              <div class="flex items-center gap-1.5">
+                <Truck class="size-3.5 shrink-0" aria-hidden="true" />
+                <span>{regionalFreeShipping()!.message}</span>
+              </div>
+            </div>
+          </Show>
+
           <Show when={quotes().length > 0}>
             <ul class="mt-3 space-y-2">
               <For each={quotes()}>
@@ -179,9 +204,16 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
                           <Show
                             when={q.price_cents > 0}
                             fallback={
-                              <span class="font-bold text-emerald-700">
-                                Grátis
-                              </span>
+                              <div class="flex flex-col items-end">
+                                <Show when={q.original_price_cents > 0}>
+                                  <span class="text-[10px] text-zinc-400 line-through">
+                                    {formatCents(q.original_price_cents)}
+                                  </span>
+                                </Show>
+                                <span class="font-bold text-emerald-700">
+                                  Grátis
+                                </span>
+                              </div>
                             }
                           >
                             <span class="font-bold text-zinc-900">
@@ -248,6 +280,27 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
           <p class="mt-2 text-[11px] text-zinc-600">{notice()}</p>
         </Show>
 
+        <Show when={!queriedCep() && quotes().length === 0}>
+          <div class="mt-2.5 rounded-lg border border-dashed border-[#DFC4E6] bg-[#FAF5FA] px-3 py-1.5 text-[11px] text-[#5B486B]">
+            Informe seu CEP para consultar as condições de frete grátis.
+          </div>
+        </Show>
+
+        <Show when={regionalFreeShipping()}>
+          <div
+            class={`mt-2.5 rounded-lg border p-2 text-xs ${
+              regionalFreeShipping()!.is_unlocked
+                ? "border-emerald-300 bg-emerald-50 text-emerald-800 font-bold"
+                : "border-[#E8D0EB] bg-[#FAF3FC] text-[#561B61]"
+            }`}
+          >
+            <div class="flex items-center gap-1.5">
+              <Truck class="size-3.5 shrink-0" aria-hidden="true" />
+              <span>{regionalFreeShipping()!.message}</span>
+            </div>
+          </div>
+        </Show>
+
         <Show when={quotes().length > 0}>
           <ul class="mt-3 space-y-2">
             <For each={quotes()}>
@@ -271,7 +324,14 @@ export function ShippingQuoteWidget(props: ShippingQuoteWidgetProps) {
                     <Show
                       when={q.price_cents > 0}
                       fallback={
-                        <span class="font-bold text-emerald-700">Grátis</span>
+                        <div class="flex flex-col items-end">
+                          <Show when={q.original_price_cents > 0}>
+                            <span class="text-[10px] text-zinc-400 line-through">
+                              {formatCents(q.original_price_cents)}
+                            </span>
+                          </Show>
+                          <span class="font-bold text-emerald-700">Grátis</span>
+                        </div>
                       }
                     >
                       <span class="font-bold text-[#2E0C49]">

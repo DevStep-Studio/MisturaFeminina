@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Domain\Security\Services\AuditLogger;
+use App\Domain\Shipping\Services\RegionalFreeShippingService;
 use App\Http\Controllers\Controller;
 use App\Models\ShippingQuote;
 use App\Models\ShippingRule;
@@ -52,6 +53,32 @@ class AdminShippingController extends Controller
     public function recentQuotes(): JsonResponse
     {
         return response()->json(['data' => ShippingQuote::query()->latest('id')->limit(50)->get()]);
+    }
+
+    public function getRegionalRules(RegionalFreeShippingService $service): JsonResponse
+    {
+        return response()->json(['data' => $service->getRules()]);
+    }
+
+    public function updateRegionalRules(Request $request, RegionalFreeShippingService $service): JsonResponse
+    {
+        $validated = $request->validate([
+            'rules' => ['required', 'array', 'min:1'],
+            'rules.*.id' => ['required', 'string'],
+            'rules.*.name' => ['required', 'string'],
+            'rules.*.ufs' => ['required', 'array'],
+            'rules.*.min_subtotal_cents' => ['required', 'integer', 'min:0'],
+            'rules.*.eligible_service_codes' => ['nullable', 'array'],
+            'rules.*.is_active' => ['boolean'],
+        ]);
+
+        $updated = $service->saveRules($validated['rules']);
+        $this->audit->record('shipping_regional_rules.updated', $request->user(), 'shipping_setting', 0, null, ['count' => count($updated)], $request);
+
+        return response()->json([
+            'data' => $updated,
+            'message' => 'Regras regionais de frete grátis atualizadas com sucesso.',
+        ]);
     }
 
     /** @return array<string, mixed> */

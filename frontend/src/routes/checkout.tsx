@@ -864,6 +864,17 @@ function CheckoutPage() {
                           : formatCents(c().shipping_cents)}
                       </dd>
                     </div>
+                    <Show when={c().regional_free_shipping}>
+                      <div
+                        class={`rounded-lg border px-3 py-1.5 text-xs ${
+                          c().regional_free_shipping!.is_unlocked
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-800 font-semibold"
+                            : "border-[#E8D0EB] bg-[#FAF3FC] text-[#561B61]"
+                        }`}
+                      >
+                        {c().regional_free_shipping!.message}
+                      </div>
+                    </Show>
                     <div class="flex justify-between border-t border-zinc-200 pt-3 text-lg font-extrabold text-zinc-900">
                       <dt>Total</dt>
                       <dd>{formatCents(c().total_cents)}</dd>

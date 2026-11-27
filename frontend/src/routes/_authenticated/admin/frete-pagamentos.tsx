@@ -29,6 +29,21 @@ interface ShippingRuleRow {
   is_active: boolean;
 }
 
+interface RegionalFreeRuleItem {
+  id: string;
+  name: string;
+  ufs: string[];
+  min_subtotal_cents: number;
+  is_active: boolean;
+}
+
+interface RegionalRulesResponse {
+  rules: RegionalFreeRuleItem[];
+  eligible_service_codes: string[];
+  excluded_service_codes: string[];
+  notes?: string;
+}
+
 interface AdminPaymentRow {
   id: number;
   provider: string;
@@ -58,6 +73,53 @@ function AdminShippingPaymentsPage() {
     const res = await api<{ data: AdminPaymentRow[] }>("/admin/payments");
     return res.data ?? [];
   });
+
+  const [regionalRulesState, setRegionalRulesState] = createSignal<RegionalFreeRuleItem[]>([]);
+  const [regionalSaving, setRegionalSaving] = createSignal(false);
+
+  const [, { refetch: refetchRegionalRules }] = createResource(async () => {
+    try {
+      const res = await api<{ data: RegionalRulesResponse }>("/admin/shipping/regional-free-rules");
+      const list = res.data?.rules ?? [];
+      setRegionalRulesState(list);
+      return res.data;
+    } catch {
+      return null;
+    }
+  });
+
+  async function saveRegionalRules(e: Event) {
+    e.preventDefault();
+    setFeedback(null);
+    setRegionalSaving(true);
+    try {
+      await api("/admin/shipping/regional-free-rules", {
+        method: "PUT",
+        body: {
+          rules: regionalRulesState(),
+        },
+      });
+      await refetchRegionalRules();
+      setFeedback("Regras de frete grátis regional atualizadas com sucesso!");
+    } catch (err) {
+      setFeedback(err instanceof ApiError ? err.message : "Erro ao atualizar regras regionais.");
+    } finally {
+      setRegionalSaving(false);
+    }
+  }
+
+  function updateRegionMinPrice(id: string, brlValue: string) {
+    const cents = Math.max(0, Math.round((parseFloat(brlValue.replace(",", ".")) || 0) * 100));
+    setRegionalRulesState((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, min_subtotal_cents: cents } : r))
+    );
+  }
+
+  function toggleRegionActive(id: string, active: boolean) {
+    setRegionalRulesState((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, is_active: active } : r))
+    );
+  }
 
   async function createRule(e: Event) {
     e.preventDefault();
@@ -119,6 +181,85 @@ function AdminShippingPaymentsPage() {
       </Show>
 
       <CheckoutIntegrations />
+
+      <section class="mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-xs">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-base font-bold text-zinc-900">
+              Frete Grátis Automático por Região
+            </h2>
+            <p class="text-xs text-zinc-500 max-w-2xl">
+              Regras progressivas por estado. O <strong>Rio de Janeiro (RJ)</strong> é processado com prioridade máxima antes dos demais estados do Sudeste.
+              O benefício aplica-se exclusivamente a modalidades elegíveis (PAC), preservando prazo e valor padrão de Sedex.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={regionalSaving()}
+            onClick={(e) => void saveRegionalRules(e)}
+            class="h-9 shrink-0 rounded-lg bg-[var(--mf-primary)] px-4 text-xs font-bold text-white transition hover:bg-[#7c3f87] disabled:opacity-50"
+          >
+            {regionalSaving() ? "Salvando..." : "Salvar Regras Regionais"}
+          </button>
+        </div>
+
+        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <For each={regionalRulesState()}>
+            {(rule) => (
+              <div class="flex flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5">
+                <div>
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-extrabold text-[#2E0C49]">
+                      {rule.name}
+                    </span>
+                    <label class="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={rule.is_active}
+                        onChange={(e) =>
+                          toggleRegionActive(rule.id, e.currentTarget.checked)
+                        }
+                        class="peer sr-only"
+                      />
+                      <div class="peer h-5 w-9 rounded-full bg-zinc-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-600 peer-checked:after:translate-x-full peer-focus:outline-hidden" />
+                    </label>
+                  </div>
+                  <div class="mt-2 flex flex-wrap gap-1">
+                    <For each={rule.ufs}>
+                      {(uf) => (
+                        <span class="rounded bg-white px-1.5 py-0.5 text-[10px] font-mono font-bold text-zinc-700 border border-zinc-200">
+                          {uf}
+                        </span>
+                      )}
+                    </For>
+                  </div>
+                </div>
+
+                <div class="mt-4 border-t border-zinc-200/60 pt-3">
+                  <label class="block text-[11px] font-semibold text-zinc-600 mb-1">
+                    Valor Mínimo (R$):
+                  </label>
+                  <div class="relative">
+                    <span class="absolute left-2.5 top-2 text-xs text-zinc-500 font-medium">
+                      R$
+                    </span>
+                    <input
+                      type="number"
+                      step="0.10"
+                      min="0"
+                      value={(rule.min_subtotal_cents / 100).toFixed(2)}
+                      onInput={(e) =>
+                        updateRegionMinPrice(rule.id, e.currentTarget.value)
+                      }
+                      class="h-8 w-full rounded-md border border-zinc-300 bg-white pl-8 pr-2 text-xs font-bold text-zinc-900 focus:border-[var(--mf-primary)] focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </For>
+        </div>
+      </section>
       <div class="grid gap-6 lg:grid-cols-2">
         <section class="space-y-4 rounded-xl border border-zinc-200 bg-white p-5">
           <h2 class="text-base font-bold text-zinc-900">

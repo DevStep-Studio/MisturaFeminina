@@ -284,34 +284,83 @@ function CartPage() {
             <div class="mt-6 grid gap-8 lg:grid-cols-12">
               {/* Items column */}
               <div class="space-y-4 lg:col-span-8">
-                <Show when={c().free_shipping_threshold_cents > 0}>
+                <Show when={c().free_shipping_threshold_cents > 0 || c().regional_free_shipping}>
                   <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                    <div class="flex items-center justify-between text-xs font-semibold text-zinc-800">
-                      <Show
-                        when={c().free_shipping_remaining_cents > 0}
-                        fallback={
-                          <span class="text-emerald-700">
-                            Parabéns! Você atingiu o frete grátis pela regra da
-                            loja.
-                          </span>
-                        }
-                      >
-                        <span>
-                          Faltam{" "}
-                          <strong>
-                            {formatCents(c().free_shipping_remaining_cents)}
-                          </strong>{" "}
-                          para frete grátis*
-                        </span>
-                      </Show>
-                      <span>{freeProgress()}%</span>
-                    </div>
-                    <div class="mt-2 h-2 w-full overflow-hidden rounded-md bg-zinc-200">
-                      <div
-                        class="h-full bg-[var(--mf-primary)] transition-all"
-                        style={{ width: `${freeProgress()}%` }}
-                      />
-                    </div>
+                    <Show
+                      when={c().regional_free_shipping}
+                      fallback={
+                        <>
+                          <div class="flex items-center justify-between text-xs font-semibold text-zinc-800">
+                            <Show
+                              when={c().free_shipping_remaining_cents > 0}
+                              fallback={
+                                <span class="text-emerald-700">
+                                  Parabéns! Você atingiu o frete grátis pela regra da
+                                  loja.
+                                </span>
+                              }
+                            >
+                              <span>
+                                Faltam{" "}
+                                <strong>
+                                  {formatCents(c().free_shipping_remaining_cents)}
+                                </strong>{" "}
+                                para frete grátis*
+                              </span>
+                            </Show>
+                            <span>{freeProgress()}%</span>
+                          </div>
+                          <div class="mt-2 h-2 w-full overflow-hidden rounded-md bg-zinc-200">
+                            <div
+                              class="h-full bg-[var(--mf-primary)] transition-all"
+                              style={{ width: `${freeProgress()}%` }}
+                            />
+                          </div>
+                        </>
+                      }
+                    >
+                      {(reg) => {
+                        const isUnlocked = reg().is_unlocked;
+                        const min = reg().min_subtotal_cents ?? 0;
+                        const prog =
+                          min > 0
+                            ? Math.min(
+                                100,
+                                Math.round((c().subtotal_cents / min) * 100),
+                              )
+                            : isUnlocked
+                            ? 100
+                            : 0;
+                        return (
+                          <div>
+                            <div class="flex items-center justify-between text-xs font-semibold">
+                              <span
+                                class={
+                                  isUnlocked
+                                    ? "text-emerald-700 font-bold"
+                                    : "text-[#561B61]"
+                                }
+                              >
+                                {reg().message}
+                              </span>
+                              <span class="text-zinc-600 font-mono text-[11px]">
+                                {prog}%
+                              </span>
+                            </div>
+                            <div class="mt-2 h-2 w-full overflow-hidden rounded-md bg-zinc-200">
+                              <div
+                                class={`h-full transition-all ${
+                                  isUnlocked
+                                    ? "bg-emerald-600"
+                                    : "bg-[var(--mf-primary)]"
+                                }`}
+                                style={{ width: `${prog}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      }}
+                    </Show>
                   </div>
                 </Show>
 

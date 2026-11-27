@@ -111,6 +111,25 @@ export interface WholesaleConditionData {
   tiers?: WholesaleTierData[];
 }
 
+export interface ProductCardVariantData {
+  id: number;
+  name: string;
+  sku: string;
+  price_cents: number;
+  effective_price_cents: number;
+  stock_qty: number;
+  available_stock: number;
+  in_stock: boolean;
+  is_default?: boolean;
+  option_values?: Array<{
+    attribute_slug?: string;
+    attribute_name?: string;
+    value?: string;
+    value_slug?: string;
+    color_hex?: string | null;
+  }>;
+}
+
 export interface ProductCardData {
   id: number;
   name: string;
@@ -132,6 +151,7 @@ export interface ProductCardData {
   default_variant_id: number | null;
   has_variants?: boolean;
   has_multiple_variants: boolean;
+  variants?: ProductCardVariantData[];
   category_slug?: string | null;
   comparison_group?: string;
   specs?: ProductSpecItem[];
@@ -387,6 +407,17 @@ export interface HomeSectionData {
   data: unknown;
 }
 
+export interface RegionalFreeShippingData {
+  uf: string | null;
+  region_id: string | null;
+  region_name: string | null;
+  min_subtotal_cents: number | null;
+  remaining_cents: number | null;
+  is_unlocked: boolean;
+  message: string;
+  eligible_service_codes?: string[];
+}
+
 export interface ShippingOptionData {
   expires_at?: string;
   quote_id?: number;
@@ -398,6 +429,7 @@ export interface ShippingOptionData {
   original_price_cents: number;
   estimated_days: number;
   is_fallback: boolean;
+  is_free_shipping?: boolean;
 }
 
 export interface WholesaleScopeSummary {
@@ -458,6 +490,8 @@ export interface CartSummary {
   total_weight_grams: number;
   free_shipping_threshold_cents: number;
   free_shipping_remaining_cents: number;
+  free_shipping_message?: string;
+  regional_free_shipping?: RegionalFreeShippingData;
 }
 
 export interface BootstrapPayload {

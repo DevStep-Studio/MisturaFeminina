@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Cart\Services;
 
 use App\Domain\Settings\Services\StoreSettingsService;
+use App\Domain\Shipping\Services\RegionalFreeShippingService;
 use App\Domain\Shipping\Services\ShippingQuoteService;
 use App\Domain\Wholesale\Services\WholesalePricingService;
 use App\Models\AnalyticsEvent;
@@ -394,7 +395,24 @@ class CartService
 
         $totalDiscountCents = min($subtotalCents, $promoDiscountCents + $couponResult['discount_cents']);
         $totalCents = max(0, $subtotalCents - $totalDiscountCents + $shippingCents);
-        $freeThreshold = (int) ($publicConfig['free_shipping_threshold_cents'] ?? 29900);
+        $netProductsCents = max(0, $subtotalCents - $totalDiscountCents);
+
+        $regionalService = app(RegionalFreeShippingService::class);
+        $freeShippingEval = $cart->shipping_cep
+            ? $regionalService->evaluate($cart->shipping_cep, $netProductsCents)
+            : [
+                'uf' => null,
+                'region_id' => null,
+                'region_name' => null,
+                'min_subtotal_cents' => null,
+                'remaining_cents' => null,
+                'is_unlocked' => false,
+                'message' => 'Informe seu CEP para consultar as condições de frete grátis.',
+                'eligible_service_codes' => [],
+            ];
+
+        $freeThreshold = $freeShippingEval['min_subtotal_cents'] ?? (int) ($publicConfig['free_shipping_threshold_cents'] ?? 29900);
+        $freeRemaining = $freeShippingEval['remaining_cents'] ?? max(0, $freeThreshold - $netProductsCents);
 
         return [
             'token' => $cart->token,
@@ -416,7 +434,9 @@ class CartService
             'total_cents' => $totalCents,
             'total_weight_grams' => $totalWeightGrams,
             'free_shipping_threshold_cents' => $freeThreshold,
-            'free_shipping_remaining_cents' => max(0, $freeThreshold - $subtotalCents),
+            'free_shipping_remaining_cents' => $freeRemaining,
+            'free_shipping_message' => $freeShippingEval['message'],
+            'regional_free_shipping' => $freeShippingEval,
         ];
     }
 

@@ -230,6 +230,8 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
 
         // Shipping
         Route::get('shipping/rules', [AdminShippingController::class, 'listRules'])->middleware('permission:shipping.view');
+        Route::get('shipping/regional-free-rules', [AdminShippingController::class, 'getRegionalRules'])->middleware('permission:shipping.view');
+        Route::put('shipping/regional-free-rules', [AdminShippingController::class, 'updateRegionalRules'])->middleware('permission:shipping.write');
         Route::post('shipping/rules', [AdminShippingController::class, 'storeRule'])->middleware('permission:shipping.write');
         Route::put('shipping/rules/{id}', [AdminShippingController::class, 'updateRule'])->middleware('permission:shipping.write');
         Route::delete('shipping/rules/{id}', [AdminShippingController::class, 'destroyRule'])->middleware('permission:shipping.write');
