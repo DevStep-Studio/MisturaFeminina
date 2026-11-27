@@ -42,6 +42,12 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
   async function submitAlert(e: Event) {
     e.preventDefault();
     if (!props.variant) return;
+    if ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock) {
+      setError(
+        `Esta tonalidade já está disponível para compra imediata (${props.variant.available_stock ?? 1} un. em estoque).`,
+      );
+      return;
+    }
     if (!consent()) {
       setError(
         "Confirme o consentimento para receber o aviso de volta ao estoque.",
@@ -76,7 +82,8 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
       );
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        const validationMsg = Object.values(err.validation || {}).flat()[0];
+        setError(validationMsg || err.message);
       } else {
         setError("Não foi possível registrar seu aviso agora.");
       }
@@ -136,6 +143,15 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
                 </div>
               </div>
             )}
+          </Show>
+
+          <Show when={props.variant && ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock)}>
+            <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+              <p class="font-bold">Esta tonalidade já está em estoque!</p>
+              <p class="mt-0.5 text-[11px] text-emerald-800">
+                Disponível para compra imediata ({props.variant!.available_stock} un.). Não é necessário solicitar aviso.
+              </p>
+            </div>
           </Show>
 
           <Show
@@ -264,7 +280,7 @@ export function VariantRestockModal(props: VariantRestockModalProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={busy()}
+                  disabled={busy() || Boolean(props.variant && ((props.variant.available_stock ?? 0) > 0 || props.variant.in_stock))}
                   class="h-10 flex-1 rounded-lg bg-[#93509e] text-xs font-bold text-white transition-colors hover:bg-[#7c3f87] disabled:opacity-60"
                 >
                   {busy() ? "Enviando..." : "Me avise"}

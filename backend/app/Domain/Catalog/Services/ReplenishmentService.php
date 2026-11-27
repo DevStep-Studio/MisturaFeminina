@@ -466,6 +466,8 @@ class ReplenishmentService
                 'original_price_cents' => $originalPriceCents,
                 'desired_quantity' => $item->desired_quantity,
                 'available_stock' => $availableStock,
+                'in_stock' => $isActive && $availableStock > 0,
+                'stock_status' => $status === 'available' ? 'ok' : ($status === 'partial' ? 'partial' : 'out_of_stock'),
                 'purchasable_quantity' => $purchasableQty,
                 'missing_quantity' => $missingQty,
                 'availability_status' => $status,

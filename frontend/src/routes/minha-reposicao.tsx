@@ -183,9 +183,9 @@ function MinhaReposicaoPage() {
         color_hex: item.color_hex,
         price_cents: item.original_price_cents,
         effective_price_cents: item.unit_price_cents,
-        stock_qty: 0,
+        stock_qty: item.available_stock,
         available_stock: item.available_stock,
-        in_stock: false,
+        in_stock: item.in_stock ?? item.available_stock > 0,
         is_default: false,
         image_path: item.image_url,
         attributes: [],
@@ -574,16 +574,32 @@ function MinhaReposicaoPage() {
                                       </span>
                                       <span
                                         class={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                          item.stock_status === "ok"
+                                          item.stock_status === "ok" ||
+                                          (item.in_stock &&
+                                            item.available_stock >=
+                                              item.desired_quantity) ||
+                                          item.available_stock >=
+                                            item.desired_quantity
                                             ? "bg-emerald-50 text-emerald-700"
-                                            : item.stock_status === "partial"
+                                            : item.stock_status === "partial" ||
+                                                (item.in_stock &&
+                                                  item.available_stock > 0) ||
+                                                item.available_stock > 0
                                               ? "bg-amber-50 text-amber-800"
                                               : "bg-red-50 text-red-700"
                                         }`}
                                       >
-                                        {item.stock_status === "ok"
+                                        {item.stock_status === "ok" ||
+                                        (item.in_stock &&
+                                          item.available_stock >=
+                                            item.desired_quantity) ||
+                                        item.available_stock >=
+                                          item.desired_quantity
                                           ? `Disponível (${item.available_stock} un.)`
-                                          : item.stock_status === "partial"
+                                          : item.stock_status === "partial" ||
+                                              (item.in_stock &&
+                                                item.available_stock > 0) ||
+                                              item.available_stock > 0
                                             ? `Estoque parcial: só ${item.available_stock} un.`
                                             : "Esgotado no momento"}
                                       </span>
@@ -592,7 +608,12 @@ function MinhaReposicaoPage() {
                                 </div>
 
                                 <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                                  <Show when={!item.in_stock}>
+                                  <Show
+                                    when={
+                                      !item.in_stock &&
+                                      item.available_stock <= 0
+                                    }
+                                  >
                                     <button
                                       type="button"
                                       onClick={() => openRestockForItem(item)}

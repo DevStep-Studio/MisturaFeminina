@@ -71,6 +71,12 @@ test('TESTE 01 - replenishment lists manage custom lists, live stock check, gues
         'quantity' => 5,
     ])->assertCreated();
 
+    $lowItems = collect($lowItemRes->json('data.items'));
+    $lowItem = $lowItems->firstWhere('variant_id', $lowStockVariant->id);
+    expect($lowItem)->not->toBeNull();
+    expect($lowItem['in_stock'])->toBeTrue();
+    expect($lowItem['stock_status'])->toBe('partial');
+
     $this->postJson('/api/v1/account/replenishment-lists/items', [
         'list_id' => $listId,
         'variant_id' => $outOfStockVariant->id,
