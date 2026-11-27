@@ -6,6 +6,7 @@ import Boxes from "lucide-solid/icons/boxes";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
+import Headset from "lucide-solid/icons/headset";
 import LogIn from "lucide-solid/icons/log-in";
 import Mail from "lucide-solid/icons/mail";
 import Menu from "lucide-solid/icons/menu";
@@ -27,6 +28,7 @@ import {
   refreshCart,
   storefrontStore,
 } from "../store";
+import { selfServiceStore } from "../selfServiceSupport";
 import type { CategoryNode, ProductCardData } from "../types";
 import { ProductCard } from "./ProductCard";
 
@@ -448,6 +450,27 @@ export function StoreHeader() {
                   onMouseEnter={() => openPopover("support")}
                   onMouseLeave={scheduleClosePopover}
                 >
+                  {/* Central de Autoatendimento Trigger Button */}
+                  <div class="border-b border-zinc-100 pb-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeAllMenus();
+                        selfServiceStore.open();
+                      }}
+                      class="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-[#93509e] to-[#7C2784] px-3 py-2.5 text-left text-white shadow-xs transition hover:brightness-105 active:scale-[0.98] cursor-pointer"
+                    >
+                      <div class="flex items-center gap-2">
+                        <Headset class="size-4 shrink-0" aria-hidden="true" />
+                        <div>
+                          <p class="text-xs font-bold leading-tight">Autoatendimento</p>
+                          <p class="text-[10.5px] text-white/85">Dúvidas rápidas & soluções</p>
+                        </div>
+                      </div>
+                      <ChevronRight class="size-4 shrink-0 text-white/70" aria-hidden="true" />
+                    </button>
+                  </div>
+
                   <Show when={settings().whatsapp_number}>
                     <div class="border-b border-zinc-100 pb-3.5">
                       <p class="flex items-center gap-2 text-[13px] font-medium text-[#3D1260]">
@@ -1104,6 +1127,16 @@ export function StoreHeader() {
                   >
                     Atacado (Preços por Quantidade)
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      selfServiceStore.open();
+                    }}
+                    class="block w-full rounded-lg border-2 border-[#93509e] bg-[#FAF2FC] px-3 py-2.5 text-center text-sm font-bold text-[#7C2784] transition-colors hover:bg-[#93509e] hover:text-white cursor-pointer"
+                  >
+                    Central de Autoatendimento
+                  </button>
                   <Link
                     to="/novidades"
                     onClick={() => setMobileMenuOpen(false)}

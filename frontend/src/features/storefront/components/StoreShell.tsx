@@ -5,6 +5,8 @@ import { CartDrawer } from "./CartDrawer";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { ProductComparatorBar } from "./ProductComparatorBar";
 import { PromoPopup } from "./PromoPopup";
+import { SelfServiceFloatingTrigger } from "./SelfServiceFloatingTrigger";
+import { SelfServiceSupportModal } from "./SelfServiceSupportModal";
 import { StoreFooter } from "./StoreFooter";
 import { StoreHeader } from "./StoreHeader";
 
@@ -76,6 +78,8 @@ export function StoreShell(props: ParentProps<{ promotions?: boolean }>) {
       <Show when={props.promotions !== false}>
         <PromoPopup />
       </Show>
+      <SelfServiceSupportModal />
+      <SelfServiceFloatingTrigger />
       <MobileBottomNav />
     </div>
   );

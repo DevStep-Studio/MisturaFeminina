@@ -3,6 +3,7 @@ import BookOpen from "lucide-solid/icons/book-open";
 import ChevronUp from "lucide-solid/icons/chevron-up";
 import Clock from "lucide-solid/icons/clock";
 import CreditCard from "lucide-solid/icons/credit-card";
+import Headset from "lucide-solid/icons/headset";
 import Lock from "lucide-solid/icons/lock";
 import Mail from "lucide-solid/icons/mail";
 import MessageCircle from "lucide-solid/icons/message-circle";
@@ -13,6 +14,7 @@ import Sparkles from "lucide-solid/icons/sparkles";
 import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { assetUrl, whatsappUrl } from "../../../lib/format";
 import { storefrontStore } from "../store";
+import { selfServiceStore } from "../selfServiceSupport";
 import { openPrivacyModal, PrivacyModal } from "../../../components/privacy/privacy-modal";
 
 const PAYMENT_BADGES = [
@@ -250,6 +252,15 @@ export function StoreFooter() {
               </Link>
             </li>
             <li>
+              <button
+                type="button"
+                onClick={() => selfServiceStore.open()}
+                class="transition-colors hover:text-white cursor-pointer text-left"
+              >
+                Autoatendimento & FAQ
+              </button>
+            </li>
+            <li>
               <Link
                 to="/minha-conta"
                 class="transition-colors hover:text-white"
@@ -284,6 +295,16 @@ export function StoreFooter() {
             <span>Atendimento</span>
           </h2>
           <ul class="space-y-3 text-[13px] text-white/90">
+            <li>
+              <button
+                type="button"
+                onClick={() => selfServiceStore.open()}
+                class="inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-white hover:text-[#93509e] cursor-pointer"
+              >
+                <Headset class="size-4 shrink-0" aria-hidden="true" />
+                <span>Central de Autoatendimento</span>
+              </button>
+            </li>
             <Show when={settings().whatsapp_number || settings().phone}>
               <li>
                 <a
