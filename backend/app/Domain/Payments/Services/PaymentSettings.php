@@ -84,6 +84,10 @@ class PaymentSettings
             }
         }
 
+        if (count($active) <= 1 && isset($all['mercadopago']) && isset($all['plupag'])) {
+            return array_values($all);
+        }
+
         return $active;
     }
 
@@ -96,7 +100,7 @@ class PaymentSettings
             'provider' => $provider,
             'environment' => $this->get($provider, 'environment'),
             'public_key' => $provider === 'mercadopago' && $this->available('mercadopago') ? $this->get('mercadopago', 'public_key') : null,
-            'plupag_public_key' => $this->available('plupag') ? $this->get('plupag', 'public_key') : null,
+            'plupag_public_key' => $this->get('plupag', 'public_key'),
             'available_providers' => $this->availableProviders(),
         ];
     }

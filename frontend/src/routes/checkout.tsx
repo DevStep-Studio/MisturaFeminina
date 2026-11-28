@@ -7,6 +7,7 @@ import {
 import CreditCard from "lucide-solid/icons/credit-card";
 import Lock from "lucide-solid/icons/lock";
 import QrCode from "lucide-solid/icons/qr-code";
+import Sparkles from "lucide-solid/icons/sparkles";
 import {
   For,
   Show,
@@ -103,8 +104,35 @@ function CheckoutPage() {
     }
   });
 
-  const availableProviders = () => payments()?.available_providers ?? [];
-  const hasMultipleProviders = () => availableProviders().length > 1;
+  const availableProviders = () => {
+    const list = payments()?.available_providers;
+    if (list && list.length >= 2) return list;
+    return [
+      {
+        id: "mercadopago" as const,
+        name: "Mercado Pago",
+        environment: payments()?.environment || "production",
+        public_key: payments()?.public_key || null,
+        methods: ["pix", "credit_card", "boleto"] as (
+          | "pix"
+          | "credit_card"
+          | "boleto"
+        )[],
+      },
+      {
+        id: "plupag" as const,
+        name: "Plupag",
+        environment: "production",
+        public_key: payments()?.plupag_public_key || null,
+        methods: ["pix", "credit_card"] as (
+          | "pix"
+          | "credit_card"
+          | "boleto"
+        )[],
+      },
+    ];
+  };
+  const hasMultipleProviders = () => true;
   const isPlupag = () => selectedProvider() === "plupag";
   const isMercadoPago = () => selectedProvider() === "mercadopago";
 
@@ -669,7 +697,7 @@ function CheckoutPage() {
 
                 {/* 3. Payment method */}
                 <section class="rounded-xl border border-zinc-200 bg-white p-5">
-                  <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div class="mb-4">
                     <h2 class="text-base font-bold text-zinc-900">
                       3. Pagamento ·{" "}
                       {selectedProvider() === "plupag"
@@ -678,49 +706,140 @@ function CheckoutPage() {
                           ? "Asaas"
                           : "Mercado Pago"}
                     </h2>
-                    <Show when={hasMultipleProviders()}>
-                      <div class="flex items-center gap-1.5 rounded-lg bg-zinc-100 p-1 text-xs">
-                        <For each={availableProviders()}>
-                          {(prov) => (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedProvider(prov.id as any);
-                                if (prov.id === "plupag" && method() === "boleto") {
-                                  setMethod("pix");
-                                }
-                              }}
-                              class={`rounded-md px-3 py-1 font-semibold transition ${
-                                selectedProvider() === prov.id
-                                  ? "bg-white text-[var(--mf-primary)] shadow-sm font-bold"
-                                  : "text-zinc-600 hover:text-zinc-900"
-                              }`}
-                            >
-                              {prov.name}
-                            </button>
-                          )}
-                        </For>
-                      </div>
-                    </Show>
+                    <p class="mt-1 text-xs text-zinc-500">
+                      Escolha a instituição de sua preferência para processar o pagamento com segurança:
+                    </p>
                   </div>
+
+                  {/* Seletor visual de Provedores: Mercado Pago ou Plupag */}
+                  <div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* Opção Mercado Pago */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProvider("mercadopago");
+                      }}
+                      class={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
+                        selectedProvider() === "mercadopago"
+                          ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e] shadow-xs"
+                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
+                      }`}
+                      aria-pressed={selectedProvider() === "mercadopago"}
+                    >
+                      <div class="flex items-center gap-3">
+                        <div
+                          class={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                            selectedProvider() === "mercadopago"
+                              ? "bg-[#93509e] text-white shadow-2xs"
+                              : "bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200"
+                          }`}
+                        >
+                          <CreditCard class="size-5" />
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-zinc-900">
+                              Mercado Pago
+                            </span>
+                            <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                              Oficial
+                            </span>
+                          </div>
+                          <p class="mt-0.5 text-xs text-zinc-500">
+                            Pix, Cartão de Crédito ou Boleto
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        class={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                          selectedProvider() === "mercadopago"
+                            ? "border-[#93509e] bg-[#93509e] text-white"
+                            : "border-zinc-300 bg-white"
+                        }`}
+                      >
+                        <Show when={selectedProvider() === "mercadopago"}>
+                          <div class="size-2 rounded-full bg-white" />
+                        </Show>
+                      </div>
+                    </button>
+
+                    {/* Opção Plupag */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProvider("plupag");
+                        if (method() === "boleto") {
+                          setMethod("pix");
+                        }
+                      }}
+                      class={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
+                        selectedProvider() === "plupag"
+                          ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e] shadow-xs"
+                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
+                      }`}
+                      aria-pressed={selectedProvider() === "plupag"}
+                    >
+                      <div class="flex items-center gap-3">
+                        <div
+                          class={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                            selectedProvider() === "plupag"
+                              ? "bg-[#93509e] text-white shadow-2xs"
+                              : "bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200"
+                          }`}
+                        >
+                          <Sparkles class="size-5" />
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-zinc-900">
+                              Plupag
+                            </span>
+                            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                              Até 12x
+                            </span>
+                          </div>
+                          <p class="mt-0.5 text-xs text-zinc-500">
+                            Pix Instantâneo ou Cartão
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        class={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                          selectedProvider() === "plupag"
+                            ? "border-[#93509e] bg-[#93509e] text-white"
+                            : "border-zinc-300 bg-white"
+                        }`}
+                      >
+                        <Show when={selectedProvider() === "plupag"}>
+                          <div class="size-2 rounded-full bg-white" />
+                        </Show>
+                      </div>
+                    </button>
+                  </div>
+
+                  <p class="mb-2.5 text-xs font-semibold text-zinc-700">
+                    Selecione o método de pagamento:
+                  </p>
 
                   <div class="grid gap-3 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={() => setMethod("pix")}
-                      class={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                      class={`flex items-center gap-3 rounded-xl border p-4 text-left transition cursor-pointer ${
                         method() === "pix"
-                          ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]"
-                          : "border-zinc-200 bg-white hover:border-zinc-400"
+                          ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e]"
+                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
                       }`}
                     >
-                      <QrCode class="h-6 w-6 text-[var(--mf-primary)]" />
+                      <QrCode class="h-6 w-6 text-[#93509e]" />
                       <div>
                         <p class="text-sm font-bold text-zinc-900">
                           Pix Instantâneo
                         </p>
                         <p class="text-xs text-zinc-600">
-                          QR Code + Copia e Cola · Aprovação rápida
+                          {isPlupag()
+                            ? "QR Code dinâmico · Aprovação imediata Plupag"
+                            : "QR Code + Copia e Cola · Aprovação rápida"}
                         </p>
                       </div>
                     </button>
@@ -728,21 +847,21 @@ function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => setMethod("credit_card")}
-                      class={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                      class={`flex items-center gap-3 rounded-xl border p-4 text-left transition cursor-pointer ${
                         method() === "credit_card"
-                          ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]"
-                          : "border-zinc-200 bg-white hover:border-zinc-400"
+                          ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e]"
+                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
                       }`}
                     >
-                      <CreditCard class="h-6 w-6 text-[var(--mf-primary)]" />
+                      <CreditCard class="h-6 w-6 text-[#93509e]" />
                       <div>
                         <p class="text-sm font-bold text-zinc-900">
                           Cartão de Crédito
                         </p>
                         <p class="text-xs text-zinc-600">
                           {isPlupag()
-                            ? "Até 12x no cartão com antifraude"
-                            : "Pagamento à vista no ambiente seguro"}
+                            ? "Até 12x no cartão com antifraude Plupag"
+                            : "Pagamento seguro no Mercado Pago"}
                         </p>
                       </div>
                     </button>
@@ -753,10 +872,21 @@ function CheckoutPage() {
                       type="button"
                       aria-pressed={method() === "boleto"}
                       onClick={() => setMethod("boleto")}
-                      class={`mt-3 flex w-full items-center gap-3 rounded-xl border p-4 text-left ${method() === "boleto" ? "border-[var(--mf-primary)] bg-zinc-50 ring-2 ring-[var(--mf-primary)]" : "border-zinc-200"}`}
+                      class={`mt-3 flex w-full items-center gap-3 rounded-xl border p-4 text-left transition cursor-pointer ${
+                        method() === "boleto"
+                          ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e]"
+                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
+                      }`}
                     >
-                      <Barcode class="h-6 w-6 text-[var(--mf-primary)]" />
-                      <span class="text-sm font-bold">Boleto bancário</span>
+                      <Barcode class="h-6 w-6 text-[#93509e]" />
+                      <div>
+                        <span class="text-sm font-bold text-zinc-900">
+                          Boleto bancário
+                        </span>
+                        <p class="text-xs text-zinc-500">
+                          Compensação em até 3 dias úteis pelo Mercado Pago
+                        </p>
+                      </div>
                     </button>
                   </Show>
                   <Show
