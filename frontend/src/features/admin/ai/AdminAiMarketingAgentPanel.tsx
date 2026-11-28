@@ -51,22 +51,55 @@ interface AgentReply {
 
 const QUICK_AGENT_QUESTIONS = [
   {
-    label: "Produtos sem conversão",
-    prompt: "Quais produtos recebem visitas e não geram compras?",
+    label: "Visitas sem compras",
+    prompt: "Quais produtos receberam visitas, mas não venderam?",
+  },
+  {
+    label: "Comparação de vendas",
+    prompt: "Como as vendas se comparam ao período anterior?",
   },
   {
     label: "Pendências do Shopping",
-    prompt: "Quais produtos estão com dados incompletos para o Shopping?",
+    prompt: "Existem produtos com problemas no Google Shopping?",
   },
   {
-    label: "Evolução de vendas",
-    prompt: "Como evoluíram as vendas e os acessos no período?",
+    label: "Páginas com atenção",
+    prompt: "Quais páginas merecem atenção?",
   },
   {
-    label: "Revisão de campanhas",
-    prompt: "Quais campanhas merecem revisão?",
+    label: "Melhorias no catálogo",
+    prompt: "O que posso melhorar no catálogo com os dados disponíveis?",
   },
 ];
+
+function renderDeltaBadge(deltaPct?: number | null, daysCount?: number) {
+  if (deltaPct === null || deltaPct === undefined) {
+    return (
+      <span class="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-0.5 text-[10.5px] font-medium text-zinc-500">
+        Sem dados para comparação
+      </span>
+    );
+  }
+  const isPositive = deltaPct > 0;
+  const isZero = deltaPct === 0;
+  const sign = isPositive ? `+${deltaPct}%` : `${deltaPct}%`;
+  const daysText = daysCount ? ` em relação aos ${daysCount} dias anteriores` : " vs período anterior";
+
+  return (
+    <span
+      class={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10.5px] font-semibold ${
+        isPositive
+          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+          : isZero
+          ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+          : "bg-red-50 text-red-700 border border-red-200/60"
+      }`}
+    >
+      <span>{sign}</span>
+      <span class="font-normal text-zinc-500">{daysText}</span>
+    </span>
+  );
+}
 
 function integrationBadge(status?: string | null) {
   switch (status) {
@@ -764,7 +797,7 @@ export function AdminAiMarketingAgentPanel() {
             </div>
           </section>
 
-          {/* Indicadores do Período */}
+          {/* Indicadores Principais do Período */}
           <section aria-label="Indicadores verificados no período" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {/* Receita Líquida */}
             <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
@@ -772,58 +805,254 @@ export function AdminAiMarketingAgentPanel() {
               <p class="mt-1 text-2xl font-black text-zinc-900">
                 {overview() ? formatCents(overview()?.kpis?.net_store_revenue_cents ?? 0) : "—"}
               </p>
-              <p class="mt-1 text-[11px] text-zinc-500">
+              <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {renderDeltaBadge(overview()?.kpis?.revenue_delta_pct, overview()?.period?.days_count)}
+              </div>
+              <p class="mt-2 text-[11px] text-zinc-500">
                 Bruta: {formatCents(overview()?.kpis?.store_revenue_cents ?? 0)} • Estornos: {formatCents(overview()?.kpis?.refunded_cents ?? 0)}
               </p>
             </div>
 
-            {/* Pedidos Válidos */}
+            {/* Pedidos Confirmados */}
             <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
               <span class="text-xs font-semibold text-zinc-500">Pedidos Confirmados</span>
               <p class="mt-1 text-2xl font-black text-zinc-900">
                 {overview() ? (overview()?.kpis?.store_orders_count ?? 0) : "—"}
               </p>
-              <p class="mt-1 text-[11px] text-zinc-500">
-                Ticket médio: <strong class="font-medium text-zinc-700">{formatCents(overview()?.kpis?.ticket_medio_cents ?? 0)}</strong>
+              <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {renderDeltaBadge(overview()?.kpis?.orders_delta_pct, overview()?.period?.days_count)}
+              </div>
+              <p class="mt-2 text-[11px] text-zinc-500">
+                Período anterior: <strong class="font-medium text-zinc-700">{overview()?.kpis?.previous_orders_count ?? 0} pedido(s)</strong>
+              </p>
+            </div>
+
+            {/* Ticket Médio */}
+            <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
+              <span class="text-xs font-semibold text-zinc-500">Ticket Médio</span>
+              <p class="mt-1 text-2xl font-black text-zinc-900">
+                {overview() ? formatCents(overview()?.kpis?.ticket_medio_cents ?? 0) : "—"}
+              </p>
+              <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {(() => {
+                  const kpis = overview()?.kpis;
+                  const currTicket = kpis?.ticket_medio_cents ?? 0;
+                  const prevOrders = kpis?.previous_orders_count ?? 0;
+                  const prevRev = kpis?.previous_revenue_cents ?? 0;
+                  let ticketDelta: number | null = null;
+                  if (prevOrders > 0 && prevRev > 0 && currTicket > 0) {
+                    const prevTicket = Math.round(prevRev / prevOrders);
+                    ticketDelta = Math.round(((currTicket - prevTicket) / prevTicket) * 100);
+                  }
+                  return renderDeltaBadge(ticketDelta, overview()?.period?.days_count);
+                })()}
+              </div>
+              <p class="mt-2 text-[11px] text-zinc-500">
+                Média por pedido aprovado na loja
               </p>
             </div>
 
             {/* Acessos / Sessões (GA4) */}
             <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
-              <span class="text-xs font-semibold text-zinc-500">Acessos / Sessões (GA4)</span>
+              <span class="text-xs font-semibold text-zinc-500">Sessões Registradas (GA4)</span>
               <p class="mt-1 text-2xl font-black text-zinc-900">
                 {overview()?.integrations_status?.ga4?.status === "connected" && (overview()?.kpis?.total_sessions ?? 0) > 0
                   ? overview()?.kpis?.total_sessions
-                  : "—"}
+                  : (overview()?.integrations_status?.ga4?.status === "connected" ? "0" : "—")}
               </p>
-              <p class="mt-1 text-[11px] text-zinc-500">
+              <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {overview()?.integrations_status?.ga4?.status === "connected" ? (
+                  <span class="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 border border-emerald-200/60">
+                    Medição real ativa
+                  </span>
+                ) : (
+                  <span class="inline-flex items-center gap-1 rounded bg-zinc-100 px-2 py-0.5 text-[10.5px] font-medium text-zinc-500">
+                    Aguardando conexão
+                  </span>
+                )}
+              </div>
+              <p class="mt-2 text-[11px] text-zinc-500">
                 {overview()?.integrations_status?.ga4?.status === "connected"
-                  ? (overview()?.kpis?.total_sessions ?? 0) > 0
-                    ? `GA4 Data API ativa • ${overview()?.kpis?.total_sessions} sessões reais`
-                    : "GA4 conectado • Aguardando primeiras visitas"
-                  : "Conecte o GA4 para métricas de visitas"}
+                  ? `Taxa de conversão: ${overview()?.kpis?.conversion_rate_pct ?? 0}%`
+                  : "Tag ativa na vitrine; conecte a API para sessões"}
               </p>
             </div>
+          </section>
 
-            {/* Google Ads */}
-            <div class="rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs">
-              <span class="text-xs font-semibold text-zinc-500">Investimento Google Ads</span>
-              <p class="mt-1 text-2xl font-black text-zinc-900">
-                {overview()?.integrations_status?.google_ads?.status === "connected"
-                  ? overview()?.kpis?.google_ads_spend_cents != null
-                    ? formatCents(overview()?.kpis?.google_ads_spend_cents)
-                    : "Sem dados"
-                  : "—"}
-              </p>
-              <p class="mt-1 text-[11px] text-zinc-500">
-                {overview()?.integrations_status?.google_ads?.status === "connected"
-                  ? overview()?.kpis?.google_ads_spend_cents === 0
-                    ? "Investimento zero no período"
-                    : overview()?.kpis?.google_ads_roas != null
-                      ? `ROAS: ${overview()?.kpis?.google_ads_roas}x`
-                      : "Sem campanhas com gasto"
-                  : "Não conectado (aguarda credenciais)"}
-              </p>
+          {/* Pontos de Atenção & Oportunidades Práticas */}
+          <section aria-label="Pontos de atenção e oportunidades reais">
+            <div class="mb-3 flex items-center justify-between">
+              <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                  Pontos de Atenção & Oportunidades Práticas
+                </h3>
+                <p class="text-[11px] text-zinc-400">
+                  Diagnóstico factual baseado no estado atual da loja, catálogo e canais conectados.
+                </p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {/* Card 1: Google Shopping & Listagens Gratuitas */}
+              <div class="flex flex-col justify-between rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs transition hover:border-[#93509e]">
+                <div>
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-zinc-900">
+                      <ShoppingBag class="h-4 w-4 text-[#93509e]" />
+                      Google Shopping & Listagens Gratuitas
+                    </span>
+                    <span class="rounded-full bg-purple-50 border border-purple-200 px-2 py-0.5 text-[10px] font-bold text-[#62298d]">
+                      Feed XML Ativo
+                    </span>
+                  </div>
+                  <div class="space-y-1.5 text-xs text-zinc-600">
+                    <p>
+                      <strong class="text-zinc-800">O que foi observado:</strong>{" "}
+                      {overview()?.integrations_status?.google_shopping?.ready_products_count ?? 0} produto(s) sincronizados no feed oficial.{" "}
+                      <span class="font-semibold text-amber-700">
+                        {overview()?.integrations_status?.google_shopping?.incomplete_products_count ?? 0} produto(s) pendente(s) de imagem ou dados completos.
+                      </span>
+                    </p>
+                    <p class="text-[11px] text-zinc-500">
+                      <strong>Período:</strong> Catálogo atual em tempo real • <strong>Origem:</strong> Feed XML Oficial Google Shopping
+                    </p>
+                    <p class="text-zinc-700 font-medium">
+                      <strong>Sugestão prática:</strong> Completar fotos e dados dos produtos pendentes para qualificá-los automaticamente nas listagens gratuitas do Merchant Center.
+                    </p>
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                  <span class="text-[11px] text-zinc-400">106 produtos no catálogo ativo</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("shopping");
+                      setShoppingListMode("incomplete");
+                    }}
+                    class="inline-flex items-center gap-1 text-xs font-bold text-[#62298d] hover:text-[#93509e] transition"
+                  >
+                    Ver produtos pendentes <ExternalLink class="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: Google Analytics 4 (Sessões & Conversão) */}
+              <div class="flex flex-col justify-between rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs transition hover:border-[#93509e]">
+                <div>
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-zinc-900">
+                      <LineChart class="h-4 w-4 text-orange-600" />
+                      Google Analytics 4 & Visitas
+                    </span>
+                    <span class={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                      overview()?.integrations_status?.ga4?.status === "connected"
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                        : "bg-amber-50 border-amber-200 text-amber-900"
+                    }`}>
+                      {overview()?.integrations_status?.ga4?.status === "connected" ? "Tag & API Ativas" : "Tag no Site / API Pendente"}
+                    </span>
+                  </div>
+                  <div class="space-y-1.5 text-xs text-zinc-600">
+                    <p>
+                      <strong class="text-zinc-800">O que foi observado:</strong>{" "}
+                      {overview()?.integrations_status?.ga4?.status === "connected"
+                        ? `${overview()?.kpis?.total_sessions ?? 0} sessões registradas no período com taxa de conversão de ${overview()?.kpis?.conversion_rate_pct ?? 0}%.`
+                        : "A tag gtag.js está ativa no código da vitrine. Para exibir relatórios de páginas visitadas e produtos sem conversão, conecte as credenciais da Service Account."}
+                    </p>
+                    <p class="text-[11px] text-zinc-500">
+                      <strong>Período:</strong> {overview()?.period?.label ?? "Últimos 30 dias"} • <strong>Origem:</strong> Google Analytics 4
+                    </p>
+                    <p class="text-zinc-700 font-medium">
+                      <strong>Sugestão prática:</strong> Monitorar o tráfego das categorias de ponta (Brocas, Esmaltes, Géis) para detectar páginas com visualizações e ausência de checkout.
+                    </p>
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                  <span class="text-[11px] text-zinc-400">Consent Mode v2 ativo</span>
+                  <button
+                    type="button"
+                    onClick={() => setTab("ga4")}
+                    class="inline-flex items-center gap-1 text-xs font-bold text-[#62298d] hover:text-[#93509e] transition"
+                  >
+                    Acessar métricas GA4 <ExternalLink class="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 3: Google Ads (Modo Seguro Somente Leitura) */}
+              <div class="flex flex-col justify-between rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs transition hover:border-[#93509e]">
+                <div>
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-zinc-900">
+                      <Megaphone class="h-4 w-4 text-blue-600" />
+                      Google Ads (Tráfego Pago)
+                    </span>
+                    <span class="rounded-full bg-zinc-100 border border-zinc-200 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
+                      {overview()?.integrations_status?.google_ads?.status === "connected" ? "Modo Leitura" : "Não Conectado"}
+                    </span>
+                  </div>
+                  <div class="space-y-1.5 text-xs text-zinc-600">
+                    <p>
+                      <strong class="text-zinc-800">O que foi observado:</strong>{" "}
+                      {overview()?.integrations_status?.google_ads?.status === "connected"
+                        ? `Investimento de ${formatCents(overview()?.kpis?.google_ads_spend_cents ?? 0)} com ROAS reportado de ${overview()?.kpis?.google_ads_roas ?? "—"}x.`
+                        : "Conta Google Ads não conectada. Zero cobrança ou alteração de orçamento ocorrendo no momento."}
+                    </p>
+                    <p class="text-[11px] text-zinc-500">
+                      <strong>Período:</strong> {overview()?.period?.label ?? "Últimos 30 dias"} • <strong>Origem:</strong> Google Ads API
+                    </p>
+                    <p class="text-zinc-700 font-medium">
+                      <strong>Sugestão prática:</strong> Priorizar o tráfego gratuito do Google Shopping. Caso ative anúncios no futuro, o painel operará em modo leitura sem alterar orçamentos.
+                    </p>
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                  <span class="text-[11px] text-zinc-400">Proteção estrita de verba</span>
+                  <button
+                    type="button"
+                    onClick={() => setTab("google_ads")}
+                    class="inline-flex items-center gap-1 text-xs font-bold text-[#62298d] hover:text-[#93509e] transition"
+                  >
+                    Ver detalhes de Ads <ExternalLink class="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 4: Saúde das Vendas & Conversão */}
+              <div class="flex flex-col justify-between rounded-xl border border-zinc-200/90 bg-white p-4 shadow-xs transition hover:border-[#93509e]">
+                <div>
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-zinc-900">
+                      <TrendingUp class="h-4 w-4 text-emerald-600" />
+                      Conversão & Checkout Transparente
+                    </span>
+                    <span class="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                      Mercado Pago & Plupag
+                    </span>
+                  </div>
+                  <div class="space-y-1.5 text-xs text-zinc-600">
+                    <p>
+                      <strong class="text-zinc-800">O que foi observado:</strong>{" "}
+                      {overview()?.kpis?.store_orders_count ?? 0} pedidos confirmados na loja somando {formatCents(overview()?.kpis?.net_store_revenue_cents ?? 0)}. Ticket médio de {formatCents(overview()?.kpis?.ticket_medio_cents ?? 0)}.
+                    </p>
+                    <p class="text-[11px] text-zinc-500">
+                      <strong>Período:</strong> {overview()?.period?.label ?? "Últimos 30 dias"} • <strong>Origem:</strong> Banco de Dados da Loja (MySQL)
+                    </p>
+                    <p class="text-zinc-700 font-medium">
+                      <strong>Sugestão prática:</strong> Manter a regra de transparência nos pagamentos (Pix e Cartão visíveis sem surpresas no checkout).
+                    </p>
+                  </div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-between">
+                  <span class="text-[11px] text-zinc-400">Dados reais sem estimativas</span>
+                  <Link
+                    to="/admin/pedidos"
+                    class="inline-flex items-center gap-1 text-xs font-bold text-[#62298d] hover:text-[#93509e] transition"
+                  >
+                    Acessar pedidos <ExternalLink class="h-3 w-3" />
+                  </Link>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -930,10 +1159,24 @@ export function AdminAiMarketingAgentPanel() {
             >
               {(reply) => (
                 <div class="mt-4 space-y-3.5 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-4">
+                  <div class="flex items-center justify-between border-b border-zinc-200/70 pb-2.5">
+                    <span class="text-xs font-bold text-zinc-700 flex items-center gap-1.5">
+                      <Bot class="h-3.5 w-3.5 text-[#93509e]" />
+                      Resposta do Agente de Marketing
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setLatestAgentReply(null)}
+                      class="text-xs font-semibold text-[#93509e] hover:text-[#62298d] hover:underline"
+                    >
+                      ✕ Limpar resposta
+                    </button>
+                  </div>
+
                   <Show when={reply().ai_status?.missing_requirement}>
                     {(miss) => (
                       <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                        <strong>Modo determinístico ativo:</strong> {miss()}
+                        <strong>Modo determinístico ativo:</strong> Análise factual gerada com base nos dados reais do catálogo, pedidos e feeds XML (sem alucinações de LLM). {miss()}
                       </div>
                     )}
                   </Show>

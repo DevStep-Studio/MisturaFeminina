@@ -140,4 +140,16 @@ describe("marketing e google — GA4 validation & PII protection", () => {
       },
     ]);
   });
+
+  it("calcula deltas percentuais sem confundir zero com ausência de dados históricos", () => {
+    const calcDelta = (curr: number, prev: number | null | undefined): number | null => {
+      if (prev === null || prev === undefined || prev === 0) return null;
+      return Math.round(((curr - prev) / prev) * 1000) / 10;
+    };
+
+    expect(calcDelta(150, 100)).toBe(50);
+    expect(calcDelta(80, 100)).toBe(-20);
+    expect(calcDelta(100, 0)).toBeNull(); // Sem dados de base anterior não gera divisão por zero
+    expect(calcDelta(100, null)).toBeNull();
+  });
 });

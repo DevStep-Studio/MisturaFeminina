@@ -402,6 +402,8 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
             Route::post('google-ads/draft-campaign', [AdminAiMarketingAgentController::class, 'draftGoogleAdsCampaign'])->middleware('permission:marketing.write');
             Route::get('shopping/feed', [AdminAiMarketingAgentController::class, 'shoppingFeed']);
             Route::post('shopping/feed/refresh', [AdminAiMarketingAgentController::class, 'refreshShoppingFeed']);
+            Route::get('opportunities', [AdminAiMarketingAgentController::class, 'opportunities']);
+            Route::patch('opportunities/{id}/status', [AdminAiMarketingAgentController::class, 'updateOpportunityStatus'])->middleware('permission:marketing.write');
             Route::get('integrations', [AdminAiMarketingAgentController::class, 'integrations']);
             Route::post('integrations/connect', [AdminAiMarketingAgentController::class, 'saveIntegration'])->middleware('permission:marketing.write');
             Route::post('integrations/test', [AdminAiMarketingAgentController::class, 'testIntegration']);
