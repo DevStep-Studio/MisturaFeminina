@@ -789,7 +789,7 @@ export function StoreHeader() {
                 const alignRight = () => idx() >= 4;
                 return (
                   <div
-                    class={`relative shrink-0 ${idx() >= 5 ? "hidden 2xl:block" : idx() >= 4 ? "hidden xl:block" : ""}`}
+                    class={`relative shrink-0 ${idx() >= 5 ? "hidden 2xl:block" : idx() >= 4 ? "hidden min-[1420px]:block" : idx() >= 3 ? "hidden xl:block" : ""}`}
                     onMouseEnter={() => openPopover(key())}
                     onMouseLeave={scheduleClosePopover}
                   >
@@ -896,7 +896,7 @@ export function StoreHeader() {
           </div>
 
           {/* Right Action Buttons */}
-          <div class="flex shrink-0 items-center gap-2 pl-3">
+          <div class="flex shrink-0 items-center gap-2 pl-3 ml-auto">
             {/* Atacado Link */}
             <Link
               to="/atacado"
