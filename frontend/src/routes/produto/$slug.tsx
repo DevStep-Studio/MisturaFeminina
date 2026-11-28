@@ -122,15 +122,47 @@ export const Route = createFileRoute("/produto/$slug")({
   },
   head: ({ loaderData, params }) => {
     const p = loaderData;
+    const anyPricedVariant = p?.variants.find(
+      (v) => (v.effective_price_cents ?? v.price_cents ?? 0) > 0,
+    );
     const defVariant =
-      p?.variants.find((v) => v.is_default && v.in_stock) ?? p?.variants[0];
-    const priceCents = defVariant?.price_cents ?? p?.price_cents ?? 0;
+      p?.variants.find(
+        (v) =>
+          v.is_default &&
+          v.in_stock &&
+          (v.effective_price_cents ?? v.price_cents ?? 0) > 0,
+      ) ??
+      p?.variants.find(
+        (v) =>
+          v.in_stock &&
+          (v.effective_price_cents ?? v.price_cents ?? 0) > 0,
+      ) ??
+      p?.variants.find(
+        (v) =>
+          v.is_default &&
+          (v.effective_price_cents ?? v.price_cents ?? 0) > 0,
+      ) ??
+      anyPricedVariant ??
+      p?.variants[0];
+
+    const priceCents =
+      defVariant?.price_cents && defVariant.price_cents > 0
+        ? defVariant.price_cents
+        : p?.price_cents && p.price_cents > 0
+          ? p.price_cents
+          : (anyPricedVariant?.price_cents ?? 0);
+
     const effectivePriceCents =
-      defVariant?.effective_price_cents ??
-      p?.effective_price_cents ??
-      priceCents;
+      defVariant?.effective_price_cents && defVariant.effective_price_cents > 0
+        ? defVariant.effective_price_cents
+        : p?.effective_price_cents && p.effective_price_cents > 0
+          ? p.effective_price_cents
+          : (anyPricedVariant?.effective_price_cents ?? priceCents);
+
     const promoPriceCents =
-      effectivePriceCents < priceCents ? effectivePriceCents : undefined;
+      effectivePriceCents > 0 && effectivePriceCents < priceCents
+        ? effectivePriceCents
+        : undefined;
     const inStock = p ? p.variants.some((v) => v.in_stock) : false;
 
     const reviews = p?.reviews ?? [];
@@ -139,7 +171,10 @@ export const Route = createFileRoute("/produto/$slug")({
       reviewCount > 0
         ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
         : undefined;
-    const effectivePriceStr = (effectivePriceCents / 100).toFixed(2);
+    const effectivePriceStr =
+      effectivePriceCents > 0
+        ? (effectivePriceCents / 100).toFixed(2)
+        : undefined;
 
     const brandSuffix = p?.brand?.name ? ` da marca ${p.brand.name}` : "";
     const categorySuffix = p?.categories?.[0]?.name

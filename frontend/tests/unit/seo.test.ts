@@ -71,13 +71,22 @@ describe("buildProductSchema", () => {
       slug: "esmalte-gel",
     });
 
-    expect(withoutReviews.offers.price).toBe("19.90");
-    expect(withoutReviews.offers.priceCurrency).toBe("BRL");
-    expect(withoutReviews.offers.availability).toBe(
+    expect(withoutReviews.offers?.price).toBe("19.90");
+    expect(withoutReviews.offers?.priceCurrency).toBe("BRL");
+    expect(withoutReviews.offers?.availability).toBe(
       "https://schema.org/InStock",
     );
     expect("aggregateRating" in withoutReviews).toBe(false);
     expect("review" in withoutReviews).toBe(false);
+
+    const withoutPrice = buildProductSchema({
+      name: "Produto Sem Preco",
+      sku: "MF-002",
+      priceCents: 0,
+      inStock: true,
+      slug: "produto-sem-preco",
+    });
+    expect("offers" in withoutPrice).toBe(false);
 
     const withReviews = buildProductSchema({
       name: "Esmalte Gel",
@@ -108,7 +117,7 @@ describe("buildProductSchema", () => {
     expect(withReviews.gtin).toBe("7891234567890");
     expect(withReviews.category).toBe("Unhas e Esmalteria");
     expect(withReviews.image).toHaveLength(2);
-    expect(withReviews.offers.availability).toBe(
+    expect(withReviews.offers?.availability).toBe(
       "https://schema.org/OutOfStock",
     );
     expect(withReviews.aggregateRating).toEqual({

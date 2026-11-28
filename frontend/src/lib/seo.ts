@@ -119,11 +119,19 @@ export function buildBreadcrumbSchema(items: BreadcrumbItem[]) {
 }
 
 export function buildProductSchema(product: SeoProductOptions) {
-  const effectivePrice = (
-    (product.promoPriceCents && product.promoPriceCents < product.priceCents
+  const rawPriceCents =
+    product.promoPriceCents &&
+    product.promoPriceCents > 0 &&
+    product.promoPriceCents < product.priceCents
       ? product.promoPriceCents
-      : product.priceCents) / 100
-  ).toFixed(2);
+      : product.priceCents;
+
+  const effectivePriceNum =
+    typeof rawPriceCents === "number" && rawPriceCents > 0
+      ? rawPriceCents / 100
+      : 0;
+  const effectivePrice =
+    effectivePriceNum > 0 ? effectivePriceNum.toFixed(2) : undefined;
 
   const productUrl = new URL(`/produto/${product.slug}`, site.url).href;
   const rawImages = [
@@ -183,58 +191,62 @@ export function buildProductSchema(product: SeoProductOptions) {
           },
         }
       : {}),
-    offers: {
-      "@type": "Offer",
-      url: productUrl,
-      priceCurrency: "BRL",
-      price: effectivePrice,
-      priceValidUntil: validUntil,
-      availability: product.inStock
-        ? "https://schema.org/InStock"
-        : "https://schema.org/OutOfStock",
-      itemCondition: "https://schema.org/NewCondition",
-      seller: {
-        "@type": "Organization",
-        name: site.name,
-      },
-      hasMerchantReturnPolicy: {
-        "@type": "MerchantReturnPolicy",
-        applicableCountry: "BR",
-        returnPolicyCategory:
-          "https://schema.org/MerchantReturnFiniteReturnWindow",
-        merchantReturnDays: 7,
-        returnMethod: "https://schema.org/ReturnByMail",
-        returnFees: "https://schema.org/FreeReturn",
-        url: new URL("/trocas-e-devolucoes", site.url).href,
-      },
-      shippingDetails: {
-        "@type": "OfferShippingDetails",
-        shippingRate: {
-          "@type": "MonetaryAmount",
-          value: "0.00",
-          currency: "BRL",
-        },
-        shippingDestination: {
-          "@type": "DefinedRegion",
-          addressCountry: "BR",
-        },
-        deliveryTime: {
-          "@type": "ShippingDeliveryTime",
-          handlingTime: {
-            "@type": "QuantitativeValue",
-            minValue: 1,
-            maxValue: 2,
-            unitCode: "d",
+    ...(effectivePrice
+      ? {
+          offers: {
+            "@type": "Offer",
+            url: productUrl,
+            priceCurrency: "BRL",
+            price: effectivePrice,
+            priceValidUntil: validUntil,
+            availability: product.inStock
+              ? "https://schema.org/InStock"
+              : "https://schema.org/OutOfStock",
+            itemCondition: "https://schema.org/NewCondition",
+            seller: {
+              "@type": "Organization",
+              name: site.name,
+            },
+            hasMerchantReturnPolicy: {
+              "@type": "MerchantReturnPolicy",
+              applicableCountry: "BR",
+              returnPolicyCategory:
+                "https://schema.org/MerchantReturnFiniteReturnWindow",
+              merchantReturnDays: 7,
+              returnMethod: "https://schema.org/ReturnByMail",
+              returnFees: "https://schema.org/FreeReturn",
+              url: new URL("/trocas-e-devolucoes", site.url).href,
+            },
+            shippingDetails: {
+              "@type": "OfferShippingDetails",
+              shippingRate: {
+                "@type": "MonetaryAmount",
+                value: "0.00",
+                currency: "BRL",
+              },
+              shippingDestination: {
+                "@type": "DefinedRegion",
+                addressCountry: "BR",
+              },
+              deliveryTime: {
+                "@type": "ShippingDeliveryTime",
+                handlingTime: {
+                  "@type": "QuantitativeValue",
+                  minValue: 1,
+                  maxValue: 2,
+                  unitCode: "d",
+                },
+                transitTime: {
+                  "@type": "QuantitativeValue",
+                  minValue: 2,
+                  maxValue: 7,
+                  unitCode: "d",
+                },
+              },
+            },
           },
-          transitTime: {
-            "@type": "QuantitativeValue",
-            minValue: 2,
-            maxValue: 7,
-            unitCode: "d",
-          },
-        },
-      },
-    },
+        }
+      : {}),
     ...(product.ratingValue && product.reviewCount && product.reviewCount > 0
       ? {
           aggregateRating: {
