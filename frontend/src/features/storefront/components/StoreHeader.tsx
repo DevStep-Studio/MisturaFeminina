@@ -725,7 +725,7 @@ export function StoreHeader() {
         class="hidden bg-[#FFF3FF] lg:block"
       >
         <div class="relative mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2 xl:px-6 2xl:gap-4">
-          <div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden pr-2 text-[12px] font-bold text-[#2E1049] xl:gap-3 xl:text-[13px] 2xl:gap-3.5 2xl:pr-4 2xl:text-[13px]">
+          <div class="flex min-w-0 flex-1 items-center gap-2 pr-1 text-[12px] font-bold text-[#2E1049] xl:gap-2.5 xl:text-[12.5px] 2xl:gap-3.5 2xl:pr-4 2xl:text-[13px]">
             {/* Todas Categorias Mega-Menu */}
             <div
               class="shrink-0"
@@ -737,7 +737,11 @@ export function StoreHeader() {
                 aria-expanded={activePopover() === "all"}
                 aria-haspopup="true"
                 onClick={() => togglePopoverOnClick("all")}
-                class="inline-flex items-center gap-1.5 whitespace-nowrap py-1.5 font-bold text-[#2E1049] hover:text-[var(--mf-primary)]"
+                class={`inline-flex items-center gap-1.5 whitespace-nowrap py-1.5 font-bold transition-colors ${
+                  activePopover() === "all"
+                    ? "text-[var(--mf-primary)]"
+                    : "text-[#2E1049] hover:text-[var(--mf-primary)]"
+                }`}
               >
                 <Menu class="size-4 stroke-[2.25]" aria-hidden="true" />
                 <span>Todas Categorias</span>
@@ -789,7 +793,7 @@ export function StoreHeader() {
                 const alignRight = () => idx() >= 4;
                 return (
                   <div
-                    class={`relative shrink-0 ${idx() >= 5 ? "hidden 2xl:block" : idx() >= 4 ? "hidden min-[1420px]:block" : idx() >= 3 ? "hidden xl:block" : ""}`}
+                    class="relative shrink-0"
                     onMouseEnter={() => openPopover(key())}
                     onMouseLeave={scheduleClosePopover}
                   >
@@ -797,12 +801,20 @@ export function StoreHeader() {
                       to="/categoria/$slug"
                       params={{ slug: cat.slug }}
                       onClick={closeAllMenus}
-                      class="inline-flex items-center gap-1 whitespace-nowrap py-1.5 text-[#2E1049] hover:text-[var(--mf-primary)]"
+                      class={`inline-flex items-center gap-1 whitespace-nowrap py-1.5 transition-colors ${
+                        activePopover() === key()
+                          ? "text-[var(--mf-primary)]"
+                          : "text-[#2E1049] hover:text-[var(--mf-primary)]"
+                      }`}
                     >
                       <span>{cat.name}</span>
                       <Show when={(cat.children?.length ?? 0) > 0}>
                         <ChevronDown
-                          class="size-3.5 text-[#4E3B63]"
+                          class={`size-3.5 transition-colors ${
+                            activePopover() === key()
+                              ? "text-[var(--mf-primary)]"
+                              : "text-[#4E3B63]"
+                          }`}
                           aria-hidden="true"
                         />
                       </Show>
