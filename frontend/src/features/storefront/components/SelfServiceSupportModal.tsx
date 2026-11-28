@@ -520,13 +520,13 @@ export function SelfServiceSupportModal() {
           </div>
 
           {/* Footer Bar (Fixed Bottom WhatsApp Help) */}
-          <div class="border-t border-zinc-200 bg-white px-4 py-3 sm:px-5">
+          <div class="border-t border-zinc-200 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
             <div class="flex items-center justify-between gap-3">
               <div class="min-w-0 flex-1">
-                <p class="text-xs font-semibold text-zinc-900 truncate">
+                <p class="text-xs font-semibold leading-snug text-zinc-900">
                   Ainda com dúvidas?
                 </p>
-                <p class="text-[11px] text-zinc-500 truncate">
+                <p class="text-[11px] leading-snug text-zinc-500">
                   Fale com a equipe no WhatsApp
                 </p>
               </div>
@@ -536,10 +536,11 @@ export function SelfServiceSupportModal() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => trackContactClick("whatsapp")}
-                class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-[#1da851] active:scale-95 cursor-pointer whitespace-nowrap"
+                aria-label="Chamar no WhatsApp"
+                class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] min-h-11 px-3.5 py-2 text-xs font-bold text-white shadow-2xs transition hover:bg-[#1da851] active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <MessageCircle class="size-4 shrink-0" aria-hidden="true" />
-                <span>Chamar no WhatsApp</span>
+                <span><span class="hidden min-[400px]:inline">Chamar no </span>WhatsApp</span>
               </a>
             </div>
           </div>
