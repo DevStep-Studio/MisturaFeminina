@@ -418,12 +418,12 @@ export function StoreFooter() {
         </div>
       </div>
 
-      {/* Floating Back-To-Top Button */}
+      {/* Floating Back-To-Top Button (Posicionado acima do botão de autoatendimento para evitar sobreposição) */}
       <button
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="Voltar ao topo"
-        class={`fixed right-4 bottom-20 z-40 inline-flex size-10 items-center justify-center rounded-xl border border-white/40 bg-white text-[#93509e] shadow-lg transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-[#7c3f87] hover:text-white md:right-5 md:bottom-5 ${
+        class={`fixed right-4 bottom-36 z-30 inline-flex size-10 items-center justify-center rounded-xl border border-white/40 bg-white text-[#93509e] shadow-lg transition-all duration-300 ease-out hover:-translate-y-1 hover:bg-[#7c3f87] hover:text-white md:right-6 md:bottom-24 ${
           showBackToTop()
             ? "translate-y-0 scale-100 opacity-100"
             : "pointer-events-none translate-y-4 scale-90 opacity-0"

@@ -409,8 +409,31 @@ export function StoreHeader() {
             />
           </Link>
 
-          {/* Actions Right: Atendimento, Minha Conta, Sacola */}
-          <div class="flex items-center justify-end gap-4 sm:gap-6">
+          {/* Actions Right: Autoatendimento Direto, Atendimento Popover, Minha Conta, Sacola */}
+          <div class="flex items-center justify-end gap-3 sm:gap-4 lg:gap-6">
+            {/* Botão Direto de Autoatendimento Desktop */}
+            <button
+              type="button"
+              onClick={() => selfServiceStore.open()}
+              class="group hidden lg:inline-flex items-center gap-1.5 rounded-full border border-[#DFC2E3] bg-[#FAF2FC] px-3.5 py-1.5 text-xs font-bold text-[#7C2784] shadow-2xs transition-all hover:border-[#93509e] hover:bg-[#93509e] hover:text-white cursor-pointer active:scale-95"
+              aria-label="Abrir Central de Autoatendimento"
+              title="Central de Autoatendimento"
+            >
+              <Headset class="size-3.5 text-[#93509e] group-hover:text-white transition-colors" aria-hidden="true" />
+              <span>Autoatendimento</span>
+            </button>
+
+            {/* Botão Direto de Autoatendimento Mobile */}
+            <button
+              type="button"
+              onClick={() => selfServiceStore.open()}
+              class="inline-flex md:hidden size-9 items-center justify-center rounded-lg text-[#2E1049] hover:bg-[#FAF5FB] hover:text-[#93509e] transition-colors cursor-pointer"
+              aria-label="Abrir Central de Autoatendimento"
+              title="Central de Autoatendimento"
+            >
+              <Headset class="size-5 text-[var(--mf-accent)]" aria-hidden="true" />
+            </button>
+
             {/* Atendimento Popover */}
             <div
               class="relative hidden md:block"

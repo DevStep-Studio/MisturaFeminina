@@ -13,6 +13,7 @@ import {
 } from "solid-js";
 import { NewsletterSection } from "../features/storefront/components/NewsletterSection";
 import { BannerImage } from "../features/storefront/components/BannerImage";
+import { HomeSelfServiceBanner } from "../features/storefront/components/HomeSelfServiceBanner";
 import { ProductCard } from "../features/storefront/components/ProductCard";
 import { SectionHeading } from "../features/storefront/components/SectionHeading";
 import { StoreShell } from "../features/storefront/components/StoreShell";
@@ -1135,12 +1136,21 @@ function StorefrontHomePage() {
             }
 
             if (section.type === "newsletter") {
-              return <NewsletterSection />;
+              return (
+                <>
+                  <HomeSelfServiceBanner />
+                  <NewsletterSection />
+                </>
+              );
             }
 
             return null;
           }}
         </For>
+
+        <Show when={!sections().some((s) => s.type === "newsletter")}>
+          <HomeSelfServiceBanner />
+        </Show>
       </ErrorBoundary>
     </StoreShell>
   );

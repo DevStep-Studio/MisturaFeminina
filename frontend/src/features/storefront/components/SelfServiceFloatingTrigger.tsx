@@ -8,12 +8,12 @@ export function SelfServiceFloatingTrigger() {
 
   return (
     <Show when={!isOpen()}>
-      <div class="fixed bottom-20 right-4 z-30 md:bottom-6 md:right-6">
+      <div class="fixed bottom-20 right-3.5 z-40 md:bottom-6 md:right-6">
         <button
           type="button"
           onClick={() => selfServiceStore.open()}
           aria-label="Abrir Central de Autoatendimento e Dúvidas"
-          class="group flex items-center gap-2 rounded-full border border-white/30 bg-gradient-to-r from-[#93509e] to-[#7C2784] px-3.5 py-2.5 text-white shadow-[0_8px_24px_rgba(147,80,158,0.35)] transition-all duration-200 hover:scale-105 hover:shadow-[0_12px_28px_rgba(147,80,158,0.45)] active:scale-95 sm:px-4 sm:py-3 cursor-pointer"
+          class="group flex items-center gap-2 rounded-full border border-white/30 bg-gradient-to-r from-[#93509e] via-[#853491] to-[#6d1b7a] px-3.5 py-2.5 text-white shadow-[0_8px_26px_rgba(147,80,158,0.45)] transition-all duration-200 hover:scale-105 hover:shadow-[0_12px_32px_rgba(147,80,158,0.6)] active:scale-95 sm:px-4 sm:py-3 cursor-pointer"
         >
           <div class="relative flex size-6 items-center justify-center sm:size-7">
             <Headset
@@ -28,11 +28,11 @@ export function SelfServiceFloatingTrigger() {
           </div>
 
           <div class="text-left">
-            <span class="block text-xs font-bold leading-tight tracking-wide">
-              Dúvidas?
-            </span>
-            <span class="hidden text-[10.5px] font-medium text-white/85 sm:block">
+            <span class="block text-[11px] font-extrabold leading-tight tracking-wide uppercase sm:text-xs">
               Autoatendimento
+            </span>
+            <span class="block text-[9.5px] font-medium text-white/90 sm:text-[10.5px]">
+              Dúvidas & Ajuda 24h
             </span>
           </div>
         </button>
