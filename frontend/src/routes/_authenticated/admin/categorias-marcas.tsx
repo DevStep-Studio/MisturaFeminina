@@ -10,10 +10,19 @@ import {
   createMemo,
   createResource,
   createSignal,
+  lazy,
 } from "solid-js";
 import { AdminLayout } from "../../../features/admin/AdminLayout";
-import { AdminAttributesManager } from "../../../features/admin/AdminAttributesManager";
-import { CategoryTreeManager } from "../../../features/admin/categories/CategoryTreeManager";
+const AdminAttributesManager = lazy(() =>
+  import("../../../features/admin/AdminAttributesManager").then((m) => ({
+    default: m.AdminAttributesManager,
+  })),
+);
+const CategoryTreeManager = lazy(() =>
+  import("../../../features/admin/categories/CategoryTreeManager").then((m) => ({
+    default: m.CategoryTreeManager,
+  })),
+);
 import type { AdminCategoryNode } from "../../../features/admin/categories/category-helpers";
 import {
   AdminButton,

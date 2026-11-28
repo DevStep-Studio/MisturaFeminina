@@ -7,7 +7,7 @@ import Clock from "lucide-solid/icons/clock";
 import Sparkles from "lucide-solid/icons/sparkles";
 import { For } from "solid-js";
 import { StoreShell } from "../../features/storefront/components/StoreShell";
-import { NAIL_GUIDES } from "../../features/storefront/data/nailGuidesData";
+import { NAIL_GUIDES_SUMMARY } from "../../features/storefront/data/nailGuidesSummary";
 import { buildBreadcrumbSchema, buildCollectionPageSchema, seoHead } from "../../lib/seo";
 
 export const Route = createFileRoute("/guia/")({
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/guia/")({
           description:
             "Guias práticos e confiáveis sobre técnicas de unhas, materiais profissionais e cuidados responsáveis.",
           path: "/guia",
-          items: NAIL_GUIDES.map((g) => ({
+          items: NAIL_GUIDES_SUMMARY.map((g) => ({
             name: g.title,
             path: `/guia/${g.slug}`,
           })),
@@ -70,7 +70,7 @@ function GuidesHubPage() {
 
       <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6">
         <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
-          <For each={NAIL_GUIDES}>
+          <For each={NAIL_GUIDES_SUMMARY}>
             {(guide) => (
               <article class="flex flex-col rounded-2xl border border-[#F0E4F2] bg-white p-6 shadow-xs transition hover:border-[#93509e] hover:shadow-md sm:p-8">
                 <div class="flex items-center justify-between text-xs font-semibold text-[#7C3F87]">
