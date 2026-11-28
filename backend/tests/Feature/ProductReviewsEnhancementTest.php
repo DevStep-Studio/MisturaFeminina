@@ -142,3 +142,113 @@ it('allows admin to store authorized external review without verified purchase f
     expect($review->source_url)->toBe('https://jackcosmeticos.com.br/produtos/coletor-de-po-sc808-1');
     expect($review->status)->toBe('approved');
 });
+
+it('allows admin to hide a review with administrative justification notes', function (): void {
+    $admin = User::query()->where('email', 'admin@misturafeminina.local')->firstOrFail();
+    $product = Product::query()->where('is_active', true)->firstOrFail();
+
+    $review = Review::query()->create([
+        'product_id' => $product->id,
+        'user_id' => null,
+        'author_name' => 'Renata C.',
+        'rating' => 4,
+        'title' => 'Avaliação externa de teste',
+        'body' => 'Produto muito bom, porém importado de outra loja sem termo assinado.',
+        'is_external' => true,
+        'source_name' => 'Jack Cosméticos',
+        'status' => 'approved',
+    ]);
+
+    $res = $this->actingAs($admin)->patchJson("/api/v1/admin/reviews/{$review->id}", [
+        'status' => 'hidden',
+        'admin_notes' => 'Ocultada da vitrine: avaliação externa sem comprovação formal de autorização.',
+    ]);
+
+    $res->assertStatus(200);
+    $res->assertJsonPath('data.status', 'hidden');
+    $res->assertJsonPath('data.admin_notes', 'Ocultada da vitrine: avaliação externa sem comprovação formal de autorização.');
+
+    $fresh = $review->fresh();
+    expect($fresh->status)->toBe('hidden');
+    expect($fresh->admin_notes)->toBe('Ocultada da vitrine: avaliação externa sem comprovação formal de autorização.');
+});
+
+it('does not display hidden, pending or rejected reviews in public product detail', function (): void {
+    $product = Product::query()->where('is_active', true)->firstOrFail();
+
+    $approved = Review::query()->create([
+        'product_id' => $product->id,
+        'author_name' => 'Cliente Aprovada M.',
+        'rating' => 5,
+        'body' => 'Esta avaliação deve aparecer no site normalmente.',
+        'status' => 'approved',
+    ]);
+
+    $hidden = Review::query()->create([
+        'product_id' => $product->id,
+        'author_name' => 'Cliente Ocultada X.',
+        'rating' => 4,
+        'body' => 'Esta avaliação NÃO deve aparecer na vitrine pública.',
+        'status' => 'hidden',
+        'admin_notes' => 'Ocultada para moderação preventiva.',
+    ]);
+
+    $rejected = Review::query()->create([
+        'product_id' => $product->id,
+        'author_name' => 'Cliente Rejeitado Y.',
+        'rating' => 1,
+        'body' => 'Comentário impróprio rejeitado.',
+        'status' => 'rejected',
+    ]);
+
+    $res = $this->getJson("/api/v1/catalog/products/{$product->slug}");
+    $res->assertStatus(200);
+
+    $reviews = $res->json('data.reviews');
+    $reviewIds = array_column($reviews, 'id');
+
+    expect($reviewIds)->toContain($approved->id);
+    expect($reviewIds)->not->toContain($hidden->id);
+    expect($reviewIds)->not->toContain($rejected->id);
+});
+
+it('filters reviews by status and origin in admin reviews list', function (): void {
+    $admin = User::query()->where('email', 'admin@misturafeminina.local')->firstOrFail();
+    $product = Product::query()->where('is_active', true)->firstOrFail();
+
+    Review::query()->create([
+        'product_id' => $product->id,
+        'author_name' => 'Cliente Interno',
+        'rating' => 5,
+        'body' => 'Comentário interno aprovado',
+        'is_external' => false,
+        'status' => 'approved',
+    ]);
+
+    Review::query()->create([
+        'product_id' => $product->id,
+        'author_name' => 'Externo Ocultado',
+        'rating' => 4,
+        'body' => 'Comentário externo ocultado',
+        'is_external' => true,
+        'source_name' => 'Jack Cosméticos',
+        'status' => 'hidden',
+        'admin_notes' => 'Ocultada sem documento formal.',
+    ]);
+
+    // Filtro por status=hidden
+    $resHidden = $this->actingAs($admin)->getJson('/api/v1/admin/reviews?status=hidden');
+    $resHidden->assertStatus(200);
+    $hiddenData = $resHidden->json('data');
+    foreach ($hiddenData as $item) {
+        expect($item['status'])->toBe('hidden');
+    }
+
+    // Filtro por is_external=true
+    $resExt = $this->actingAs($admin)->getJson('/api/v1/admin/reviews?is_external=true');
+    $resExt->assertStatus(200);
+    $extData = $resExt->json('data');
+    foreach ($extData as $item) {
+        expect((bool) $item['is_external'])->toBeTrue();
+    }
+});

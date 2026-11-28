@@ -95,6 +95,7 @@ interface ReviewRow {
   source_url?: string | null;
   variant_name?: string | null;
   product?: { name: string } | null;
+  admin_notes?: string | null;
 }
 
 function AdminProductsPage() {
@@ -314,10 +315,22 @@ function AdminProductsPage() {
   );
 
   const [reviewSourceFilter, setReviewSourceFilter] = createSignal<"all" | "internal" | "external">("all");
+  const [reviewStatusFilter, setReviewStatusFilter] = createSignal<"all" | "approved" | "pending" | "hidden" | "rejected">("all");
+  const [hidingReviewId, setHidingReviewId] = createSignal<number | null>(null);
+  const [hideReason, setHideReason] = createSignal("");
+
   const filteredReviews = createMemo(() => {
-    const list = reviews() ?? [];
-    if (reviewSourceFilter() === "internal") return list.filter((r) => !r.is_external);
-    if (reviewSourceFilter() === "external") return list.filter((r) => r.is_external);
+    let list = reviews() ?? [];
+    if (reviewSourceFilter() === "internal") {
+      list = list.filter((r) => !r.is_external);
+    } else if (reviewSourceFilter() === "external") {
+      list = list.filter((r) => r.is_external);
+    }
+
+    if (reviewStatusFilter() !== "all") {
+      list = list.filter((r) => r.status === reviewStatusFilter());
+    }
+
     return list;
   });
 
@@ -432,8 +445,17 @@ function AdminProductsPage() {
     updateQuery({ view: "catalogo", editId: undefined, dupId: undefined });
   }
 
-  async function moderateReview(id: number, status: "approved" | "rejected") {
-    await api(`/admin/reviews/${id}`, { method: "PATCH", body: { status } });
+  async function moderateReview(
+    id: number,
+    status: "approved" | "rejected" | "hidden" | "pending",
+    adminNotes?: string,
+  ) {
+    await api(`/admin/reviews/${id}`, {
+      method: "PATCH",
+      body: { status, admin_notes: adminNotes },
+    });
+    setHidingReviewId(null);
+    setHideReason("");
     await refetchReviews();
   }
 
@@ -1249,146 +1271,306 @@ function AdminProductsPage() {
       {/* VIEW: REVIEWS */}
       <Show when={currentView() === "avaliacoes"}>
         <section class="rounded-lg border border-zinc-200 bg-white p-5">
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-3">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 pb-4">
             <div>
               <h2 class="text-base font-bold text-zinc-900">
                 Moderação de avaliações
               </h2>
               <p class="text-xs text-zinc-500">
-                Gerencie e modere avaliações de clientes e depoimentos autorizados de fontes externas.
+                Gerencie avaliações de clientes e depoimentos externos com identificação de procedência e controle de exibição pública.
               </p>
             </div>
-            <div class="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 p-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setReviewSourceFilter("all")}
-                class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
-                  reviewSourceFilter() === "all"
-                    ? "bg-white text-[#93509e] shadow-2xs"
-                    : "text-zinc-600 hover:text-zinc-900"
-                }`}
-              >
-                Todas ({reviews()?.length ?? 0})
-              </button>
-              <button
-                type="button"
-                onClick={() => setReviewSourceFilter("internal")}
-                class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
-                  reviewSourceFilter() === "internal"
-                    ? "bg-white text-[#93509e] shadow-2xs"
-                    : "text-zinc-600 hover:text-zinc-900"
-                }`}
-              >
-                Clientes ({reviews()?.filter((r) => !r.is_external).length ?? 0})
-              </button>
-              <button
-                type="button"
-                onClick={() => setReviewSourceFilter("external")}
-                class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
-                  reviewSourceFilter() === "external"
-                    ? "bg-white text-[#93509e] shadow-2xs"
-                    : "text-zinc-600 hover:text-zinc-900"
-                }`}
-              >
-                Externas ({reviews()?.filter((r) => r.is_external).length ?? 0})
-              </button>
+
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              {/* Filtro por Origem */}
+              <div class="flex items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setReviewSourceFilter("all")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewSourceFilter() === "all"
+                      ? "bg-white text-[#93509e] shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  Todas ({reviews()?.length ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewSourceFilter("internal")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewSourceFilter() === "internal"
+                      ? "bg-white text-[#93509e] shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  Clientes ({reviews()?.filter((r) => !r.is_external).length ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewSourceFilter("external")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewSourceFilter() === "external"
+                      ? "bg-white text-[#93509e] shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  Externas ({reviews()?.filter((r) => r.is_external).length ?? 0})
+                </button>
+              </div>
+
+              {/* Filtro por Status */}
+              <div class="flex items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter("all")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewStatusFilter() === "all"
+                      ? "bg-white text-[#93509e] shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  Todos status
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter("approved")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewStatusFilter() === "approved"
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  No ar ({reviews()?.filter((r) => r.status === "approved").length ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter("pending")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewStatusFilter() === "pending"
+                      ? "bg-sky-600 text-white shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  Pendentes ({reviews()?.filter((r) => r.status === "pending").length ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter("hidden")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewStatusFilter() === "hidden"
+                      ? "bg-amber-600 text-white shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  Ocultadas ({reviews()?.filter((r) => r.status === "hidden").length ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewStatusFilter("rejected")}
+                  class={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                    reviewStatusFilter() === "rejected"
+                      ? "bg-rose-600 text-white shadow-2xs"
+                      : "text-zinc-600 hover:text-zinc-900"
+                  }`}
+                >
+                  Rejeitadas ({reviews()?.filter((r) => r.status === "rejected").length ?? 0})
+                </button>
+              </div>
             </div>
           </div>
 
           <Show
             when={filteredReviews().length > 0}
             fallback={
-              <p class="py-6 text-center text-xs text-zinc-500">
-                Nenhuma avaliação encontrada para o filtro selecionado.
+              <p class="py-10 text-center text-xs text-zinc-500">
+                Nenhuma avaliação encontrada para os filtros selecionados.
               </p>
             }
           >
             <ul class="divide-y divide-zinc-200 text-sm">
               <For each={filteredReviews()}>
-              {(rev) => (
-                <li class="flex flex-wrap items-start justify-between gap-3 py-3">
-                  <div class="space-y-1.5 max-w-2xl">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <p class="font-bold text-zinc-900">
-                        {rev.author_name}{" "}
-                        <span class="inline-flex items-center gap-0.5 text-xs text-amber-600">
-                          ({rev.rating}/5 <Star class="h-3.5 w-3.5 fill-amber-500 text-amber-500" />)
-                        </span>{" "}
-                        — <span class="text-[#93509e]">{rev.product?.name}</span>
-                      </p>
-                      <Show when={rev.is_verified_purchase}>
-                        <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                          Compra verificada
-                        </span>
-                      </Show>
-                      <Show when={rev.is_external}>
-                        <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 border border-zinc-200">
-                          Externa ({rev.source_name || "Fonte externa"})
-                        </span>
-                      </Show>
-                      <Show when={rev.variant_name}>
-                        <span class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">
-                          {rev.variant_name}
-                        </span>
-                      </Show>
-                    </div>
+                {(rev) => (
+                  <li class="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="space-y-2 max-w-3xl flex-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="font-bold text-zinc-900">
+                          {rev.author_name}{" "}
+                          <span class="inline-flex items-center gap-0.5 text-xs text-amber-600 font-medium">
+                            ({rev.rating}/5 <Star class="h-3.5 w-3.5 fill-amber-500 text-amber-500" />)
+                          </span>{" "}
+                          — <span class="text-[#93509e]">{rev.product?.name}</span>
+                        </p>
 
-                    <Show when={rev.title}>
-                      <p class="text-xs font-semibold text-[#2E0C49]">{rev.title}</p>
-                    </Show>
+                        {/* Badges de procedência */}
+                        <Show when={rev.is_verified_purchase}>
+                          <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                            Compra verificada na Mistura
+                          </span>
+                        </Show>
+                        <Show when={rev.is_external}>
+                          <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-700 border border-zinc-200">
+                            Externa ({rev.source_name || "Outra loja"})
+                          </span>
+                        </Show>
+                        <Show when={rev.variant_name}>
+                          <span class="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">
+                            Variação: {rev.variant_name}
+                          </span>
+                        </Show>
 
-                    <p class="text-xs text-zinc-700 leading-relaxed">{rev.body}</p>
-
-                    <Show when={rev.photos && rev.photos.length > 0}>
-                      <div class="flex items-center gap-2 pt-1">
-                        <For each={rev.photos}>
-                          {(photo) => (
-                            <a
-                              href={photo}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="relative h-12 w-12 overflow-hidden rounded-lg border border-zinc-200 hover:opacity-80 transition-opacity"
-                              title="Ver foto em tamanho real"
-                            >
-                              <img src={photo} alt="Foto do comprador" class="h-full w-full object-cover" />
-                            </a>
-                          )}
-                        </For>
+                        {/* Status Badge */}
+                        <Show when={rev.status === "approved"}>
+                          <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                            No ar (Aprovada)
+                          </span>
+                        </Show>
+                        <Show when={rev.status === "hidden"}>
+                          <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-300">
+                            Ocultada da vitrine
+                          </span>
+                        </Show>
+                        <Show when={rev.status === "rejected"}>
+                          <span class="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 border border-rose-300">
+                            Rejeitada
+                          </span>
+                        </Show>
+                        <Show when={rev.status === "pending"}>
+                          <span class="rounded-full bg-sky-100 px-2.5 py-0.5 text-[10px] font-bold text-sky-800">
+                            Pendente de análise
+                          </span>
+                        </Show>
                       </div>
-                    </Show>
 
-                    <div class="flex items-center gap-2 pt-0.5 text-[11px] text-zinc-500">
-                      <span>Status: <strong class="uppercase">{rev.status}</strong></span>
-                      <Show when={rev.source_url}>
-                        <span>•</span>
-                        <a href={rev.source_url!} target="_blank" rel="noopener noreferrer" class="text-[#93509e] hover:underline">
-                          Ver link original ↗
-                        </a>
+                      <Show when={rev.title}>
+                        <p class="text-xs font-semibold text-[#2E0C49]">{rev.title}</p>
+                      </Show>
+
+                      <p class="text-xs text-zinc-700 leading-relaxed whitespace-pre-line">{rev.body}</p>
+
+                      <Show when={rev.photos && rev.photos.length > 0}>
+                        <div class="flex items-center gap-2 pt-1">
+                          <For each={rev.photos}>
+                            {(photo) => (
+                              <a
+                                href={photo}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="relative h-14 w-14 overflow-hidden rounded-lg border border-zinc-200 hover:opacity-80 transition-opacity"
+                                title="Ver foto em tamanho real"
+                              >
+                                <img src={photo} alt="Foto do comprador" class="h-full w-full object-cover" />
+                              </a>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
+
+                      <div class="flex flex-wrap items-center gap-2 pt-0.5 text-[11px] text-zinc-500">
+                        <span>Origem: {rev.is_external ? (rev.source_name ?? "Externa") : "Mistura Feminina"}</span>
+                        <Show when={rev.source_url}>
+                          <span>•</span>
+                          <a href={rev.source_url!} target="_blank" rel="noopener noreferrer" class="text-[#93509e] hover:underline">
+                            Link da fonte original ↗
+                          </a>
+                        </Show>
+                      </div>
+
+                      {/* Nota de moderação (admin_notes) */}
+                      <Show when={rev.admin_notes}>
+                        <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-950">
+                          <strong class="font-bold text-amber-900">Motivo / Registro da moderação:</strong>{" "}
+                          <span>{rev.admin_notes}</span>
+                        </div>
+                      </Show>
+
+                      {/* Painel inline de justificativa para Ocultar */}
+                      <Show when={hidingReviewId() === rev.id}>
+                        <div class="mt-3 rounded-lg border border-amber-300 bg-amber-50/90 p-3 text-xs space-y-2">
+                          <label class="block font-bold text-amber-950">
+                            Motivo para retirar da exibição pública (preservando o registro no banco):
+                          </label>
+                          <input
+                            type="text"
+                            value={hideReason()}
+                            onInput={(e) => setHideReason(e.currentTarget.value)}
+                            placeholder="Ex: Sem comprovação formal de autorização / foto não verificável"
+                            class="w-full rounded border border-amber-300 bg-white px-3 py-1.5 text-xs text-zinc-800 placeholder-zinc-400 focus:border-amber-600 focus:outline-none"
+                          />
+                          <div class="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => void moderateReview(rev.id, "hidden", hideReason().trim() || "Ocultada da exibição pública pelo moderador.")}
+                              class="rounded bg-amber-600 px-3 py-1 text-xs font-bold text-white hover:bg-amber-700 transition-colors"
+                            >
+                              Confirmar Ocultação
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setHidingReviewId(null);
+                                setHideReason("");
+                              }}
+                              class="rounded border border-zinc-300 bg-white px-3 py-1 text-xs text-zinc-700 hover:bg-zinc-50 transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
                       </Show>
                     </div>
-                  </div>
-                  <div class="flex gap-2 text-xs shrink-0 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => void moderateReview(rev.id, "approved")}
-                      class="rounded-lg bg-[#93509e] px-3.5 py-1.5 font-semibold text-white hover:bg-[#7c3f87] transition-colors"
-                    >
-                      Aprovar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void moderateReview(rev.id, "rejected")}
-                      class="rounded-lg border border-red-200 px-3.5 py-1.5 font-semibold text-red-700 hover:bg-red-50 transition-colors"
-                    >
-                      Rejeitar
-                    </button>
-                  </div>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
-      </section>
+
+                    {/* Botões de moderação rápida */}
+                    <div class="flex flex-wrap items-center gap-2 text-xs shrink-0 pt-1 sm:flex-col sm:items-end">
+                      <Show when={rev.status !== "approved"}>
+                        <button
+                          type="button"
+                          onClick={() => void moderateReview(rev.id, "approved")}
+                          class="rounded-lg bg-[#93509e] px-3.5 py-1.5 font-semibold text-white hover:bg-[#7c3f87] transition-colors shadow-2xs"
+                        >
+                          Aprovar (Publicar)
+                        </button>
+                      </Show>
+
+                      <Show when={rev.status !== "hidden"}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHidingReviewId(rev.id);
+                            setHideReason(rev.admin_notes ?? "");
+                          }}
+                          class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 font-semibold text-amber-900 hover:bg-amber-100 transition-colors"
+                        >
+                          Ocultar da Loja
+                        </button>
+                      </Show>
+
+                      <Show when={rev.status !== "rejected"}>
+                        <button
+                          type="button"
+                          onClick={() => void moderateReview(rev.id, "rejected")}
+                          class="rounded-lg border border-rose-200 px-3 py-1.5 font-semibold text-rose-700 hover:bg-rose-50 transition-colors"
+                        >
+                          Rejeitar
+                        </button>
+                      </Show>
+
+                      <Show when={rev.status !== "pending"}>
+                        <button
+                          type="button"
+                          onClick={() => void moderateReview(rev.id, "pending")}
+                          class="rounded-lg border border-zinc-200 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors"
+                        >
+                          Voltar a Pendente
+                        </button>
+                      </Show>
+                    </div>
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Show>
+        </section>
       </Show>
 
       {/* VIEW: SPREADSHEET (XLSX / CSV) IMPORT/EXPORT */}

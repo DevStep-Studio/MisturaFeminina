@@ -1468,17 +1468,34 @@ class AdminCatalogController extends Controller
         if ($request->filled('status')) {
             $query->where('status', (string) $request->query('status'));
         }
+        if ($request->has('is_external')) {
+            $query->where('is_external', filter_var($request->query('is_external'), FILTER_VALIDATE_BOOLEAN));
+        }
+        if ($request->filled('search')) {
+            $term = '%'.trim((string) $request->query('search')).'%';
+            $query->where(function ($q) use ($term) {
+                $q->where('author_name', 'like', $term)
+                  ->orWhere('title', 'like', $term)
+                  ->orWhere('body', 'like', $term)
+                  ->orWhere('source_name', 'like', $term);
+            });
+        }
 
-        return response()->json($query->paginate(20));
+        return response()->json($query->paginate(50));
     }
 
     public function moderateReview(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['required', Rule::in(['approved', 'rejected', 'pending'])],
+            'status' => ['required', Rule::in(['approved', 'rejected', 'hidden', 'pending'])],
+            'admin_notes' => ['nullable', 'string', 'max:1000'],
         ]);
         $review = Review::query()->findOrFail($id);
-        $review->update(['status' => $validated['status']]);
+        $updateData = ['status' => $validated['status']];
+        if (array_key_exists('admin_notes', $validated)) {
+            $updateData['admin_notes'] = $validated['admin_notes'];
+        }
+        $review->update($updateData);
         Cache::flush();
 
         return response()->json(['data' => $review]);

@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'source_url',
     'variant_name',
     'status',
+    'admin_notes',
 ])]
 class Review extends Model
 {
