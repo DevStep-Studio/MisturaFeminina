@@ -97,42 +97,28 @@ function CheckoutPage() {
     createSignal<PlupagCardData | null>(null);
   const [plupagCardReady, setPlupagCardReady] = createSignal(false);
 
+  const availableProviders = () => {
+    return payments()?.available_providers || [];
+  };
+  const hasMultipleProviders = () => availableProviders().length > 1;
+
   createEffect(() => {
     const p = payments();
-    if (p && p.provider) {
-      setSelectedProvider(p.provider);
+    if (p) {
+      const list = p.available_providers || [];
+      if (list.length > 0) {
+        if (!list.some((item) => item.id === selectedProvider())) {
+          if (p.provider && list.some((item) => item.id === p.provider)) {
+            setSelectedProvider(p.provider as any);
+          } else {
+            setSelectedProvider(list[0].id as any);
+          }
+        }
+      } else if (p.provider) {
+        setSelectedProvider(p.provider as any);
+      }
     }
   });
-
-  const availableProviders = () => {
-    const list = payments()?.available_providers;
-    if (list && list.length >= 2) return list;
-    return [
-      {
-        id: "mercadopago" as const,
-        name: "Mercado Pago",
-        environment: payments()?.environment || "production",
-        public_key: payments()?.public_key || null,
-        methods: ["pix", "credit_card", "boleto"] as (
-          | "pix"
-          | "credit_card"
-          | "boleto"
-        )[],
-      },
-      {
-        id: "plupag" as const,
-        name: "Plupag",
-        environment: "production",
-        public_key: payments()?.plupag_public_key || null,
-        methods: ["pix", "credit_card"] as (
-          | "pix"
-          | "credit_card"
-          | "boleto"
-        )[],
-      },
-    ];
-  };
-  const hasMultipleProviders = () => true;
   const isPlupag = () => selectedProvider() === "plupag";
   const isMercadoPago = () => selectedProvider() === "mercadopago";
 
@@ -706,116 +692,122 @@ function CheckoutPage() {
                           ? "Asaas"
                           : "Mercado Pago"}
                     </h2>
-                    <p class="mt-1 text-xs text-zinc-500">
-                      Escolha a instituição de sua preferência para processar o pagamento com segurança:
-                    </p>
+                    <Show when={hasMultipleProviders()}>
+                      <p class="mt-1 text-xs text-zinc-500">
+                        Escolha a instituição de sua preferência para processar o pagamento com segurança:
+                      </p>
+                    </Show>
                   </div>
 
                   {/* Seletor visual de Provedores: Mercado Pago ou Plupag */}
-                  <div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {/* Opção Mercado Pago */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedProvider("mercadopago");
-                      }}
-                      class={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
-                        selectedProvider() === "mercadopago"
-                          ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e] shadow-xs"
-                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
-                      }`}
-                      aria-pressed={selectedProvider() === "mercadopago"}
-                    >
-                      <div class="flex items-center gap-3">
-                        <div
-                          class={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                            selectedProvider() === "mercadopago"
-                              ? "bg-[#93509e] text-white shadow-2xs"
-                              : "bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200"
-                          }`}
-                        >
-                          <CreditCard class="size-5" />
-                        </div>
-                        <div>
-                          <div class="flex items-center gap-2">
-                            <span class="text-sm font-bold text-zinc-900">
-                              Mercado Pago
-                            </span>
-                            <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
-                              Oficial
-                            </span>
-                          </div>
-                          <p class="mt-0.5 text-xs text-zinc-500">
-                            Pix, Cartão de Crédito ou Boleto
-                          </p>
-                        </div>
-                      </div>
-                      <div
-                        class={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                  <Show when={hasMultipleProviders()}>
+                    <div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {/* Opção Mercado Pago */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedProvider("mercadopago");
+                          setError(null);
+                        }}
+                        class={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
                           selectedProvider() === "mercadopago"
-                            ? "border-[#93509e] bg-[#93509e] text-white"
-                            : "border-zinc-300 bg-white"
+                            ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e] shadow-xs"
+                            : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
                         }`}
+                        aria-pressed={selectedProvider() === "mercadopago"}
                       >
-                        <Show when={selectedProvider() === "mercadopago"}>
-                          <div class="size-2 rounded-full bg-white" />
-                        </Show>
-                      </div>
-                    </button>
-
-                    {/* Opção Plupag */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedProvider("plupag");
-                        if (method() === "boleto") {
-                          setMethod("pix");
-                        }
-                      }}
-                      class={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
-                        selectedProvider() === "plupag"
-                          ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e] shadow-xs"
-                          : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
-                      }`}
-                      aria-pressed={selectedProvider() === "plupag"}
-                    >
-                      <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3">
+                          <div
+                            class={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                              selectedProvider() === "mercadopago"
+                                ? "bg-[#93509e] text-white shadow-2xs"
+                                : "bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200"
+                            }`}
+                          >
+                            <CreditCard class="size-5" />
+                          </div>
+                          <div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm font-bold text-zinc-900">
+                                Mercado Pago
+                              </span>
+                              <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                                Oficial
+                              </span>
+                            </div>
+                            <p class="mt-0.5 text-xs text-zinc-500">
+                              Pix, Cartão de Crédito ou Boleto
+                            </p>
+                          </div>
+                        </div>
                         <div
-                          class={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                            selectedProvider() === "plupag"
-                              ? "bg-[#93509e] text-white shadow-2xs"
-                              : "bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200"
+                          class={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                            selectedProvider() === "mercadopago"
+                              ? "border-[#93509e] bg-[#93509e] text-white"
+                              : "border-zinc-300 bg-white"
                           }`}
                         >
-                          <Sparkles class="size-5" />
+                          <Show when={selectedProvider() === "mercadopago"}>
+                            <div class="size-2 rounded-full bg-white" />
+                          </Show>
                         </div>
-                        <div>
-                          <div class="flex items-center gap-2">
-                            <span class="text-sm font-bold text-zinc-900">
-                              Plupag
-                            </span>
-                            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                              Até 12x
-                            </span>
-                          </div>
-                          <p class="mt-0.5 text-xs text-zinc-500">
-                            Pix Instantâneo ou Cartão
-                          </p>
-                        </div>
-                      </div>
-                      <div
-                        class={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                      </button>
+
+                      {/* Opção Plupag */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedProvider("plupag");
+                          if (method() === "boleto") {
+                            setMethod("pix");
+                          }
+                          setError(null);
+                        }}
+                        class={`group relative flex items-center justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
                           selectedProvider() === "plupag"
-                            ? "border-[#93509e] bg-[#93509e] text-white"
-                            : "border-zinc-300 bg-white"
+                            ? "border-[#93509e] bg-[#FAF2FC] ring-2 ring-[#93509e] shadow-xs"
+                            : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
                         }`}
+                        aria-pressed={selectedProvider() === "plupag"}
                       >
-                        <Show when={selectedProvider() === "plupag"}>
-                          <div class="size-2 rounded-full bg-white" />
-                        </Show>
-                      </div>
-                    </button>
-                  </div>
+                        <div class="flex items-center gap-3">
+                          <div
+                            class={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                              selectedProvider() === "plupag"
+                                ? "bg-[#93509e] text-white shadow-2xs"
+                                : "bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200"
+                            }`}
+                          >
+                            <Sparkles class="size-5" />
+                          </div>
+                          <div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm font-bold text-zinc-900">
+                                Plupag
+                              </span>
+                              <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                Até 12x
+                              </span>
+                            </div>
+                            <p class="mt-0.5 text-xs text-zinc-500">
+                              Pix Instantâneo ou Cartão
+                            </p>
+                          </div>
+                        </div>
+                        <div
+                          class={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-all ${
+                            selectedProvider() === "plupag"
+                              ? "border-[#93509e] bg-[#93509e] text-white"
+                              : "border-zinc-300 bg-white"
+                          }`}
+                        >
+                          <Show when={selectedProvider() === "plupag"}>
+                            <div class="size-2 rounded-full bg-white" />
+                          </Show>
+                        </div>
+                      </button>
+                    </div>
+                  </Show>
 
                   <p class="mb-2.5 text-xs font-semibold text-zinc-700">
                     Selecione o método de pagamento:

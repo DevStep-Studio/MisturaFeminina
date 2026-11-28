@@ -84,10 +84,6 @@ class PaymentSettings
             }
         }
 
-        if (count($active) <= 1 && isset($all['mercadopago']) && isset($all['plupag'])) {
-            return array_values($all);
-        }
-
         return $active;
     }
 
