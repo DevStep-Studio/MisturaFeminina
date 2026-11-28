@@ -247,7 +247,7 @@ export function SelfServiceSupportModal() {
                     </div>
                   }
                 >
-                  <div class="space-y-2">
+                  <div class="space-y-1.5">
                     <For each={searchResults()}>
                       {({ topic, question }) => (
                         <button
@@ -256,17 +256,17 @@ export function SelfServiceSupportModal() {
                             selfServiceStore.setSearchQuery("");
                             selfServiceStore.selectQuestion(question.id, topic.id);
                           }}
-                          class="group flex w-full flex-col items-start rounded-xl border border-zinc-200/90 bg-white p-3.5 text-left transition hover:border-[#93509e] hover:bg-[#FAF5FB] hover:shadow-xs active:scale-[0.99]"
+                          class="group flex w-full items-center justify-between gap-3 rounded-md border border-zinc-200 bg-white px-3 py-2.5 text-left transition hover:border-[#93509e] hover:bg-zinc-50 active:scale-[0.99] cursor-pointer"
                         >
-                          <span class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#93509e]">
-                            <span>{topic.title}</span>
-                          </span>
-                          <span class="mt-1 font-semibold text-[#2E1049] group-hover:text-[#93509e]">
-                            {question.question}
-                          </span>
-                          <span class="mt-1 line-clamp-2 text-xs text-zinc-500">
-                            {question.shortAnswer}
-                          </span>
+                          <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-[11px] font-bold text-[#93509e] shrink-0 whitespace-nowrap">
+                              [{topic.title}]
+                            </span>
+                            <span class="text-xs sm:text-sm font-medium text-zinc-900 group-hover:text-[#93509e] truncate whitespace-nowrap">
+                              {question.question}
+                            </span>
+                          </div>
+                          <ChevronRight class="size-4 shrink-0 text-zinc-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#93509e]" aria-hidden="true" />
                         </button>
                       )}
                     </For>
@@ -402,38 +402,36 @@ export function SelfServiceSupportModal() {
                 const IconComponent = getTopicIcon(t.icon);
                 return (
                   <div class="space-y-4 animate-in fade-in duration-200">
-                    {/* Topic Header Card */}
-                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
-                      <div class="flex items-center gap-3">
-                        <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#93509e] text-white">
-                          <IconComponent class="size-4" aria-hidden="true" />
-                        </div>
-                        <div class="flex items-center gap-2 min-w-0">
-                          <h3 class="text-sm font-bold text-zinc-900 truncate">
-                            {t.title}
-                          </h3>
-                          <Show when={t.badge}>
-                            <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
-                              {t.badge}
-                            </span>
-                          </Show>
-                        </div>
+                    {/* Topic Header Card (Simple Text Box Model) */}
+                    <div class="flex items-center justify-between rounded-md border border-zinc-200 bg-white px-3 py-2.5">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <IconComponent class="size-4 shrink-0 text-[#93509e]" aria-hidden="true" />
+                        <h3 class="text-sm font-semibold text-zinc-900 truncate whitespace-nowrap">
+                          {t.title}
+                        </h3>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => selfServiceStore.goBack()}
+                        class="text-xs font-medium text-[#93509e] hover:underline cursor-pointer shrink-0"
+                      >
+                        Trocar assunto
+                      </button>
                     </div>
 
-                    {/* List of Questions in Topic */}
-                    <div class="space-y-2">
-                      <p class="text-xs font-bold uppercase tracking-wider text-[#7C3F87]">
-                        Selecione a sua dúvida ({t.questions.length}):
+                    {/* List of Questions in Topic (Clean Text Box Model - Single Line, No Line Breaks) */}
+                    <div class="space-y-1.5">
+                      <p class="text-xs font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
+                        Dúvidas Frequentes ({t.questions.length}):
                       </p>
                       <For each={t.questions}>
                         {(q) => (
                           <button
                             type="button"
                             onClick={() => selfServiceStore.selectQuestion(q.id)}
-                            class="group flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200/90 bg-white p-3.5 text-left transition hover:border-[#93509e] hover:bg-[#FAF5FB] hover:shadow-xs active:scale-[0.99]"
+                            class="group flex w-full items-center justify-between gap-3 rounded-md border border-zinc-200 bg-white px-3 py-2.5 text-left transition hover:border-[#93509e] hover:bg-zinc-50 active:scale-[0.99] cursor-pointer"
                           >
-                            <span class="text-xs font-bold text-[#2E1049] group-hover:text-[#93509e] sm:text-sm">
+                            <span class="text-xs sm:text-sm font-medium text-zinc-900 group-hover:text-[#93509e] truncate whitespace-nowrap">
                               {q.question}
                             </span>
                             <ChevronRight
@@ -454,52 +452,37 @@ export function SelfServiceSupportModal() {
               when={searchQuery().trim().length < 2 && currentView() === "home"}
             >
               <div class="space-y-4 animate-in fade-in duration-200">
-                {/* Quick Shortcuts Bar */}
-                <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-                  <p class="text-xs font-semibold text-zinc-700 whitespace-nowrap mb-2">
-                    Atendimento rápido · Selecione o assunto:
-                  </p>
+                {/* Quick Shortcuts Bar (Clean Text Box Model) */}
+                <div class="grid grid-cols-3 gap-2">
+                  <Link
+                    to="/rastrear-pedido"
+                    onClick={() => selfServiceStore.close()}
+                    class="flex items-center justify-center gap-1.5 rounded-md border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-medium text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e] whitespace-nowrap cursor-pointer"
+                  >
+                    <Truck class="size-3.5 shrink-0 text-[#93509e]" aria-hidden="true" />
+                    <span class="truncate">Rastrear</span>
+                  </Link>
 
-                  <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <Link
-                      to="/rastrear-pedido"
-                      onClick={() => selfServiceStore.close()}
-                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e]"
-                    >
-                      <Truck class="size-3.5 text-[#93509e]" aria-hidden="true" />
-                      <span class="truncate">Rastrear</span>
-                    </Link>
+                  <button
+                    type="button"
+                    onClick={() => selfServiceStore.selectTopic("pagamentos")}
+                    class="flex items-center justify-center gap-1.5 rounded-md border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-medium text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e] whitespace-nowrap cursor-pointer"
+                  >
+                    <CreditCard class="size-3.5 shrink-0 text-[#93509e]" aria-hidden="true" />
+                    <span class="truncate">Pix & Cartão</span>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => selfServiceStore.selectTopic("pagamentos")}
-                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e] cursor-pointer"
-                    >
-                      <CreditCard class="size-3.5 text-[#93509e]" aria-hidden="true" />
-                      <span class="truncate">Pix & Cartão</span>
-                    </button>
-
-                    <Link
-                      to="/atacado"
-                      onClick={() => selfServiceStore.close()}
-                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e]"
-                    >
-                      <Boxes class="size-3.5 text-[#93509e]" aria-hidden="true" />
-                      <span class="truncate">Atacado</span>
-                    </Link>
-
-                    <Link
-                      to="/minha-reposicao"
-                      onClick={() => selfServiceStore.close()}
-                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e]"
-                    >
-                      <Sparkles class="size-3.5 text-[#93509e]" aria-hidden="true" />
-                      <span class="truncate">Reposição</span>
-                    </Link>
-                  </div>
+                  <Link
+                    to="/atacado"
+                    onClick={() => selfServiceStore.close()}
+                    class="flex items-center justify-center gap-1.5 rounded-md border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-medium text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e] whitespace-nowrap cursor-pointer"
+                  >
+                    <Boxes class="size-3.5 shrink-0 text-[#93509e]" aria-hidden="true" />
+                    <span class="truncate">Atacado</span>
+                  </Link>
                 </div>
 
-                {/* Topics List */}
+                {/* Topics List (Clean Text Box Model - Single Line, No Line Breaks) */}
                 <div class="space-y-1.5">
                   <p class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2 whitespace-nowrap">
                     Principais Assuntos ({SELF_SERVICE_TOPICS.length})
@@ -513,20 +496,13 @@ export function SelfServiceSupportModal() {
                           <button
                             type="button"
                             onClick={() => selfServiceStore.selectTopic(topic.id)}
-                            class="group flex w-full items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-left transition hover:border-[#93509e] hover:bg-zinc-50 active:scale-[0.99] cursor-pointer"
+                            class="group flex w-full items-center justify-between gap-3 rounded-md border border-zinc-200 bg-white px-3 py-2.5 text-left transition hover:border-[#93509e] hover:bg-zinc-50 active:scale-[0.99] cursor-pointer"
                           >
                             <div class="flex items-center gap-2.5 min-w-0">
-                              <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-[#93509e] transition group-hover:bg-[#93509e] group-hover:text-white">
-                                <IconComponent class="size-3.5" aria-hidden="true" />
-                              </div>
-                              <span class="text-xs sm:text-sm font-semibold text-zinc-900 group-hover:text-[#93509e] truncate">
+                              <IconComponent class="size-4 shrink-0 text-[#93509e]" aria-hidden="true" />
+                              <span class="text-xs sm:text-sm font-medium text-zinc-800 group-hover:text-[#93509e] truncate whitespace-nowrap">
                                 {topic.title}
                               </span>
-                              <Show when={topic.badge}>
-                                <span class="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
-                                  {topic.badge}
-                                </span>
-                              </Show>
                             </div>
 
                             <ChevronRight
