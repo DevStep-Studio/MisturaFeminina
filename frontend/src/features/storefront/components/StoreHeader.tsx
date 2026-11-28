@@ -725,7 +725,7 @@ export function StoreHeader() {
         class="hidden bg-[#FFF3FF] lg:block"
       >
         <div class="relative mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-2 xl:px-6 2xl:gap-4">
-          <div class="flex min-w-0 flex-1 items-center gap-2 pr-1 text-[12px] font-bold text-[#2E1049] xl:gap-3 xl:text-[13px] 2xl:gap-4 2xl:pr-4 2xl:text-[13.5px]">
+          <div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden pr-2 text-[12px] font-bold text-[#2E1049] xl:gap-3 xl:text-[13px] 2xl:gap-3.5 2xl:pr-4 2xl:text-[13px]">
             {/* Todas Categorias Mega-Menu */}
             <div
               class="shrink-0"
@@ -783,13 +783,13 @@ export function StoreHeader() {
             </div>
 
             {/* Top-level Categories with Rich Minimalist Dropdown */}
-            <For each={categories().slice(0, 8)}>
+            <For each={categories().slice(0, 6)}>
               {(cat, idx) => {
                 const key = () => `cat:${cat.id}` as const;
-                const alignRight = () => idx() >= 5;
+                const alignRight = () => idx() >= 4;
                 return (
                   <div
-                    class={`relative shrink-0 ${idx() >= 6 ? "hidden 2xl:block" : idx() >= 5 ? "hidden xl:block" : ""}`}
+                    class={`relative shrink-0 ${idx() >= 5 ? "hidden 2xl:block" : idx() >= 4 ? "hidden xl:block" : ""}`}
                     onMouseEnter={() => openPopover(key())}
                     onMouseLeave={scheduleClosePopover}
                   >
@@ -896,7 +896,7 @@ export function StoreHeader() {
           </div>
 
           {/* Right Action Buttons */}
-          <div class="flex shrink-0 items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2 pl-3">
             {/* Atacado Link */}
             <Link
               to="/atacado"
