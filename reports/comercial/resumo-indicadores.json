@@ -1,0 +1,34 @@
+{
+  "lastRun": {
+    "date": "2026-11-27",
+    "time": "23:52:30",
+    "iso": "2026-11-27T23:52:30-03:00",
+    "vitrineStatus": 200,
+    "vitrineLatency": 590,
+    "sitemapUrls": 216,
+    "feedProducts": 108,
+    "catalogTotal": 82,
+    "catalogInStock": 48,
+    "catalogOutOfStock": 0,
+    "catalogVariable": 12,
+    "catalogSimple": 36,
+    "categoriesCount": 7
+  },
+  "history": [
+    {
+      "date": "2026-11-27",
+      "time": "23:52:30",
+      "iso": "2026-11-27T23:52:30-03:00",
+      "vitrineStatus": 200,
+      "vitrineLatency": 590,
+      "sitemapUrls": 216,
+      "feedProducts": 108,
+      "catalogTotal": 82,
+      "catalogInStock": 48,
+      "catalogOutOfStock": 0,
+      "catalogVariable": 12,
+      "catalogSimple": 36,
+      "categoriesCount": 7
+    }
+  ]
+}

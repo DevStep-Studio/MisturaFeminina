@@ -1,0 +1,38 @@
+name: Rotina Comercial Diária às 7h (Mistura Feminina)
+
+on:
+  schedule:
+    # 07:00 Horário de Brasília (BRT, UTC-3) = 10:00 UTC
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+# Impede execuções simultâneas
+concurrency:
+  group: rotina-comercial-diaria
+  cancel-in-progress: false
+
+jobs:
+  auditoria-comercial:
+    name: Auditoria Comercial e Feed GMC
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Executar Auditoria Comercial Diária (07:00 BRT)
+        run: node scripts/rotina-comercial-diaria.mjs
+
+      - name: Salvar Relatórios Diários como Artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-comerciais
+          path: |
+            reports/comercial/
+          retention-days: 90
