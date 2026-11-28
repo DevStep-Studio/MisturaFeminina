@@ -128,9 +128,9 @@ export function SelfServiceSupportModal() {
         {/* Sliding Panel */}
         <div class="relative flex h-full w-full max-w-[540px] flex-col bg-white shadow-2xl transition-transform duration-300 animate-in slide-in-from-right">
           {/* Header */}
-          <div class="border-b border-[#F2D7F3] bg-gradient-to-r from-[#FFF3FF] to-[#FAF2FC] px-4 py-3.5 sm:px-6">
+          <div class="border-b border-zinc-200 bg-white px-4 py-3.5 sm:px-6">
             <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-1.5">
+              <div class="flex items-center gap-2">
                 {/* Back button */}
                 <Show when={currentView() !== "home" || searchQuery().trim().length > 0}>
                   <button
@@ -142,7 +142,7 @@ export function SelfServiceSupportModal() {
                         selfServiceStore.goBack();
                       }
                     }}
-                    class="inline-flex size-8 items-center justify-center rounded-lg border border-[#E9CCE9] bg-white text-[#2E1049] transition hover:bg-[#FBEBF9] hover:text-[#93509e] active:scale-95"
+                    class="inline-flex size-8 items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-800 transition hover:bg-zinc-50 active:scale-95"
                     aria-label="Voltar para a etapa anterior"
                     title="Voltar"
                   >
@@ -155,7 +155,7 @@ export function SelfServiceSupportModal() {
                   <button
                     type="button"
                     onClick={() => selfServiceStore.goHome()}
-                    class="inline-flex size-8 items-center justify-center rounded-lg border border-[#E9CCE9] bg-white text-[#2E1049] transition hover:bg-[#FBEBF9] hover:text-[#93509e] active:scale-95"
+                    class="inline-flex size-8 items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-800 transition hover:bg-zinc-50 active:scale-95"
                     aria-label="Voltar ao início da central de ajuda"
                     title="Início"
                   >
@@ -163,21 +163,16 @@ export function SelfServiceSupportModal() {
                   </button>
                 </Show>
 
-                <div class="ml-1 flex items-center gap-2">
+                <div class="flex items-center gap-2.5">
                   <div class="flex size-7 items-center justify-center rounded-lg bg-[#93509e] text-white">
                     <Headset class="size-4" aria-hidden="true" />
                   </div>
-                  <div>
-                    <h2
-                      id="support-modal-title"
-                      class="text-sm font-bold text-[#2E1049] sm:text-base"
-                    >
-                      Central de Autoatendimento
-                    </h2>
-                    <p class="text-[11px] font-medium text-[#7C3F87]">
-                      Mistura Feminina Cosméticos
-                    </p>
-                  </div>
+                  <h2
+                    id="support-modal-title"
+                    class="text-sm font-bold text-zinc-900 sm:text-base whitespace-nowrap"
+                  >
+                    Central de Autoatendimento
+                  </h2>
                 </div>
               </div>
 
@@ -185,7 +180,7 @@ export function SelfServiceSupportModal() {
               <button
                 type="button"
                 onClick={() => selfServiceStore.close()}
-                class="inline-flex size-8 items-center justify-center rounded-lg text-[#5B486B] transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-95"
+                class="inline-flex size-8 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-95"
                 aria-label="Fechar autoatendimento"
               >
                 <X class="size-5" aria-hidden="true" />
@@ -196,7 +191,7 @@ export function SelfServiceSupportModal() {
             <div class="mt-3">
               <div class="relative flex items-center">
                 <Search
-                  class="pointer-events-none absolute left-3 size-4 text-[#93509e]"
+                  class="pointer-events-none absolute left-3 size-4 text-zinc-400"
                   aria-hidden="true"
                 />
                 <input
@@ -205,7 +200,7 @@ export function SelfServiceSupportModal() {
                   onInput={(e) => selfServiceStore.setSearchQuery(e.currentTarget.value)}
                   placeholder="Pesquisar por frete, pix, rastreio, atacado..."
                   aria-label="Buscar dúvida no autoatendimento"
-                  class="w-full rounded-xl border border-[#DFC4E6] bg-white py-2 pl-9 pr-8 text-xs font-medium text-[#2E1049] placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-none focus:ring-2 focus:ring-[#93509e]/15 sm:text-sm"
+                  class="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-8 text-xs font-medium text-zinc-900 placeholder:text-zinc-400 focus:border-[#93509e] focus:outline-hidden focus:ring-1 focus:ring-[#93509e] sm:text-sm"
                 />
                 <Show when={searchQuery().trim().length > 0}>
                   <button
@@ -408,25 +403,20 @@ export function SelfServiceSupportModal() {
                 return (
                   <div class="space-y-4 animate-in fade-in duration-200">
                     {/* Topic Header Card */}
-                    <div class="rounded-2xl border border-[#F2D7F3] bg-gradient-to-br from-[#FFF5FF] to-white p-4">
-                      <div class="flex items-start gap-3">
-                        <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#93509e] text-white shadow-xs">
-                          <IconComponent class="size-5" aria-hidden="true" />
+                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
+                      <div class="flex items-center gap-3">
+                        <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#93509e] text-white">
+                          <IconComponent class="size-4" aria-hidden="true" />
                         </div>
-                        <div>
-                          <div class="flex items-center gap-2">
-                            <h3 class="text-base font-extrabold text-[#2E1049]">
-                              {t.title}
-                            </h3>
-                            <Show when={t.badge}>
-                              <span class="rounded-full bg-[#FCE7F6] px-2 py-0.5 text-[10px] font-bold text-[#7C3F87]">
-                                {t.badge}
-                              </span>
-                            </Show>
-                          </div>
-                          <p class="mt-1 text-xs leading-relaxed text-zinc-600">
-                            {t.description}
-                          </p>
+                        <div class="flex items-center gap-2 min-w-0">
+                          <h3 class="text-sm font-bold text-zinc-900 truncate">
+                            {t.title}
+                          </h3>
+                          <Show when={t.badge}>
+                            <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
+                              {t.badge}
+                            </span>
+                          </Show>
                         </div>
                       </div>
                     </div>
@@ -463,74 +453,59 @@ export function SelfServiceSupportModal() {
             <Show
               when={searchQuery().trim().length < 2 && currentView() === "home"}
             >
-              <div class="space-y-5 animate-in fade-in duration-200">
-                {/* Welcoming banner */}
-                <div class="rounded-2xl border border-[#F2D7F3] bg-gradient-to-r from-[#FFF0FA] via-[#FAF3FC] to-white p-4">
-                  <p class="text-xs font-bold uppercase tracking-wider text-[#93509e]">
-                    Atendimento Rápido
-                  </p>
-                  <h3 class="mt-0.5 text-sm font-extrabold text-[#2E1049] sm:text-base">
-                    Como podemos te ajudar hoje?
-                  </h3>
-                  <p class="mt-1 text-xs text-zinc-600">
-                    Selecione o assunto da sua dúvida abaixo para encontrar respostas imediatas sobre compras, envios e produtos.
+              <div class="space-y-4 animate-in fade-in duration-200">
+                {/* Quick Shortcuts Bar */}
+                <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                  <p class="text-xs font-semibold text-zinc-700 whitespace-nowrap mb-2">
+                    Atendimento rápido · Selecione o assunto:
                   </p>
 
-                  {/* Fast direct links */}
-                  <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <Link
                       to="/rastrear-pedido"
                       onClick={() => selfServiceStore.close()}
-                      class="flex flex-col items-center justify-center rounded-xl border border-[#DFC4E6] bg-white p-2 text-center transition hover:border-[#93509e] hover:bg-[#FFF5FE]"
+                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e]"
                     >
-                      <Truck class="size-4 text-[#93509e]" aria-hidden="true" />
-                      <span class="mt-1 text-[11px] font-bold text-[#2E1049]">
-                        Rastrear
-                      </span>
+                      <Truck class="size-3.5 text-[#93509e]" aria-hidden="true" />
+                      <span class="truncate">Rastrear</span>
                     </Link>
 
                     <button
                       type="button"
                       onClick={() => selfServiceStore.selectTopic("pagamentos")}
-                      class="flex flex-col items-center justify-center rounded-xl border border-[#DFC4E6] bg-white p-2 text-center transition hover:border-[#93509e] hover:bg-[#FFF5FE]"
+                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e] cursor-pointer"
                     >
-                      <CreditCard class="size-4 text-[#93509e]" aria-hidden="true" />
-                      <span class="mt-1 text-[11px] font-bold text-[#2E1049]">
-                        Pix & Cartão
-                      </span>
+                      <CreditCard class="size-3.5 text-[#93509e]" aria-hidden="true" />
+                      <span class="truncate">Pix & Cartão</span>
                     </button>
 
                     <Link
                       to="/atacado"
                       onClick={() => selfServiceStore.close()}
-                      class="flex flex-col items-center justify-center rounded-xl border border-[#DFC4E6] bg-white p-2 text-center transition hover:border-[#93509e] hover:bg-[#FFF5FE]"
+                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e]"
                     >
-                      <Boxes class="size-4 text-[#93509e]" aria-hidden="true" />
-                      <span class="mt-1 text-[11px] font-bold text-[#2E1049]">
-                        Atacado
-                      </span>
+                      <Boxes class="size-3.5 text-[#93509e]" aria-hidden="true" />
+                      <span class="truncate">Atacado</span>
                     </Link>
 
                     <Link
                       to="/minha-reposicao"
                       onClick={() => selfServiceStore.close()}
-                      class="flex flex-col items-center justify-center rounded-xl border border-[#DFC4E6] bg-white p-2 text-center transition hover:border-[#93509e] hover:bg-[#FFF5FE]"
+                      class="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-200 bg-white py-2 px-2 text-center text-xs font-semibold text-zinc-800 transition hover:border-[#93509e] hover:text-[#93509e]"
                     >
-                      <Sparkles class="size-4 text-[#93509e]" aria-hidden="true" />
-                      <span class="mt-1 text-[11px] font-bold text-[#2E1049]">
-                        Reposição
-                      </span>
+                      <Sparkles class="size-3.5 text-[#93509e]" aria-hidden="true" />
+                      <span class="truncate">Reposição</span>
                     </Link>
                   </div>
                 </div>
 
-                {/* Topics Grid */}
-                <div class="space-y-2">
-                  <p class="text-xs font-bold uppercase tracking-wider text-[#7C3F87]">
+                {/* Topics List */}
+                <div class="space-y-1.5">
+                  <p class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2 whitespace-nowrap">
                     Principais Assuntos ({SELF_SERVICE_TOPICS.length})
                   </p>
 
-                  <div class="grid gap-2">
+                  <div class="grid gap-1.5">
                     <For each={SELF_SERVICE_TOPICS}>
                       {(topic) => {
                         const IconComponent = getTopicIcon(topic.icon);
@@ -538,27 +513,20 @@ export function SelfServiceSupportModal() {
                           <button
                             type="button"
                             onClick={() => selfServiceStore.selectTopic(topic.id)}
-                            class="group flex w-full items-center justify-between rounded-xl border border-zinc-200/90 bg-white p-3.5 text-left transition hover:border-[#93509e] hover:bg-[#FAF5FB] hover:shadow-xs active:scale-[0.99]"
+                            class="group flex w-full items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-left transition hover:border-[#93509e] hover:bg-zinc-50 active:scale-[0.99] cursor-pointer"
                           >
-                            <div class="flex items-center gap-3">
-                              <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#FAF0FA] text-[#93509e] transition group-hover:bg-[#93509e] group-hover:text-white">
-                                <IconComponent class="size-4" aria-hidden="true" />
+                            <div class="flex items-center gap-2.5 min-w-0">
+                              <div class="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-[#93509e] transition group-hover:bg-[#93509e] group-hover:text-white">
+                                <IconComponent class="size-3.5" aria-hidden="true" />
                               </div>
-                              <div>
-                                <div class="flex items-center gap-2">
-                                  <span class="text-xs font-bold text-[#2E1049] group-hover:text-[#93509e] sm:text-sm">
-                                    {topic.title}
-                                  </span>
-                                  <Show when={topic.badge}>
-                                    <span class="rounded-full bg-[#FCE7F6] px-2 py-0.5 text-[10px] font-bold text-[#7C3F87]">
-                                      {topic.badge}
-                                    </span>
-                                  </Show>
-                                </div>
-                                <p class="mt-0.5 line-clamp-1 text-[11px] text-zinc-500">
-                                  {topic.description}
-                                </p>
-                              </div>
+                              <span class="text-xs sm:text-sm font-semibold text-zinc-900 group-hover:text-[#93509e] truncate">
+                                {topic.title}
+                              </span>
+                              <Show when={topic.badge}>
+                                <span class="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-bold text-zinc-600">
+                                  {topic.badge}
+                                </span>
+                              </Show>
                             </div>
 
                             <ChevronRight
@@ -576,23 +544,18 @@ export function SelfServiceSupportModal() {
           </div>
 
           {/* Footer Bar (Fixed Bottom WhatsApp Help) */}
-          <div class="border-t border-zinc-200/90 bg-[#FAF8FB] p-4 sm:px-6">
-            <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="text-xs font-bold text-[#2E1049]">
-                  Ainda precisa de ajuda?
-                </p>
-                <p class="text-[11px] text-zinc-500">
-                  Fale com a nossa equipe no WhatsApp em horário comercial.
-                </p>
-              </div>
+          <div class="border-t border-zinc-200 bg-white p-3.5 sm:px-6">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-xs font-medium text-zinc-700 whitespace-nowrap">
+                Ainda precisa de ajuda? Fale com a equipe no WhatsApp.
+              </p>
 
               <a
                 href={whatsHelpUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => trackContactClick("whatsapp")}
-                class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#1da851] active:scale-95"
+                class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white transition hover:bg-[#1da851] active:scale-95"
               >
                 <MessageCircle class="size-4" aria-hidden="true" />
                 <span>Chamar no WhatsApp</span>

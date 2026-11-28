@@ -11,28 +11,18 @@ export function HomeSelfServiceBanner() {
       aria-label="Central de Autoatendimento e Dúvidas"
       class="mf-scroll-reveal mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
     >
-      <div class="relative overflow-hidden rounded-3xl border border-[#DFC2E3]/90 bg-gradient-to-br from-[#FAF5FB] via-[#F6EBF8] to-white p-6 shadow-[0_8px_30px_rgba(147,80,158,0.08)] sm:p-8 lg:p-10">
-        {/* Glow decorativo de fundo */}
-        <div
-          class="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-[#93509e]/10 blur-3xl"
-          aria-hidden="true"
-        />
-        <div
-          class="pointer-events-none absolute -bottom-20 -left-20 size-80 rounded-full bg-[#DFC2E3]/20 blur-3xl"
-          aria-hidden="true"
-        />
-
+      <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-xs sm:p-8 lg:p-10">
         <div class="relative flex flex-col items-center justify-between gap-8 lg:flex-row lg:items-center">
           {/* Lado Esquerdo: Textos & Botão Principal */}
           <div class="max-w-xl text-center lg:text-left">
-            <div class="inline-flex items-center gap-2 rounded-full border border-[#DFC2E3] bg-white/90 px-3.5 py-1 text-xs font-bold text-[#7C2784] shadow-2xs backdrop-blur-xs">
+            <div class="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-700">
               <span class="flex size-2">
                 <span class="relative inline-flex size-2 rounded-full bg-emerald-500" />
               </span>
               <span>Central de Atendimento 24h</span>
             </div>
 
-            <h2 class="mt-4 text-2xl font-extrabold tracking-tight text-[#2E0C49] sm:text-3xl lg:text-4xl">
+            <h2 class="mt-4 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
               Dúvidas sobre pedidos, entrega ou produtos?
             </h2>
 
@@ -45,7 +35,7 @@ export function HomeSelfServiceBanner() {
                 type="button"
                 onClick={() => selfServiceStore.open()}
                 aria-label="Abrir Central de Autoatendimento Mistura Feminina"
-                class="inline-flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#93509e] via-[#853491] to-[#6d1b7a] px-6 py-3.5 text-sm sm:text-base font-bold text-white shadow-[0_4px_16px_rgba(147,80,158,0.35)] transition-all duration-200 hover:scale-102 hover:shadow-[0_8px_24px_rgba(147,80,158,0.45)] active:scale-98 cursor-pointer"
+                class="inline-flex items-center justify-center gap-2.5 rounded-xl bg-[#93509e] px-6 py-3.5 text-sm sm:text-base font-bold text-white shadow-xs transition hover:bg-[#7d3f87] active:scale-98 cursor-pointer"
               >
                 <Headset class="size-5 shrink-0" aria-hidden="true" />
                 <span>Abrir Autoatendimento</span>

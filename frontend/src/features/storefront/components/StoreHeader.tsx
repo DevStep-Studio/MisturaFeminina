@@ -481,7 +481,7 @@ export function StoreHeader() {
                         closeAllMenus();
                         selfServiceStore.open();
                       }}
-                      class="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-[#93509e] to-[#7C2784] px-3 py-2.5 text-left text-white shadow-xs transition hover:brightness-105 active:scale-[0.98] cursor-pointer"
+                      class="flex w-full items-center justify-between rounded-xl bg-[#93509e] px-3 py-2.5 text-left text-white shadow-xs transition hover:bg-[#7d3f87] active:scale-[0.98] cursor-pointer"
                     >
                       <div class="flex items-center gap-2">
                         <Headset class="size-4 shrink-0" aria-hidden="true" />
